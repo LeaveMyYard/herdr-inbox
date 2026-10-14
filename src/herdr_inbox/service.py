@@ -80,10 +80,11 @@ def ask(
     asked_by: str | None = None,
     header: str | None = None,
     multi_select: bool = False,
+    title: str | None = None,
 ) -> dict:
     """File one question (a group of one); the receipt keeps its single-question shape."""
     out = ask_group(store, caller, [{"question": question, "options": options, "header": header,
-                                     "multi_select": multi_select}], context, asked_by)
+                                     "multi_select": multi_select}], context, asked_by, title=title)
     return out["questions"][0] if "questions" in out else out
 
 
@@ -93,10 +94,12 @@ def ask_group(
     items: list[dict],
     context: str | None = None,
     asked_by: str | None = None,
+    title: str | None = None,
 ) -> dict:
     """File several related questions at once (AskUserQuestion's ``questions``).
 
-    Each item gets its own Q id and is deduped on its own; new ones share a group id.
+    Each item gets its own Q id and is deduped on its own; new ones share a group id and
+    the call's ``title`` (shown as the group's name in the popup).
     """
     if not caller.pane_id:
         # Nobody watches the inbox for agents outside herdr: no popup, no notification, no delivery.
@@ -138,9 +141,12 @@ def ask_group(
                 f"this conversation as a message starting with `[inbox]` that names {q.ref}. Continue with "
                 f"work that does not depend on it. Do not repeat the question in chat or call ask_operator "
                 f"for it again.")})
+        if new:
+            store.set_group_title(group_id, title)
     if new:
         refs = ", ".join(q.ref for q in new)
-        herdr.notify(f"{refs} · {new[0].tab_label or new[0].pane_id}", first_line(new[0].question, 200))
+        name = group_name(store.group(group_id))
+        herdr.notify(f"{refs} · {new[0].tab_label or new[0].pane_id}", name)
         update_markers(store, caller.pane_id)
     ids = ", ".join(f"Q{r['id']} ({r['status']})" for r in receipts)
     return {
@@ -149,6 +155,15 @@ def ask_group(
         "message": f"Filed {ids}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working "
         "and do not ask these again.",
     }
+
+
+def group_name(qs: list[Question]) -> str:
+    """The group's name: its title; else (old sessions, single questions) the first
+    question's header, else the first line of the first question."""
+    if not qs:
+        return ""
+    first = qs[0]
+    return first.group_title or first.header or first_line(first.question, 80)
 
 
 def _quote(label: str) -> str:

@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS question_ext (
     options_json    TEXT,
     hidden_at       TEXT
 );
+-- One row per group (one ask_operator call) that was given a title (0.5).
+CREATE TABLE IF NOT EXISTS question_groups (
+    group_id        INTEGER PRIMARY KEY,
+    title           TEXT
+);
 -- Tabs whose label the inbox decorated, and with which marks: only these are ever
 -- stripped, so an operator label such as "Q4 roadmap" is never touched.
 CREATE TABLE IF NOT EXISTS tab_decor (
@@ -69,18 +74,33 @@ ADDED_COLUMNS = {
 
 # Read view, versioned: a release that changes it bumps the name and drops older ones
 # (CREATE VIEW IF NOT EXISTS would keep an old definition). 0.1.x reads no views.
-VIEW = "questions_v4"
-OLD_VIEWS = ("questions_v2", "questions_v3")
+VIEW = "questions_v5"
+OLD_VIEWS = ("questions_v2", "questions_v3", "questions_v4")
 VIEW_SQL = f"""
 CREATE VIEW IF NOT EXISTS {VIEW} AS
     SELECT q.id, q.created_at, q.pane_id, q.tab_id, q.tab_label, q.session_id, q.cwd, q.asked_by,
            q.question, q.options, q.context, q.norm, q.status, q.answer, q.answered_at, q.delivered_at,
            q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
            e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
-           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json, e.hidden_at
-    FROM questions q LEFT JOIN question_ext e ON e.id = q.id;
+           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json, e.hidden_at,
+           g.title AS group_title
+    FROM questions q LEFT JOIN question_ext e ON e.id = q.id
+    LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
 EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+
+
+MAX_TITLE = 60
+
+
+def clean_title(title: str | None) -> str | None:
+    """One line, no control characters, at most MAX_TITLE characters."""
+    if not title:
+        return None
+    text = " ".join("".join(ch if ch.isprintable() else " " for ch in str(title)).split())
+    if len(text) > MAX_TITLE:
+        text = text[: MAX_TITLE - 1] + "…"
+    return text or None
 
 
 def normalize_options(options) -> list[dict] | None:
@@ -152,6 +172,7 @@ class Question:
     group_id: int | None = None  # questions filed by one ask_operator call share it
     draft_json: dict | None = None  # operator's unsent answer, same shape as answer_json
     drafted_at: str | None = None
+    group_title: str | None = None  # the ask_operator call's title (0.5), if the agent gave one
 
     @property
     def group(self) -> int:
@@ -304,6 +325,12 @@ class Store:
              json.dumps(options) if options else None),
         )
         return self.get(cur.lastrowid)
+
+    def set_group_title(self, group_id: int, title: str | None) -> None:
+        title = clean_title(title)
+        if title:
+            self.db.execute("INSERT OR REPLACE INTO question_groups (group_id, title) VALUES (?, ?)",
+                            (group_id, title))
 
     def group(self, group_id: int, include_closed: bool = False) -> list[Question]:
         where = "" if include_closed else " AND status = 'open'"
