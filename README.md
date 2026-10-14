@@ -20,7 +20,7 @@ every agent's open questions in one popup, every answer delivered back to the pa
 
 <br><br>
 
-<img src="docs/screenshots/herdr/group.png" alt="herdr with six agent tabs, three carrying a ❓ count; the inbox popup is open over the Billing API agent on a question with described options" width="920">
+<img src="docs/screenshots/hero.png" alt="herdr with a Claude Code agent that has just filed demo questions; the inbox popup is open over it on a question with described options" width="920">
 
 </div>
 
