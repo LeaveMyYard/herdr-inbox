@@ -8,7 +8,7 @@
     {
       "name": "herdr-inbox",
       "description": "Non-blocking operator questions for agents in herdr: ask_operator MCP tool plus session instructions",
-      "version": "0.3.0",
+      "version": "0.5.0",
       "source": "./",
       "license": "MIT",
       "repository": "https://github.com/LeaveMyYard/herdr-inbox"

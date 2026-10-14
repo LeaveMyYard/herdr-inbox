@@ -24,7 +24,7 @@ async def test_tools_are_registered_with_guidance():
     desc = tools["ask_operator"].description
     for phrase in ("instead of asking in chat", "self-contained", "options", "names the question id (Q<n>)", "Do not repeat"):
         assert phrase in desc
-    assert set(tools["ask_operator"].input_schema["properties"]) == {"question", "options", "context", "asked_by", "header", "multi_select", "questions"}
+    assert set(tools["ask_operator"].input_schema["properties"]) == {"question", "options", "context", "asked_by", "header", "multi_select", "questions", "title"}
 
 
 async def test_full_round_trip_through_registered_tools(fake_herdr, monkeypatch):

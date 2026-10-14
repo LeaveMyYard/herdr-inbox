@@ -238,77 +238,90 @@ the plugin dir.
 
 ## TUI
 
-- No list screen: the popup opens straight into tabs, one per open question.
-  Order: the questions of the pane that was focused when the popup opened
-  (`inbox open` passes `HERDR_PANE_ID` as `INBOX_FOCUS_PANE` via
-  `plugin pane open --env`; fallback: the focused pane from `pane list`),
-  then the rest oldest first; a group's questions stay adjacent. A dim
-  `│ <tab label>` separator marks each agent boundary; the chip row is a
-  horizontal scroll that keeps the current chip visible. Empty: "No open
-  questions", any key closes. The focused pane comes from
+A **group** is one `ask_operator` call (1–4 questions). The popup works per
+group: it lists groups, and inside a group shows that group's questions as
+tabs with its own Submit tab.
+
+- **Opening.** Exactly one open group (and no ⚠ entry): straight into that
+  group; Esc (or Cancel on its Submit tab) closes the popup. Otherwise the
+  **group list**; nothing open: "No open questions" (any key closes; arrivals
+  are announced as "N new question groups — press Tab/→ to view").
+- **Group names (0.5).** `ask_operator(title=…)` names the whole call (≤60
+  chars, sanitised like everything else; strongly requested when asking several
+  questions). Stored once per group in the side table `question_groups`
+  (joined into the read view as `group_title`; `questions` keeps the 0.1.x
+  column set). Untitled calls (older sessions, single questions) fall back to
+  the first question's header, else its first line (`service.group_name`).
+- **Group list**, under a title row ("Open questions · 3 groups · 1 not
+  delivered"), rendered like Claude Code's option list (multiline rows):
+  `❯ 1. Worker rollout settings · 4 questions · 1 drafted · 4m`, with a dim
+  second line `<tab label> · <asked_by> · <header chips>`. Inside a group the
+  name sits above the tabs (a lone untitled question shows its header chip
+  instead). ⚠ undelivered
+  answers are their own entries (`⚠ Q12 not delivered · <tab> · <error>`,
+  question → answer), opening a Retry / Stop-showing view. Order: groups from
+  the focused pane first, then oldest first; ⚠ entries after them. ↑/↓/j/k move,
+  1–9 jump, Enter opens, `d` dismisses the whole group (confirm with `y`), `g`
+  goes to its agent's pane, Esc closes. The focused pane comes from
   `HERDR_PLUGIN_CONTEXT_JSON.focused_pane_id`, then `INBOX_FOCUS_PANE` (set by
-  `inbox open` from the same context or `HERDR_PANE_ID`), then `pane list`.
-- Polls (every 2 s) only ever append tabs (new questions; failed deliveries as
-  `⚠ Q<n> not delivered` tabs with Retry / Stop showing it) or drop tabs that
-  are not current. The current view is never rebuilt for another question: if
-  its own question closes, the tab becomes an inert "Q<n> was closed
-  (withdrawn by the agent / answered elsewhere)" placeholder that ignores Enter
-  and digits and is dropped once the operator switches tabs. Typed text, picks
-  and notes survive other tabs coming and going (the view's mode is updated in
-  place). Whether Enter sends at once (exactly one open question) is decided
-  when the popup opens and re-decided only on the operator's navigation.
-- General rule: no background event (poll, arrival, close, delivery result)
-  changes what the next keypress does. Arrivals never join the tab cycle by
-  themselves: they wait in `pending`, shown as `+N new (press +)` after Submit,
-  and join (before the ⚠ tabs) only when the operator presses `+` or Tab/→ from
-  the empty view, so Tab from any tab reaches the same target as before the
-  arrival. Every question view is armed 0.4 s after it mounts (Enter, digits,
-  Space), however it was reached. Concretely: the send mode changes only
-  on navigation; a question arriving into the empty view is announced ("1 new
-  question — press Tab/→ to view"; any other key still closes); a placeholder
-  tab has no `g`/`d`/Enter/digits; and for 0.5 s after a view change the
-  operator did not cause, every key is dropped (`InboxApp.on_event`).
-- `g` focuses the asking agent's pane for any live question; `d` dismisses only
-  the current question after a confirmation that accepts only `y` (so a quick
-  `dd` keeps it). Both are in the key hint.
-- Cursors are target identities, never row indexes, wherever the rows can
-  change under them: the tab row tracks the current tab (`("q", id)`,
-  `("failed", id)`, Submit); the Submit tab tracks `("item", qid)` /
-  `"submit"` / `"cancel"` and re-resolves after every reload; a vanished target
-  parks the cursor on nothing (Enter does nothing; arrows resume from the top).
-  A question's option list never changes while shown, so its cursor indexes an
-  immutable list.
+  `inbox open`), then `pane list`.
+- **Inside a group**: tabs only for that group's open questions (a dim
+  `│ <tab label>` first) plus its Submit tab. A lone question sends on Enter —
+  only ever after the operator opened it (or the popup opened straight into
+  it). Several: answering drafts (persisted) and moves to the next tab; Submit
+  ("Review your answers", "You have not answered all questions" when some are
+  blank, "Ready to submit your answers?" → Submit answers / Cancel) sends that
+  group's answered questions, batched per pane; unanswered ones stay open.
+  After a send, back to the list at once (the cursor stays on that group; a
+  group sent in full is an inert "sending…" row); the popup closes once the
+  last send has finished with nothing left. Esc goes back to the list without
+  sending. `d` dismisses the current question (confirm with `y`), `g` goes to
+  the agent.
+- **Question view** (unchanged): header chip, question in bold, numbered
+  options with a `❯` cursor, description dimmed, "Notes:" under an option, then
+  "Type something." (Claude Code's Other: the answer in single-select, added to
+  the picks in multi-select) and, in single-select, "Chat about this" (focuses
+  the asking agent's pane; the question stays open). Multi-select ends with a
+  Submit/Next row. Previews sit to the right ("No preview available").
+- **Colours follow Claude Code's theme roles** (read from the 2.1.299 bundle):
+  `suggestion` for the `❯` pointer, the focused option/row and "Notes:";
+  `success` for chosen answers (Claude Code's `figures.tick` ✔ after a picked
+  option and on tabs, `[✔]` multi-select boxes, the
+  Review list's `→ answer`, "N drafted"); `warning` only for warnings (⚠ not
+  delivered, "You have not answered all questions", closed placeholders, the
+  dismiss confirmation). Dark and light values are Claude Code's own
+  (`CC_COLORS`).
+- **No background event changes what the next key does.**
+  - List rows: arrivals are appended at the end, so the cursor's target and
+    every digit keep naming the same rows; a row whose group ended stays in
+    place as an inert "✕ … withdrawn/answered/dismissed" placeholder (Enter,
+    digits to it, `g`, `d` do nothing) until the operator moves the cursor.
+    The list cursor is a target (an entry id), never an index; if its entry is
+    gone when the list reappears it rests on nothing. The list does not wrap
+    around (↓ on the last row stays put), so an arrival is never where a
+    wrapping key lands, and a row that arrived in the background ignores Enter
+    and digits for 1 s (`ROW_ARM_SECONDS`; an arrow may move onto it).
+  - Nothing is ever added to an open group. A question that closes while
+    shown becomes an inert "Q<n> was closed" placeholder tab, dropped once the
+    operator switches tabs; other tabs coming and going never rebuild the
+    current view (typed text, picks, notes survive). The Submit tab's cursor is
+    a target (`("item", qid)` / `"submit"` / `"cancel"`) with an inert rest.
+  - Every view (list, question, Submit, ⚠) ignores Enter and digits for 0.4 s
+    after it appears, however it was reached; for 0.5 s after a view change
+    the operator did not cause, every key is dropped.
+  - The send mode (a lone question sends on Enter) is fixed when the group is
+    opened.
+  - The 0.3 `+N new` marker is gone: its job — keep arrivals out of the tab
+    cycle — is done by the list itself, since arrivals are list rows and never
+    tabs.
 - Every delivery first claims the row with a compare-and-set
   (`delivery_error = 'sending:<time>:<token>'`, taken over after 60 s if its
-  process died) before writing any outcome, including "no live agent" and
-  "conversation changed"; outcomes are written only while the claim is still
-  ours, and a retry that backs off gives the claim back. A claim stranded for
-  more than 60 s shows as a ⚠ undelivered tab, and so does an answer never
-  claimed at all 60 s after it was answered (its process died). A claim is
-  refused once the agent has fetched the answer with `check_answers`. So a popup retry and the MCP
-  retry loop never both send an answer (see the README for the mixed-version
-  window during an upgrade).
-- The question UI mimics Claude Code's AskUserQuestion prompt (strings and
-  behaviour checked against the Claude Code 2.1.299 binary): header chip,
-  question in bold, numbered options with a `❯` cursor (label in the accent
-  colour, description dimmed, "Notes:" under an option), then "Type
-  something." (Claude Code's Other: the answer in single-select, added to the
-  picks in multi-select) and, in single-select, "Chat about this" (focuses the
-  asking agent's pane; the question stays open). Multi-select ends with a
-  Submit/Next row. ↑/↓/j/k move, 1–9 jump, Enter selects (toggles in
-  multi-select, Space too), `n` adds notes, `x` clears, `g` goes to the
-  agent, `d` dismisses the current question (confirmed), Esc closes without sending. Footer: "Enter to
-  select · ↑/↓ to navigate · press n to add notes · Esc to cancel"
-  ("Tab/Arrow keys to navigate" with several tabs). With any option `preview`,
-  options sit left and the highlighted preview right ("No preview available").
-- One open question in total: answering sends at once and the popup closes.
-  Several: answering drafts (persisted) and moves to the next tab; the last tab
-  is Submit: "Review your answers", "You have not answered all questions" when
-  some are blank, "Ready to submit your answers?" with Submit answers / Cancel.
-  Submit sends every answered question in one go, batched per pane; the rest
-  stay open.
-- The highlighted row is always scrolled into view (Enter may send it). Sends
-  run in a background worker; closing the popup waits for an in-flight send.
+  process died) before writing any outcome; outcomes are written only while the
+  claim is still ours, a retry that backs off gives the claim back, and a claim
+  is refused once the agent fetched the answer with `check_answers`. Stranded
+  claims and never-claimed answers show as ⚠ entries after 60 s.
+- The highlighted row is always scrolled into view. Sends run in a background
+  worker; closing the popup waits for an in-flight send.
 
 ## Agent onboarding
 

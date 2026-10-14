@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0
+
+- `ask_operator` takes a `title`: a short name for the whole call (≤60 chars), strongly
+  requested when asking several questions. The group list shows it as each row's main line
+  (`❯ 1. Worker rollout settings · 4 questions · 1 drafted · 4m`), with the tab label, `asked_by`
+  and header chips on the dim second line; inside a group it sits above the tabs. Untitled calls
+  fall back to the single question's header, else its first line.
+- Stored per group in a new side table (`question_groups`); the `questions` table is unchanged.
+
+## 0.4.0
+
+- Submit is per group (one `ask_operator` call). With exactly one open group the popup opens
+  straight into it; with several it opens on a group list styled like Claude Code's option list
+  (`❯ 1. Billing API · planner · 3 questions · 4m`, headers on a second line), with ⚠ undelivered
+  answers as their own entries. Inside a group: its tabs and its own Submit; Esc returns to the
+  list. `d` on the list dismisses a whole group (`y` confirms).
+- Colours follow Claude Code's theme roles: `suggestion` for the cursor and focus, `success` for
+  chosen answers (Review list, ✓), `warning` only for warnings.
+- All 0.3 safety rules carry over to the list: arrivals are appended without moving the cursor's
+  target, ended rows are inert placeholders until the operator moves, every view arms 0.4 s after
+  it appears. The `+N new` marker is gone (arrivals are list rows). The list never wraps around,
+  and a row that just arrived ignores Enter and digits for 1 s.
+
 ## 0.3.0
 
 - The popup opens straight into Claude-Code-style tabs, one per open question (no list screen).

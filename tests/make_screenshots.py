@@ -29,7 +29,8 @@ def populate(store):
     service.ask_group(store, BILLING, [
         {"question": "Which database should the invoice store use?", "header": "DB choice", "options": DB},
         {"question": "Which caches should the API warm on deploy?", "header": "Cache", "multi_select": True,
-         "options": ["redis", "in-process", "CDN"]}], context="Invoice rows ~1M/day", asked_by="planner")  # Q2, Q3
+         "options": ["redis", "in-process", "CDN"]}], context="Invoice rows ~1M/day", asked_by="planner",
+        title="Invoice storage and caching")  # Q2, Q3
     service.ask(store, DOCS, "Publish the v2 docs now or after the release?", options=["now", "after"],
                 header="Rollout")                                                                       # Q4
 
@@ -49,26 +50,24 @@ async def test_shots(store, fake_herdr):
         await pilot.pause()
         shot(app, "empty")
     populate(store)
-    # submit tab: three questions drafted, one still blank
-    for qid, pick in ((1, "squash"), (2, "SQLite"), (3, "redis")):
-        service.save_draft(store, qid, {"choices": [pick]})
+    # an earlier answer that could not be delivered: its own ⚠ entry in the list
+    late = service.ask(store, DOCS, "Bump the docs build timeout to 90 s?", options=["yes", "no"],
+                       header="Timeout")["id"]
+    store.set_answer(late, "yes", {"choices": ["yes"]})
+    store.record_delivery(late, "no live agent in the pane")
+    service.save_draft(store, 2, {"choices": ["SQLite"]})
+    # the group list (several groups): one row per ask_operator call
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test(size=size) as pilot:
         await pilot.pause()
-        for _ in range(4):
-            await pilot.press("right")
+        shot(app, "list")
+        # inside the Billing group: its own tabs and Submit
+        await pilot.press("enter", "left")  # opens on the first blank (Cache); back to DB choice
+        await pilot.pause()
+        shot(app, "tabs")
+        await pilot.press("tab", "tab")
         await pilot.pause()
         shot(app, "submit")
-    # tabs: Q1 was answered but could not be delivered -> a warning tab
-    for qid in (2, 3):
-        service.save_draft(store, qid, None)
-    store.set_answer(1, "squash", {"choices": ["squash"]})
-    store.record_delivery(1, "no live agent in the pane")
-    app = InboxApp(store, focus_pane="w1:p1")
-    async with app.run_test(size=size) as pilot:
-        await pilot.pause()
-        await pilot.press("down")
-        shot(app, "tabs")
 
 
 async def test_single_and_preview(fake_herdr, tmp_path, monkeypatch):
