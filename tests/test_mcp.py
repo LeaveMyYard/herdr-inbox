@@ -22,9 +22,9 @@ async def test_tools_are_registered_with_guidance():
         tools = {t.name: t for t in (await client.list_tools()).tools}
     assert set(tools) == {"ask_operator", "check_answers", "list_my_questions", "withdraw_question"}
     desc = tools["ask_operator"].description
-    for phrase in ("instead of asking in chat", "self-contained", "options", "[inbox] Q<n>", "Do not repeat"):
+    for phrase in ("instead of asking in chat", "self-contained", "options", "names the question id (Q<n>)", "Do not repeat"):
         assert phrase in desc
-    assert set(tools["ask_operator"].input_schema["properties"]) == {"question", "options", "context", "asked_by"}
+    assert set(tools["ask_operator"].input_schema["properties"]) == {"question", "options", "context", "asked_by", "header", "multi_select", "questions"}
 
 
 async def test_full_round_trip_through_registered_tools(fake_herdr, monkeypatch):
@@ -112,8 +112,8 @@ async def test_stdio_server_end_to_end(fake_herdr, mode):
             "id": 1,
             "status": "open",
             "message": "Recorded as Q1. The operator will answer asynchronously; the answer will arrive in this "
-            "conversation as a message starting with `[inbox] Q1`. Continue with work that does not depend on it. "
-            "Do not repeat the question in chat or call ask_operator for it again.",
+            "conversation as a message starting with `[inbox]` that names Q1. Continue with work that does not "
+            "depend on it. Do not repeat the question in chat or call ask_operator for it again.",
         }
         mine = await call(client, "list_my_questions")
         assert mine["questions"][0]["question"] == "Over stdio?"

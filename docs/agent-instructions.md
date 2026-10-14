@@ -12,7 +12,8 @@ server (`claude mcp add ...`), paste the block below into your `CLAUDE.md`.
   reads it without this chat) and put choices in `options`.
 - Ask once. Never restate the question in chat and never call `ask_operator` again for it.
   Continue with work that does not depend on the answer.
-- Answers arrive as messages starting with `[inbox] Q<n> answered`; act on them then.
+- Answers arrive as `[inbox]` messages naming the Q ids (several answers can come in one
+  message); act on them then.
 - After compaction or resume, call `list_my_questions` before asking anything new;
   `check_answers` returns answers you may have missed. If you resolve a question yourself,
   call `withdraw_question`.

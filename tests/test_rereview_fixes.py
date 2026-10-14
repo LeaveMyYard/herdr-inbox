@@ -3,11 +3,8 @@
 import io
 import json
 
-from textual.widgets import Input
-
 from herdr_inbox import hook, proc, service
 from herdr_inbox.service import Caller
-from herdr_inbox.tui import InboxApp
 
 
 def caller(session="sess-A", pane="w1:p1"):
@@ -72,17 +69,7 @@ def test_retry_keeps_trying_a_blocked_or_failing_agent(store, fake_herdr, monkey
     assert store.get(qid).delivered_at
 
 
-# -- Low: the answer box says which question it answers ----------------------------
-
-async def test_answer_box_names_its_question(store, fake_herdr):
-    service.ask(store, caller(), "first?")
-    service.ask(store, caller(), "second?")
-    app = InboxApp(store)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("a")
-        box = app.query_one(Input)
-        assert box.border_title == "Answering Q2" and "Q2" in box.placeholder
+# (Low 'Answering Q<n>': the answer box is now inside the question's own view; see test_tui.py)
 
 
 # -- M-B: a claude nested inside a herdr pane's agent is not that agent ------------

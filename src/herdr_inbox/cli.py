@@ -30,7 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("text", nargs="+")
     p = sub.add_parser("dismiss", help="close a question without answering")
     p.add_argument("id", type=lambda s: int(s.lstrip("Qq")))
-    sub.add_parser("sync-tokens", help="recompute sidebar tokens for every pane")
+    p = sub.add_parser("sync-tokens", help="recompute sidebar tokens and tab-label counts")
+    p.add_argument("--remove-prefixes", action="store_true", help="strip every tab prefix (before uninstalling)")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
     p.add_argument("event", choices=["session-start", "subagent-start"])
     args = parser.parse_args(argv)
@@ -86,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Q{args.id} dismissed")
         return 0
     if args.cmd == "sync-tokens":
-        service.sync_tokens(store)
+        service.sync_tokens(store, remove_prefixes=args.remove_prefixes)
         return 0
     return 2
 

@@ -95,16 +95,52 @@ managed block: append `{ token = "$inbox_q", fg = "#c04a4a", bold = true, dim = 
 row that holds `$title_working` / `$title_done`, in both places. Radar's `configure` action
 rewrites that block, so re-add it after running configure.
 
+### Tab label count (`❓2 Farm Issues`)
+
+herdr has no per-tab tokens, so while a tab has open questions its label gets a `❓N ` prefix
+(`herdr tab rename`), updated as the count changes and removed at 0. Your own label is never
+stored: it is recovered by stripping the prefix from the current label each time, so renaming
+a prefixed tab is respected. Tabs without a custom name (herdr shows their position, e.g.
+`6`) are left alone, because a rename cannot give them back automatic naming. `inbox
+sync-tokens` (the plugin's startup hook) reconciles all tabs after a restart or crash.
+
+Configure in `$(herdr plugin config-dir leavemyyard.herdr-inbox)/config.toml`:
+
+```toml
+tab_prefix = "❓"            # "" turns the tab prefix off
+prefix_unnamed_tabs = false  # true: also prefix tabs named by position (they keep the number)
+```
+
+Both the popup and every Claude session read this one file, and edits apply without a
+restart. Changing the mark is safe: every mark ever applied is stripped.
+
 ## Use
 
-- Agents call `ask_operator(question, options?, context?, asked_by?)` and keep working.
-- `prefix+i` opens the inbox: `↑/↓` select, `1`–`9` put an option in the answer box,
-  `a`/`Enter` free-text answer (`Enter` sends, `Esc` cancels), `d` dismiss, `g` jump to the
-  asking pane, `h` answered/closed history, `q`/`Esc` close.
-- The answer is typed into the asking pane as `[inbox] Q12 answered — <question>: <answer>`,
-  but only while that pane still holds the conversation that asked. If delivery fails (agent at
-  a dialog, pane gone, conversation changed), the TUI shows `answered !`; the asking session's
-  MCP server retries every 30 s, and the agent can always get it through `check_answers`.
+- Agents call `ask_operator(question, options?, header?, multi_select?, context?, asked_by?)`,
+  or `ask_operator(questions=[...])` for up to 4 related questions, and keep working.
+- `prefix+i` opens the inbox. The list has one row per group (`Q12–Q14 · 2/3 drafted`):
+  `Enter` answer, `r` review all drafts, `d` dismiss, `g` jump to the asking pane,
+  `h` history, `q`/`Esc` close.
+- Answering mimics Claude Code's own question prompt. `↑/↓` or `j/k` move the `❯`, `1`–`9`
+  jump, `n` adds notes to an option, **Type something.** is a free answer (in multi-select it is
+  added to the picks), **Chat about this** jumps to the asking agent's pane and leaves the
+  question open, `Esc` goes back without sending. Options with a `preview` show it beside the
+  list.
+  - **One question**: `Enter` on an option (or text in Type something.) answers and sends at
+    once. Multi-select: `Enter`/`Space` toggle, the **Submit** row sends.
+  - **A group**: one tab per question plus **Submit** (`←/→`, `Tab`/`Shift-Tab`); answering a
+    question moves to the next tab. The Submit tab is **Review your answers**, warns "You have
+    not answered all questions" when some are blank and asks "Ready to submit your answers?"
+    (**Submit answers** / **Cancel**). Our additions: group answers are drafts kept in the
+    database (closing the popup loses nothing), and submitting with blanks sends the answered
+    ones and leaves the rest open. `r` on the list reviews every draft across agents
+    (`Enter` edits, `x` drops one).
+- Submitted answers are typed into each asking pane as one line per pane:
+  `[inbox] Q12 answered — <question>: Postgres (note: keep the old schema)`, or for several
+  `[inbox] answered — Q12 <q>: A · Q13 <q>: B`; only while that pane still holds the
+  conversation that asked. If delivery fails (agent at a dialog, pane gone, conversation
+  changed), the TUI shows `answered !`; the asking session's MCP server retries every 30 s, and
+  the agent can always get it through `check_answers`.
 
 From a shell:
 
@@ -117,6 +153,17 @@ uv run inbox sync-tokens
 
 The database lives at `${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/inbox.db`
 (`HERDR_INBOX_DB` overrides it).
+
+## Uninstall
+
+Remove the tab prefixes first (pane tokens vanish with herdr's next restart):
+
+```sh
+uv run --project /home/leavemyyard/Code/herdr-inbox inbox sync-tokens --remove-prefixes
+herdr plugin unlink leavemyyard.herdr-inbox
+claude plugin uninstall herdr-inbox@herdr-inbox
+claude plugin marketplace remove herdr-inbox
+```
 
 ## Development
 

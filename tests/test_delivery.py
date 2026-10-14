@@ -76,8 +76,9 @@ def test_sync_tokens_sets_and_clears_every_pane(store, fake_herdr):
     ask(store, "two?")
     fake_herdr.reset()
     service.sync_tokens(store)
-    assert fake_herdr.calls() == [
-        ["pane", "list"],
+    calls = fake_herdr.calls()
+    assert calls[0] == ["pane", "list"]
+    assert fake_herdr.calls_of("pane", "report-metadata")[:2] == [
         ["pane", "report-metadata", "w1:p1", "--source", "herdr-inbox", "--token", "inbox_q=?2"],
         ["pane", "report-metadata", "w1:p2", "--source", "herdr-inbox", "--clear-token", "inbox_q"],
     ]
