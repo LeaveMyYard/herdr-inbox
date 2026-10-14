@@ -7,7 +7,7 @@ import os
 from contextlib import contextmanager
 import re
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -32,7 +32,12 @@ CREATE TABLE IF NOT EXISTS questions (
     delivery_error  TEXT,
     acknowledged_at TEXT,
     repeat_count    INTEGER NOT NULL DEFAULT 0,
-    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+    delivery_attempts INTEGER NOT NULL DEFAULT 0
+);
+-- Fields added in 0.2 live in a side table, so the questions table keeps the exact
+-- column set 0.1.x builds its Question from (0.1.x does Question(**row) on SELECT *).
+CREATE TABLE IF NOT EXISTS question_ext (
+    id              INTEGER PRIMARY KEY REFERENCES questions(id),
     header          TEXT,
     multi_select    INTEGER NOT NULL DEFAULT 0,
     answer_json     TEXT,
@@ -40,19 +45,24 @@ CREATE TABLE IF NOT EXISTS questions (
     draft_json      TEXT,
     drafted_at      TEXT
 );
+CREATE VIEW IF NOT EXISTS questions_v2 AS
+    SELECT q.id, q.created_at, q.pane_id, q.tab_id, q.tab_label, q.session_id, q.cwd, q.asked_by,
+           q.question, q.options, q.context, q.norm, q.status, q.answer, q.answered_at, q.delivered_at,
+           q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
+           e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
+           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at
+    FROM questions q LEFT JOIN question_ext e ON e.id = q.id;
+-- Every tab-label mark ever applied, so any process can strip all of them.
+CREATE TABLE IF NOT EXISTS tab_marks (mark TEXT PRIMARY KEY);
 CREATE INDEX IF NOT EXISTS questions_status ON questions(status);
 CREATE INDEX IF NOT EXISTS questions_session ON questions(session_id);
 """
 
 
+# Columns of `questions` that pre-0.1 databases may lack. Only ever columns that 0.1.x's
+# own Question dataclass knows; everything newer goes into question_ext.
 ADDED_COLUMNS = {
     "delivery_attempts": "INTEGER NOT NULL DEFAULT 0",
-    "header": "TEXT",
-    "multi_select": "INTEGER NOT NULL DEFAULT 0",
-    "answer_json": "TEXT",
-    "group_id": "INTEGER",
-    "draft_json": "TEXT",
-    "drafted_at": "TEXT",
 }
 
 
@@ -130,7 +140,8 @@ class Question:
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Question":
-        data = dict(row)
+        known = {f.name for f in fields(cls)}
+        data = {k: v for k, v in dict(row).items() if k in known}  # newer columns are ignored
         data["options"] = normalize_options(json.loads(data["options"])) if data["options"] else None
         data["multi_select"] = bool(data.get("multi_select"))
         for key in ("answer_json", "draft_json"):
@@ -184,7 +195,7 @@ class Store:
     # -- reads ---------------------------------------------------------------
 
     def get(self, qid: int) -> Question | None:
-        row = self.db.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
+        row = self.db.execute("SELECT * FROM questions_v2 WHERE id = ?", (qid,)).fetchone()
         return Question.from_row(row) if row else None
 
     def _owner_clause(self, session_id: str | None, pane_id: str | None) -> tuple[str, tuple]:
@@ -198,7 +209,7 @@ class Store:
     def find_duplicate(self, norm: str, session_id: str | None, pane_id: str | None) -> Question | None:
         where, args = self._owner_clause(session_id, pane_id)
         row = self.db.execute(
-            f"SELECT * FROM questions WHERE {where} AND norm = ?"
+            f"SELECT * FROM questions_v2 WHERE {where} AND norm = ?"
             " AND (status = 'open' OR (status = 'answered' AND answered_at >= ?))"
             " ORDER BY status = 'open' DESC, id DESC LIMIT 1",
             (*args, norm, now(-ANSWER_REUSE)),
@@ -209,12 +220,12 @@ class Store:
         where, args = self._owner_clause(session_id, pane_id)
         if not include_closed:
             where += " AND status IN ('open', 'answered')"
-        rows = self.db.execute(f"SELECT * FROM questions WHERE {where} ORDER BY id", args).fetchall()
+        rows = self.db.execute(f"SELECT * FROM questions_v2 WHERE {where} ORDER BY id", args).fetchall()
         return [Question.from_row(r) for r in rows]
 
     def list(self, include_closed: bool = False) -> list[Question]:
         where = "1" if include_closed else "status = 'open'"
-        rows = self.db.execute(f"SELECT * FROM questions WHERE {where} ORDER BY id DESC").fetchall()
+        rows = self.db.execute(f"SELECT * FROM questions_v2 WHERE {where} ORDER BY id DESC").fetchall()
         return [Question.from_row(r) for r in rows]
 
     def open_counts(self) -> dict[str, int]:
@@ -248,36 +259,38 @@ class Store:
         options = normalize_options(options)
         cur = self.db.execute(
             "INSERT INTO questions (created_at, pane_id, tab_id, tab_label, session_id, cwd, asked_by,"
-            " question, options, context, norm, header, multi_select, group_id)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " question, options, context, norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 now(), pane_id, tab_id, tab_label, session_id, cwd, asked_by, question,
-                json.dumps(options) if options else None, context, normalize(question), header, int(multi_select),
-                group_id,
+                json.dumps(options) if options else None, context, normalize(question),
             ),
         )
-        if group_id is None:  # first of its group: the group is named after it
-            self.db.execute("UPDATE questions SET group_id = id WHERE id = ?", (cur.lastrowid,))
+        self.db.execute(
+            "INSERT INTO question_ext (id, header, multi_select, group_id) VALUES (?, ?, ?, ?)",
+            (cur.lastrowid, header, int(multi_select), group_id or cur.lastrowid),  # first names the group
+        )
         return self.get(cur.lastrowid)
 
     def group(self, group_id: int, include_closed: bool = False) -> list[Question]:
         where = "" if include_closed else " AND status = 'open'"
         rows = self.db.execute(
-            f"SELECT * FROM questions WHERE COALESCE(group_id, id) = ?{where} ORDER BY id", (group_id,)
+            f"SELECT * FROM questions_v2 WHERE group_id = ?{where} ORDER BY id", (group_id,)
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
     def set_draft(self, qid: int, detail: dict | None) -> bool:
         """Store (or with None clear) the operator's unsent answer to an open question."""
         cur = self.db.execute(
-            "UPDATE questions SET draft_json = ?, drafted_at = ? WHERE id = ? AND status = 'open'",
+            "INSERT INTO question_ext (id, group_id, draft_json, drafted_at)"
+            " SELECT id, id, ?, ? FROM questions WHERE id = ? AND status = 'open'"
+            " ON CONFLICT(id) DO UPDATE SET draft_json = excluded.draft_json, drafted_at = excluded.drafted_at",
             (json.dumps(detail) if detail else None, now() if detail else None, qid),
         )
         return cur.rowcount == 1
 
     def drafted(self) -> list[Question]:
         rows = self.db.execute(
-            "SELECT * FROM questions WHERE status = 'open' AND draft_json IS NOT NULL ORDER BY id"
+            "SELECT * FROM questions_v2 WHERE status = 'open' AND draft_json IS NOT NULL ORDER BY id"
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
@@ -285,13 +298,23 @@ class Store:
         self.db.execute("UPDATE questions SET repeat_count = repeat_count + 1 WHERE id = ?", (qid,))
 
     def set_answer(self, qid: int, answer: str, detail: dict | None = None) -> bool:
+        with self.transaction():
+            return self._set_answer(qid, answer, detail)
+
+    def _set_answer(self, qid: int, answer: str, detail: dict | None) -> bool:
         cur = self.db.execute(
-            "UPDATE questions SET status = 'answered', answer = ?, answer_json = ?, answered_at = ?,"
-            " draft_json = NULL, drafted_at = NULL,"
+            "UPDATE questions SET status = 'answered', answer = ?, answered_at = ?,"
             " delivered_at = NULL, delivery_error = NULL, acknowledged_at = NULL WHERE id = ? AND status = 'open'",
-            (answer, json.dumps(detail) if detail else None, now(), qid),
+            (answer, now(), qid),
         )
-        return cur.rowcount == 1
+        if cur.rowcount != 1:
+            return False
+        self.db.execute(
+            "INSERT INTO question_ext (id, group_id, answer_json) VALUES (?, ?, ?)"
+            " ON CONFLICT(id) DO UPDATE SET answer_json = excluded.answer_json, draft_json = NULL, drafted_at = NULL",
+            (qid, qid, json.dumps(detail) if detail else None),
+        )
+        return True
 
     def set_status(self, qid: int, status: str, note: str | None = None) -> bool:
         """Close an open question (dismissed / withdrawn); ``note`` goes into ``answer``."""
@@ -322,7 +345,7 @@ class Store:
         """
         stale = " OR ".join("delivery_error LIKE ?" for _ in stale_errors) or "0"
         rows = self.db.execute(
-            "SELECT * FROM questions WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
+            "SELECT * FROM questions_v2 WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
             f" AND acknowledged_at IS NULL AND delivery_error IS NOT NULL"
             f" AND NOT (({stale}) AND delivery_attempts >= ?) ORDER BY id",
             (pane_id, *(e + "%" for e in stale_errors), max_stale),
@@ -338,7 +361,7 @@ class Store:
     def unacknowledged_answers(self, session_id: str | None, pane_id: str | None) -> list[Question]:
         where, args = self._owner_clause(session_id, pane_id)
         rows = self.db.execute(
-            f"SELECT * FROM questions WHERE {where} AND status = 'answered' AND acknowledged_at IS NULL ORDER BY id",
+            f"SELECT * FROM questions_v2 WHERE {where} AND status = 'answered' AND acknowledged_at IS NULL ORDER BY id",
             args,
         ).fetchall()
         return [Question.from_row(r) for r in rows]
