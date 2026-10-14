@@ -183,8 +183,10 @@ anything the operator is half-way through typing in that pane.
     across a herdr call, so a slow or wedged herdr cannot block questions,
     drafts or answers. `sync-tokens` takes the lock per tab; pane tokens are
     updated outside any lock (per pane, idempotent). MCP tools retry on "database
-    is locked" with backoff and then return a "busy, call again" result; the
-    popup shows a notice instead of exiting.
+    is locked" with backoff (3 s busy timeout per attempt) and then return a
+    "busy, call again" result; the popup shows a notice instead of exiting. A
+    marker failure (token, tab label, lock) is logged and never fails the ask or
+    answer that triggered it, so a retry never re-files a question.
   - Tabs labelled by position (all digits) are skipped by default: a rename
     would freeze the number.
   - `sync-tokens` reconciles every tab (`workspace list` → `tab list
@@ -259,6 +261,9 @@ the plugin dir.
   answered all questions" when some are blank, "Ready to submit your
   answers?" with Submit answers / Cancel. Sends only the answered questions.
 - `r`: the same review across every draft (Enter edits, `x` drops).
+- The highlighted row is always scrolled into view (Enter on a single question
+  sends it). Sends run in a background worker: the view closes at once, a
+  notice reports the result, and closing the popup waits for an in-flight send.
 - Polls the database every 2 s.
 
 ## Agent onboarding
