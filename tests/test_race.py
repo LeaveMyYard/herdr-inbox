@@ -7,16 +7,16 @@ from textual.widgets import Input
 
 from herdr_inbox import herdr, service
 from herdr_inbox.service import Caller
-from herdr_inbox.tui import GoneView, InboxApp, QuestionView
+from herdr_inbox.tui import GoneView, GroupListView, InboxApp, QuestionView
 
 A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
 B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
 
 
 async def test_withdraw_mid_typing_never_answers_the_other_agent(store, fake_herdr):
-    """The reviewer's repro: Q2 has options, so a swapped view would answer it."""
-    service.ask(store, B, "Q-for-B: which branch name?", options=["main", "dev"])          # Q1
-    service.ask(store, A, "Q-for-A: delete the staging bucket data?", options=["yes", "no"])  # Q2
+    """The reviewer's repro, inside a group: Q2 has options, so a swapped view would answer it."""
+    service.ask_group(store, B, [{"question": "Q-for-B: which branch name?", "options": ["main", "dev"]},     # Q1
+                                 {"question": "Q-also: delete the staging bucket data?", "options": ["yes", "no"]}])
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -37,8 +37,8 @@ async def test_withdraw_mid_typing_never_answers_the_other_agent(store, fake_her
 
 
 async def test_cursor_on_an_option_when_the_question_closes(store, fake_herdr):
-    service.ask(store, B, "First?", options=["x", "y"])
-    service.ask(store, A, "Second?", options=["yes", "no"])
+    service.ask_group(store, B, [{"question": "First?", "options": ["x", "y"]},
+                                 {"question": "Second?", "options": ["yes", "no"]}])
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -51,8 +51,7 @@ async def test_cursor_on_an_option_when_the_question_closes(store, fake_herdr):
 
 
 async def test_several_to_one_does_not_make_enter_send(store, fake_herdr):
-    service.ask(store, A, "Stays?", options=["a", "b"])
-    service.ask(store, B, "Goes?", options=["c"])
+    service.ask_group(store, A, [{"question": "Stays?", "options": ["a", "b"]}, {"question": "Goes?", "options": ["c"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -95,7 +94,8 @@ async def test_go_to_agent_works_for_multi_select(store, fake_herdr):
     assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p1"]]
 
 
-async def test_failed_delivery_tab_retry_and_hide(store, fake_herdr, monkeypatch):
+async def test_failed_delivery_entry_retry_and_hide(store, fake_herdr, monkeypatch):
+    """⚠ undelivered answers are their own list entries (were tabs before 0.4)."""
     a = service.ask(store, A, "One?")["id"]
     b = service.ask(store, B, "Two?")["id"]
     c = service.ask(store, A, "Three?")["id"]
@@ -105,21 +105,22 @@ async def test_failed_delivery_tab_retry_and_hide(store, fake_herdr, monkeypatch
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
-        chips = [str(x.render()).strip() for x in app.query("#chips > Static")]
-        assert "⚠ Q1 not delivered" in chips and "⚠ Q2 not delivered" in chips
-        assert app.tabs[0] == ("q", c)  # open questions first, failed deliveries after them
-        await pilot.press("right")
+        assert app.mode == "list"
+        assert app.entries == [("group", c), ("failed", a), ("failed", b)]  # groups first, ⚠ after
+        body = str(app.query_one("#list-body").render())
+        assert "⚠ Q1 not delivered" in body and "⚠ Q2 not delivered" in body
+        await pilot.press("2", "enter")
         assert "Q1 not delivered" in str(app.query("#body > *").first().query_one(".question").render())
         monkeypatch.delenv("FAKE_HERDR_FAIL")
-        await pilot.press("1")  # Retry delivery
+        await pilot.press("1")  # Retry delivery: back to the list, the row is inert meanwhile
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert store.get(a).delivered_at
-        app.grace_until = 0
-        await pilot.press("right")  # leaves Q1's placeholder; on to Q2's warning
-        await pilot.press("2")  # stop showing it
+        assert store.get(a).delivered_at and app.mode == "list"
+        await pilot.press("3", "enter", "2")  # Q2's entry: stop showing it
         await pilot.pause()
-        assert ("failed", b) not in app.tabs
+        assert app.mode == "list" and app.closed.get(("failed", b)) == "hidden"
+        await pilot.press("up")  # a deliberate move drops the placeholders
+        assert ("failed", b) not in app.entries
     assert store.get(b).status == "answered" and store.get(b).delivered_at is None
     assert [q.id for q in store.unacknowledged_answers("sess-A", "w1:p2")] == [b]  # still for check_answers
 
@@ -132,5 +133,6 @@ async def test_focus_pane_comes_from_the_plugin_context(store, fake_herdr, monke
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert app.focus_pane == "w1:p2" and app.query_one(QuestionView).q.id == 2
+        assert app.focus_pane == "w1:p2" and app.entries[0] == ("group", 2)
+        assert app.query_one(GroupListView).cursor == ("group", 2)
     assert herdr.invocation_pane() == "w1:p2"

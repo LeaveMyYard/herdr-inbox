@@ -7,7 +7,7 @@ import time
 
 from mcp import Client
 
-from herdr_inbox import service, tabs
+from herdr_inbox import service, tabs, tui
 from herdr_inbox.server import mcp
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
@@ -60,14 +60,17 @@ async def test_send_runs_in_the_background(store, fake_herdr, monkeypatch):
         return real_answer(s, *args, **kwargs)
 
     monkeypatch.setattr(service, "answer", slow_answer)
-    app = InboxApp(store)
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r"), "Other?")
+    app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
+        await pilot.press("enter")  # open the lone question from the list
         t0 = time.monotonic()
-        await pilot.press("enter")  # pick "a": sends
+        await pilot.press("enter")  # pick "a": sends, back to the list at once
         await pilot.press("down")  # the popup keeps reacting while the send is in flight
         await pilot.pause()
-        assert time.monotonic() - t0 < 2 and app.query_one(QuestionView).cursor == 1
+        assert time.monotonic() - t0 < 2 and app.mode == "list"
+        assert app.query_one(tui.GroupListView).cursor == ("group", 2)
         release.set()
         for _ in range(100):  # the send finishes; with nothing left open the popup closes itself
             if not app.is_running or store.get(1).status == "answered":
