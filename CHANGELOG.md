@@ -16,6 +16,8 @@
 - Recovery: recent answers that were marked seen without verification become unseen again once,
   so `check_answers` returns them; `inbox redeliver <ids>` delivers answers again.
 - The SessionStart hook records the session's transcript path for verification.
+- The popup shows each asking tab's current name (resolved from herdr, ❓ prefix stripped, cached
+  for 5 s) instead of the label captured at ask time, which for an unnamed tab was just its number.
 
 ## 0.5.0
 

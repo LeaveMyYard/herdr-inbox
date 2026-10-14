@@ -148,3 +148,6 @@ def _armed_at_once(monkeypatch):
         monkeypatch.setattr(tui, "ARM_SECONDS", 0.0)
     if hasattr(tui, "ROW_ARM_SECONDS"):
         monkeypatch.setattr(tui, "ROW_ARM_SECONDS", 0.0)
+    if hasattr(tui, "LIVE_TAB_LABELS"):  # tests/test_tab_labels.py turns live labels on
+        monkeypatch.setattr(tui, "LIVE_TAB_LABELS", False)
+        tui._tab_labels.clear()
