@@ -6,9 +6,10 @@ it is always recovered by stripping our marks from the label herdr reports
 right now. So a rename by the operator in the meantime is adopted, and a crash
 can at worst leave a stale prefix that the next ``inbox sync-tokens`` removes.
 
-- Every mark ever applied is recorded in the database (``tab_marks``), and
-  stripping removes all of them, repeatedly: changing the configured mark, or
-  two processes that disagree about it, can never stack prefixes.
+- Only tabs the inbox decorated are ever stripped of a custom mark: each tab
+  and the marks applied to it are recorded (``tab_decor``) until the tab is
+  restored, so an operator label such as ``Q4 roadmap`` is never touched.
+  The default mark ``❓`` is stripped anywhere (nobody types it).
 - The setting has one source that herdr-side processes (popup, sync-tokens)
   and Claude-spawned MCP servers both see: ``config.toml`` in the herdr plugin
   config dir (``herdr plugin config-dir leavemyyard.herdr-inbox``)::
@@ -20,17 +21,20 @@ can at worst leave a stale prefix that the next ``inbox sync-tokens`` removes.
   turn that number into a fixed custom label, because a rename cannot return a
   tab to automatic naming; such tabs are left alone unless
   ``prefix_unnamed_tabs = true``.
-- Callers hold the database write lock around count → ``tab get`` →
-  ``tab rename`` (see ``service.update_markers``), so concurrent processes
-  cannot rename with a stale count.
+- count → ``tab get`` → ``tab rename`` runs under a cross-process advisory lock
+  (``flock`` on a file next to the database), never the SQLite write lock, so a
+  slow or wedged herdr cannot block questions, drafts or answers.
 """
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import functools
 import logging
 import os
 import re
+import time
 import tomllib
 from pathlib import Path
 
@@ -41,6 +45,7 @@ log = logging.getLogger("herdr_inbox")
 
 PLUGIN_ID = "leavemyyard.herdr-inbox"
 DEFAULT_PREFIX = "❓"
+LOCK_TIMEOUT = 10.0
 
 
 @functools.cache
@@ -71,9 +76,34 @@ def prefix_unnamed() -> bool:
     return bool(settings().get("prefix_unnamed_tabs", False))
 
 
-def known_marks(store: Store, current: str | None = None) -> set[str]:
-    marks = {r[0] for r in store.db.execute("SELECT mark FROM tab_marks")}
-    return (marks | {DEFAULT_PREFIX, current if current is not None else prefix()}) - {""}
+@contextlib.contextmanager
+def marker_lock(store: Store, timeout: float = LOCK_TIMEOUT):
+    """Serialize label updates across processes; yields False if the lock was not had in time."""
+    path = Path(str(store.path) + ".markers.lock")
+    with open(path, "a+") as fh:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    log.warning("tab labels busy; skipping this update (the next change or sync fixes it)")
+                    yield False
+                    return
+                time.sleep(0.05)
+        try:
+            yield True
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def marks_for(store: Store, tab_id: str | None) -> set[str]:
+    """Marks that may be stripped from this tab: the default, plus any we applied to it."""
+    marks = {DEFAULT_PREFIX}
+    if tab_id:
+        marks |= {r[0] for r in store.db.execute("SELECT mark FROM tab_decor WHERE tab_id = ?", (tab_id,))}
+    return marks - {""}
 
 
 def base_label(label: str | None, marks: set[str]) -> str | None:
@@ -92,21 +122,23 @@ def desired_label(base: str, count: int, mark: str) -> str:
     return f"{mark}{count} {base}"
 
 
-def apply(store: Store, tab_id: str, count: int, mark: str, current: str | None = None) -> None:
-    """Rename ``tab_id`` to show ``count`` if its label (re-read unless given) differs.
+def apply(store: Store, tab_id: str, count: int, mark: str) -> None:
+    """Re-read ``tab_id``'s label and rename it to show ``count`` if it differs.
 
-    Call with the database write lock held and ``count`` read under it.
+    Call inside ``marker_lock`` with ``count`` read under it.
     """
-    if current is None:
-        current = herdr.tab_label(tab_id)
+    current = herdr.tab_label(tab_id)
     if current is None:
         return
-    want = desired_label(base_label(current, known_marks(store, mark)), count, mark)
-    if want == current:
-        return
-    if want.startswith(mark) and mark:
-        store.db.execute("INSERT OR IGNORE INTO tab_marks (mark) VALUES (?)", (mark,))
-    herdr.rename_tab(tab_id, want)
+    base = base_label(current, marks_for(store, tab_id))
+    want = desired_label(base, count, mark)
+    if want != current:
+        if want != base:  # decorating: remember it before the label changes
+            store.db.execute("INSERT OR IGNORE INTO tab_decor (tab_id, mark) VALUES (?, ?)", (tab_id, mark))
+        if herdr.rename_tab(tab_id, want) is not None:
+            return
+    if want == base:  # restored (or never needed): stop treating this tab's label as ours
+        store.db.execute("DELETE FROM tab_decor WHERE tab_id = ?", (tab_id,))
 
 
 def tab_counts(pane_counts: dict[str, int], pane_tabs: dict[str, str | None]) -> dict[str, int]:

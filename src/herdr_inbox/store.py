@@ -43,17 +43,16 @@ CREATE TABLE IF NOT EXISTS question_ext (
     answer_json     TEXT,
     group_id        INTEGER,
     draft_json      TEXT,
-    drafted_at      TEXT
+    drafted_at      TEXT,
+    options_json    TEXT
 );
-CREATE VIEW IF NOT EXISTS questions_v2 AS
-    SELECT q.id, q.created_at, q.pane_id, q.tab_id, q.tab_label, q.session_id, q.cwd, q.asked_by,
-           q.question, q.options, q.context, q.norm, q.status, q.answer, q.answered_at, q.delivered_at,
-           q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
-           e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
-           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at
-    FROM questions q LEFT JOIN question_ext e ON e.id = q.id;
--- Every tab-label mark ever applied, so any process can strip all of them.
-CREATE TABLE IF NOT EXISTS tab_marks (mark TEXT PRIMARY KEY);
+-- Tabs whose label the inbox decorated, and with which marks: only these are ever
+-- stripped, so an operator label such as "Q4 roadmap" is never touched.
+CREATE TABLE IF NOT EXISTS tab_decor (
+    tab_id          TEXT NOT NULL,
+    mark            TEXT NOT NULL,
+    PRIMARY KEY (tab_id, mark)
+);
 CREATE INDEX IF NOT EXISTS questions_status ON questions(status);
 CREATE INDEX IF NOT EXISTS questions_session ON questions(session_id);
 """
@@ -66,16 +65,33 @@ ADDED_COLUMNS = {
 }
 
 
+# Read view, versioned: a release that changes it bumps the name and drops older ones
+# (CREATE VIEW IF NOT EXISTS would keep an old definition). 0.1.x reads no views.
+VIEW = "questions_v3"
+OLD_VIEWS = ("questions_v2",)
+VIEW_SQL = f"""
+CREATE VIEW IF NOT EXISTS {VIEW} AS
+    SELECT q.id, q.created_at, q.pane_id, q.tab_id, q.tab_label, q.session_id, q.cwd, q.asked_by,
+           q.question, q.options, q.context, q.norm, q.status, q.answer, q.answered_at, q.delivered_at,
+           q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
+           e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
+           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json
+    FROM questions q LEFT JOIN question_ext e ON e.id = q.id;
+"""
+EXT_ADDED_COLUMNS = {"options_json": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+
+
 def normalize_options(options) -> list[dict] | None:
-    """Plain strings or {label, description} objects -> [{"label", "description"}]."""
+    """Plain strings or {label, description, preview} objects -> [{"label", "description", "preview"}]."""
     if not options:
         return None
     out = []
     for o in options:
         if isinstance(o, str):
-            out.append({"label": o, "description": None})
+            out.append({"label": o, "description": None, "preview": None})
         else:
-            out.append({"label": str(o["label"]), "description": o.get("description") or None})
+            out.append({"label": str(o["label"]), "description": o.get("description") or None,
+                        "preview": o.get("preview") or None})
     return out
 
 
@@ -143,9 +159,12 @@ class Question:
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Question":
+        raw = dict(row)
         known = {f.name for f in fields(cls)}
-        data = {k: v for k, v in dict(row).items() if k in known}  # newer columns are ignored
-        data["options"] = normalize_options(json.loads(data["options"])) if data["options"] else None
+        data = {k: v for k, v in raw.items() if k in known}  # newer columns are ignored
+        # full option objects live in question_ext; questions.options holds labels only (0.1.x reads it)
+        opts = raw.get("options_json") or data.get("options")
+        data["options"] = normalize_options(json.loads(opts)) if opts else None
         data["multi_select"] = bool(data.get("multi_select"))
         for key in ("answer_json", "draft_json"):
             data[key] = json.loads(data[key]) if data.get(key) else None
@@ -170,6 +189,13 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA busy_timeout=15000")
         self.db.executescript(SCHEMA)
+        ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
+        for name, decl in EXT_ADDED_COLUMNS.items():
+            if name not in ext_columns:
+                self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
+        for old in OLD_VIEWS:
+            self.db.execute(f"DROP VIEW IF EXISTS {old}")
+        self.db.executescript(VIEW_SQL)
         columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
         for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
             if name not in columns:
@@ -198,7 +224,7 @@ class Store:
     # -- reads ---------------------------------------------------------------
 
     def get(self, qid: int) -> Question | None:
-        row = self.db.execute("SELECT * FROM questions_v2 WHERE id = ?", (qid,)).fetchone()
+        row = self.db.execute(f"SELECT * FROM {VIEW} WHERE id = ?", (qid,)).fetchone()
         return Question.from_row(row) if row else None
 
     def _owner_clause(self, session_id: str | None, pane_id: str | None) -> tuple[str, tuple]:
@@ -212,7 +238,7 @@ class Store:
     def find_duplicate(self, norm: str, session_id: str | None, pane_id: str | None) -> Question | None:
         where, args = self._owner_clause(session_id, pane_id)
         row = self.db.execute(
-            f"SELECT * FROM questions_v2 WHERE {where} AND norm = ?"
+            f"SELECT * FROM {VIEW} WHERE {where} AND norm = ?"
             " AND (status = 'open' OR (status = 'answered' AND answered_at >= ?))"
             " ORDER BY status = 'open' DESC, id DESC LIMIT 1",
             (*args, norm, now(-ANSWER_REUSE)),
@@ -223,12 +249,12 @@ class Store:
         where, args = self._owner_clause(session_id, pane_id)
         if not include_closed:
             where += " AND status IN ('open', 'answered')"
-        rows = self.db.execute(f"SELECT * FROM questions_v2 WHERE {where} ORDER BY id", args).fetchall()
+        rows = self.db.execute(f"SELECT * FROM {VIEW} WHERE {where} ORDER BY id", args).fetchall()
         return [Question.from_row(r) for r in rows]
 
     def list(self, include_closed: bool = False) -> list[Question]:
         where = "1" if include_closed else "status = 'open'"
-        rows = self.db.execute(f"SELECT * FROM questions_v2 WHERE {where} ORDER BY id DESC").fetchall()
+        rows = self.db.execute(f"SELECT * FROM {VIEW} WHERE {where} ORDER BY id DESC").fetchall()
         return [Question.from_row(r) for r in rows]
 
     def open_counts(self) -> dict[str, int]:
@@ -265,19 +291,20 @@ class Store:
             " question, options, context, norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 now(), pane_id, tab_id, tab_label, session_id, cwd, asked_by, question,
-                json.dumps(options) if options else None, context, normalize(question),
+                json.dumps([o["label"] for o in options]) if options else None, context, normalize(question),
             ),
         )
         self.db.execute(
-            "INSERT INTO question_ext (id, header, multi_select, group_id) VALUES (?, ?, ?, ?)",
-            (cur.lastrowid, header, int(multi_select), group_id or cur.lastrowid),  # first names the group
+            "INSERT INTO question_ext (id, header, multi_select, group_id, options_json) VALUES (?, ?, ?, ?, ?)",
+            (cur.lastrowid, header, int(multi_select), group_id or cur.lastrowid,  # first names the group
+             json.dumps(options) if options else None),
         )
         return self.get(cur.lastrowid)
 
     def group(self, group_id: int, include_closed: bool = False) -> list[Question]:
         where = "" if include_closed else " AND status = 'open'"
         rows = self.db.execute(
-            f"SELECT * FROM questions_v2 WHERE group_id = ?{where} ORDER BY id", (group_id,)
+            f"SELECT * FROM {VIEW} WHERE group_id = ?{where} ORDER BY id", (group_id,)
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
@@ -293,7 +320,7 @@ class Store:
 
     def drafted(self) -> list[Question]:
         rows = self.db.execute(
-            "SELECT * FROM questions_v2 WHERE status = 'open' AND draft_json IS NOT NULL ORDER BY id"
+            f"SELECT * FROM {VIEW} WHERE status = 'open' AND draft_json IS NOT NULL ORDER BY id"
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
@@ -348,7 +375,7 @@ class Store:
         """
         stale = " OR ".join("delivery_error LIKE ?" for _ in stale_errors) or "0"
         rows = self.db.execute(
-            "SELECT * FROM questions_v2 WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
+            f"SELECT * FROM {VIEW} WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
             " AND acknowledged_at IS NULL"
             # failed attempts, or never attempted (the answering process died) after a grace period
             " AND (delivery_error IS NOT NULL OR answered_at < ?)"
@@ -366,7 +393,7 @@ class Store:
     def unacknowledged_answers(self, session_id: str | None, pane_id: str | None) -> list[Question]:
         where, args = self._owner_clause(session_id, pane_id)
         rows = self.db.execute(
-            f"SELECT * FROM questions_v2 WHERE {where} AND status = 'answered' AND acknowledged_at IS NULL ORDER BY id",
+            f"SELECT * FROM {VIEW} WHERE {where} AND status = 'answered' AND acknowledged_at IS NULL ORDER BY id",
             args,
         ).fetchall()
         return [Question.from_row(r) for r in rows]

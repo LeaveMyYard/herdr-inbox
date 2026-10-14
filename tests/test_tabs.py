@@ -115,8 +115,28 @@ def test_changing_marks_never_stacks_prefixes(store, fake_herdr, tabbed):
     relabel(tabbed, w1_t1="❓1 Q1 X1 Farm Issues")  # a stack left by an older build heals
     service.update_markers(store, "w1:p1")
     assert labels(tabbed)["w1:t1"] == "❓1 Farm Issues"
-    assert {r[0] for r in store.db.execute("SELECT mark FROM tab_marks")} == {"Q", "❓", "X"}
+    assert tabs.marks_for(store, "w1:t1") == {"Q", "❓", "X"}
     assert resolve_caller().tab_label == "Farm Issues"
+
+
+def test_hung_herdr_never_blocks_the_database(store, fake_herdr, tabbed, monkeypatch):
+    """N1 (reviewer's test_lock.py): herdr hanging on every call must not hold the SQLite lock."""
+    real = fake_herdr.bin.read_text()
+    fake_herdr.bin.write_text(real.replace(
+        "args = sys.argv[1:]",
+        "args = sys.argv[1:]\nimport time\nif args[:2] in (['pane','report-metadata'], ['tab','get'], ['tab','rename']): time.sleep(30)"))
+    monkeypatch.setattr(herdr, "TIMEOUT", 0.6)
+    qid = service.ask(store, caller(), "Seed?")["id"]
+    worker = threading.Thread(target=lambda: service.sync_tokens(Store()))
+    worker.start()
+    time.sleep(0.3)
+    other = Store()
+    t0 = time.monotonic()
+    assert other.set_draft(qid, service.make_detail("x"))
+    other.db.execute("BEGIN IMMEDIATE")
+    other.db.execute("ROLLBACK")
+    assert time.monotonic() - t0 < 0.5  # writers never wait on herdr
+    worker.join(30)
 
 
 def test_concurrent_updates_never_leave_a_stale_count(store, fake_herdr, tabbed, monkeypatch):
@@ -167,6 +187,22 @@ def test_remove_prefixes_before_uninstall(store, fake_herdr, tabbed):
     service.ask(store, caller(), "One?")
     assert cli.main(["sync-tokens", "--remove-prefixes"]) == 0
     assert labels(tabbed)["w1:t1"] == "Farm Issues"
+
+
+def test_custom_mark_never_touches_operator_labels(store, fake_herdr, tabbed):
+    """N2: with tab_prefix = "Q", a tab the operator named "Q4 roadmap" is never stripped."""
+    set_config('tab_prefix = "Q"\n')
+    relabel(tabbed, w1_t2="Q4 roadmap")  # never decorated by us
+    qid = service.ask(store, caller(), "One?")["id"]
+    assert labels(tabbed)["w1:t1"] == "Q1 Farm Issues"
+    service.sync_tokens(store)
+    assert labels(tabbed)["w1:t2"] == "Q4 roadmap"
+    service.close(store, qid, "dismissed")
+    assert labels(tabbed)["w1:t1"] == "Farm Issues" and tabs.marks_for(store, "w1:t1") == {"❓"}
+    relabel(tabbed, w1_t1="Q7 plan")  # after we restored it, the operator picks a Q-name
+    service.sync_tokens(store)
+    service.ask(store, caller(), "Two?")
+    assert labels(tabbed) == {"w1:t1": "Q1 Q7 plan", "w1:t2": "Q4 roadmap"}
 
 
 def test_base_label_strips_only_our_marks():

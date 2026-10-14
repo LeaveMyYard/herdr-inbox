@@ -26,7 +26,8 @@ def test_v01_reads_and_writes_after_v02_migrated_and_wrote(tmp_path, fake_herdr)
     rows = old.list(include_closed=True)
     assert sorted(q.id for q in rows) == [legacy.id, *ids]
     assert old.get(ids[0]).answer == "pg (note: keep schema)"
-    assert old.get(ids[0]).options == [{"label": "pg", "description": "x"}]
+    assert old.get(ids[0]).options == ["pg"]  # N3: plain labels, as a 0.1.x popup escape()s them
+    assert new.get(ids[0]).options == [{"label": "pg", "description": "x", "preview": None}]
     assert [q.id for q in old.mine("sess-A", "w1:p1")] == [legacy.id, ids[0], ids[1]]
     assert old.find_duplicate(v01.normalize("cache"), "sess-A", "w1:p1").id == ids[1]
     assert old.set_answer(ids[1], "memcached")
@@ -51,3 +52,16 @@ def test_from_row_ignores_columns_it_does_not_know(tmp_path, fake_herdr):
     qid = service.ask(s, A, "Still readable?")["id"]
     assert s.get(qid).question == "Still readable?"
     assert "added_in_v03" not in {f.name for f in dataclasses.fields(store_v02.Question)}
+
+
+def test_views_are_replaced_not_kept(tmp_path, fake_herdr):
+    """N4: an older view definition is dropped and the versioned one created."""
+    path = tmp_path / "inbox.db"
+    db = sqlite3.connect(path)
+    db.executescript(store_v02.SCHEMA)
+    db.execute("CREATE VIEW questions_v2 AS SELECT id FROM questions")  # a pre-release definition
+    db.commit()
+    db.close()
+    store_v02.Store(path).close()
+    views = {r[0] for r in sqlite3.connect(path).execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
+    assert views == {store_v02.VIEW}

@@ -45,17 +45,17 @@ def resolve_caller() -> Caller:
     return Caller(
         pane_id=pane_id,
         tab_id=ident.get("tab_id") or os.environ.get("HERDR_TAB_ID") or None,
-        tab_label=_base_label(ident.get("tab_label")),  # never our "❓2 " prefix
+        tab_label=_base_label(ident.get("tab_label"), ident.get("tab_id")),  # never our "❓2 " prefix
         session_id=session_id,
         cwd=os.getcwd(),
     )
 
 
-def _base_label(label: str | None) -> str | None:
+def _base_label(label: str | None, tab_id: str | None) -> str | None:
     if label is None:
         return None
     with Store() as store:
-        return tabs.base_label(label, tabs.known_marks(store))
+        return tabs.base_label(label, tabs.marks_for(store, tab_id))
 
 
 def first_line(text: str, width: int) -> str:
@@ -317,38 +317,46 @@ def close(store: Store, qid: int, status: str, note: str | None = None) -> bool:
 def update_markers(store: Store, pane_id: str | None) -> None:
     """Refresh the pane's ``$inbox_q`` token and the ``❓N`` prefix of the tab it is in now.
 
-    Counts are read, and the tab label re-read and renamed, under the database write
-    lock, so two processes cannot leave a count that was stale when it was written.
+    The token is per pane and idempotent: no lock. The tab label update reads the count,
+    re-reads the label and renames under ``tabs.marker_lock`` (a file lock, not the
+    database lock), so concurrent processes cannot leave a stale count and a slow herdr
+    never blocks database writers.
     """
     if not pane_id:
         return
+    herdr.set_open_count(pane_id, store.open_counts().get(pane_id, 0))
     mark = tabs.prefix()
-    pane_tabs = herdr.pane_tabs() if mark else None  # disabled: stale prefixes go at the next sync
-    with store.transaction():
-        counts = store.open_counts()
-        herdr.set_open_count(pane_id, counts.get(pane_id, 0))
-        tab_id = (pane_tabs or {}).get(pane_id)
-        if tab_id:
-            tabs.apply(store, tab_id, tabs.tab_counts(counts, pane_tabs).get(tab_id, 0), mark)
+    if not mark:  # disabled: stale prefixes go at the next sync
+        return
+    pane_tabs = herdr.pane_tabs()
+    tab_id = (pane_tabs or {}).get(pane_id)
+    if not tab_id:
+        return
+    with tabs.marker_lock(store) as locked:
+        if locked:
+            tabs.apply(store, tab_id, tabs.tab_counts(store.open_counts(), pane_tabs).get(tab_id, 0), mark)
 
 
 def sync_tokens(store: Store, remove_prefixes: bool = False) -> None:
     """Reconcile every marker with the database (herdr drops tokens on restart; a crash
     can leave a stale tab prefix): ``inbox_q`` on every pane, the prefix on every tab.
-    ``remove_prefixes`` strips every prefix (before uninstalling)."""
+    ``remove_prefixes`` strips every prefix (before uninstalling). One short locked
+    section per tab."""
     mark = "" if remove_prefixes else tabs.prefix()
     pane_tabs = herdr.pane_tabs()
-    all_tabs = herdr.all_tabs() if pane_tabs is not None else None
-    with store.transaction():
-        counts = store.open_counts()
-        panes = list(pane_tabs) if pane_tabs is not None else store.known_panes()
-        for pane in panes:
-            herdr.set_open_count(pane, counts.get(pane, 0))
-        per_tab = tabs.tab_counts(counts, pane_tabs or {})
-        for tab in all_tabs or []:
-            if tab.get("label") is None:
+    counts = store.open_counts()
+    for pane in (list(pane_tabs) if pane_tabs is not None else store.known_panes()):
+        herdr.set_open_count(pane, counts.get(pane, 0))
+    if pane_tabs is None:
+        return
+    for tab in herdr.all_tabs() or []:
+        if tab.get("label") is None:
+            continue
+        tab_id = tab["tab_id"]
+        with tabs.marker_lock(store) as locked:
+            if not locked:
                 continue
-            count = per_tab.get(tab["tab_id"], 0)
-            want = tabs.desired_label(tabs.base_label(tab["label"], tabs.known_marks(store, mark)), count, mark)
-            if want != tab["label"]:
-                tabs.apply(store, tab["tab_id"], count, mark)  # re-reads before renaming
+            count = tabs.tab_counts(store.open_counts(), pane_tabs).get(tab_id, 0)
+            want = tabs.desired_label(tabs.base_label(tab["label"], tabs.marks_for(store, tab_id)), count, mark)
+            if want != tab["label"] or tabs.marks_for(store, tab_id) - {tabs.DEFAULT_PREFIX}:
+                tabs.apply(store, tab_id, count, mark)  # re-reads before renaming

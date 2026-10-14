@@ -38,11 +38,11 @@ def _bin() -> str:
     return os.environ.get("HERDR_BIN_PATH") or "herdr"
 
 
-def run_raw(*args: str, timeout: float = TIMEOUT) -> tuple[str | None, str | None]:
+def run_raw(*args: str, timeout: float | None = None) -> tuple[str | None, str | None]:
     """Run ``herdr <args>``; return (stdout, None) or (None, error)."""
     argv = [_bin(), *(clean(a) for a in args)]  # every argument, one choke point
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout or TIMEOUT)
     except (OSError, subprocess.SubprocessError) as exc:
         log.warning("herdr %s failed: %s", args[:2], exc)
         return None, str(exc)
@@ -53,7 +53,7 @@ def run_raw(*args: str, timeout: float = TIMEOUT) -> tuple[str | None, str | Non
     return proc.stdout, None
 
 
-def call(*args: str, timeout: float = TIMEOUT) -> tuple[dict | None, str | None]:
+def call(*args: str, timeout: float | None = None) -> tuple[dict | None, str | None]:
     """Run ``herdr <args>``; return (``.result`` dict, None) or (None, error)."""
     out, err = run_raw(*args, timeout=timeout)
     if out is None:
