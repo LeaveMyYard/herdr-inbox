@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.4
+
+- **Fix: answers to an agent that stays "working" were held indefinitely.** herdr reports
+  `working` for as long as Claude Code waits on a background workflow (hours), but Claude Code
+  accepts typed input then. A busy agent now gets its answer after a 20 s grace, and the
+  transcript check (at most 2 tries) confirms it landed. An agent at a prompt or dialog
+  (`blocked`) still waits, since typed text would be swallowed.
+- The popup says why an answer waits and when it goes (`⏳ Q45 agent busy — will send in 15 s`,
+  `waiting: agent is at a prompt/dialog`), and a pending answer offers **Send now**.
+
 ## 0.5.3
 
 - **Hooks can no longer fail the session start.** The SessionStart and SubagentStart hooks went
