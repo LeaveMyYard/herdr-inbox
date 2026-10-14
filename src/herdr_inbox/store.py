@@ -153,6 +153,7 @@ PENDING = "pending: "
 RESET_KEY = "0.5.1 unverified acknowledgements reset"
 RESET_WINDOW = timedelta(days=7)
 SIGNATURE_WINDOW = timedelta(hours=24)
+RECONCILE_BATCH = 200  # rows per open; the 7-day sweep is done only once a pass sees fewer
 MAX_RESETS = 2
 # A delivery claim older than this belongs to a process that died mid-send.
 CLAIM_STALE = timedelta(seconds=60)
@@ -465,17 +466,20 @@ class Store:
                 (error, qid, *args),
             )
             return
-        cur = self.db.execute(
-            "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
-            f" delivery_error = NULL WHERE id = ?{mine}",
-            (now(), now() if acknowledge and verified else None, qid, *args),
-        )
-        if verified and cur.rowcount:
-            self.db.execute(
-                "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
-                " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at",
-                (qid, qid, now()),
+        # one transaction: another process's reconcile pass must never see the row delivered
+        # and acknowledged together (the pre-0.5.1 signature) without its verified_at
+        with self.transaction():
+            cur = self.db.execute(
+                "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
+                f" delivery_error = NULL WHERE id = ?{mine}",
+                (now(), now() if acknowledge and verified else None, qid, *args),
             )
+            if verified and cur.rowcount:
+                self.db.execute(
+                    "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
+                    " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at",
+                    (qid, qid, now()),
+                )
 
     def set_pending(self, qid: int, claim: str, reason: str) -> None:
         """Not sent yet (e.g. the agent is mid-turn): visible as pending, retried, not counted
@@ -526,8 +530,8 @@ class Store:
             " WHERE q.delivered_at IS NOT NULL AND q.acknowledged_at IS NOT NULL AND e.verified_at IS NULL"
             " AND COALESCE(e.reset_count, 0) < ?"
             " AND ((? AND q.answered_at >= ?) OR (q.acknowledged_at = q.delivered_at AND q.delivered_at >= ?))"
-            " ORDER BY q.id LIMIT 200",
-            (MAX_RESETS, int(one_off), now(-RESET_WINDOW), now(-SIGNATURE_WINDOW)),
+            " ORDER BY q.id LIMIT ?",
+            (MAX_RESETS, int(one_off), now(-RESET_WINDOW), now(-SIGNATURE_WINDOW), RECONCILE_BATCH),
         ).fetchall()
         if not rows and not one_off:
             return
@@ -552,7 +556,7 @@ class Store:
                     self.db.execute(
                         "INSERT INTO question_ext (id, group_id, reset_count) VALUES (?, ?, 1)"
                         " ON CONFLICT(id) DO UPDATE SET reset_count = COALESCE(reset_count, 0) + 1", (qid, qid))
-            if one_off:
+            if one_off and len(rows) < RECONCILE_BATCH:
                 self.db.execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)", (RESET_KEY, now()))
 
     def undelivered(self, pane_id: str, caps: dict[str, int]) -> list[Question]:
