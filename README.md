@@ -111,7 +111,8 @@ tab_prefix = "❓"            # "" turns the tab prefix off
 prefix_unnamed_tabs = false  # true: also prefix tabs named by position (they keep the number)
 ```
 
-or with `HERDR_INBOX_TAB_PREFIX` (`off` disables; it wins over the file).
+Both the popup and every Claude session read this one file, and edits apply without a
+restart. Changing the mark is safe: every mark ever applied is stripped.
 
 ## Use
 
@@ -145,6 +146,17 @@ uv run inbox sync-tokens
 
 The database lives at `${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/inbox.db`
 (`HERDR_INBOX_DB` overrides it).
+
+## Uninstall
+
+Remove the tab prefixes first (pane tokens vanish with herdr's next restart):
+
+```sh
+uv run --project /home/leavemyyard/Code/herdr-inbox inbox sync-tokens --remove-prefixes
+herdr plugin unlink leavemyyard.herdr-inbox
+claude plugin uninstall herdr-inbox@herdr-inbox
+claude plugin marketplace remove herdr-inbox
+```
 
 ## Development
 

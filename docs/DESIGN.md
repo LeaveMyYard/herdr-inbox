@@ -164,14 +164,27 @@ anything the operator is half-way through typing in that pane.
   not edit the operator's herdr config).
 - **Tab label prefix** `❓N ` (herdr has no per-tab tokens): on every change the
   pane's current tab (`pane list`) is re-read with `tab get`; the base label is
-  the current label with any of our prefixes stripped (never stored, so an
+  the current label with our marks stripped, repeatedly (never stored, so an
   operator rename in the meantime is adopted), and `tab rename` runs only when
   the label differs from `❓<open count in the tab> <base>` (or `<base>` at 0).
-  Tabs labelled by position (all digits) are skipped by default: a rename would
-  freeze the number. `sync-tokens` reconciles every tab (`workspace list` →
-  `tab list --workspace`). Config: `HERDR_INBOX_TAB_PREFIX`, or `tab_prefix` /
-  `prefix_unnamed_tabs` in `config.toml` in the plugin config dir. Questions
-  store the base label.
+  - Every mark ever applied is recorded in `tab_marks`, and all of them are
+    stripped, so changing the mark can never stack prefixes.
+  - The setting has one source that herdr-side and Claude-spawned processes
+    both read: `tab_prefix` / `prefix_unnamed_tabs` in `config.toml` in the
+    plugin config dir (`$HERDR_PLUGIN_CONFIG_DIR`, else
+    `herdr plugin config-dir leavemyyard.herdr-inbox`), re-read on each use.
+  - Count → `tab get` → `tab rename` runs under the database write lock with
+    the counts read inside it, so concurrent processes cannot leave a stale
+    count.
+  - Tabs labelled by position (all digits) are skipped by default: a rename
+    would freeze the number.
+  - `sync-tokens` reconciles every tab (`workspace list` → `tab list
+    --workspace`); `sync-tokens --remove-prefixes` strips them all (before
+    uninstalling).
+  - Known limitation: herdr has no compare-and-set rename, so an operator
+    rename landing in the few milliseconds between our `tab get` and
+    `tab rename` is overwritten (the base it had is kept).
+  - Questions store the base label.
 - **Popup** `inbox` (placement `popup`, 85% × 80%) running `inbox tui`, plus an
   `open` action; the operator binds `prefix+i` to it in their config.
 
@@ -196,7 +209,18 @@ the plugin dir.
   `answer_json` the structure. `inbox answer` is draft + submit in one step.
 - Delivery is batched per pane: one `[inbox]` message per pane with all its
   submitted answers, subject to the same session check, retry focus/blocked
-  guard and retry cap as before.
+  guard and retry cap as before. A batch over herdr's 4000-char argument cap is
+  split into several messages, never truncated; a single answer too long for
+  any message is sent as a reference ("call check_answers") and stays
+  unacknowledged. Picks containing `,`, `"`, parentheses or `·` are quoted.
+- The retry also picks up answered rows that were never attempted (the
+  answering process died in between) once they are 60 s old.
+- **Upgrade safety**: the 0.2 fields (`header`, `multi_select`, `answer_json`,
+  `group_id`, drafts) live in a side table `question_ext`, read through the
+  `questions_v2` view. The `questions` table keeps exactly the 0.1.x columns,
+  because 0.1.x builds its `Question` from `SELECT *`: sessions still running
+  0.1.x keep working against a database 0.2 has opened. `from_row` now ignores
+  columns it does not know, so later versions can add columns safely.
 
 ## TUI
 
