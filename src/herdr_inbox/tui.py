@@ -1,40 +1,43 @@
 """Textual inbox, opened by herdr as a popup (``inbox tui``).
 
-The question UI mimics Claude Code's own AskUserQuestion prompt (strings and
-behaviour checked against the Claude Code 2.1.299 binary):
+The popup opens straight into a tabbed view modelled on Claude Code's own
+AskUserQuestion prompt (strings and behaviour checked against the Claude Code
+2.1.299 binary). Every open question is a tab: first those from the pane that
+was focused when the popup opened, then the rest oldest first, with the
+questions an agent filed together kept adjacent; a dim tab label separates
+agents. New questions are appended while the popup is open.
 
-- one question: Enter on an option, or text in "Type something.", answers and
-  sends at once;
-- a group: one tab per question across the top plus a final Submit tab;
-  answering a question moves to the next tab; the Submit tab shows "Review
-  your answers", warns "You have not answered all questions" when some are
-  blank, and asks "Ready to submit your answers?" (Submit answers / Cancel).
-  Our additions: answers in a group are drafts kept in the database (closing
-  the popup loses nothing), and submitting with blanks sends only the answered
-  ones and leaves the rest open;
-- "Type something." is Claude Code's Other: in single-select it is the answer,
-  in multi-select it is added to the picks; "Chat about this" (single-select)
-  focuses the asking agent's pane and leaves the question open; ``n`` adds
-  notes to an option; Esc goes back without sending;
-- options may carry a ``preview``: then the options sit left and the
-  highlighted option's preview right ("No preview available" otherwise).
+- one open question in total: Enter on an option, or text in "Type
+  something.", answers and sends at once;
+- several: answering drafts it (kept in the database, so closing the popup
+  loses nothing) and moves to the next tab; the last tab is Submit: "Review
+  your answers", "You have not answered all questions" when some are blank,
+  "Ready to submit your answers?" (Submit answers / Cancel). Submitting sends
+  every answered question at once, batched per pane; the rest stay open;
+- "Type something." is Claude Code's Other (the answer in single-select, added
+  to the picks in multi-select); "Chat about this" (single-select) focuses the
+  asking agent's pane and leaves the question open; ``n`` adds notes; ``d``
+  dismisses the current question's group; Esc closes the popup without
+  sending;
+- options may carry a ``preview``: options left, the highlighted option's
+  preview right ("No preview available" otherwise).
 """
 
 from __future__ import annotations
 
 import functools
+import os
 import sqlite3
 
 from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, HorizontalScroll, Vertical, VerticalScroll
 from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Input, Static
+from textual.widgets import Input, Static
 
 from . import herdr, service
-from .cli import _age
 from .store import Question, Store
 
 POLL_SECONDS = 2.0
@@ -58,23 +61,9 @@ def guarded(fn):
     return wrapper
 
 
-def _state(q: Question) -> str:
-    if q.status == "open":
-        return "drafted" if q.draft_json else "open"
-    if q.status != "answered":
-        return q.status
-    if q.delivered_at:
-        return "answered ✓"
-    return "answered !" if q.delivery_error else "answered"
-
-
 def _draft_line(q: Question) -> str:
     d = q.draft_json or {}
     return service.format_answer(d.get("choices") or [], d.get("notes"), d.get("text"))
-
-
-def _refs(qs: list[Question]) -> str:
-    return qs[0].ref if len(qs) == 1 else f"{qs[0].ref}–{qs[-1].ref}"
 
 
 def _typing(screen: Screen) -> bool:
@@ -86,11 +75,9 @@ def _cursor(here: bool) -> str:
     return "[$accent]❯[/]" if here else "[$background] [/]"
 
 
-def _back(app: App) -> None:
-    """Leave the current view without sending; the list reflects drafts right away."""
-    app.pop_screen()
-    if isinstance(app, InboxApp) and app.screen is app.base:
-        app.refresh_list()
+def _close(app: App) -> None:
+    """Close the popup without sending (drafts stay); waits for an in-flight send."""
+    app.call_next(app.action_quit)
 
 
 class QuestionView(Vertical, can_focus=True):
@@ -276,7 +263,7 @@ class QuestionView(Vertical, can_focus=True):
         if self.editing:
             self._close_input()
         else:
-            _back(self.app)
+            _close(self.app)
 
     def _answer(self) -> None:
         labels = [self.options[i]["label"] for i in sorted(self.picked)]
@@ -352,8 +339,7 @@ class ReviewView(Vertical, can_focus=True):
         Binding("escape", "back", show=False),
     ]
 
-    def __init__(self, store: Store, qids: list[int] | None = None):
-        """``qids``: one group's questions; None means every draft (the global review)."""
+    def __init__(self, store: Store, qids: list[int]):
         super().__init__()
         self.store = store
         self.qids = qids
@@ -369,10 +355,7 @@ class ReviewView(Vertical, can_focus=True):
 
     @guarded
     def reload(self) -> None:
-        if self.qids is None:
-            self.items = self.store.drafted()
-        else:
-            self.items = [q for q in (self.store.get(i) for i in self.qids) if q and q.status == "open"]
+        self.items = [q for q in (self.store.get(i) for i in self.qids) if q and q.status == "open"]
         n = len(self.items)
         self.cursor = n if self.cursor is None else min(self.cursor, n + 1)
         self.render_rows()
@@ -382,11 +365,10 @@ class ReviewView(Vertical, can_focus=True):
         return [q for q in self.items if q.draft_json]
 
     def render_rows(self) -> None:
-        title = "Review your answers" + ("" if self.qids is not None else " (all drafts)")
-        lines = [f"[b]{title}[/b]", ""]
+        lines = ["[b]Review your answers[/b]", ""]
         for i, q in enumerate(self.items):
             mark = "[$accent]❯[/]" if i == self.cursor else "[$foreground]●[/]"
-            where = "" if self.qids is not None else f"{q.ref} · {escape(q.tab_label or q.pane_id or '-')} · "
+            where = f"{q.ref} · {escape(q.tab_label or q.pane_id or '-')} · "
             lines.append(f"{mark} [$foreground]{where}{escape(service.first_line(q.question, 80))}[/]")
             if q.draft_json:
                 lines.append(f"  [$accent]→[/] [b]{escape(_draft_line(q))}[/b]")
@@ -422,7 +404,7 @@ class ReviewView(Vertical, can_focus=True):
             else:
                 self.notify("Nothing answered yet", severity="warning")
         else:
-            _back(self.app)
+            _close(self.app)
 
     @guarded
     def action_drop(self) -> None:
@@ -431,7 +413,7 @@ class ReviewView(Vertical, can_focus=True):
             self.reload()
 
     def action_back(self) -> None:
-        _back(self.app)
+        _close(self.app)
 
 
 VIEW_CSS = """
@@ -451,26 +433,24 @@ VIEW_CSS = """
 
 
 def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
+    failed = [q for q in done if not q.delivered_at]
     if not done:
         app.notify("Nothing sent: those questions are no longer open", severity="warning")
+    elif failed:
+        app.notify(f"Sent {', '.join(q.ref for q in done)}; not delivered: "
+                   f"{', '.join(f'{q.ref} ({q.delivery_error})' for q in failed)}", severity="warning")
     else:
-        sent = [q for q in done if q.delivered_at]
-        msg = f"Sent {', '.join(q.ref for q in done)}"
-        if len(sent) < len(done):
-            failed = [q for q in done if not q.delivered_at]
-            msg += f"; not delivered: {', '.join(f'{q.ref} ({q.delivery_error})' for q in failed)}"
-            app.notify(msg, severity="warning")
-        else:
-            app.notify(msg)
-        if len(done) < wanted:
-            app.notify(f"{wanted - len(done)} answered question(s) had closed meanwhile", severity="warning")
-    app.refresh_list()
+        app.notify(f"Sent {', '.join(q.ref for q in done)}")
+    if done and len(done) < wanted:
+        app.notify(f"{wanted - len(done)} answered question(s) had closed meanwhile", severity="warning")
+    app.poll()
+    if not app.order and done and not failed:
+        app.exit()  # like Claude Code's prompt: gone once everything is answered
 
 
 def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
-    """Leave the view and send in a background thread: delivery talks to herdr (and may wait
-    for the tab-label lock), and the popup must never freeze on it."""
-    app.pop_screen()
+    """Send in a background thread: delivery talks to herdr (and may wait for the
+    tab-label lock), and the popup must never freeze on it."""
     app.notify(f"Sending {', '.join(f'Q{q}' for q in qids)}…")
 
     def run() -> None:
@@ -485,89 +465,180 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
     app.run_worker(run, thread=True, group="send")
 
 
-class GroupScreen(Screen):
-    """One question alone, or a group as tabs (✓ answered · ● not yet) plus a Submit tab."""
+def tab_order(questions: list[Question], focus_pane: str | None) -> list[int]:
+    """Questions from the focused pane first, then the rest oldest first; a group stays together."""
+    groups: dict[int, list[Question]] = {}
+    for q in sorted(questions, key=lambda q: q.id):
+        groups.setdefault(q.group, []).append(q)
+    ordered = sorted(groups.values(), key=lambda g: (g[0].pane_id != focus_pane, g[0].id))
+    return [q.id for g in ordered for q in g]
 
+
+class InboxApp(App):
+    """Every open question as a tab, plus Submit when there are several."""
+
+    TITLE = "herdr inbox"
     CSS = """
-    GroupScreen { padding: 1 2; }
-    #chips { height: 1; margin-bottom: 1; }
+    Screen { padding: 1 2; }
+    #chips { height: 1; margin-bottom: 1; scrollbar-size-horizontal: 0; }
+    #chips > Static { width: auto; margin-right: 2; }
+    #chips > .sep { color: $text-muted; }
+    #empty { display: none; }
+    InboxApp.empty #empty { display: block; }
+    InboxApp.empty #chips, InboxApp.empty #body { display: none; }
     """ + VIEW_CSS
     BINDINGS = [
         Binding("left", "switch(-1)", show=False),
         Binding("shift+tab", "switch(-1)", show=False, priority=True),
         Binding("right", "switch(1)", show=False),
         Binding("tab", "switch(1)", show=False, priority=True),
+        Binding("d", "dismiss", show=False),
+        Binding("escape", "quit", show=False),
     ]
 
-    def __init__(self, store: Store, qids: list[int], start: int = 0):
+    def __init__(self, store: Store | None = None, focus_pane: str | None = None):
         super().__init__()
-        self.store = store
-        self.qids = qids
-        self.index = start
+        self.store = store or Store()
+        self.focus_pane = focus_pane
+        self.order: list[int] = []
+        self.index = 0
+
+    # -- state -------------------------------------------------------------------
 
     @property
-    def grouped(self) -> bool:
-        return len(self.qids) > 1
+    def multi(self) -> bool:
+        return len(self.order) > 1
 
     @property
     def review_index(self) -> int:
-        return len(self.qids)
+        return len(self.order)
+
+    @property
+    def current_qid(self) -> int | None:
+        return self.order[self.index] if self.index < len(self.order) else None
 
     def compose(self) -> ComposeResult:
-        if self.grouped:
-            yield Static(id="chips")
+        yield HorizontalScroll(id="chips")
         yield Vertical(id="body")
+        yield Static("No open questions", id="empty")
 
     def on_mount(self) -> None:
-        self.show(self.index)
+        if self.focus_pane is None:
+            self.focus_pane = os.environ.get("INBOX_FOCUS_PANE") or herdr.focused_pane()
+        self.order = tab_order(self._open(), self.focus_pane)
+        self.show(0)
+        self.set_interval(POLL_SECONDS, self.poll)
 
-    def chips(self) -> str:
-        parts = []
-        for i, qid in enumerate(self.qids):
-            q = self.store.get(qid)
-            mark = "✓" if q and q.draft_json else "●"
-            name = escape(q.header if q and q.header else f"Q{qid}")
-            chip = f"{mark} {name}"
-            parts.append(f"[reverse b] {chip} [/]" if i == self.index else f"[$foreground]{chip}[/]")
-        label = "Submit"
-        parts.append(f"[reverse b] {label} [/]" if self.index == self.review_index else f"[$foreground]{label}[/]")
-        return "[$text-muted]←[/]  " + "  ".join(parts) + "  [$text-muted]→[/]"
-
-    @guarded
-    def show(self, index: int) -> None:
-        if not self.grouped:
-            index = 0
-        self.index = index % (len(self.qids) + 1)
-        body = self.query_one("#body")
-        body.remove_children()
-        if self.index == self.review_index:
-            view = ReviewView(self.store, self.qids)
-        else:
-            q = self.store.get(self.qids[self.index])
-            view = QuestionView(q, in_group=self.grouped, last=not self.grouped or self.index == len(self.qids) - 1)
-        body.mount(view)
-        view.focus()
-        if self.grouped:
-            self.query_one("#chips", Static).update(self.chips())
+    def _open(self) -> list[Question]:
+        try:
+            return self.store.list()
+        except sqlite3.OperationalError:
+            self.notify(BUSY, severity="warning")
+            return []
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        return self.grouped and not _typing(self)
+        if action in ("switch", "dismiss"):
+            return bool(self.order) and not isinstance(self.focused, Input) and (action != "switch" or self.multi)
+        return True
+
+    # -- rendering -----------------------------------------------------------------
+
+    def show(self, index: int) -> None:
+        self.set_class(not self.order, "empty")
+        body = self.query_one("#body")
+        body.remove_children()
+        if not self.order:
+            self.query_one("#chips").remove_children()
+            return
+        self.index = index % (len(self.order) + 1) if self.multi else 0
+        qid = self.current_qid
+        if qid is None:
+            view = ReviewView(self.store, list(self.order))
+        else:
+            view = QuestionView(self.store.get(qid), in_group=self.multi, last=self.index == len(self.order) - 1)
+        body.mount(view)
+        view.focus()
+        self.render_chips()
+
+    def render_chips(self) -> None:
+        row = self.query_one("#chips", HorizontalScroll)
+        row.remove_children()
+        if not self.multi:
+            return
+        chips, current, last_tab = [], None, object()
+        for i, qid in enumerate(self.order):
+            q = self.store.get(qid)
+            if q is None:
+                continue
+            tab = q.tab_label or q.pane_id
+            if tab != last_tab:  # agent boundary
+                chips.append(Static(f"│ {escape(tab or 'no pane')}", classes="sep"))
+                last_tab = tab
+            mark = "✓" if q.draft_json else "●"
+            text = f"{mark} {escape(q.header or q.ref)}"
+            here = i == self.index
+            chip = Static(f"[reverse b] {text} [/]" if here else f"[$foreground]{text}[/]",
+                          classes="current" if here else "")
+            chips.append(chip)
+            if i == self.index:
+                current = chip
+        on_submit = self.current_qid is None
+        submit = Static("[reverse b] Submit [/]" if on_submit else "[$foreground]Submit[/]",
+                        classes="current" if on_submit else "")
+        chips.append(submit)
+        row.mount_all(chips)
+        target = current or submit
+        self.call_after_refresh(target.scroll_visible, animate=False)
+
+    @guarded
+    def poll(self) -> None:
+        """Pick up new questions (appended, the current tab stays) and drop closed ones."""
+        open_qs = self.store.list()
+        open_ids = {q.id for q in open_qs}
+        keep = [qid for qid in self.order if qid in open_ids]
+        new = tab_order([q for q in open_qs if q.id not in set(self.order)], None)
+        if keep == self.order and not new:
+            if self.multi:
+                self.render_chips()  # drafts may have changed (✓ / ●)
+            return
+        current = self.current_qid
+        was_review = self.multi and current is None
+        was_multi = self.multi
+        self.order = keep + new
+        if current in self.order and was_multi == self.multi:
+            self.index = self.order.index(current)
+            self.render_chips()
+        elif was_review and self.multi:
+            self.index = self.review_index
+            self.query_one(ReviewView).reload()
+            self.render_chips()
+        else:
+            if current is not None and current not in self.order:
+                self.notify(f"Q{current} was closed meanwhile", severity="warning")
+            self.show(min(self.index, len(self.order)))
+
+    # -- actions -------------------------------------------------------------------
 
     def action_switch(self, delta: int) -> None:
         self.show(self.index + delta)
 
+    def on_key(self, event) -> None:
+        if not self.order:  # empty state: any key closes
+            event.stop()
+            self.exit()
+
     @guarded
     def on_question_view_answered(self, event: QuestionView.Answered) -> None:
-        if not self.grouped:  # a single question answers and sends at once, like Claude Code
+        if not self.multi:  # the only open question: answer and send at once, like Claude Code
             d = event.detail or {}
-            _send(self.app, self.store, [event.qid],
+            _send(self, self.store, [event.qid],
                   lambda s: [x for x in [service.answer(s, event.qid, d.get("text"), choices=d.get("choices"),
                                                          notes=d.get("notes"))] if x])
             return
         if not self.store.set_draft(event.qid, event.detail):
             self.notify(f"Q{event.qid} is no longer open", severity="warning")
         if event.detail is None:
-            self.query_one("#chips", Static).update(self.chips())
+            self.render_chips()
             return
         self.show(self.index + 1)  # Claude Code moves to the next tab (the last one: Submit)
 
@@ -577,202 +648,26 @@ class GroupScreen(Screen):
         if err:
             self.notify(f"could not focus {q.pane_id}: {err}", severity="warning")
         else:
-            self.app.exit()  # the question stays open; discuss it in the agent's chat
+            self.exit()  # the question stays open; discuss it in the agent's chat
 
     def on_review_view_edit(self, event: ReviewView.Edit) -> None:
-        self.show(self.qids.index(event.qid))
+        self.show(self.order.index(event.qid))
 
-    @guarded
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
-        _send(self.app, self.store, event.qids, lambda s: service.submit(s, event.qids))
-
-
-class ReviewScreen(Screen):
-    """Every drafted answer, across groups and agents (``r`` on the list)."""
-
-    CSS = "ReviewScreen { padding: 1 2; }" + VIEW_CSS
-
-    def __init__(self, store: Store):
-        super().__init__()
-        self.store = store
-
-    def compose(self) -> ComposeResult:
-        yield ReviewView(self.store, None)
-
-    def on_mount(self) -> None:
-        self.query_one(ReviewView).focus()
-
-    def on_screen_resume(self) -> None:
-        view = self.query_one(ReviewView)
-        view.reload()
-        view.focus()
-
-    @guarded
-    def on_review_view_edit(self, event: ReviewView.Edit) -> None:
-        q = self.store.get(event.qid)
-        group = [g.id for g in self.store.group(q.group)]
-        self.app.push_screen(GroupScreen(self.store, group, group.index(q.id)))
-
-    @guarded
-    def on_review_view_submit(self, event: ReviewView.Submit) -> None:
-        _send(self.app, self.store, event.qids, lambda s: service.submit(s, event.qids))
-
-
-class InboxApp(App):
-    TITLE = "herdr inbox"
-    CSS = """
-    DataTable { height: 1fr; }
-    #detail-box { height: 2fr; border-top: solid $accent; padding: 0 1; }
-    """
-    BINDINGS = [
-        Binding("enter", "open", "Answer"),
-        Binding("a", "open", "Answer", show=False),
-        Binding("r", "review", "Review drafts"),
-        Binding("d", "dismiss", "Dismiss"),
-        Binding("g", "goto", "Go to pane"),
-        Binding("h", "history", "History"),
-        Binding("q", "quit", "Close"),
-        Binding("escape", "quit", "Close", show=False),
-    ]
-
-    def __init__(self, store: Store | None = None):
-        super().__init__()
-        self.store = store or Store()
-        self.history = False
-        self.groups: list[list[Question]] = []
-
-    @property
-    def base(self) -> Screen:
-        """The list screen (``self.query_one`` would search a pushed screen)."""
-        return self.screen_stack[0]
-
-    def check_action(self, action: str, parameters: tuple) -> bool | None:
-        # List keys (d, g, h, q, ...) must not act behind an open question or review.
-        return self.screen is self.base
-
-    def compose(self) -> ComposeResult:
-        yield DataTable(id="list", cursor_type="row", zebra_stripes=True)
-        with VerticalScroll(id="detail-box"):
-            yield Static(id="detail")
-        yield Footer()
-
-    def on_mount(self) -> None:
-        table = self.base.query_one(DataTable)
-        table.add_columns("Q", "Tab", "Asked by", "Age", "Rep", "State", "Question")
-        self.refresh_list()
-        self.set_interval(POLL_SECONDS, self.refresh_list)
-
-    # -- data ----------------------------------------------------------------
-
-    @property
-    def current(self) -> list[Question] | None:
-        table = self.base.query_one(DataTable)
-        if not self.groups or table.cursor_row is None or table.cursor_row >= len(self.groups):
-            return None
-        return self.groups[table.cursor_row]
-
-    @guarded
-    def refresh_list(self) -> None:
-        keep = self.current[0].group if self.current else None
-        questions = self.store.list(include_closed=self.history)
-        if self.history:
-            self.groups = [[q] for q in questions]
-        else:  # one row per group, newest group first
-            by_group: dict[int, list[Question]] = {}
-            for q in sorted(questions, key=lambda q: q.id):
-                by_group.setdefault(q.group, []).append(q)
-            self.groups = sorted(by_group.values(), key=lambda g: -g[-1].id)
-        table = self.base.query_one(DataTable)
-        table.clear()
-        for g in self.groups:
-            q = g[0]
-            drafted = sum(1 for x in g if x.draft_json)
-            if len(g) == 1:
-                state = _state(q)
-            else:
-                state = f"{drafted}/{len(g)} drafted" if drafted else f"{len(g)} open"
-            text = service.first_line(q.question, 120) + (f" (+{len(g) - 1} more)" if len(g) > 1 else "")
-            table.add_row(
-                _refs(g), q.tab_label or q.pane_id or "-", q.asked_by or "", _age(q.created_at),
-                str(q.repeat_count + 1) if q.repeat_count else "", state, text,
-                key=f"{q.group}-{q.id}",
-            )
-        if keep is not None:
-            for row, g in enumerate(self.groups):
-                if g[0].group == keep:
-                    table.move_cursor(row=row)
-        drafts = len(self.store.drafted())
-        self.sub_title = f"{'history' if self.history else 'open'}: {len(questions)}" + (
-            f" · {drafts} drafted (r to review)" if drafts else "")
-        self.show_detail()
-
-    def show_detail(self) -> None:
-        g = self.current
-        detail = self.base.query_one("#detail", Static)
-        if g is None:
-            detail.update("No open questions." if not self.history else "Nothing here.")
-            return
-        parts = []
-        for q in g:
-            head = f"[b]{q.ref}[/b]" + (f" [reverse] {escape(q.header)} [/]" if q.header else "")
-            parts += [head + f" · {escape(q.tab_label or q.pane_id or 'no pane')}"
-                      + (f" · {escape(q.asked_by)}" if q.asked_by else "")
-                      + f" · {_age(q.created_at)} ago · {_state(q)}",
-                      escape(q.question)]
-            if q.context and q is g[0]:
-                parts += ["[dim]Context[/dim]", escape(q.context)]
-            if q.options:
-                kind = "pick any" if q.multi_select else "pick one"
-                parts.append(f"[dim]Options ({kind}):[/dim] " + " · ".join(escape(o["label"]) for o in q.options))
-            if q.draft_json:
-                parts.append(f"[i]Draft: {escape(_draft_line(q))}[/i]")
-            if q.answer:
-                parts.append(f"[dim]Answer:[/dim] {escape(q.answer)}")
-            if q.delivery_error:
-                parts.append(f"[red]Not delivered:[/red] {escape(q.delivery_error)} (available via check_answers)")
-            parts.append("")
-        detail.update("\n".join(parts))
-
-    def on_data_table_row_highlighted(self, _event: DataTable.RowHighlighted) -> None:
-        self.show_detail()
-
-    def on_data_table_row_selected(self, _event: DataTable.RowSelected) -> None:
-        self.action_open()
-
-    # -- actions -------------------------------------------------------------
-
-    def action_open(self) -> None:
-        g = self.current
-        if not g or g[0].status != "open" or self.screen is not self.base:
-            return
-        start = next((i for i, q in enumerate(g) if not q.draft_json), len(g))
-        self.push_screen(GroupScreen(self.store, [q.id for q in g], start))
-
-    def action_review(self) -> None:
-        self.push_screen(ReviewScreen(self.store))
+        _send(self, self.store, event.qids, lambda s: service.submit(s, event.qids))
 
     @guarded
     def action_dismiss(self) -> None:
-        g = self.current
-        closed = [q.ref for q in g or [] if service.close(self.store, q.id, "dismissed")]
+        qid = self.current_qid
+        q = self.store.get(qid) if qid else None
+        if q is None:
+            return
+        closed = [g.ref for g in self.store.group(q.group) if service.close(self.store, g.id, "dismissed")]
         if closed:
             self.notify(f"{', '.join(closed)} dismissed")
-            self.refresh_list()
-
-    def action_goto(self) -> None:
-        g = self.current
-        if g and g[0].pane_id:
-            err = herdr.focus_agent(g[0].pane_id)
-            if err:
-                self.notify(f"could not focus {g[0].pane_id}: {err}", severity="warning")
-            else:
-                self.exit()
+        self.poll()
 
     async def action_quit(self) -> None:
         # let an in-flight send finish before the popup (and its process) goes away
         await self.workers.wait_for_complete()
         self.exit()
-
-    def action_history(self) -> None:
-        self.history = not self.history
-        self.refresh_list()

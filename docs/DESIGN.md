@@ -216,9 +216,9 @@ the plugin dir.
 - Options may carry a `preview` (monospace text shown beside the list).
   `questions.options` keeps plain label strings (a 0.1.x popup `escape()`s
   them); the full objects are in `question_ext.options_json`.
-- A single question is answered and sent at once. In a group, an answer is a
-  draft (`draft_json`: choices, notes per choice, free text) until Submit on the
-  group's Submit tab or the global review, which answers only drafted questions:
+- When it is the only open question, an answer is sent at once. Otherwise it is
+  a draft (`draft_json`: choices, notes per choice, free text) until Submit on
+  the popup's Submit tab, which answers only drafted questions:
   `answer` is the one-line text (`Postgres (note: …)`, picks joined by `, `),
   `answer_json` the structure. `inbox answer` is draft + submit in one step.
 - Delivery is batched per pane: one `[inbox]` message per pane with all its
@@ -238,10 +238,15 @@ the plugin dir.
 
 ## TUI
 
-- List: one row per group of open questions, newest first (`Q12–Q14`, tab,
-  `asked_by`, age, repeats, `2/3 drafted`, first question). History (`h`)
-  shows single questions. `Enter`/`a` open the group, `r` the global review,
-  `d` dismiss the group, `g` focus the asking pane, `q`/Esc close.
+- No list screen: the popup opens straight into tabs, one per open question.
+  Order: the questions of the pane that was focused when the popup opened
+  (`inbox open` passes `HERDR_PANE_ID` as `INBOX_FOCUS_PANE` via
+  `plugin pane open --env`; fallback: the focused pane from `pane list`),
+  then the rest oldest first; a group's questions stay adjacent. A dim
+  `│ <tab label>` separator marks each agent boundary; the chip row is a
+  horizontal scroll that keeps the current chip visible. Every 2 s new open
+  questions are appended (the current tab does not move) and closed ones are
+  dropped. Empty: "No open questions", any key closes.
 - The question UI mimics Claude Code's AskUserQuestion prompt (strings and
   behaviour checked against the Claude Code 2.1.299 binary): header chip,
   question in bold, numbered options with a `❯` cursor (label in the accent
@@ -250,21 +255,19 @@ the plugin dir.
   picks in multi-select) and, in single-select, "Chat about this" (focuses the
   asking agent's pane; the question stays open). Multi-select ends with a
   Submit/Next row. ↑/↓/j/k move, 1–9 jump, Enter selects (toggles in
-  multi-select, Space too), `n` adds notes, `x` clears, Esc goes back without
-  sending. Footer: "Enter to select · ↑/↓ to navigate · press n to add notes ·
-  Esc to cancel" ("Tab/Arrow keys to navigate" in a group). With any option
-  `preview`, options sit left and the highlighted preview right ("No preview
-  available").
-- One question: answering sends at once. A group: tabs per question (`✓`
-  answered, `●` not) plus Submit; ←/→ and Tab/Shift-Tab switch; answering moves
-  to the next tab. The Submit tab: "Review your answers", "You have not
-  answered all questions" when some are blank, "Ready to submit your
-  answers?" with Submit answers / Cancel. Sends only the answered questions.
-- `r`: the same review across every draft (Enter edits, `x` drops).
-- The highlighted row is always scrolled into view (Enter on a single question
-  sends it). Sends run in a background worker: the view closes at once, a
-  notice reports the result, and closing the popup waits for an in-flight send.
-- Polls the database every 2 s.
+  multi-select, Space too), `n` adds notes, `x` clears, `d` dismisses the
+  current question's group, Esc closes without sending. Footer: "Enter to
+  select · ↑/↓ to navigate · press n to add notes · Esc to cancel"
+  ("Tab/Arrow keys to navigate" with several tabs). With any option `preview`,
+  options sit left and the highlighted preview right ("No preview available").
+- One open question in total: answering sends at once and the popup closes.
+  Several: answering drafts (persisted) and moves to the next tab; the last tab
+  is Submit: "Review your answers", "You have not answered all questions" when
+  some are blank, "Ready to submit your answers?" with Submit answers / Cancel.
+  Submit sends every answered question in one go, batched per pane; the rest
+  stay open.
+- The highlighted row is always scrolled into view (Enter may send it). Sends
+  run in a background worker; closing the popup waits for an in-flight send.
 
 ## Agent onboarding
 

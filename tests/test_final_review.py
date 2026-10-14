@@ -18,7 +18,7 @@ LONG = "a fairly long description that wraps in a narrow popup " * 2
 
 
 def visible(app, row_id):
-    row, box = app.screen.query_one(row_id), app.screen.query_one(".choices")
+    row, box = app.query_one(row_id), app.query_one(".choices")
     return bool(row.region.height) and box.region.contains_region(row.region)
 
 
@@ -29,12 +29,10 @@ async def test_cursor_row_stays_visible_in_a_short_popup(store, fake_herdr):
     app = InboxApp(store)
     async with app.run_test(size=(60, 20)) as pilot:
         await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
         for _ in range(8):
             await pilot.press("down")
         await pilot.pause()
-        assert app.screen.query_one(QuestionView).cursor == 8
+        assert app.query_one(QuestionView).cursor == 8
         assert visible(app, "#row-8")
         await pilot.press("1")
         await pilot.pause()
@@ -46,7 +44,7 @@ async def test_cursor_row_stays_visible_without_previews(store, fake_herdr):
     app = InboxApp(store)
     async with app.run_test(size=(60, 20)) as pilot:
         await pilot.pause()
-        await pilot.press("enter", "7")  # "Chat about this", the last row
+        await pilot.press("7")  # "Chat about this", the last row
         await pilot.pause()
         assert visible(app, "#row-6")
 
@@ -66,13 +64,15 @@ async def test_send_runs_in_the_background(store, fake_herdr, monkeypatch):
     async with app.run_test() as pilot:
         await pilot.pause()
         t0 = time.monotonic()
-        await pilot.press("enter", "enter")  # pick "a": sends
-        await pilot.press("h")  # the popup keeps reacting while the send is in flight
+        await pilot.press("enter")  # pick "a": sends
+        await pilot.press("down")  # the popup keeps reacting while the send is in flight
         await pilot.pause()
-        assert time.monotonic() - t0 < 2 and app.history and app.screen is app.base
+        assert time.monotonic() - t0 < 2 and app.query_one(QuestionView).cursor == 1
         release.set()
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+        for _ in range(100):  # the send finishes; with nothing left open the popup closes itself
+            if not app.is_running or store.get(1).status == "answered":
+                break
+            await pilot.pause(0.05)
     assert store.get(1).status == "answered" and store.get(1).answer == "a"
 
 
@@ -118,6 +118,6 @@ async def test_closing_the_popup_waits_for_an_in_flight_send(store, fake_herdr, 
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("enter", "enter", "q")  # send, then close right away
+        await pilot.press("enter", "escape")  # send, then close right away
         await pilot.pause()
     assert store.get(1).status == "answered" and fake_herdr.calls_of("agent", "prompt")

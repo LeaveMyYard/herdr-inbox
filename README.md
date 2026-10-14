@@ -118,28 +118,30 @@ restart. Changing the mark is safe: every mark ever applied is stripped.
 
 - Agents call `ask_operator(question, options?, header?, multi_select?, context?, asked_by?)`,
   or `ask_operator(questions=[...])` for up to 4 related questions, and keep working.
-- `prefix+i` opens the inbox. The list has one row per group (`Q12–Q14 · 2/3 drafted`):
-  `Enter` answer, `r` review all drafts, `d` dismiss, `g` jump to the asking pane,
-  `h` history, `q`/`Esc` close.
-- Answering mimics Claude Code's own question prompt. `↑/↓` or `j/k` move the `❯`, `1`–`9`
-  jump, `n` adds notes to an option, **Type something.** is a free answer (in multi-select it is
-  added to the picks), **Chat about this** jumps to the asking agent's pane and leaves the
-  question open, `Esc` goes back without sending. Options with a `preview` show it beside the
-  list.
-  - **One question**: `Enter` on an option (or text in Type something.) answers and sends at
-    once. Multi-select: `Enter`/`Space` toggle, the **Submit** row sends.
-  - **A group**: one tab per question plus **Submit** (`←/→`, `Tab`/`Shift-Tab`); answering a
-    question moves to the next tab. The Submit tab is **Review your answers**, warns "You have
-    not answered all questions" when some are blank and asks "Ready to submit your answers?"
-    (**Submit answers** / **Cancel**). Our additions: group answers are drafts kept in the
-    database (closing the popup loses nothing), and submitting with blanks sends the answered
-    ones and leaves the rest open. `r` on the list reviews every draft across agents
-    (`Enter` edits, `x` drops one).
+- `prefix+i` opens the inbox straight into a tabbed view modelled on Claude Code's own question
+  prompt. Every open question is a tab: first those from the pane you were in, then the rest
+  oldest first, with questions an agent filed together kept adjacent; a dim `│ <tab label>`
+  marks where the next agent's questions start, and the tab row scrolls when it overflows. New
+  questions are added at the end while it is open. With no open questions it shows
+  "No open questions" and closes on any key.
+- `↑/↓` or `j/k` move the `❯`, `1`–`9` jump, `n` adds notes to an option, **Type something.**
+  is a free answer (in multi-select it is added to the picks), **Chat about this** jumps to the
+  asking agent's pane and leaves the question open, `d` dismisses the current question's group,
+  `Esc` closes without sending. Options with a `preview` show it beside the list.
+  - **One open question in total**: `Enter` on an option (or text in Type something.) answers
+    and sends at once, and the popup closes. Multi-select: `Enter`/`Space` toggle, **Submit**
+    sends.
+  - **Several**: answering one drafts it and moves to the next tab (`←/→`, `Tab`/`Shift-Tab`
+    switch). The last tab is **Submit**: "Review your answers", "You have not answered all
+    questions" when some are blank, "Ready to submit your answers?" (**Submit answers** /
+    **Cancel**). Submitting sends every answered question at once, one message per pane; the
+    unanswered ones stay open. Drafts are kept in the database, so closing the popup loses
+    nothing.
 - Submitted answers are typed into each asking pane as one line per pane:
   `[inbox] Q12 answered — <question>: Postgres (note: keep the old schema)`, or for several
   `[inbox] answered — Q12 <q>: A · Q13 <q>: B`; only while that pane still holds the
   conversation that asked. If delivery fails (agent at a dialog, pane gone, conversation
-  changed), the TUI shows `answered !`; the asking session's MCP server retries every 30 s, and
+  changed), the popup says so; the asking session's MCP server retries every 30 s, and
   the agent can always get it through `check_answers`.
 
 From a shell:
