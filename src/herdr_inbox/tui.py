@@ -47,6 +47,7 @@ class InboxApp(App):
         self.store = store or Store()
         self.history = False
         self.questions: list[Question] = []
+        self.answering: int | None = None  # question the answer box is bound to
 
     def compose(self) -> ComposeResult:
         yield DataTable(id="list", cursor_type="row", zebra_stripes=True)
@@ -59,7 +60,11 @@ class InboxApp(App):
         table = self.query_one(DataTable)
         table.add_columns("Q", "Tab", "Asked by", "Age", "Rep", "State", "Question")
         self.refresh_list()
-        self.set_interval(POLL_SECONDS, self.refresh_list)
+        self.set_interval(POLL_SECONDS, self.poll)
+
+    def poll(self) -> None:
+        if self.answering is None:  # don't move rows under the operator while they type
+            self.refresh_list()
 
     # -- data ----------------------------------------------------------------
 
@@ -121,12 +126,14 @@ class InboxApp(App):
         q = self.current
         if q is None or q.status != "open":
             return
+        self.answering = q.id
         box = self.query_one("#answer", Input)
         box.value = value
         box.add_class("visible")
         box.focus()
 
     def _close_input(self) -> None:
+        self.answering = None
         box = self.query_one("#answer", Input)
         box.remove_class("visible")
         box.value = ""
@@ -141,17 +148,17 @@ class InboxApp(App):
             self._open_input(q.options[n - 1])
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        q, text = self.current, event.value.strip()
+        qid, text = self.answering, event.value.strip()
         self._close_input()
-        if q is None or not text:
+        if qid is None or not text:
             return
-        done = service.answer(self.store, q.id, text)
+        done = service.answer(self.store, qid, text)
         if done is None:
-            self.notify(f"{q.ref} is no longer open", severity="warning")
+            self.notify(f"Q{qid} is no longer open; answer not sent", severity="warning")
         elif done.delivered_at:
-            self.notify(f"{q.ref} answered and delivered to {done.pane_id}")
+            self.notify(f"{done.ref} answered and delivered to {done.pane_id}")
         else:
-            self.notify(f"{q.ref} answered, not delivered: {done.delivery_error}", severity="warning")
+            self.notify(f"{done.ref} answered, not delivered: {done.delivery_error}", severity="warning")
         self.refresh_list()
 
     def action_dismiss(self) -> None:
