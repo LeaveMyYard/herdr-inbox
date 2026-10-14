@@ -162,6 +162,16 @@ anything the operator is half-way through typing in that pane.
   plugin's `[[startup]]` runs `inbox sync-tokens`. herdr-radar owns the sidebar
   row layout; the README documents how to add `$inbox_q` to it (the PoC does
   not edit the operator's herdr config).
+- **Tab label prefix** `❓N ` (herdr has no per-tab tokens): on every change the
+  pane's current tab (`pane list`) is re-read with `tab get`; the base label is
+  the current label with any of our prefixes stripped (never stored, so an
+  operator rename in the meantime is adopted), and `tab rename` runs only when
+  the label differs from `❓<open count in the tab> <base>` (or `<base>` at 0).
+  Tabs labelled by position (all digits) are skipped by default: a rename would
+  freeze the number. `sync-tokens` reconciles every tab (`workspace list` →
+  `tab list --workspace`). Config: `HERDR_INBOX_TAB_PREFIX`, or `tab_prefix` /
+  `prefix_unnamed_tabs` in `config.toml` in the plugin config dir. Questions
+  store the base label.
 - **Popup** `inbox` (placement `popup`, 85% × 80%) running `inbox tui`, plus an
   `open` action; the operator binds `prefix+i` to it in their config.
 
@@ -171,14 +181,38 @@ plugin dir as `uv run --project . inbox ...`; the popup command resolves the
 project from `$HERDR_PLUGIN_ROOT`, since a pane's cwd is not documented to be
 the plugin dir.
 
+## Questions, groups and drafts (v0.2)
+
+- `ask_operator` mirrors AskUserQuestion where it helps: `options` are strings
+  or `{label, description}` (≤ 9), `header` is a ≤ 12-char chip,
+  `multi_select` allows several picks. `questions` (≤ 4, AskUserQuestion's
+  limit) files related questions in one call: each item is deduped on its own
+  and gets its own Q id; the new ones share a `group_id` (the first one's id).
+  A single question is a group of one; its receipt keeps the old shape.
+- Picking an answer in the popup stores a draft (`draft_json`: choices, notes
+  per choice, free text) on the question; it is not sent. Submit (a group's
+  Review chip, or the global review) answers only drafted questions: `answer`
+  is the one-line text (`Postgres (note: …)`, picks joined by `, `),
+  `answer_json` the structure. `inbox answer` is draft + submit in one step.
+- Delivery is batched per pane: one `[inbox]` message per pane with all its
+  submitted answers, subject to the same session check, retry focus/blocked
+  guard and retry cap as before.
+
 ## TUI
 
-- List of open questions, newest first: `Q<id>`, tab label, `asked_by`, age,
-  repeat count, first line of the question.
-- Detail: full question, context, options. Number keys pick an option; `a` or
-  Enter opens a free-text answer box; Enter sends.
-- `d` dismiss · `g` focus the asking agent's pane (`herdr agent focus`) ·
-  `h` toggle answered/closed history · `q`/Esc close the popup.
+- List: one row per group of open questions, newest first (`Q12–Q14`, tab,
+  `asked_by`, age, repeats, `2/3 drafted`, first question). History (`h`)
+  shows single questions. `Enter`/`a` open the group, `r` the global review,
+  `d` dismiss the group, `g` focus the asking pane, `q`/Esc close.
+- Group view (AskUserQuestion look): chips per question (`✓` drafted, `●` not)
+  and Review; ←/→ and Tab/Shift-Tab switch. A question shows the header chip,
+  the question in bold, numbered options with a `❯` cursor (label in the
+  accent colour, description dimmed), and a final "Type something…" row.
+  ↑/↓/j/k move, 1–9 jump, Enter picks (multi: Space toggles `[x]`, Enter saves
+  the picks), `n` an inline note on the option, `x` clears the draft, Esc goes
+  back (or cancels an open input). A key-hint line sits at the bottom.
+- Review: drafted answers with their questions (undrafted ones marked "stays
+  open"); Enter edits, `x` drops a draft, the Submit row sends.
 - Polls the database every 2 s.
 
 ## Agent onboarding

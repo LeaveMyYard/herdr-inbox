@@ -1,6 +1,6 @@
 ---
 name: operator-questions
-description: How to ask the human operator a question without blocking, through the herdr-inbox ask_operator tool. Use when you need a decision, missing information or a preference from the operator and could keep working meanwhile, when you get an `[inbox] Q<n> answered` message, after compaction or resume, or when briefing a subagent that may need to ask the operator something.
+description: How to ask the human operator a question without blocking, through the herdr-inbox ask_operator tool. Use when you need a decision, missing information or a preference from the operator and could keep working meanwhile, when you get an `[inbox]` answer message, after compaction or resume, or when briefing a subagent that may need to ask the operator something.
 ---
 
 # Asking the operator through the inbox
@@ -9,7 +9,8 @@ The operator runs several agents at once. A question asked in chat is easy to mi
 question repeated every few turns is noise. The inbox gives each question one place: you file
 it once with `ask_operator`, get a receipt (`Q12`), and keep working. The operator answers from
 a popup; the answer arrives in your conversation as a message starting with
-`[inbox] Q12 answered`.
+`[inbox] Q12 answered — …`. Answers the operator submits together arrive in one message:
+`[inbox] answered — Q12 <question>: <answer> · Q13 <question>: <answer>`.
 
 ## When to use it
 
@@ -29,8 +30,15 @@ history. Make it self-contained:
 
 - Name the repo, PR, branch, file or environment it is about.
 - State what you need decided and what you will do with each answer.
-- Put discrete choices in `options` (`["squash", "merge commit"]`); the operator picks one
-  with a single key. Leave room for a free-text answer by not over-constraining.
+- Put discrete choices in `options`, like AskUserQuestion: plain strings or
+  `{"label": "squash", "description": "one commit on main"}`. The operator picks with the
+  arrow or number keys, can attach a note to a choice ("Postgres (note: keep the old schema)"),
+  or type a free answer instead. Up to 9 options.
+- `header` is a short chip above the question (max 12 chars, e.g. "Merge mode").
+- `multi_select: true` when several options may be picked; the answer lists them.
+- Several related questions? Pass `questions` (up to 4), each
+  `{"question", "header", "options", "multi_select"}`, instead of `question`. Each gets its own
+  Q id; the operator answers them in one view and usually submits them together.
 - Put long supporting detail (log excerpts, the tradeoff) in `context`, not in `question`.
 - Set `asked_by` when you are a subagent or one of several roles in the pane, e.g.
   `"reviewer PR 595"`, so the operator knows who is asking.
@@ -47,7 +55,7 @@ Bad: `question="Which one should I use?"`
   sees.
 - Mention the receipt once if useful ("asked the operator as Q12"), then continue with work
   that does not depend on the answer.
-- When `[inbox] Q12 answered — …: <answer>` arrives, act on it.
+- When an `[inbox]` message with your Q id arrives, act on that answer.
 - If you work it out yourself first, call `withdraw_question(id, reason)` so it leaves the
   operator's inbox.
 
