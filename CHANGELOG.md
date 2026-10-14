@@ -8,13 +8,17 @@
   - an answer is typed only when herdr reports the agent `idle`/`done`; while it works the answer
     is *pending delivery* (shown as `⏳` in the popup) and the asking session's retry loop (every
     10 s) delivers it at the next idle;
-  - a delivery counts only once the text shows up in the session's transcript (a `user` record,
-    or a queued `queue-operation`/`queued_command`) within 15 s; otherwise it is retried;
+  - a delivery counts only once the text shows up in the session's transcript (a `user` record
+    with string or text-block content, including a collapsed long paste, or a queued
+    `queue-operation`/`queued_command`) within 15 s; otherwise it is typed once more, then left
+    as ⚠ in the popup and unseen for `check_answers` (never typed every tick);
   - "seen" means the agent fetched the answer (`check_answers`/`list_my_questions`) or the
     delivery was verified, never just "sent"; the receipt and the SessionStart text point to
     `check_answers` as the fallback.
-- Recovery: recent answers that were marked seen without verification become unseen again once,
-  so `check_answers` returns them; `inbox redeliver <ids>` delivers answers again.
+- Recovery: answers marked seen without verification (from the last 7 days on upgrade, and
+  continuously from older 0.4/0.5.0 servers still running) are checked against the session
+  transcript; only the ones not found there become unseen, so `check_answers` returns them
+  (at most twice per answer). `inbox redeliver <ids>` delivers answers again.
 - The SessionStart hook records the session's transcript path for verification.
 - The popup shows each asking tab's current name (resolved from herdr, ❓ prefix stripped, cached
   for 5 s) instead of the label captured at ask time, which for an unnamed tab was just its number.

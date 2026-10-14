@@ -146,23 +146,81 @@ async def test_popup_shows_pending_delivery(store, fake_herdr, monkeypatch):
         assert "1 pending delivery" in str(lv.query_one("#list-title").render())
 
 
-def test_migration_makes_unverified_deliveries_unseen_once(tmp_path, fake_herdr, monkeypatch):
-    """Rows like Q28/Q34/Q36-Q39: delivered + acknowledged by 0.4.0 without verification."""
+def _old_server_delivery(store, qid, when="2026-10-14T12:53:08+00:00"):
+    """What a pre-0.5.1 server records on "send": delivered and seen in the same instant."""
+    store.db.execute("UPDATE questions SET delivered_at = ?, acknowledged_at = ?, delivery_error = NULL"
+                     " WHERE id = ?", (when, when, qid))
+
+
+def test_migration_uses_the_verifier(tmp_path, fake_herdr, live_session):
+    """M1 (review of #9): only answers missing from the transcript are un-seen; the ones that
+    did land (like Q22/Q26 in the live transcript) are marked verified instead."""
     path = tmp_path / "old.db"
     store = Store(path)
-    qid = ask(store)
-    verified = ask(store, "Verified?")
-    service.answer(store, verified, "ok")  # verified in this version
-    store.set_answer(qid, "yes")
-    store.db.execute("UPDATE questions SET delivered_at = answered_at, acknowledged_at = answered_at WHERE id = ?", (qid,))
+    landed, lost = ask(store, "Landed?"), ask(store, "Lost?")
+    for qid in (landed, lost):
+        store.set_answer(qid, "yes")
+        _old_server_delivery(store, qid, "2026-10-01T00:00:00+00:00")
+    with open(live_session, "a") as fh:
+        fh.write(json.dumps({"type": "user", "message": {"content": f"[inbox] Q{landed} answered — Landed?: yes"}}) + "\n")
     store.db.execute("DELETE FROM meta WHERE key = ?", (RESET_KEY,))  # as if this DB predates 0.5.1
     store.close()
     store = Store(path)
-    assert store.get(qid).acknowledged_at is None and store.get(verified).acknowledged_at
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
-    store.acknowledge([qid])  # the agent fetched it; a later open must not reset it again
-    store.close()
-    assert Store(path).get(qid).acknowledged_at
+    assert store.get(landed).acknowledged_at and store.get(landed).verified_at
+    assert store.get(lost).acknowledged_at is None
+    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [lost]
+
+
+def test_old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop(store, fake_herdr, live_session):
+    """M2 (review of #9): a 0.4/0.5.0 server still running types a pending answer into a busy
+    pane and marks it seen; the next open of the DB notices and un-sees it, at most twice."""
+    from herdr_inbox.store import now
+
+    qid = ask(store)
+    store.set_answer(qid, "yes")
+    for round_ in range(1, 4):
+        _old_server_delivery(store, qid, now())
+        reopened = Store(store.path)
+        expected_seen = round_ > 2  # MAX_RESETS: the third re-ack by an old server stays
+        assert (reopened.get(qid).acknowledged_at is not None) == expected_seen
+        reopened.close()
+    assert len(fake_herdr.calls_of("agent", "prompt")) == 0  # never re-typed by the reset itself
+
+
+def test_check_answers_acknowledgement_is_not_the_old_server_signature(store, fake_herdr, live_session):
+    from herdr_inbox.store import now
+
+    qid = ask(store)
+    store.set_answer(qid, "yes")
+    store.db.execute("UPDATE questions SET delivered_at = '2026-10-14T00:00:00+00:00' WHERE id = ?", (qid,))
+    store.acknowledge([qid])  # the agent fetched it later
+    assert Store(store.path).get(qid).acknowledged_at
+
+
+def test_never_landing_prompt_is_typed_at_most_twice(store, fake_herdr, monkeypatch, live_session):
+    """H1 (review of #9): a verification miss must not become the same answer every tick."""
+    qid = ask(store)
+    monkeypatch.setenv("FAKE_HERDR_LAND", "none")
+    service.answer(store, qid, "yes")
+    for _ in range(8):
+        service.retry_deliveries(store, "w1:p1")
+    assert len(prompts(fake_herdr)) == service.MAX_UNVERIFIED_ATTEMPTS == 2
+    q = store.get(qid)
+    assert q.acknowledged_at is None and q.delivery_error == service.NOT_VERIFIED
+    assert [f.id for f in store.failed_deliveries()] == [qid]  # ⚠ in the popup
+
+
+def test_list_content_and_collapsed_paste_records_count_as_landed(tmp_path):
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join([
+        json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "[inbox] Q5 answered — ok?: yes"}]}}),
+        # captured from a real Claude Code session: a long prompt is stored wrapped
+        json.dumps({"type": "user", "message": {"content":
+                    '\n\n<pasted_content id="ec16">\n[inbox] answered — Q9001 probe: x · Q9002 end: y</pasted_content>'}}),
+    ]) + "\n")
+    assert transcript.landed_since(path, 0, [5])
+    assert transcript.landed_since(path, 0, [9001, 9002])
+    assert transcript.landed_ids(path, [5, 9001, 7]) == {5, 9001}
 
 
 def test_cli_redeliver(store, fake_herdr, monkeypatch, capsys):

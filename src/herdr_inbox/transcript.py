@@ -43,6 +43,9 @@ def size(path: Path | None) -> int:
         return 0
 
 
+_PASTE_WRAPPER = re.compile(r"^\s*(?:<pasted_content[^>]*>\s*)?")
+
+
 def _texts(line: str):
     try:
         record = json.loads(line)
@@ -55,6 +58,11 @@ def _texts(line: str):
         content = (record.get("message") or {}).get("content")
         if isinstance(content, str):
             yield content
+        elif isinstance(content, list):  # a list of blocks: only its text blocks are the prompt
+            text = "\n".join(b.get("text", "") for b in content
+                             if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str))
+            if text:
+                yield text
     elif kind == "queue-operation" and record.get("operation") == "enqueue":
         if isinstance(record.get("content"), str):
             yield record["content"]
@@ -65,7 +73,32 @@ def _texts(line: str):
 
 
 def contains(text: str, qids: list[int]) -> bool:
+    """Our message for every id in ``qids``. A long prompt is recorded wrapped as
+    ``\n\n<pasted_content id="…">\n[inbox] …`` (Claude Code collapses big pastes; checked
+    2026-10-14), so leading whitespace and that wrapper are skipped."""
+    text = _PASTE_WRAPPER.sub("", text, count=1)
     return text.startswith("[inbox]") and all(re.search(rf"\bQ{q}\b", text) for q in qids)
+
+
+def landed_ids(path: Path, candidates: list[int]) -> set[int]:
+    """Which of ``candidates`` appear in an ``[inbox]`` record anywhere in the transcript tail
+    (used to re-check deliveries recorded without verification)."""
+    found: set[int] = set()
+    try:
+        with open(path, "rb") as fh:
+            end = fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, end - MAX_READ))
+            data = fh.read()
+    except OSError:
+        return found
+    for raw in data.split(b"\n"):
+        if b"[inbox]" not in raw:
+            continue
+        for text in _texts(raw.decode("utf-8", errors="replace")):
+            for qid in candidates:
+                if qid not in found and contains(text, [qid]):
+                    found.add(qid)
+    return found
 
 
 def landed_since(path: Path, offset: int, qids: list[int]) -> bool:
