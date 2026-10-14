@@ -128,10 +128,20 @@ delivered and seen. So:
     delivery*, retried every 10 s by the asking session's MCP loop, for however
     long it takes. The popup says `waiting: agent is at a prompt/dialog`.
   - **working, or anything else:** pending for `BUSY_GRACE` = 20 s, counted
-    from `question_ext.pending_since` (the first pending time; cleared on
-    delivery). After that it is typed anyway, and the transcript check
-    (2-attempt cap) is the safety net. The popup says `agent busy — will send in
-    N s`.
+    from `question_ext.pending_since`. That is the first *busy* moment (time
+    spent blocked doesn't count), and it is cleared on delivery. After the grace
+    the answer is typed anyway, with the transcript check as the safety net. The
+    popup says `agent busy — will send in N s`.
+  - Misses while busy (typed, not seen) are counted separately
+    (`question_ext.busy_attempts`, at most `MAX_BUSY_ATTEMPTS` = 3) and stay
+    pending, not failed. After 3 the answer waits for idle (`agent busy — will
+    send when it is idle`). Only misses at idle/done count toward
+    `MAX_UNVERIFIED_ATTEMPTS` = 2, so an answer always gets its tries at rest
+    before it is parked as ⚠.
+  - A transcript record that shows up after the 15 s verify window counts as a
+    miss, so the next try types a second copy. The caps bound this (the probe
+    saw the queued record immediately), so the agent may at worst get the
+    answer twice.
 
   Pending is never a failed attempt. A pending row in the popup offers **Send
   now** (`1`), which skips the grace and the focused-pane wait, but not

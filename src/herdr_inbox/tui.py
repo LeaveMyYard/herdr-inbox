@@ -109,6 +109,8 @@ def _pending_reason(q: Question) -> str:
 def pending_text(reason: str, busy_for: float | None) -> str:
     """Why a pending answer waits, and when it goes: ``busy: …`` waits service.BUSY_GRACE
     then is typed anyway; ``blocked: …`` waits for the prompt/dialog to go."""
+    if reason == service.BUSY_WAIT_IDLE:
+        return "agent busy — will send when it is idle"
     if reason.startswith("busy:"):
         left = int(-(-(service.BUSY_GRACE - (busy_for or 0.0)) // 1))
         if left > 0:

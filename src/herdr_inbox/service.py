@@ -29,6 +29,12 @@ BLOCKED = "blocked"
 # 2026-10-14). Wait this long, then type anyway: the transcript check (2-attempt cap) is
 # the safety net for a state that swallows input.
 BUSY_GRACE = 20.0
+# Typed while busy but not seen in the transcript: try this many times while busy, then wait
+# for idle. Busy misses never count toward MAX_UNVERIFIED_ATTEMPTS, so an answer always gets
+# its tries at idle/done before it is parked as ⚠.
+MAX_BUSY_ATTEMPTS = 3
+BUSY_WAIT_IDLE = "busy: typed while the agent was busy but never seen; waiting for it to be idle"
+BUSY_MISS = "busy: typed while the agent was busy, not seen yet; trying again"
 # How long the typed answer may take to show up in the session transcript.
 VERIFY_SECONDS = 15.0
 NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
@@ -361,11 +367,18 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             for q in ours:
                 store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
             continue
-        if status not in DELIVERABLE and not force:
-            # Busy: give it BUSY_GRACE to come to rest, then type anyway (verified below).
-            waiting = [q for q in ours if _busy_for(store, q.id) < BUSY_GRACE]
-            for q in waiting:
-                store.set_pending(q.id, claims[q.id], f"busy: the agent is {status}")
+        busy = status not in DELIVERABLE
+        if busy:
+            # Give it BUSY_GRACE to come to rest, then type anyway (verified below); after
+            # MAX_BUSY_ATTEMPTS misses while busy, wait for idle. "Send now" skips the grace.
+            waiting = []
+            for q in ours:
+                if not force and store.busy_attempts(q.id) >= MAX_BUSY_ATTEMPTS:
+                    store.set_pending(q.id, claims[q.id], BUSY_WAIT_IDLE)
+                    waiting.append(q)
+                elif not force and _busy_for(store, q.id) < BUSY_GRACE:
+                    store.set_pending(q.id, claims[q.id], f"busy: the agent is {status}")
+                    waiting.append(q)
             ours = [q for q in ours if q not in waiting]
             if not ours:
                 continue
@@ -394,6 +407,9 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             if transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS):
                 for q in batch:
                     record(q, None, acknowledge=ack, verified=True)
+            elif busy:  # not counted toward the idle cap (see MAX_BUSY_ATTEMPTS)
+                for q in batch:
+                    store.record_busy_miss(q.id, claims[q.id], BUSY_MISS)
             else:
                 for q in batch:
                     record(q, NOT_VERIFIED)
