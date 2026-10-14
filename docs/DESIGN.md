@@ -242,6 +242,50 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Deep links: opening the popup on a target (0.6.0)
+
+The integration API for other plugins (e.g. herdr-panorama). It is
+`inbox open [--question Qn | --group G | --pane P | --session S]`, run as
+`uv run --project <plugin_root> inbox open …`; `herdr plugin list --json` gives
+`plugin_root`. `herdr plugin pane open` cannot pass arguments to the pane
+command, so `deeplink.py` hands the target over through the state dir:
+
+- **Write:** `open-request.json` = `{kind, value, created_at, nonce}`, via a temp
+  file and `os.replace` (atomic). The newest request wins, and the popup is then
+  opened as by the `open` action.
+- **Consume:** on start, the popup renames the file to a unique name (atomic, so
+  two popups starting together cannot both take it), reads it and deletes it.
+  It honours the request only if it is ≤ `REQUEST_TTL` = 5 s old. Garbage or
+  stale requests are dropped.
+- **Resolve:**
+  - a question → its group, opened on that tab;
+  - a group → that group;
+  - a pane or a session → its oldest open group.
+
+  A target that is gone means the list plus a notice ("Q12 is no longer open").
+- **Which popup:** `herdr.open_popup` always opens `leavemyyard.herdr-inbox`,
+  with `--cwd` set to the inbox's own checkout (found from the package's
+  location, or else `plugin_root` from `herdr plugin list`). It never uses
+  `HERDR_PLUGIN_ID`/`HERDR_PLUGIN_ROOT`, because when another plugin's action
+  runs `inbox open`, those name the caller.
+- **Handshake:** `inbox open` passes the request's nonce to the popup it opens
+  (`--env INBOX_OPEN_NONCE=…`). A popup takes only the request carrying its
+  nonce, so a popup opened by hand never takes someone's pending request.
+- **Already open:** a running popup holds an exclusive flock on `popup.lock` in
+  the state dir. `inbox open` checks it and, if held, exits 3 with "already
+  open" and writes nothing.
+- **Safety:** a deep link is an event from outside, and a popup takes all
+  keyboard input. So a deep-linked popup starts **held**: every Enter, digit
+  and toggle is refused through `_armed`, the same gate as `ARM_SECONDS`. The
+  hold ends only on Tab/→, the keys that also release the empty popup's
+  arrivals, and only once `RELEASE_GRACE` = 0.5 s has passed since the popup
+  appeared. ↑/↓/j/k don't release it, because a shell's history (↑, Enter)
+  under a popup that just appeared would. The releasing key does nothing else.
+  A hint line says so. After that the views arm as usual. The view is opened as a choice (`direct` is
+  false), so Esc returns to the list. The README requires callers to run
+  `inbox open` only on an explicit operator action. Nothing changes for a popup
+  without a request.
+
 ## herdr surface
 
 - **Notification** on each new question:

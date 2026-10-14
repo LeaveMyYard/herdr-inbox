@@ -247,6 +247,43 @@ inbox sync-tokens
 inbox radar-sidebar [--remove]   # $inbox_q in herdr-radar's sidebar rows (on demand)
 ```
 
+## Opening the inbox from another plugin
+
+Another plugin (or a script) can open the popup straight on one question or group:
+
+```sh
+root=$(herdr plugin list --json | jq -r '.result.plugins[] | select(.plugin_id == "leavemyyard.herdr-inbox") | .plugin_root')
+uv run --quiet --frozen --no-dev --project "$root" inbox open --question Q12   # or:
+#   inbox open --group 7            the group (one ask_operator call)
+#   inbox open --pane w6:p3A        that pane's oldest open group
+#   inbox open --session <id>       that Claude session's oldest open group
+```
+
+**Run it only on an explicit operator action** (a key binding, a click), never from an event or
+a timer. A popup takes all keyboard input, so one that appears under the operator's typing would
+swallow their keys.
+
+As a second guard, a deep-linked popup sends nothing until the operator presses Tab or →, at
+least half a second after it appeared. ↑/↓ don't count, since they are what shell history under
+the popup would send. Until then it shows "Opened from another plugin — press Tab or → to start
+answering", and Enter and digits do nothing.
+
+How it works:
+
+- `herdr plugin pane open` cannot pass arguments to the popup. So `inbox open` writes a one-shot
+  request (`open-request.json` next to the database: target, time and nonce, written atomically,
+  newest wins).
+- It then opens the inbox's own popup. The plugin id and root are fixed to the inbox's own, never
+  the calling plugin's.
+- It hands the request's nonce to that popup. Only that popup takes the request, and only within
+  5 s; a popup opened by hand ignores it.
+- The popup opens the target group on the target question, with the list behind it (Esc goes back
+  to the list). If the target is no longer open, it shows the list with a one-line notice.
+- If the popup is already open, `inbox open` exits with code 3 and the message "the inbox popup is
+  already open", and writes nothing.
+- `--question` takes `Qn` or `n` and `--group` takes a number; anything else is a usage error
+  (exit 2).
+
 ## Updating
 
 ```sh

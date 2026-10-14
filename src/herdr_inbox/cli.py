@@ -35,7 +35,12 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("mcp", help="run the MCP stdio server")
     sub.add_parser("tui", help="run the inbox TUI (herdr popup)")
-    sub.add_parser("open", help="ask herdr to open the inbox popup")
+    p = sub.add_parser("open", help="ask herdr to open the inbox popup (optionally on one question or group)")
+    target = p.add_mutually_exclusive_group()
+    target.add_argument("--question", metavar="Qn", help="open on this question")
+    target.add_argument("--group", metavar="G", help="open on this group")
+    target.add_argument("--pane", metavar="PANE_ID", help="open on this pane's oldest open group")
+    target.add_argument("--session", metavar="SID", help="open on this Claude session's oldest open group")
     p = sub.add_parser("list", help="print questions")
     p.add_argument("--all", action="store_true", help="include answered and closed questions")
     p = sub.add_parser("answer", help="answer a question and deliver it")
@@ -99,7 +104,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"nothing to remove in {data}")
         return 0
     if args.cmd == "open":
-        err = herdr.open_popup()
+        from . import deeplink
+
+        env = {}
+        for kind in deeplink.KINDS:
+            if getattr(args, kind):
+                value = getattr(args, kind)
+                if not deeplink.valid(kind, value):
+                    parser.error(f"--{kind} {value!r}: expected " + ("Qn or n" if kind == "question" else
+                                                                       "a group number" if kind == "group" else "an id"))
+                if deeplink.popup_is_running():
+                    print("the inbox popup is already open; close it and run this again", file=sys.stderr)
+                    return 3
+                env[deeplink.NONCE_ENV] = deeplink.write_request(kind, value.lstrip("Qq") if kind == "question" else value)
+        err = herdr.open_popup(env)
         if err:
             print(f"could not open the inbox popup: {err}", file=sys.stderr)
             return 1

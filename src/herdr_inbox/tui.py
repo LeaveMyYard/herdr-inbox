@@ -35,7 +35,7 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import herdr, radar, service, tabs
+from . import deeplink, herdr, radar, service, tabs
 from .store import PENDING, Question, Store
 
 POLL_SECONDS = 2.0
@@ -146,8 +146,20 @@ def _close(app: App) -> None:
 
 
 def _armed(widget) -> bool:
-    """Views ignore Enter and digits for ARM_SECONDS after they appear (however reached)."""
-    return time.monotonic() >= getattr(widget, "armed_at", 0)
+    """Views ignore Enter and digits for ARM_SECONDS after they appear (however reached),
+    and while a deep-linked popup waits for the operator's first deliberate key."""
+    try:
+        held = getattr(widget.app, "held", False)
+    except Exception:  # noqa: BLE001 - not mounted in an app
+        held = False
+    return not held and time.monotonic() >= getattr(widget, "armed_at", 0)
+
+
+HELD_HINT = "Opened from another plugin — press Tab or → to start answering (Esc for the list)"
+# A held deep link is released only by Tab/→ (as the empty popup's arrivals are), never by
+# ↑/↓ (shell history under a popup that just appeared), and not within RELEASE_GRACE of
+# the popup appearing; the releasing key does nothing else.
+RELEASE_GRACE = 0.5
 
 
 class QuestionView(Vertical, can_focus=True):
@@ -294,8 +306,8 @@ class QuestionView(Vertical, can_focus=True):
         # While a note or the text box is open, keys belong to it (Esc still cancels).
         if action != "back" and _typing(self.screen):
             return False
-        if action in ("select", "jump", "toggle") and time.monotonic() < getattr(self, "armed_at", 0):
-            return False  # not armed yet (see ARM_SECONDS)
+        if action in ("select", "jump", "toggle") and not _armed(self):
+            return False  # not armed yet (see ARM_SECONDS), or a deep link still held
         return True
 
     def action_move(self, delta: int) -> None:
@@ -893,6 +905,8 @@ class InboxApp(App):
     InboxApp.empty #empty { display: block; }
     InboxApp.empty #chips, InboxApp.empty #body { display: none; }
     #radar-hint { display: none; height: auto; color: $text-muted; }
+    #held-hint { display: none; height: auto; color: $inbox-suggestion; text-style: bold; }
+    InboxApp.held #held-hint { display: block; }
     InboxApp.radar-missing #radar-hint { display: block; }
     """ + VIEW_CSS
     BINDINGS = [
@@ -920,6 +934,7 @@ class InboxApp(App):
         self.arrived_at: dict[Entry, float] = {}  # rows added by a poll (see ROW_ARM_SECONDS)
         self.list_cursor: Entry | None = None
         self.direct = False  # opened straight into the only group: Esc closes the popup
+        self.held = False  # deep-linked: Enter/digits wait for a navigation key (deeplink.py)
         # the open group
         self.entry: Entry | None = None
         self.tabs: list[tuple[str, int]] = []
@@ -960,6 +975,7 @@ class InboxApp(App):
         yield Vertical(id="body")
         yield Static("No open questions", id="empty")
         yield Static(RADAR_HINT, id="radar-hint")
+        yield Static(HELD_HINT, id="held-hint")
 
     def check_radar(self) -> None:
         """Read-only: radar's sidebar lacks $inbox_q → one hint line. Never edits anything."""
@@ -973,6 +989,7 @@ class InboxApp(App):
         self.run_worker(run, thread=True, group="radar")
 
     def on_mount(self) -> None:
+        self._popup_lock = deeplink.hold_popup_lock()  # `inbox open` reports an open popup
         self.check_radar()
         if self.focus_pane is None:
             self.focus_pane = (herdr.invocation_pane() or os.environ.get("INBOX_FOCUS_PANE")
@@ -983,7 +1000,22 @@ class InboxApp(App):
             open_qs, failed = [], []
             self.notify(BUSY, severity="warning")
         self.entries = entry_order(open_qs, failed, self.focus_pane)
-        if not self.entries:
+        target = None
+        try:
+            request = deeplink.consume_request()  # `inbox open --question …` (deeplink.py)
+        except Exception:  # noqa: BLE001 - a deep link is never worth a broken popup
+            request = None
+        if request:
+            target = deeplink.resolve(self.store, request)
+            if target is None:
+                self.notify(f"{deeplink.describe(request)} is no longer open")
+        if target and target[0] in self.entries:
+            # Another plugin opened us, maybe under the operator's typing: nothing sends
+            # until a deliberate Tab/→ (see RELEASE_GRACE). Esc goes to the list.
+            self.held, self.held_at = True, time.monotonic()
+            self.add_class("held")
+            self.open_group(target[0], start_qid=target[1])
+        elif not self.entries:
             self.show_empty()
         elif len(self.entries) == 1 and self.entries[0][0] == "group":
             self.direct = True
@@ -1050,7 +1082,7 @@ class InboxApp(App):
         self.render_chips()
         self._mount(GroupListView(self, cursor if cursor is not None else self.list_cursor))
 
-    def open_group(self, entry: Entry) -> None:
+    def open_group(self, entry: Entry, start_qid: int | None = None) -> None:
         """Enter a group (the operator chose it, or it is the only one): its questions as tabs."""
         self.list_cursor = entry
         if entry[0] == "failed":
@@ -1067,6 +1099,8 @@ class InboxApp(App):
         self.gone = {}
         self.single = len(qs) == 1  # decided here, on the operator's move
         start = next((t for t in self.tabs if not self.store.get(t[1]).draft_json), self.tabs[0])
+        if start_qid is not None and ("q", start_qid) in self.tabs:
+            start = ("q", start_qid)
         self.show(start)
 
     def show(self, tab: tuple[str, int] | None) -> None:
@@ -1211,6 +1245,11 @@ class InboxApp(App):
         self.show(target)
 
     def action_switch(self, delta: int) -> None:
+        if self.held:  # Tab/→ (the switch keys): release a deep link, nothing more
+            if delta > 0 and time.monotonic() - self.held_at >= RELEASE_GRACE:
+                self.held = False
+                self.remove_class("held")
+            return
         if self.mode == "empty":  # Tab/→ from the empty view: the list of what arrived
             self.show_list(self.entries[0] if self.entries else None)
         else:
@@ -1232,6 +1271,11 @@ class InboxApp(App):
             self.show_list(self.list_cursor)
             return
         await self.action_quit()
+
+    def on_unmount(self) -> None:
+        lock = getattr(self, "_popup_lock", None)
+        if lock is not None:
+            lock.close()
 
     def on_key(self, event) -> None:
         if self.mode == "empty" and len(self.screen_stack) == 1:  # empty view: any key closes,
