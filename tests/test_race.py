@@ -29,6 +29,7 @@ async def test_withdraw_mid_typing_never_answers_the_other_agent(store, fake_her
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert app.query(GoneView)  # still the inert placeholder
+        app.grace_until = 0  # a deliberate move, after the post-close grace period
         await pilot.press("right")  # an explicit move leaves it, and it drops out of the tab row
         assert app.query_one(QuestionView).q.id == 2 and ("q", 1) not in app.tabs
     assert store.get(2).status == "open" and store.get(2).draft_json is None
@@ -114,6 +115,7 @@ async def test_failed_delivery_tab_retry_and_hide(store, fake_herdr, monkeypatch
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert store.get(a).delivered_at
+        app.grace_until = 0
         await pilot.press("right")  # leaves Q1's placeholder; on to Q2's warning
         await pilot.press("2")  # stop showing it
         await pilot.pause()

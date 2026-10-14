@@ -31,8 +31,10 @@ from __future__ import annotations
 import functools
 import os
 import sqlite3
+import time
 
 from rich.markup import escape
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, HorizontalScroll, Vertical, VerticalScroll
@@ -44,6 +46,10 @@ from . import herdr, service
 from .store import Question, Store
 
 POLL_SECONDS = 2.0
+# After a view change the operator did not cause, keys are dropped this long: whatever they
+# were typing was meant for the view that just went away.
+GRACE_SECONDS = 0.5
+NAV_KEYS = ("tab", "shift+tab", "left", "right")
 OTHER = "Type something."
 CHAT = "Chat about this"
 BUSY = "The inbox database is busy; try again in a moment"
@@ -541,11 +547,11 @@ class ConfirmDismiss(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         yield Static(f"Dismiss [b]{self.q.ref}[/b] without answering?\n[dim]{escape(service.first_line(self.q.question, 70))}"
-                     f"[/dim]\n\n[$warning]d[/] to dismiss · any other key to keep it", id="confirm")
+                     f"[/dim]\n\n[$warning]y[/] to dismiss · any other key to keep it", id="confirm")
 
     def on_key(self, event) -> None:
         event.stop()
-        self.dismiss(event.key in ("d", "y"))
+        self.dismiss(event.key == "y")  # not d: a quick double d must not confirm
 
 
 def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
@@ -632,6 +638,7 @@ class InboxApp(App):
         self.current: tuple[str, int] | None = None
         self.gone: dict[tuple[str, int], str] = {}  # tabs whose question closed while shown
         self.single = False  # Enter sends at once; decided on open and on navigation only
+        self.grace_until = 0.0  # keys before this are dropped (see GRACE_SECONDS)
 
     @property
     def base(self) -> Screen:
@@ -673,11 +680,29 @@ class InboxApp(App):
         self.set_interval(POLL_SECONDS, self.poll)
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        if action in ("switch", "dismiss", "goto"):
-            return bool(self.tabs) and not isinstance(self.focused, Input)
+        if isinstance(self.focused, Input):
+            return action not in ("switch", "dismiss", "goto")
+        if action == "switch":
+            return bool(self.tabs)
+        if action in ("dismiss", "goto"):  # only on a live question tab (never on a placeholder)
+            return self.current is not None and self.current != SUBMIT and self.current not in self.gone
         return True
 
+    async def on_event(self, event: events.Event) -> None:
+        # The general rule: a background event never changes what the next keypress does.
+        # Right after a view change the operator did not cause, keys are dropped.
+        if isinstance(event, events.Key) and time.monotonic() < self.grace_until:
+            event.stop()
+            event.prevent_default()
+            return
+        await super().on_event(event)
+
     # -- rendering -----------------------------------------------------------------
+
+    def render_empty(self) -> None:
+        n = len(self.tabs)
+        text = "No open questions" if not n else f"{n} new question{'s' if n > 1 else ''} — press Tab/→ to view"
+        self.base.query_one("#empty", Static).update(text)
 
     def show(self, tab: tuple[str, int] | None) -> None:
         """Mount the view for ``tab`` (only ever called on open or for an operator action)."""
@@ -687,6 +712,7 @@ class InboxApp(App):
         body.remove_children()
         if tab is None:
             self.base.query_one("#chips").remove_children()
+            self.render_empty()
             return
         kind, qid = tab
         if tab == SUBMIT:
@@ -743,7 +769,7 @@ class InboxApp(App):
             return "delivered" if q and q.delivered_at else "no longer pending"
         if q is None:
             return "removed"
-        return {"withdrawn": "withdrawn by the agent", "answered": "answered elsewhere",
+        return {"withdrawn": "withdrawn by the agent", "answered": "answered",
                 "dismissed": "dismissed"}.get(q.status, q.status)
 
     @guarded
@@ -765,11 +791,11 @@ class InboxApp(App):
         if self.current in ended:
             self.gone[self.current] = self._gone_reason(*self.current)
             self.notify(f"Q{self.current[1]} was closed ({self.gone[self.current]})", severity="warning")
+            self.grace_until = time.monotonic() + GRACE_SECONDS
             self.show(self.current)  # the same tab, now the placeholder
             return
-        if self.current is None and self.tabs:  # was empty; something arrived
-            self._decide_mode()
-            self.show(self.all_tabs[0])
+        if self.current is None:  # empty: arrivals are announced, never shown by themselves
+            self.render_empty()
             return
         view = self.base.query("#body > *").first() if self.base.query("#body > *") else None
         if isinstance(view, QuestionView):
@@ -786,8 +812,11 @@ class InboxApp(App):
         send mode is re-decided here, on the operator's move."""
         tabs = self.all_tabs
         if isinstance(target, int):
-            i = tabs.index(self.current) if self.current in tabs else 0
-            target = tabs[(i + target) % len(tabs)] if tabs else None
+            if self.current is None:  # from the empty view: the first tab
+                target = tabs[0] if tabs else None
+            else:
+                i = tabs.index(self.current) if self.current in tabs else 0
+                target = tabs[(i + target) % len(tabs)] if tabs else None
         self.tabs = [t for t in self.tabs if t not in self.gone or t == target]
         self.gone = {t: r for t, r in self.gone.items() if t == target}
         self._decide_mode()
@@ -800,7 +829,9 @@ class InboxApp(App):
         self.navigate(delta)
 
     def on_key(self, event) -> None:
-        if self.current is None and len(self.screen_stack) == 1:  # empty state: any key closes
+        if self.current is None and len(self.screen_stack) == 1:  # empty view: any key closes,
+            if event.key in NAV_KEYS and self.tabs:              # except Tab/arrows to new questions
+                return
             event.stop()
             self.exit()
 

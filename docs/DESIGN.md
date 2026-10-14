@@ -257,9 +257,18 @@ the plugin dir.
   and notes survive other tabs coming and going (the view's mode is updated in
   place). Whether Enter sends at once (exactly one open question) is decided
   when the popup opens and re-decided only on the operator's navigation.
-- `g` focuses the asking agent's pane for any question; `d` dismisses only the
-  current question after a one-key confirmation (`d` again; any other key
-  keeps it). Both are in the key hint.
+- General rule: no background event (poll, arrival, close, delivery result)
+  changes what the next keypress does. Concretely: the send mode changes only
+  on navigation; a question arriving into the empty view is announced ("1 new
+  question — press Tab/→ to view"; any other key still closes); a placeholder
+  tab has no `g`/`d`/Enter/digits; and for 0.5 s after a view change the
+  operator did not cause, every key is dropped (`InboxApp.on_event`).
+- `g` focuses the asking agent's pane for any live question; `d` dismisses only
+  the current question after a confirmation that accepts only `y` (so a quick
+  `dd` keeps it). Both are in the key hint.
+- Every delivery first claims the row with a compare-and-set
+  (`delivery_error = 'sending:<time>'`, taken over after 60 s if its process
+  died), so a popup retry and the MCP retry loop never both send an answer.
 - The question UI mimics Claude Code's AskUserQuestion prompt (strings and
   behaviour checked against the Claude Code 2.1.299 binary): header chip,
   question in bold, numbered options with a `❯` cursor (label in the accent

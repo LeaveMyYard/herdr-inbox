@@ -113,6 +113,8 @@ ANSWER_REUSE = timedelta(hours=1)
 # An answered row with no delivery attempt this long after answering was orphaned
 # (the answering process died between answer and delivery): the retry picks it up.
 NEVER_ATTEMPTED_GRACE = timedelta(seconds=60)
+# A delivery claim older than this belongs to a process that died mid-send.
+CLAIM_STALE = timedelta(seconds=60)
 
 
 def normalize(text: str) -> str:
@@ -319,11 +321,25 @@ class Store:
         )
         return cur.rowcount == 1
 
+    def claim_delivery(self, qid: int) -> bool:
+        """Compare-and-set before prompting: only one process sends a given answer.
+
+        The claim is a ``sending:<time>`` marker in ``delivery_error``; one older than
+        ``CLAIM_STALE`` (its process died mid-send) can be taken over.
+        """
+        cur = self.db.execute(
+            "UPDATE questions SET delivery_error = ? WHERE id = ? AND status = 'answered' AND delivered_at IS NULL"
+            " AND (delivery_error IS NULL OR delivery_error NOT LIKE 'sending:%' OR delivery_error < ?)",
+            (f"sending:{now()}", qid, f"sending:{now(-CLAIM_STALE)}"),
+        )
+        return cur.rowcount == 1
+
     def failed_deliveries(self) -> list[Question]:
         """Answers whose delivery failed and that the agent has not fetched, unless hidden."""
         rows = self.db.execute(
             f"SELECT * FROM {VIEW} WHERE status = 'answered' AND delivered_at IS NULL"
-            " AND delivery_error IS NOT NULL AND acknowledged_at IS NULL AND hidden_at IS NULL ORDER BY id"
+            " AND delivery_error IS NOT NULL AND delivery_error NOT LIKE 'sending:%'"
+            " AND acknowledged_at IS NULL AND hidden_at IS NULL ORDER BY id"
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 

@@ -278,7 +278,7 @@ async def test_dismiss_asks_and_closes_only_the_current_question(store, fake_her
         await pilot.press("x")  # any other key keeps it
         await pilot.pause()
         assert store.get(1).status == "open" and view(app).q.id == 1
-        await pilot.press("d", "d")
+        await pilot.press("d", "y")
         await pilot.pause()
         assert view(app).q.id == 2
     assert [store.get(i).status for i in (1, 2, 3)] == ["dismissed", "open", "open"]
