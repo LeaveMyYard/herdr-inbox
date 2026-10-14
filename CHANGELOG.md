@@ -8,6 +8,10 @@
   and header chips on the dim second line; inside a group it sits above the tabs. Untitled calls
   fall back to the single question's header, else its first line.
 - Stored per group in a new side table (`question_groups`); the `questions` table is unchanged.
+- Read views are versioned and never dropped, so sessions still on 0.4 keep working against a
+  database 0.5 has opened (until they restart).
+- The group list scrolls to keep the cursor's row visible; an untitled single question's
+  notification shows its header and its text.
 
 ## 0.4.0
 

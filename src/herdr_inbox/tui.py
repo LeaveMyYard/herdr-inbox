@@ -654,7 +654,8 @@ class GroupListView(Vertical, can_focus=True):
 
     def compose(self) -> ComposeResult:
         yield Static(id="list-title", classes="question")
-        yield VerticalScroll(Static(id="list-body"), classes="choices")
+        # one widget per row, so the cursor's row can be scrolled into view
+        yield VerticalScroll(Static("No open questions", id="list-empty"), classes="choices", id="list-rows")
         yield Static("Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel", classes="hint")
 
     def on_mount(self) -> None:
@@ -684,7 +685,8 @@ class GroupListView(Vertical, can_focus=True):
         qs = store.group(entry[1], include_closed=True)
         first = qs[0] if qs else None
         where = escape((first.tab_label or first.pane_id or "no pane") if first else "-")
-        name = escape(service.group_name(qs)) if qs else where
+        live_qs = [q for q in qs if q.status == "open"]
+        name = escape(service.group_name(live_qs or qs)) if qs else where
         if closed or not first:
             return f"{cur} {number} [$inbox-warning]✕ {name} · {where} · {escape(closed or 'closed')}[/]"
         live = [q for q in qs if q.status == "open"]
@@ -710,8 +712,24 @@ class GroupListView(Vertical, can_focus=True):
         failed = len(live) - groups
         parts = [f"{groups} group{'s' if groups != 1 else ''}"] + ([f"{failed} not delivered"] if failed else [])
         self.query_one("#list-title", Static).update(f"[b]Open questions[/b] [dim]· {' · '.join(parts)}[/dim]")
-        rows = [self.row_text(n, e) for n, e in enumerate(self.inbox.entries, 1)]
-        self.query_one("#list-body", Static).update("\n".join(rows) or "No open questions")
+        entries = self.inbox.entries
+        box = self.query_one("#list-rows", VerticalScroll)
+        rows = list(box.query(".entry"))
+        if len(rows) < len(entries):
+            new = [Static(classes="entry") for _ in range(len(entries) - len(rows))]
+            box.mount_all(new)
+            rows += new
+        for extra in rows[len(entries):]:
+            extra.remove()
+        for n, (widget, entry) in enumerate(zip(rows, entries), 1):
+            widget.update(self.row_text(n, entry))
+            if entry == self.cursor:
+                self.call_after_refresh(widget.scroll_visible, animate=False)
+        self.query_one("#list-empty", Static).display = not entries
+
+    def body_text(self) -> str:
+        """All rows as rendered plain text (tests and debugging)."""
+        return "\n".join(str(w.render()) for w in self.query(".entry"))
 
     def fresh(self, entry: Entry | None) -> bool:
         """The row arrived in the background less than ROW_ARM_SECONDS ago."""
@@ -1026,7 +1044,8 @@ class InboxApp(App):
         qs = self.store.group(self.entry[1], include_closed=True) if self.mode == "group" and self.entry else []
         show = bool(qs) and (bool(qs[0].group_title) or len(qs) > 1)
         box.display = show
-        box.update(escape(service.group_name(qs)) if show else "")
+        live = [q for q in qs if q.status == "open"]
+        box.update(escape(service.group_name(live or qs)) if show else "")
 
     def _gone_reason(self, kind: str, qid: int) -> str:
         q = self.store.get(qid)

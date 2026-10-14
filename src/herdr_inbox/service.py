@@ -145,8 +145,7 @@ def ask_group(
             store.set_group_title(group_id, title)
     if new:
         refs = ", ".join(q.ref for q in new)
-        name = group_name(store.group(group_id))
-        herdr.notify(f"{refs} · {new[0].tab_label or new[0].pane_id}", name)
+        herdr.notify(f"{refs} · {new[0].tab_label or new[0].pane_id}", notification_body(store.group(group_id)))
         update_markers(store, caller.pane_id)
     ids = ", ".join(f"Q{r['id']} ({r['status']})" for r in receipts)
     return {
@@ -164,6 +163,18 @@ def group_name(qs: list[Question]) -> str:
         return ""
     first = qs[0]
     return first.group_title or first.header or first_line(first.question, 80)
+
+
+def notification_body(qs: list[Question]) -> str:
+    """The group's title; for an untitled call its first question, with its header if any
+    (a header alone, e.g. "DB choice", says too little in a toast)."""
+    if not qs:
+        return ""
+    first = qs[0]
+    if first.group_title:
+        return first.group_title
+    text = first_line(first.question, 200)
+    return f"{first.header}: {text}" if first.header else text
 
 
 def _quote(label: str) -> str:

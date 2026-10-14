@@ -80,3 +80,44 @@ async def test_list_row_and_group_view_show_the_title(store, fake_herdr):
         assert title.display and str(title.render()) == "Worker rollout settings"
         await pilot.press("escape", "down", "enter")  # the untitled lone question: no title band
         assert not app.query_one("#group-title").display
+
+
+async def test_list_follows_the_cursor_in_a_narrow_popup(store, fake_herdr):
+    """The reviewer's 40x14 repro: 8 titled groups, long titles; after 7x down the cursor's
+    row must be on screen."""
+    title = "W" * 58 + "‮\x1b[31m[b]x" + "Z" * 30
+    for i in range(8):
+        c = Caller(f"w1:p{i}", "w1:t1", "a-rather-long-tab-label-here", f"s{i}", "/r")
+        service.ask_group(store, c, [{"question": f"question {i} " + "lorem ipsum " * 8, "header": "Hdr"},
+                                     {"question": "second?"}], title=title + str(i), asked_by="reviewer of something long")
+    app = InboxApp(store, focus_pane=None)
+    async with app.run_test(size=(40, 14)) as pilot:
+        await pilot.pause()
+        for _ in range(7):
+            await pilot.press("down")
+        await pilot.pause()
+        lv = app.query_one(GroupListView)
+        box = lv.query_one("#list-rows")
+        rows = list(lv.query(".entry"))
+        current = rows[app.entries.index(lv.cursor)]
+        assert lv.cursor == app.entries[7] and box.scroll_y > 0
+        assert box.region.contains_region(current.region)
+
+
+def test_notification_for_an_untitled_single_question_shows_header_and_text(store, fake_herdr):
+    service.ask(store, A, "Which database should the invoice store use?", header="DB choice")
+    service.ask_group(store, B, [{"question": "Workers?"}, {"question": "Memory?"}], title="Worker rollout settings")
+    bodies = [c[4] for c in fake_herdr.calls_of("notification", "show")]
+    assert bodies == ["DB choice: Which database should the invoice store use?", "Worker rollout settings"]
+
+
+async def test_untitled_group_is_named_after_its_first_open_question(store, fake_herdr):
+    service.ask_group(store, A, [{"question": "Withdrawn one?", "header": "Old"}, {"question": "Still open?",
+                                                                                      "header": "Open"}])
+    service.ask(store, B, "Other?")
+    service.close(store, 1, "withdrawn")
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        row = app.query_one(GroupListView).row_text(1, ("group", 1))
+        assert "Open · 1 question" in row.replace(" ", " ") and "Old" not in row
