@@ -121,9 +121,26 @@ def _top_rows(neutral: str, open_at: int, close_at: int) -> list[tuple[int, int]
 
 
 def tokens_in(row: str) -> int:
-    """Tokens a row names, counted like radar does: styled ``token = "$x"`` cells plus bare
-    ``"$x"`` cells (a rule's ``contains``/``equals`` value is not a token)."""
-    return len(re.findall(r'token\s*=\s*"', row)) + len(re.findall(r'(?<![:=] )"\$\w+"', row))
+    """Cells in a row (``[a, b, ...]``): its top-level elements, whatever their form --
+    inline tables, bare ``"$x"`` tokens, bare built-ins such as ``"state_icon"``. A cell's
+    own ``rules = [...]`` is inside it and does not count."""
+    neutral = _neutral(row)
+    depth, cells, seen = 0, 0, False
+    for ch in neutral:
+        if ch in "[{":
+            depth += 1
+            if depth == 2:
+                seen = True
+        elif ch in "]}":
+            depth -= 1
+        elif depth == 1:
+            if ch == ",":
+                cells += 1
+            elif not ch.isspace():
+                seen = True
+    # a bare string cell keeps its quotes in the neutral text, so it is "seen" too; a
+    # trailing comma over-counts by one, which only errs on the safe side
+    return cells + 1 if seen else 0
 
 
 def _cell(row: str) -> str:
@@ -158,7 +175,7 @@ def _edit_block(block: str, remove: bool) -> str:
     neutral = _neutral(block)
     edits: list[tuple[int, int, str]] = []
     table = None
-    for line in re.finditer(r"^(?:\[([A-Za-z0-9_.\-]+)\][ \t]*$|[ \t]*([A-Za-z0-9_\-]+)[ \t]*=[ \t]*\[)", neutral, re.M):
+    for line in re.finditer(r"^(?:\[([A-Za-z0-9_.\-]+)\][ \t]*\r?$|[ \t]*([A-Za-z0-9_\-]+)[ \t]*=[ \t]*\[)", neutral, re.M):
         if line.group(1) is not None:
             table = line.group(1).strip()
             continue
@@ -178,17 +195,42 @@ def _edit_block(block: str, remove: bool) -> str:
     return block
 
 
-def stepped_aside(text: str) -> bool:
-    """Radar carries ``$inbox_q`` itself (radar#57's ``extra_tokens``): in its block, or
-    in radar's own plugin config."""
-    sources = [text]
-    radar_dir = herdr.plugin_config_dir(RADAR_ID) if "extra_tokens" not in text else None
-    if radar_dir:
-        try:
-            sources.append((Path(radar_dir) / "config.toml").read_text(encoding="utf-8"))
-        except OSError:
-            pass
-    return any(re.search(r"extra_tokens[\s\S]*\$inbox_q", s) for s in sources)
+def _carries_inbox_q(value) -> bool:
+    if isinstance(value, str):
+        return value.lstrip("$") == TOKEN.lstrip("$")
+    if isinstance(value, dict):
+        return _carries_inbox_q(value.get("token"))
+    if isinstance(value, list):
+        return any(_carries_inbox_q(v) for v in value)
+    return False
+
+
+def _extra_tokens(data) -> bool:
+    if not isinstance(data, dict):
+        return False
+    return any(_carries_inbox_q(v) if k == "extra_tokens" else _extra_tokens(v) for k, v in data.items())
+
+
+def stepped_aside() -> bool:
+    """Radar carries ``$inbox_q`` itself: an ``extra_tokens`` entry naming it
+    (hhdebb/herdr-radar#57) in radar's own plugin config. A mention elsewhere, our own
+    cells, or an empty list does not count."""
+    radar_dir = herdr.plugin_config_dir(RADAR_ID)
+    if not radar_dir:
+        return False
+    try:
+        with open(Path(radar_dir) / "config.toml", "rb") as fh:
+            return _extra_tokens(tomllib.load(fh))
+    except (OSError, tomllib.TOMLDecodeError):
+        return False
+
+
+def unsupported(text: str) -> bool:
+    """Radar's block uses TOML this editor does not walk (``[[array.of.tables]]``,
+    multi-line strings): refuse rather than guess."""
+    start, end = text.find(START), text.find(END)
+    block = text[start:end]
+    return bool(re.search(r'"""|\'\'\'', block) or re.search(r"^\[\[", block, re.M))
 
 
 def edited(text: str, remove: bool) -> str | None:
@@ -201,6 +243,8 @@ def edited(text: str, remove: bool) -> str | None:
         tomllib.loads(text)
     except tomllib.TOMLDecodeError:
         return None  # never touch a file herdr cannot read either
+    if unsupported(text):
+        return None
     new = text[:start] + _edit_block(text[start:end], remove) + text[end:]
     if new == text:
         return None
@@ -217,27 +261,32 @@ def radar_installed() -> bool:
     return any(p.get("plugin_id") == RADAR_ID and p.get("enabled", True) for p in (res or {}).get("plugins", []))
 
 
-def _write(path: Path, before: str, after: str) -> bool:
-    if path.read_text(encoding="utf-8") != before:
+def _write(path: Path, before: bytes, after: bytes) -> bool:
+    """Atomic replace of ``path`` (a symlink's target; the link stays), with the original
+    bytes as ``<name>.inbox-bak``. False if the file changed since it was read."""
+    path = path.resolve()
+    if path.read_bytes() != before:
         return False  # radar (or the operator) wrote in the meantime: next time
-    backup = path.with_name(path.name + ".inbox-bak")
-    backup.write_text(before, encoding="utf-8")
+    path.with_name(path.name + ".inbox-bak").write_bytes(before)
     tmp = path.with_name(f".{path.name}.inbox-{os.getpid()}")
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with open(tmp, "wb") as fh:
         fh.write(after)
         fh.flush()
         os.fsync(fh.fileno())
     os.chmod(tmp, path.stat().st_mode & 0o7777)
-    if path.read_text(encoding="utf-8") != before:
+    if path.read_bytes() != before:
         tmp.unlink()
         return False
     os.replace(tmp, path)
     return True
 
 
-def _read(path: Path) -> str | None:
+def _read(path: Path) -> bytes | None:
+    """Raw bytes: line endings (LF or CRLF) pass through untouched."""
     try:
-        return path.read_text(encoding="utf-8")
+        data = path.read_bytes()
+        data.decode("utf-8")
+        return data
     except (OSError, UnicodeDecodeError):
         return None
 
@@ -247,8 +296,8 @@ def missing() -> bool:
     popup's hint). One file read; a herdr call only when the rows lack it."""
     if not hint_enabled():
         return False
-    text = _read(config_path())
-    if text is None or edited(text, remove=False) is None or stepped_aside(text):
+    raw = _read(config_path())
+    if raw is None or edited(raw.decode("utf-8"), remove=False) is None or stepped_aside():
         return False
     return radar_installed()
 
@@ -256,12 +305,14 @@ def missing() -> bool:
 def ensure(remove: bool = False) -> str:
     """Put ``$inbox_q`` into radar's agent rows (or take it out, ``remove``). Returns what
     happened: ``changed``, ``unchanged``, ``no-config``, ``no-radar``, ``no-block``,
-    ``invalid`` (the file does not parse), ``stepped-aside`` or ``conflict`` (the file
+    ``invalid`` (the file does not parse), ``unsupported`` (TOML inside radar's block this
+    editor does not walk), ``stepped-aside`` or ``conflict`` (the file
     changed meanwhile; run it again)."""
     path = config_path()
-    text = _read(path)
-    if text is None:
+    raw = _read(path)
+    if raw is None:
         return "no-config"
+    text = raw.decode("utf-8")  # bytes.decode never translates newlines
     if not radar_installed():
         return "no-radar"
     if text.count(START) != 1 or text.count(END) != 1 or text.find(END) < text.find(START):
@@ -270,12 +321,14 @@ def ensure(remove: bool = False) -> str:
         tomllib.loads(text)
     except tomllib.TOMLDecodeError:
         return "invalid"
-    if stepped_aside(text):
+    if unsupported(text):
+        return "unsupported"
+    if not remove and stepped_aside():
         return "stepped-aside"
     new = edited(text, remove)
     if new is None:
         return "unchanged"
-    if not _write(path, text, new):
+    if not _write(path, raw, new.encode("utf-8")):
         return "conflict"
     herdr.run_raw("server", "reload-config")
     return "changed"

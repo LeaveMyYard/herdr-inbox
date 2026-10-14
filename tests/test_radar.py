@@ -120,7 +120,8 @@ def test_steps_aside_once_radar_carries_the_token(herdr_config, fake_herdr, tmp_
     radar_cfg.mkdir()
     (radar_cfg / "config.toml").write_text('extra_tokens = ["$inbox_q"]\n')
     monkeypatch.setenv("FAKE_HERDR_RADAR_CONFIG_DIR", str(radar_cfg))
-    assert radar.ensure() == "stepped-aside" and radar.ensure(remove=True) == "stepped-aside"
+    assert radar.ensure() == "stepped-aside"
+    assert radar.ensure(remove=True) == "unchanged"  # --remove is never blocked (nothing of ours here)
     assert herdr_config.read_text() == original and not radar.missing()
     (radar_cfg / "config.toml").write_text('extra_tokens = ["$other"]\n')
     assert radar.ensure() == "changed"
@@ -193,3 +194,66 @@ def test_cli(herdr_config, capsys):
     assert "removed from" in capsys.readouterr().out
     herdr_config.unlink()
     assert cli.main(["radar-sidebar"]) == 1
+
+
+# -- review of #10 -------------------------------------------------------------------------
+
+
+def test_every_cell_form_counts_toward_the_16_token_limit():
+    """H1: bare built-ins ("state_icon", "tab") are cells too; rules = [...] are not."""
+    cells = ['"state_icon"', '"tab"', '"$bare"'] + [f'{{ token = "$t{i}" }}' for i in range(11)] + [
+        '{ token = "$title_blocked", fg = "#c04a4a", rules = [{ contains = "[", fg = "#000000" }, { equals = "x" }] }',
+        '{ token = "$title_unknown" }']
+    row = "[" + ", ".join(cells) + "]"
+    assert radar.tokens_in(row) == len(cells) == 16
+    assert radar._edit_row(row, False) == row
+    assert radar.tokens_in("[]") == 0 and radar.tokens_in('["$gap"]') == 1
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_line_endings_and_backup_are_kept_byte_for_byte(herdr_config, newline):
+    """M1: no newline translation anywhere; the backup is the original bytes."""
+    original = (BEFORE + FIXTURES[0].read_text(encoding="utf-8") + AFTER).replace("\n", newline).encode()
+    herdr_config.write_bytes(original)
+    assert radar.ensure() == "changed"
+    after = herdr_config.read_bytes()
+    assert after.count(b"\r\n") == original.count(b"\r\n") and b"$inbox_q" in after
+    assert (herdr_config.parent / "config.toml.inbox-bak").read_bytes() == original
+    assert radar.ensure(remove=True) == "changed"
+    assert herdr_config.read_bytes() == original
+
+
+def test_a_symlinked_config_is_edited_through_the_link(herdr_config, tmp_path):
+    target = tmp_path / "dotfiles" / "herdr.toml"
+    target.parent.mkdir()
+    original = BEFORE + FIXTURES[0].read_text(encoding="utf-8") + AFTER
+    target.write_text(original)
+    herdr_config.symlink_to(target)
+    assert radar.ensure() == "changed"
+    assert herdr_config.is_symlink() and "$inbox_q" in target.read_text()
+    assert radar.ensure(remove=True) == "changed" and target.read_text() == original
+
+
+def test_step_aside_needs_a_real_extra_tokens_entry_and_never_blocks_remove(herdr_config, tmp_path, monkeypatch):
+    original = write(herdr_config, FIXTURES[0].read_text(encoding="utf-8"))
+    radar_cfg = tmp_path / "radar-config"
+    radar_cfg.mkdir()
+    monkeypatch.setenv("FAKE_HERDR_RADAR_CONFIG_DIR", str(radar_cfg))
+    assert radar.ensure() == "changed"
+    # an empty extra_tokens (in radar's config, or written into its block) is not radar carrying ours
+    (radar_cfg / "config.toml").write_text("extra_tokens = []\n# $inbox_q mentioned in a comment\n")
+    herdr_config.write_text(herdr_config.read_text().replace("[ui.sidebar.agents]\n", "[ui.sidebar.agents]\nextra_tokens = []\n", 1))
+    assert not radar.stepped_aside()
+    herdr_config.write_text(herdr_config.read_text().replace("extra_tokens = []\n", "", 1))
+    (radar_cfg / "config.toml").write_text('extra_tokens = ["$inbox_q"]\n')
+    assert radar.stepped_aside() and radar.ensure() == "stepped-aside"
+    assert radar.ensure(remove=True) == "changed" and herdr_config.read_text() == original
+
+
+@pytest.mark.parametrize("oddity", ['[[ui.sidebar.agents.extra]]\nname = "x"\n', 'note = """multi [\nline ]"""\n'],
+                         ids=["array-of-tables", "multiline-string"])
+def test_unsupported_toml_inside_the_block_is_refused(herdr_config, oddity):
+    block = FIXTURES[0].read_text(encoding="utf-8").replace("[ui.sidebar.spaces]\n", oddity + "[ui.sidebar.spaces]\n")
+    original = write(herdr_config, block)
+    assert tomllib.loads(original)
+    assert radar.ensure() == "unsupported" and herdr_config.read_text() == original

@@ -223,13 +223,17 @@ anything the operator is half-way through typing in that pane.
   (`rows` and every `rows_by_agent` entry). Only when the operator runs it (the
   operator chose this over automatic edits): never from `sync-tokens`, the
   startup command or the popup. Safety: edits only between radar's sidebar
-  markers (everything else byte for byte); the file must parse before and
-  after; never a row past herdr's 16-token limit (radar#40 — one bad row makes
-  herdr reject the whole file); atomic write (temp file + `os.replace`) with a
-  `config.toml.inbox-bak` backup, skipped if the file changed while editing;
-  `herdr server reload-config` only after a change; steps aside entirely once
-  radar's config names `$inbox_q` in `extra_tokens`; `--remove` takes our
-  cells out. Radar rewrites the block on its configure action; the popup does
+  markers (everything else byte for byte: raw bytes in and out, CRLF kept);
+  the file must parse before and after; refuses a block holding `[[…]]` tables
+  or multi-line strings (not walked); never a row past herdr's 16-token limit
+  (radar#40 — one bad row makes herdr reject the whole file), counting every
+  top-level cell (inline tables, bare `"$x"`, bare built-ins like
+  `"state_icon"`); atomic write (temp file + `os.replace`, into a symlink's
+  target so the link stays) with the original bytes as `config.toml.inbox-bak`,
+  skipped if the file changed while editing; `herdr server reload-config` only
+  after a change; steps aside once radar's own plugin config has an
+  `extra_tokens` entry naming `$inbox_q`; `--remove` takes our cells out and is
+  never blocked by that. Radar rewrites the block on its configure action; the popup does
   a read-only check in a worker and shows one hint line. Test fixtures are
   radar's own output (`tests/fixtures/radar/generate.js` runs its
   `sidebarBlock` for light/dark, glyph variants and `rows_by_agent` vendors).

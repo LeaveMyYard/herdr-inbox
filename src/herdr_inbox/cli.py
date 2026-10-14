@@ -25,6 +25,7 @@ RADAR_MESSAGES = {
     "no-block": "no herdr-radar sidebar block in {path}: nothing to do",
     "invalid": "{path} does not parse as TOML: left untouched",
     "stepped-aside": "herdr-radar already carries $inbox_q (extra_tokens): left to radar",
+    "unsupported": "herdr-radar's block in {path} uses TOML this command does not edit ([[tables]] or multi-line strings): left untouched",
     "conflict": "{path} changed while editing: left untouched, run it again",
 }
 
