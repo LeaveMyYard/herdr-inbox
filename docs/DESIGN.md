@@ -68,7 +68,7 @@ ask in chat, the hooks print nothing, and no herdr call is made. The plugin is
 installed at user scope, so this covers plain terminals, IDEs and `claude -p`.
 
 Which **subagent** asked is out of scope for the PoC; the optional `asked_by`
-argument carries the agent's own description of itself (e.g. "reviewer PR 595").
+argument carries the agent's own description of itself (e.g. "reviewer PR 42").
 
 ## Data model
 

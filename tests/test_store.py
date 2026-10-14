@@ -8,11 +8,11 @@ def caller(session="sess-A", pane="w1:p1"):
 
 
 def test_normalize_ignores_case_punctuation_and_whitespace():
-    assert normalize("  Should I MERGE   PR #595?\n") == normalize("should i merge pr 595")
+    assert normalize("  Should I MERGE   PR #42?\n") == normalize("should i merge pr 42")
 
 
 def test_new_question_is_recorded(store, fake_herdr):
-    out = service.ask(store, caller(), "Merge PR 595?", options=["yes", "no"], asked_by="reviewer")
+    out = service.ask(store, caller(), "Merge PR 42?", options=["yes", "no"], asked_by="reviewer")
     assert out["status"] == "open"
     assert "Recorded as Q1" in out["message"] and "`[inbox]` that names Q1" in out["message"]
     q = store.get(out["id"])
@@ -23,8 +23,8 @@ def test_new_question_is_recorded(store, fake_herdr):
 
 
 def test_open_duplicate_is_not_reinserted(store, fake_herdr):
-    first = service.ask(store, caller(), "Merge PR 595?")
-    again = service.ask(store, caller(), "merge   pr 595")
+    first = service.ask(store, caller(), "Merge PR 42?")
+    again = service.ask(store, caller(), "merge   pr 42")
     assert again == {
         "id": first["id"],
         "status": "already_open",
@@ -65,9 +65,9 @@ def test_pane_is_the_fallback_owner_without_session(store, fake_herdr):
 
 
 def test_ask_notifies_and_sets_token(store, fake_herdr):
-    service.ask(store, caller(), "Merge PR 595?\nsecond line")
+    service.ask(store, caller(), "Merge PR 42?\nsecond line")
     assert fake_herdr.calls_of("notification", "show") == [
-        ["notification", "show", "Q1 · my-tab", "--body", "Merge PR 595?", "--sound", "request"]
+        ["notification", "show", "Q1 · my-tab", "--body", "Merge PR 42?", "--sound", "request"]
     ]
     assert fake_herdr.calls_of("pane", "report-metadata") == [
         ["pane", "report-metadata", "w1:p1", "--source", "herdr-inbox", "--token", "inbox_q=?1"]

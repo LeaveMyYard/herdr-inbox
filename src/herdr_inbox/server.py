@@ -48,7 +48,7 @@ AskUserQuestion's:
 - `questions`: instead of `question`, up to 4 related questions in one call, each
   `{"question", "header"?, "options"?, "multi_select"?}`. The operator answers them together;
   each gets its own Q id.
-- `context`: supporting detail; `asked_by`: who is asking (e.g. "reviewer PR 595") when you are
+- `context`: supporting detail; `asked_by`: who is asking (e.g. "reviewer PR 42") when you are
   a subagent or one of several roles.
 Each answer is one line: the picked label(s), notes in parentheses, or the free text. Answers
 the operator submits together arrive in one `[inbox]` message."""

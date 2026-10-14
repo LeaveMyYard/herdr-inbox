@@ -1,4 +1,4 @@
-"""Open-question count in the herdr tab label: ``❓2 Farm Issues``.
+"""Open-question count in the herdr tab label: ``❓2 Billing API``.
 
 herdr has no per-tab tokens, so the count goes into the label itself with
 ``herdr tab rename``. The operator's own label (the *base*) is never stored:
