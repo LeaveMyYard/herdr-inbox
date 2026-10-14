@@ -295,6 +295,8 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
             # The operator may be typing there, or about to answer the dialog: the prompt
             # would merge with their input. Leave it for a later, unfocused tick.
             continue
+        # claim each row first, so a popup retry and the MCP retry loop never both send it
+        ours = [q for q in ours if store.claim_delivery(q.id)]
         for text, batch, ack in delivery_messages(ours):
             err = herdr.prompt_agent(pane, text)
             for q in batch:
