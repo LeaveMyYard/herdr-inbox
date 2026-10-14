@@ -35,15 +35,6 @@ is asking (e.g. "reviewer PR 595") when you are a subagent or one of several rol
 
 mcp = MCPServer("herdr-inbox", instructions=INSTRUCTIONS)
 
-_store: Store | None = None
-
-
-def store() -> Store:
-    global _store
-    if _store is None:
-        _store = Store()
-    return _store
-
 
 @mcp.tool(description=ASK_DESCRIPTION)
 def ask_operator(
@@ -52,7 +43,8 @@ def ask_operator(
     context: str | None = None,
     asked_by: str | None = None,
 ) -> dict[str, Any]:
-    return service.ask(store(), service.resolve_caller(), question, options, context, asked_by)
+    with Store() as store:
+        return service.ask(store, service.resolve_caller(), question, options, context, asked_by)
 
 
 @mcp.tool()
@@ -62,8 +54,9 @@ def check_answers() -> dict[str, Any]:
     Answers are normally delivered as `[inbox] Q<n> answered` messages; use this as a fallback
     (e.g. after compaction or if a delivery was missed)."""
     caller = service.resolve_caller()
-    answers = store().unacknowledged_answers(caller.session_id, caller.pane_id)
-    store().acknowledge([q.id for q in answers])
+    with Store() as store:
+        answers = store.unacknowledged_answers(caller.session_id, caller.pane_id)
+        store.acknowledge([q.id for q in answers])
     return {"answers": [{"id": q.id, "question": q.question, "answer": q.answer} for q in answers]}
 
 
@@ -74,7 +67,9 @@ def list_my_questions(include_closed: bool = False) -> dict[str, Any]:
     Call this after compaction or resume BEFORE asking anything, so you do not re-ask a
     question that is already open or answered."""
     caller = service.resolve_caller()
-    return {"questions": [q.brief() for q in store().mine(caller.session_id, caller.pane_id, include_closed)]}
+    with Store() as store:
+        questions = store.mine(caller.session_id, caller.pane_id, include_closed)
+    return {"questions": [q.brief() for q in questions]}
 
 
 @mcp.tool()
@@ -83,12 +78,12 @@ def withdraw_question(id: int, reason: str) -> dict[str, Any]:
 
     It is removed from the operator's inbox."""
     caller = service.resolve_caller()
-    mine = {q.id for q in store().mine(caller.session_id, caller.pane_id)}
-    if id not in mine:
-        return {"id": id, "status": "error", "message": f"Q{id} is not an open question of this session."}
-    if not service.close(store(), id, "withdrawn", reason):
-        q = store().get(id)
-        return {"id": id, "status": q.status if q else "error", "message": f"Q{id} is no longer open."}
+    with Store() as store:
+        mine = {q.id: q for q in store.mine(caller.session_id, caller.pane_id, include_closed=True)}
+        if id not in mine:
+            return {"id": id, "status": "error", "message": f"Q{id} is not a question of this session."}
+        if not service.close(store, id, "withdrawn", reason):
+            return {"id": id, "status": "error", "message": f"Q{id} is {mine[id].status}, not open."}
     return {"id": id, "status": "withdrawn", "message": f"Q{id} withdrawn."}
 
 

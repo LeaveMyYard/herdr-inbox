@@ -91,8 +91,9 @@ def ask(
         session_id=caller.session_id,
         cwd=caller.cwd,
     )
-    herdr.notify(f"{q.ref} · {q.tab_label or q.pane_id or 'agent'}", first_line(question, 200))
-    update_token(store, q.pane_id)
+    if q.pane_id:  # outside herdr: no notification, the TUI still lists it
+        herdr.notify(f"{q.ref} · {q.tab_label or q.pane_id}", first_line(question, 200))
+        update_token(store, q.pane_id)
     return {
         "id": q.id,
         "status": "open",

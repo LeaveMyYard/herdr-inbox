@@ -107,6 +107,12 @@ class Store:
     def close(self) -> None:
         self.db.close()
 
+    def __enter__(self) -> "Store":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
     # -- reads ---------------------------------------------------------------
 
     def get(self, qid: int) -> Question | None:
