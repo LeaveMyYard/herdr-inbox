@@ -25,7 +25,7 @@ def visible(app, row_id):
 async def test_cursor_row_stays_visible_in_a_short_popup(store, fake_herdr):
     """The reviewer's repro: 60x20, 9 options with descriptions and previews."""
     opts = [{"label": f"Option {i}", "description": LONG, "preview": f"preview {i}\n" * 3} for i in range(1, 10)]
-    service.ask(store, A, "Pick a config for the farm rollout?", options=opts)
+    service.ask(store, A, "Pick a config for the billing rollout?", options=opts)
     app = InboxApp(store)
     async with app.run_test(size=(60, 20)) as pilot:
         await pilot.pause()

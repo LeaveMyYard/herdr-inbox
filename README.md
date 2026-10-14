@@ -20,7 +20,7 @@ agent's pane.
   question, drafts for several questions, one Submit.
 - **Answer delivery** into the asking pane, only while that pane still holds the conversation
   that asked.
-- **Open-question markers**: tabs get a `❓N` prefix (`❓2 Farm Issues`), and panes get an optional
+- **Open-question markers**: tabs get a `❓N` prefix (`❓2 Billing API`), and panes get an optional
   `$inbox_q` sidebar token.
 - **A SessionStart hook** that teaches every Claude Code session to use the inbox, so no
   `CLAUDE.md` edit is needed. Outside herdr the hooks stay silent and `ask_operator` tells the
@@ -239,7 +239,7 @@ Tests never touch a real herdr: they point `HERDR_BIN_PATH` at a fake that recor
 `HERDR_INBOX_DB` at a temp file. CI runs them on Linux and macOS, and validates the plugin
 manifests with `claude plugin validate`. Keep the version identical in `pyproject.toml`,
 `herdr-plugin.toml`, `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` (a test
-checks this); bump it for every release, since Claude Code keys its plugin cache by version.
+checks this); regenerate screenshots with `uv run pytest tests/make_screenshots.py` (needs `rsvg-convert`); bump it for every release, since Claude Code keys its plugin cache by version.
 
 ## License
 

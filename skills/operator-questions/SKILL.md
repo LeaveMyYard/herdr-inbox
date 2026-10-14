@@ -43,9 +43,9 @@ history. Make it self-contained:
   Q id; the operator answers them in one view and usually submits them together.
 - Put long supporting detail (log excerpts, the tradeoff) in `context`, not in `question`.
 - Set `asked_by` when you are a subagent or one of several roles in the pane, e.g.
-  `"reviewer PR 595"`, so the operator knows who is asking.
+  `"reviewer PR 42"`, so the operator knows who is asking.
 
-Good: `question="api#595: merge with a merge commit or squash? The branch carries history from #590."`,
+Good: `question="api#42: merge with a merge commit or squash? The branch carries history from #40."`,
 `options=["merge commit", "squash"]`.
 
 Bad: `question="Which one should I use?"`

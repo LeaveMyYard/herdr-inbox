@@ -2,7 +2,7 @@ from herdr_inbox import cli, service
 from herdr_inbox.service import Caller
 
 
-def ask(store, question="Merge PR 595 now?", pane="w1:p1"):
+def ask(store, question="Merge PR 42 now?", pane="w1:p1"):
     c = Caller(pane_id=pane, tab_id="w1:t1", tab_label="my-tab", session_id="sess-A", cwd="/repo")
     return service.ask(store, c, question)["id"]
 
@@ -14,7 +14,7 @@ def test_answer_is_prompted_into_the_asking_pane(store, fake_herdr):
     assert q.status == "answered" and q.delivered_at and q.delivery_error is None
     assert fake_herdr.calls() == [
         ["agent", "get", "w1:p1"],
-        ["agent", "prompt", "w1:p1", "[inbox] Q1 answered — Merge PR 595 now?: yes, squash it"],
+        ["agent", "prompt", "w1:p1", "[inbox] Q1 answered — Merge PR 42 now?: yes, squash it"],
         ["pane", "report-metadata", "w1:p1", "--source", "herdr-inbox", "--clear-token", "inbox_q"],
     ]
     # never --wait: delivery must not block the TUI on the agent's turn
