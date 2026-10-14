@@ -120,7 +120,9 @@ def test_claiming_a_removed_venv_exits_cleanly(tmp_path, capsys):
     with pytest.raises(SystemExit) as exc:
         venvs.claim(tmp_path / "gone-venv")
     assert exc.value.code not in (0, None)
-    assert "venv" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    # Claude Code does not restart an exited stdio server: tell the operator how to get it back
+    assert "gone-venv" in err and "Reconnect" in err and "new session" in err
 
 
 def test_mcp_takes_the_lock_before_heavy_imports(tmp_path):
