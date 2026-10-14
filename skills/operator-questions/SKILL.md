@@ -45,7 +45,7 @@ history. Make it self-contained:
 - Set `asked_by` when you are a subagent or one of several roles in the pane, e.g.
   `"reviewer PR 595"`, so the operator knows who is asking.
 
-Good: `question="pgw#595: merge with a merge commit or squash? The branch carries history from #590."`,
+Good: `question="api#595: merge with a merge commit or squash? The branch carries history from #590."`,
 `options=["merge commit", "squash"]`.
 
 Bad: `question="Which one should I use?"`
