@@ -16,8 +16,11 @@ The view it opens is like any view that appears: armed for ARM_SECONDS, cursor o
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
+import re
 import time
 import uuid
 from pathlib import Path
@@ -26,27 +29,45 @@ from .store import Question, Store, db_path
 
 REQUEST_TTL = 5.0
 KINDS = ("question", "group", "pane", "session")
+NONCE_ENV = "INBOX_OPEN_NONCE"  # `inbox open` hands its request's nonce to the popup it opens
+VALID = {"question": re.compile(r"[Qq]?\d+"), "group": re.compile(r"\d+"),
+         "pane": re.compile(r"\S+"), "session": re.compile(r"\S+")}
 
 
 def request_path() -> Path:
     return db_path().parent / "open-request.json"
 
 
-def write_request(kind: str, value: str) -> None:
-    if kind not in KINDS:
-        raise ValueError(kind)
+def valid(kind: str, value: str) -> bool:
+    return kind in KINDS and bool(VALID[kind].fullmatch(str(value)))
+
+
+def write_request(kind: str, value: str) -> str:
+    """Write the request; returns its nonce (passed to the popup as INBOX_OPEN_NONCE)."""
+    if not valid(kind, value):
+        raise ValueError(f"{kind} {value!r}")
     path = request_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {"kind": kind, "value": str(value), "created_at": time.time(), "nonce": uuid.uuid4().hex}
     tmp = path.with_name(f".open-request-{os.getpid()}-{data['nonce'][:8]}")
     tmp.write_text(json.dumps(data))
     os.replace(tmp, path)
+    return data["nonce"]
 
 
 def consume_request() -> dict | None:
-    """Take the pending request (once, whoever asks first); None if there is none, it is
-    stale or unreadable."""
+    """Take the pending request, if this popup was opened for it (its INBOX_OPEN_NONCE),
+    once, whoever asks first; None if there is none, it is someone else's, stale or
+    unreadable. A popup opened by hand never takes a request."""
+    nonce = os.environ.get(NONCE_ENV)
     path = request_path()
+    if not nonce or not path.exists():
+        return None
+    try:
+        if json.loads(path.read_text()).get("nonce") != nonce:
+            return None  # another `inbox open`'s request (or a newer one): not ours
+    except (OSError, ValueError):
+        pass  # unreadable: take it below, and drop it
     taken = path.with_name(f".open-request-taken-{os.getpid()}-{uuid.uuid4().hex[:8]}")
     try:
         os.rename(path, taken)
@@ -61,7 +82,7 @@ def consume_request() -> dict | None:
             taken.unlink()
         except OSError:
             pass
-    if not isinstance(data, dict) or data.get("kind") not in KINDS:
+    if not isinstance(data, dict) or data.get("kind") not in KINDS or data.get("nonce") != nonce:
         return None
     age = time.time() - float(data.get("created_at") or 0)
     if not 0 <= age <= REQUEST_TTL:
@@ -100,3 +121,50 @@ def describe(target: dict) -> str:
     if kind == "question":
         return f"Q{str(value).lstrip('Qq')}"
     return f"{kind} {value}"
+
+
+def _lock_path() -> Path:
+    return db_path().parent / "popup.lock"
+
+
+@contextlib.contextmanager
+def popup_running():
+    """Held by a running popup for its lifetime (exclusive flock), so `inbox open` can tell
+    the caller that the popup is already open instead of leaving a request nobody takes."""
+    path = _lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "a")
+    try:
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            pass  # another popup holds it; this one still runs
+        yield
+    finally:
+        fh.close()
+
+
+def popup_is_running() -> bool:
+    try:
+        fh = open(_lock_path(), "a")
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fh, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return False
+    except OSError:
+        return True
+    finally:
+        fh.close()
+
+
+def hold_popup_lock():
+    """The running popup's lock (see popup_running); close the returned file to release."""
+    path = _lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "a")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        pass
+    return fh

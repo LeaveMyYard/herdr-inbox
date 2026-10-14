@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import subprocess
+from pathlib import Path
 
 log = logging.getLogger("herdr_inbox.herdr")
 
@@ -172,13 +173,31 @@ def list_pane_ids() -> list[str] | None:
     return None if panes is None else list(panes)
 
 
-def open_popup() -> str | None:
-    """Open the plugin's ``inbox`` popup (used by the herdr ``open`` action)."""
-    plugin_id = os.environ.get("HERDR_PLUGIN_ID", "leavemyyard.herdr-inbox")
-    args = ["plugin", "pane", "open", "--plugin", plugin_id, "--entrypoint", "inbox"]
-    root = os.environ.get("HERDR_PLUGIN_ROOT")
+INBOX_PLUGIN_ID = "leavemyyard.herdr-inbox"
+
+
+def plugin_root() -> str | None:
+    """This inbox's own checkout (where herdr-plugin.toml is), never the caller's: `inbox
+    open` may run from another plugin's action, whose HERDR_PLUGIN_ROOT/ID are its own."""
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "herdr-plugin.toml").is_file() and (parent / "src" / "herdr_inbox").is_dir():
+            return str(parent)
+    res, _ = call("plugin", "list", "--json")  # an installed (non-editable) copy
+    for p in (res or {}).get("plugins", []):
+        if p.get("plugin_id") == INBOX_PLUGIN_ID and p.get("plugin_root"):
+            return p["plugin_root"]
+    return None
+
+
+def open_popup(env: dict[str, str] | None = None) -> str | None:
+    """Open the inbox's ``inbox`` popup (the herdr ``open`` action, ``inbox open``)."""
+    args = ["plugin", "pane", "open", "--plugin", INBOX_PLUGIN_ID, "--entrypoint", "inbox"]
+    root = plugin_root()
     if root:
         args += ["--cwd", root]
+    for key, value in (env or {}).items():
+        args += ["--env", f"{key}={value}"]
     focused = invocation_pane() or os.environ.get("HERDR_PANE_ID")  # focused when the action ran
     if focused:
         args += ["--env", f"INBOX_FOCUS_PANE={focused}"]

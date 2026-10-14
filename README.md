@@ -259,13 +259,29 @@ uv run --quiet --frozen --no-dev --project "$root" inbox open --question Q12   #
 #   inbox open --session <id>       that Claude session's oldest open group
 ```
 
-`herdr plugin pane open` cannot pass arguments to the popup, so `inbox open` writes a one-shot
-request (`open-request.json` next to the database: target, time and nonce, written atomically,
-newest wins) and then opens the popup. The popup takes the request when it starts, if the
-request is at most 5 s old, and opens that group on that question with the list behind it (Esc
-goes back to the list). If the target is no longer open, it shows the list with a one-line
-notice. The view arms like any other (keys in its first 0.4 s are ignored). A popup that is
-already open does not pick up a new request.
+**Run it only on an explicit operator action** (a key binding, a click), never from an event or
+a timer. A popup takes all keyboard input, so one that appears under the operator's typing would
+swallow their keys.
+
+As a second guard, a deep-linked popup sends nothing until the operator presses a navigation key
+(↑/↓, Tab, ←/→). Until then it shows "Opened from another plugin — press ↑/↓ or Tab to start
+answering", and Enter and digits do nothing.
+
+How it works:
+
+- `herdr plugin pane open` cannot pass arguments to the popup. So `inbox open` writes a one-shot
+  request (`open-request.json` next to the database: target, time and nonce, written atomically,
+  newest wins).
+- It then opens the inbox's own popup. The plugin id and root are fixed to the inbox's own, never
+  the calling plugin's.
+- It hands the request's nonce to that popup. Only that popup takes the request, and only within
+  5 s; a popup opened by hand ignores it.
+- The popup opens the target group on the target question, with the list behind it (Esc goes back
+  to the list). If the target is no longer open, it shows the list with a one-line notice.
+- If the popup is already open, `inbox open` exits with code 3 and the message "the inbox popup is
+  already open", and writes nothing.
+- `--question` takes `Qn` or `n` and `--group` takes a number; anything else is a usage error
+  (exit 2).
 
 ## Updating
 
