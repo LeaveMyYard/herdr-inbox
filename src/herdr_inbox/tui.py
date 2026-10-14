@@ -36,7 +36,7 @@ from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
 from . import herdr, service
-from .store import Question, Store
+from .store import PENDING, Question, Store
 
 POLL_SECONDS = 2.0
 # After a view change the operator did not cause, keys are dropped this long: whatever they
@@ -68,6 +68,14 @@ def guarded(fn):
             self.app.notify(BUSY, severity="warning")
 
     return wrapper
+
+
+def _pending(q: Question) -> bool:
+    return bool(q.delivery_error and q.delivery_error.startswith(PENDING))
+
+
+def _pending_reason(q: Question) -> str:
+    return (q.delivery_error or "")[len(PENDING):]
 
 
 def _draft_line(q: Question) -> str:
@@ -530,7 +538,9 @@ class FailedView(Vertical, can_focus=True):
     def compose(self) -> ComposeResult:
         q = self.q
         meta = f"{q.ref} · {q.tab_label or q.pane_id or 'no pane'}" + (f" · {q.asked_by}" if q.asked_by else "")
-        yield Static(f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]",
+        state = (f"⏳ {q.ref} pending delivery[/]: [dim]{escape(_pending_reason(q))}[/dim]" if _pending(q)
+                 else f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]")
+        yield Static(("[b]" + state) if _pending(q) else state,
                      classes="question")
         yield Static(escape(meta), classes="meta")
         yield Static(f"[b]{escape(q.question)}[/b]\n  [$inbox-success]→ {escape(q.answer or '')}[/]", classes="question")
@@ -677,10 +687,13 @@ class GroupListView(Vertical, can_focus=True):
             where = escape((q.tab_label or q.pane_id or "no pane") if q else "-")
             if closed:
                 return f"{cur} {number} [$inbox-warning]✕ Q{entry[1]} · {where} · {escape(closed)}[/]"
-            head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or '')}"
-            line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
-            return f"{line1}\n      [dim]{escape(service.first_line(q.question, 60))} → {escape(q.answer or '')}[/dim]" \
-                if False else f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
+            if _pending(q):  # waiting for the agent to be idle: information, not a warning
+                head = f"⏳ Q{q.id} pending delivery · {where} · {escape(_pending_reason(q))}"
+                line1 = f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]"
+            else:
+                head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or 'no attempt recorded')}"
+                line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
+            return f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
                 f"{escape(service.first_line(q.answer or '', 40))}[/dim]"
         qs = store.group(entry[1], include_closed=True)
         first = qs[0] if qs else None
@@ -709,8 +722,12 @@ class GroupListView(Vertical, can_focus=True):
     def render_rows(self) -> None:
         live = self.inbox.live_entries
         groups = sum(1 for e in live if e[0] == "group")
-        failed = len(live) - groups
-        parts = [f"{groups} group{'s' if groups != 1 else ''}"] + ([f"{failed} not delivered"] if failed else [])
+        others = [self.inbox.store.get(e[1]) for e in live if e[0] == "failed"]
+        pending = sum(1 for q in others if q and _pending(q))
+        failed = len(others) - pending
+        parts = [f"{groups} group{'s' if groups != 1 else ''}"]
+        parts += [f"{pending} pending delivery"] if pending else []
+        parts += [f"{failed} not delivered"] if failed else []
         self.query_one("#list-title", Static).update(f"[b]Open questions[/b] [dim]· {' · '.join(parts)}[/dim]")
         entries = self.inbox.entries
         box = self.query_one("#list-rows", VerticalScroll)

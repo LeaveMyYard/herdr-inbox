@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.1
+
+- **Fix: answers could be lost when the asking agent was busy.** `herdr agent prompt` succeeding
+  only means the keys reached the pane; in live use answers typed while the agent was mid-turn
+  never reached the conversation, yet were marked delivered and seen. Now:
+  - an answer is typed only when herdr reports the agent `idle`/`done`; while it works the answer
+    is *pending delivery* (shown as `⏳` in the popup) and the asking session's retry loop (every
+    10 s) delivers it at the next idle;
+  - a delivery counts only once the text shows up in the session's transcript (a `user` record,
+    or a queued `queue-operation`/`queued_command`) within 15 s; otherwise it is retried;
+  - "seen" means the agent fetched the answer (`check_answers`/`list_my_questions`) or the
+    delivery was verified, never just "sent"; the receipt and the SessionStart text point to
+    `check_answers` as the fallback.
+- Recovery: recent answers that were marked seen without verification become unseen again once,
+  so `check_answers` returns them; `inbox redeliver <ids>` delivers answers again.
+- The SessionStart hook records the session's transcript path for verification.
+
 ## 0.5.0
 
 - `ask_operator` takes a `title`: a short name for the whole call (≤60 chars), strongly

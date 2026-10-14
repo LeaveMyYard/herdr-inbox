@@ -113,7 +113,8 @@ async def test_stdio_server_end_to_end(fake_herdr, mode):
             "status": "open",
             "message": "Recorded as Q1. The operator will answer asynchronously; the answer will arrive in this "
             "conversation as a message starting with `[inbox]` that names Q1. Continue with work that does not "
-            "depend on it. Do not repeat the question in chat or call ask_operator for it again.",
+            "depend on it. Do not repeat the question in chat or call ask_operator for it again. "
+            "If an answer seems overdue, call check_answers.",
         }
         mine = await call(client, "list_my_questions")
         assert mine["questions"][0]["question"] == "Over stdio?"
