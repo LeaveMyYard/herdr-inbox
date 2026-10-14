@@ -25,7 +25,7 @@ async def test_arrival_into_the_empty_popup_does_not_take_over(store, fake_herdr
         app.poll()
         await pilot.pause()
         assert not app.query(QuestionView)
-        assert text_of(app.query_one("#empty")) == "1 new question — press Tab/→ to view"
+        assert text_of(app.query_one("#empty")) == "1 new question group — press Tab/→ to view"
         await pilot.press("enter")  # "any key closes" still means exactly that
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -40,7 +40,9 @@ async def test_arrival_then_deliberate_tab_enables_immediate_send(store, fake_he
         service.ask(store, A, "delete bucket?", options=["yes", "no"])
         app.poll()
         await pilot.pause()
-        await pilot.press("tab")  # deliberate
+        await pilot.press("tab")  # deliberate: the list
+        assert app.mode == "list" and not app.query(QuestionView)
+        await pilot.press("enter")  # deliberate: open the lone question
         assert app.query_one(QuestionView).q.id == 1
         await pilot.press("2", "enter")
         await app.workers.wait_for_complete()
@@ -49,8 +51,8 @@ async def test_arrival_then_deliberate_tab_enables_immediate_send(store, fake_he
 
 async def test_typing_after_the_question_closes_never_reaches_app_keys(store, fake_herdr):
     """M1 repro: 'use the good one' -- the g must not focus the agent's pane."""
-    service.ask(store, B, "branch name?", options=["main", "dev"])
-    service.ask(store, A, "delete bucket?", options=["yes", "no"])
+    service.ask_group(store, B, [{"question": "branch name?", "options": ["main", "dev"]},
+                                 {"question": "delete bucket?", "options": ["yes", "no"]}])
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -66,8 +68,7 @@ async def test_typing_after_the_question_closes_never_reaches_app_keys(store, fa
 
 
 async def test_keys_are_swallowed_briefly_after_a_background_view_change(store, fake_herdr, monkeypatch):
-    service.ask(store, B, "first?", options=["a"])
-    service.ask(store, A, "second?", options=["b"])
+    service.ask_group(store, B, [{"question": "first?", "options": ["a"]}, {"question": "second?", "options": ["b"]}])
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -84,8 +85,7 @@ async def test_keys_are_swallowed_briefly_after_a_background_view_change(store, 
 
 
 async def test_gone_tab_disables_g_and_d(store, fake_herdr):
-    service.ask(store, B, "first?", options=["a"])
-    service.ask(store, A, "second?", options=["b"])
+    service.ask_group(store, B, [{"question": "first?", "options": ["a"]}, {"question": "second?", "options": ["b"]}])
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -99,8 +99,7 @@ async def test_gone_tab_disables_g_and_d(store, fake_herdr):
 
 
 async def test_dismiss_needs_y(store, fake_herdr):
-    service.ask(store, A, "q1?", options=["a"])
-    service.ask(store, B, "q2?", options=["b"])
+    service.ask_group(store, A, [{"question": "q1?", "options": ["a"]}, {"question": "q2?", "options": ["b"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()

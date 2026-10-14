@@ -1,6 +1,6 @@
 [project]
 name = "herdr-inbox"
-version = "0.3.0"
+version = "0.4.0"
 description = "Non-blocking operator question inbox for coding agents running in herdr"
 readme = "README.md"
 license = "MIT"

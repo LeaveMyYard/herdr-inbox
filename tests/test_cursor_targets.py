@@ -19,9 +19,8 @@ async def submit_tab(app, pilot):
 
 
 async def test_cancel_stays_cancel_when_a_question_arrives(store, fake_herdr):
-    """The reviewer's repro."""
-    service.ask(store, A, "q1?", options=["a", "b"])
-    service.ask(store, B, "q2?", options=["x", "y"])
+    """The reviewer's repro, per group: the arrival goes to the list, never into the group."""
+    service.ask_group(store, A, [{"question": "q1?", "options": ["a", "b"]}, {"question": "q2?", "options": ["x", "y"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         v = await submit_tab(app, pilot)
@@ -30,7 +29,7 @@ async def test_cancel_stays_cancel_when_a_question_arrives(store, fake_herdr):
         service.ask(store, A, "q3 new?", options=["m"])
         app.poll()
         await pilot.pause()
-        assert v.cursor == "cancel" and len(v.items) == 2 and app.pending == [("q", 3)]
+        assert v.cursor == "cancel" and len(v.items) == 2 and ("group", 3) in app.entries
         await pilot.press("enter")
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -38,25 +37,27 @@ async def test_cancel_stays_cancel_when_a_question_arrives(store, fake_herdr):
 
 
 async def test_item_cursor_follows_its_question(store, fake_herdr):
-    service.ask(store, A, "q1?", options=["a"])
-    service.ask(store, B, "q2?", options=["x"])
+    service.ask_group(store, A, [{"question": "q0?"}, {"question": "q1?", "options": ["a"]},
+                                 {"question": "q2?", "options": ["x"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
-        v = await submit_tab(app, pilot)
-        await pilot.press("up")  # Submit answers -> Q2 row
-        assert v.cursor == ("item", 2)
-        service.ask(store, A, "q0 earlier tab?")  # lands before Q2 in the list
+        await pilot.pause()
+        await pilot.press("right", "enter", "tab")  # Q2 drafted; past Q3 to Submit
+        await pilot.pause()
+        v = app.query_one(ReviewView)
+        await pilot.press("up")  # Submit answers -> Q3 row
+        assert v.cursor == ("item", 3)
+        service.close(store, 1, "withdrawn")  # a row above it goes away
         app.poll()
         await pilot.pause()
-        assert v.cursor == ("item", 2)
-        await pilot.press("enter")  # edits Q2, not the row that moved under the cursor
-        assert app.current == ("q", 2)
+        assert v.cursor == ("item", 3)
+        await pilot.press("enter")  # edits Q3, not the row that moved under the cursor
+        assert app.current == ("q", 3)
 
 
 async def test_vanished_target_parks_on_nothing(store, fake_herdr):
-    service.ask(store, A, "q1?", options=["a"])
-    service.ask(store, B, "q2?", options=["x"])
-    service.ask(store, B, "q3?", options=["y"])
+    service.ask_group(store, A, [{"question": "q1?", "options": ["a"]}, {"question": "q2?", "options": ["x"]},
+                                 {"question": "q3?", "options": ["y"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()

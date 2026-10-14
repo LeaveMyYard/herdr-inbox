@@ -18,44 +18,52 @@ def chips(app):
 
 
 async def test_tab_enter_after_arrival_never_answers_the_new_question(store, fake_herdr):
-    """The reviewer's repro: Tab still reaches Submit; the new question is only marked."""
-    service.ask(store, A, "q1?", options=["a", "b"])
-    service.ask(store, A, "q2?", options=["x", "y"])
+    """The reviewer's repro, per group: nothing is ever added to an open group, so Tab still
+    reaches its Submit and the arrival waits in the list."""
+    service.ask_group(store, A, [{"question": "q1?", "options": ["a", "b"]},
+                                 {"question": "q2?", "options": ["x", "y"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
+        assert app.mode == "group"  # the only group: opened straight away
         await pilot.press("enter", "enter", "shift+tab")  # draft both, back to Q2
         await pilot.pause()
         service.ask(store, B, "drop prod table?", options=["yes", "no"])
         app.poll()
         await pilot.pause()
-        assert chips(app)[-1] == "+1 new (press +)" and ("q", 3) not in app.tabs
+        assert ("q", 3) not in app.tabs and not any("+" in c for c in chips(app))
         await pilot.press("tab", "enter")  # habit: Tab to Submit, Enter submits
         await app.workers.wait_for_complete()
         await pilot.pause()
-        await pilot.press("enter")
+        assert app.mode == "list" and app.list_cursor == ("group", 1)  # back to the list
+        await pilot.press("enter")  # on the sent group's inert row: nothing
         await pilot.pause(0.3)
-        assert app.is_running  # a pending question keeps the popup open
+        assert app.is_running
     assert store.get(3).status == "open" and store.get(3).draft_json is None
     prompts = [c[3] for c in fake_herdr.calls_of("agent", "prompt")]
     assert prompts == ["[inbox] answered — Q1 q1?: a · Q2 q2?: x"]
 
 
-async def test_plus_opens_the_new_questions_deliberately(store, fake_herdr):
+async def test_arrivals_are_list_rows_and_never_move_the_cursor(store, fake_herdr):
+    """Was the '+N new' marker: the group list makes it redundant. Arrivals are appended as
+    rows; the cursor is a target (a group), so it stays where it was."""
     service.ask(store, A, "q1?", options=["a"])
     service.ask(store, A, "q2?", options=["b"])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
+        assert app.mode == "list"
+        await pilot.press("down")
+        lv = app.query_one(tui.GroupListView)
+        assert lv.cursor == ("group", 2)
         service.ask(store, B, "new one?", options=["c"])
         service.ask(store, B, "newer?", options=["d"])
         app.poll()
         await pilot.pause()
-        assert "+2 new (press +)" in chips(app)
-        await pilot.press("plus")
-        await pilot.pause()
-        assert app.query_one(QuestionView).q.id == 3 and app.tabs[2:4] == [("q", 3), ("q", 4)]
-        assert not any(c.startswith("+") for c in chips(app))
+        assert app.entries == [("group", 1), ("group", 2), ("group", 3), ("group", 4)]
+        assert lv.cursor == ("group", 2) and "+" not in str(lv.query_one("#list-body").render())
+        await pilot.press("enter")
+        assert app.mode == "group" and app.query_one(QuestionView).q.id == 2
 
 
 async def test_arrival_into_the_empty_view_still_opens_with_tab(store, fake_herdr):
@@ -65,14 +73,17 @@ async def test_arrival_into_the_empty_view_still_opens_with_tab(store, fake_herd
         service.ask(store, A, "late?", options=["a"])
         app.poll()
         await pilot.pause()
-        await pilot.press("tab")
+        assert "1 new question group" in str(app.query_one("#empty").render())
+        await pilot.press("tab")  # deliberate: the list of what arrived
+        assert app.mode == "list"
+        await pilot.press("enter")
         assert app.query_one(QuestionView).q.id == 1
 
 
 async def test_question_view_is_armed_only_after_a_moment(store, fake_herdr, monkeypatch):
     monkeypatch.setattr(tui, "ARM_SECONDS", 0.4)
-    service.ask(store, A, "q1?", options=["a", "b"])
-    service.ask(store, B, "q2?", options=["x", "y"])
+    service.ask_group(store, A, [{"question": "q1?", "options": ["a", "b"]},
+                                 {"question": "q2?", "options": ["x", "y"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -88,6 +99,28 @@ async def test_question_view_is_armed_only_after_a_moment(store, fake_herdr, mon
         await pilot.pause()
         assert store.get(2).draft_json is None and app.query_one(QuestionView).q.id == 2
     assert tui.ARM_SECONDS == 0.4
+
+
+async def test_list_and_lone_question_are_armed_too(store, fake_herdr, monkeypatch):
+    """Enter opens a lone question from the list; a second Enter right behind it must not send."""
+    monkeypatch.setattr(tui, "ARM_SECONDS", 0.4)
+    service.ask(store, A, "lone?", options=["yes", "no"])
+    service.ask(store, B, "other?", options=["x"])
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")  # the list itself just appeared: ignored
+        await pilot.pause()
+        assert app.mode == "list"
+        time.sleep(0.45)
+        await pilot.press("enter", "enter")  # open, and an Enter right behind it
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.mode == "group" and store.get(1).status == "open"
+        time.sleep(0.45)
+        await pilot.press("enter")  # now a deliberate answer: sends
+        await app.workers.wait_for_complete()
+    assert store.get(1).answer == "yes"
 
 
 def test_orphaned_answer_shows_as_failed(store, fake_herdr):
