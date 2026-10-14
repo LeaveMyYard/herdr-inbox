@@ -155,8 +155,11 @@ def _armed(widget) -> bool:
     return not held and time.monotonic() >= getattr(widget, "armed_at", 0)
 
 
-HELD_HINT = "Opened from another plugin — press ↑/↓ or Tab to start answering (Esc for the list)"
-RELEASE_KEYS = ("up", "down", "j", "k", "tab", "shift+tab", "left", "right")
+HELD_HINT = "Opened from another plugin — press Tab or → to start answering (Esc for the list)"
+# A held deep link is released only by Tab/→ (as the empty popup's arrivals are), never by
+# ↑/↓ (shell history under a popup that just appeared), and not within RELEASE_GRACE of
+# the popup appearing; the releasing key does nothing else.
+RELEASE_GRACE = 0.5
 
 
 class QuestionView(Vertical, can_focus=True):
@@ -1008,8 +1011,8 @@ class InboxApp(App):
                 self.notify(f"{deeplink.describe(request)} is no longer open")
         if target and target[0] in self.entries:
             # Another plugin opened us, maybe under the operator's typing: nothing sends
-            # until a deliberate navigation key (RELEASE_KEYS). Esc goes to the list.
-            self.held = True
+            # until a deliberate Tab/→ (see RELEASE_GRACE). Esc goes to the list.
+            self.held, self.held_at = True, time.monotonic()
             self.add_class("held")
             self.open_group(target[0], start_qid=target[1])
         elif not self.entries:
@@ -1242,6 +1245,11 @@ class InboxApp(App):
         self.show(target)
 
     def action_switch(self, delta: int) -> None:
+        if self.held:  # Tab/→ (the switch keys): release a deep link, nothing more
+            if delta > 0 and time.monotonic() - self.held_at >= RELEASE_GRACE:
+                self.held = False
+                self.remove_class("held")
+            return
         if self.mode == "empty":  # Tab/→ from the empty view: the list of what arrived
             self.show_list(self.entries[0] if self.entries else None)
         else:
@@ -1270,9 +1278,6 @@ class InboxApp(App):
             lock.close()
 
     def on_key(self, event) -> None:
-        if self.held and event.key in RELEASE_KEYS:  # the operator's first deliberate key
-            self.held = False
-            self.remove_class("held")
         if self.mode == "empty" and len(self.screen_stack) == 1:  # empty view: any key closes,
             if event.key in NAV_KEYS and self.entries:           # except Tab/arrows to arrivals
                 return

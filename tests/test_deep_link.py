@@ -235,19 +235,28 @@ async def test_the_popup_marks_itself_running(store, fake_herdr):
 
 
 async def test_a_deep_linked_view_waits_for_a_deliberate_key(store, fake_herdr, monkeypatch):
-    """M1: a deep link may land under the operator's typing; a lone question must not send
-    on Enter until the operator has pressed a navigation key first."""
+    """M1 (+ re-review): a deep link may land under the operator's typing. Nothing sends until
+    Tab/→ -- never ↑/↓, which a shell's history uses -- pressed at least RELEASE_GRACE after
+    the popup appeared; the releasing key itself does nothing else."""
+    from herdr_inbox import tui
+
+    monkeypatch.setattr(tui, "RELEASE_GRACE", 30.0)  # long enough for a slow runner's key presses
     qid = service.ask(store, A, "solo?", options=["yes", "no"])["id"]
     monkeypatch.setenv("INBOX_OPEN_NONCE", deeplink.write_request("question", str(qid)))
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert "press ↑/↓ or Tab" in str(app.query_one("#held-hint").render())
+        assert "press Tab or →" in str(app.query_one("#held-hint").render())
         await pilot.press("enter", "1", "2", "enter")
+        await pilot.press("up", "enter")  # the reviewer's case: shell history under the popup
+        await pilot.press("down", "j", "k", "enter")
+        await pilot.press("tab", "enter")  # Tab, but within RELEASE_GRACE of appearing: ignored
         await pilot.pause()
-        assert store.get(qid).status == "open" and app.is_running
-        await pilot.press("down")  # the first deliberate key: answering is possible now
+        assert store.get(qid).status == "open" and app.held and app.is_running
+        app.held_at -= 30.0  # the grace has passed
+        await pilot.press("tab")  # deliberate: releases (and does nothing else)
+        assert not app.held and app.query_one(QuestionView).q.id == qid
         await pilot.press("enter")
         await app.workers.wait_for_complete()
         await pilot.pause()
-    assert store.get(qid).status == "answered" and store.get(qid).answer == "no"
+    assert store.get(qid).status == "answered"

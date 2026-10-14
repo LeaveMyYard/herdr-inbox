@@ -275,10 +275,13 @@ command, so `deeplink.py` hands the target over through the state dir:
   the state dir. `inbox open` checks it and, if held, exits 3 with "already
   open" and writes nothing.
 - **Safety:** a deep link is an event from outside, and a popup takes all
-  keyboard input. So a deep-linked popup starts **held**: until the operator's
-  first navigation key (↑/↓/j/k, Tab, ←/→), every Enter/digit/toggle is refused,
-  through `_armed`, the same gate as `ARM_SECONDS`. A hint line says so. After
-  that the views arm as usual. The view is opened as a choice (`direct` is
+  keyboard input. So a deep-linked popup starts **held**: every Enter, digit
+  and toggle is refused through `_armed`, the same gate as `ARM_SECONDS`. The
+  hold ends only on Tab/→, the keys that also release the empty popup's
+  arrivals, and only once `RELEASE_GRACE` = 0.5 s has passed since the popup
+  appeared. ↑/↓/j/k don't release it, because a shell's history (↑, Enter)
+  under a popup that just appeared would. The releasing key does nothing else.
+  A hint line says so. After that the views arm as usual. The view is opened as a choice (`direct` is
   false), so Esc returns to the list. The README requires callers to run
   `inbox open` only on an explicit operator action. Nothing changes for a popup
   without a request.
