@@ -2,12 +2,9 @@
 
 # herdr inbox
 
-### Ask once, keep working, answer from one popup.
+### Your agents ask. They keep working. You answer when you're ready.
 
-A non-blocking question inbox for Claude Code agents running in
-[herdr](https://herdr.dev): agents file a question through an MCP tool and carry on, you answer
-every open question from a Claude-Code-style tabbed popup, and the answer is typed back into the
-asking agent's pane.
+An asynchronous question inbox for Claude Code agents running in [herdr](https://herdr.dev).
 
 <img alt="herdr" src="https://img.shields.io/badge/herdr-%E2%89%A5%200.9-5865a3">
 <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude_Code-plugin-d97757">
@@ -21,10 +18,22 @@ asking agent's pane.
 
 </div>
 
-When you run several agents in parallel, their questions get lost in chat, and an agent that
-gets no answer repeats the question every few turns. A blocking dialog (`AskUserQuestion`) fixes
-that by stopping the agent, which is also not what you want. herdr-inbox gives every question one
-place: the agent calls `ask_operator` **once**, gets a receipt (`Q12`) and keeps working.
+**Ever had an agent stop dead to ask you a question, when it could have kept going with the rest
+of its work?** Or one that asked in chat, carried on, and then asked the same thing again three
+turns later because it never knew you'd seen it?
+
+herdr-inbox makes agent questions **asynchronous**. It works like Claude Code's own question
+prompt (same options, notes and multi-question groups), except the agent doesn't wait for you.
+It files the question once, gets a receipt (`Q12`) and keeps working on everything that doesn't
+depend on the answer. You answer whenever you're ready, from one popup that collects the open
+questions of every agent in your herdr session, and the answer lands back in the right agent's
+conversation.
+
+- **Agents don't stall.** No blocking dialog, no idle agent waiting for you to notice it.
+- **Questions don't repeat.** Asking the same thing twice just returns the existing receipt.
+- **Nothing gets lost.** Every open question from every pane is in one place, and tabs show a
+  `❓N` count while their agent is waiting on you.
+- **Zero per-project setup.** A session hook teaches every Claude Code session to use it.
 
 ```sh
 claude plugin marketplace add LeaveMyYard/herdr-inbox
