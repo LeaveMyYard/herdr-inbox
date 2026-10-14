@@ -9,6 +9,10 @@
   wrapper that always exits 0. A python3 older than 3.11 falls back to uv.
 - The MCP server's venv is per version (`${CLAUDE_PLUGIN_DATA}/venv-<version>`), so sessions on
   the old and new versions never re-sync each other's environment.
+  On start, the MCP server removes older versions' venvs once nothing uses them.
+- A busy or locked inbox DB no longer drops the session's inbox rules. The rules are printed
+  first; the pending-question list (compact/resume) and the transcript record give up after a
+  fraction of a second.
 
 ## 0.5.2
 

@@ -26,18 +26,34 @@ If you need a decision from the human operator and can keep working without it, 
 </herdr-inbox>"""
 
 
-def _pending(session_id: str) -> list[str]:
-    from .store import Store  # sqlite only; still cheap
+# A busy or locked inbox DB must never cost the session its rules: the lookups below give
+# up after these and the hook prints what it has.
+PENDING_TIMEOUT = 0.2
+RECORD_TIMEOUT = 0.5
 
-    store = Store()
+
+def _pending(session_id: str) -> list[str]:
+    """This session's open / unseen questions, read-only (no schema work, no migration) and
+    with a short timeout; [] if the DB is missing, locked or unreadable."""
+    import sqlite3
+
+    from .store import db_path
+
+    path = db_path()
+    if not path.exists():
+        return []
     try:
-        rows = store.db.execute(
-            "SELECT id, status, question, answer FROM questions WHERE session_id = ?"
-            " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL)) ORDER BY id",
-            (session_id,),
-        ).fetchall()
-    finally:
-        store.close()
+        db = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
+        try:
+            rows = db.execute(
+                "SELECT id, status, question, answer FROM questions WHERE session_id = ?"
+                " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL)) ORDER BY id",
+                (session_id,),
+            ).fetchall()
+        finally:
+            db.close()
+    except sqlite3.Error:
+        return []
     lines = []
     for qid, status, question, answer in rows:
         q = " ".join(question.split())
@@ -67,7 +83,7 @@ def _remember_transcript(payload: dict) -> None:
     if payload.get("session_id") and payload.get("transcript_path"):
         from .store import Store
 
-        with Store(timeout=2) as store:
+        with Store(timeout=RECORD_TIMEOUT) as store:
             store.record_session(payload["session_id"], payload["transcript_path"])
 
 
@@ -83,8 +99,11 @@ def run(event: str) -> int:
         raw = sys.stdin.read()
         payload = json.loads(raw) if raw.strip() else {}
         if event == "session-start":
-            _remember_transcript(payload)
-            name, context = "SessionStart", session_start_context(payload)
+            name = "SessionStart"
+            try:
+                context = session_start_context(payload)
+            except BaseException:  # noqa: BLE001 - the rules alone, rather than nothing
+                context = SESSION_RULES
         elif event == "subagent-start":
             name, context = "SubagentStart", SUBAGENT_RULES
         else:
@@ -97,4 +116,11 @@ def run(event: str) -> int:
         sys.stdout.flush()
     except BaseException:  # noqa: BLE001
         pass
+    if event == "session-start":
+        # after the rules are out: an optimisation (verification falls back to the
+        # projects-dir glob), so a locked or unwritable DB costs nothing but this
+        try:
+            _remember_transcript(payload)
+        except BaseException:  # noqa: BLE001
+            pass
     return 0
