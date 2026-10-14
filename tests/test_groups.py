@@ -89,5 +89,5 @@ async def test_mcp_questions_parameter(fake_herdr):
         assert many.structured_content["status"] == "error"
     with Store() as s:
         q1, q2 = s.get(1), s.get(2)
-    assert q1.options[1] == {"label": "sqlite", "description": "one file"} and q1.header == "DB"
+    assert q1.options[1] == {"label": "sqlite", "description": "one file", "preview": None} and q1.header == "DB"
     assert q2.multi_select and q2.group == 1 and q1.asked_by == "planner"

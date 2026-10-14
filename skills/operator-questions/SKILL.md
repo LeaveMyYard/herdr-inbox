@@ -35,6 +35,8 @@ history. Make it self-contained:
   arrow or number keys, can attach a note to a choice ("Postgres (note: keep the old schema)"),
   or type a free answer instead. Up to 9 options.
 - `header` is a short chip above the question (max 12 chars, e.g. "Merge mode").
+- An option may carry a `preview` (plain monospace text such as a code snippet or config
+  diff); the operator sees it beside the options while that option is highlighted.
 - `multi_select: true` when several options may be picked; the answer lists them.
 - Several related questions? Pass `questions` (up to 4), each
   `{"question", "header", "options", "multi_select"}`, instead of `question`. Each gets its own

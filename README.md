@@ -121,13 +121,20 @@ restart. Changing the mark is safe: every mark ever applied is stripped.
 - `prefix+i` opens the inbox. The list has one row per group (`Q12–Q14 · 2/3 drafted`):
   `Enter` answer, `r` review all drafts, `d` dismiss, `g` jump to the asking pane,
   `h` history, `q`/`Esc` close.
-- The question view works like Claude Code's own question prompt: chips per question plus
-  **Review** (`←/→`, `Tab`/`Shift-Tab`), `↑/↓` or `j/k` move the `❯`, `1`–`9` jump, `Enter`
-  picks (multi-select: `Space` toggles, `Enter` saves the picks), `n` adds a note to an option,
-  the last row types a free answer, `x` clears the draft, `Esc` goes back.
-- Picking stores a **draft** (kept in the database; closing the popup loses nothing). Nothing is
-  sent until **Submit** on a Review: the group's Review chip, or the global one (`r`) with every
-  draft across agents, where `Enter` edits and `x` drops a draft. Undrafted questions stay open.
+- Answering mimics Claude Code's own question prompt. `↑/↓` or `j/k` move the `❯`, `1`–`9`
+  jump, `n` adds notes to an option, **Type something.** is a free answer (in multi-select it is
+  added to the picks), **Chat about this** jumps to the asking agent's pane and leaves the
+  question open, `Esc` goes back without sending. Options with a `preview` show it beside the
+  list.
+  - **One question**: `Enter` on an option (or text in Type something.) answers and sends at
+    once. Multi-select: `Enter`/`Space` toggle, the **Submit** row sends.
+  - **A group**: one tab per question plus **Submit** (`←/→`, `Tab`/`Shift-Tab`); answering a
+    question moves to the next tab. The Submit tab is **Review your answers**, warns "You have
+    not answered all questions" when some are blank and asks "Ready to submit your answers?"
+    (**Submit answers** / **Cancel**). Our additions: group answers are drafts kept in the
+    database (closing the popup loses nothing), and submitting with blanks sends the answered
+    ones and leaves the rest open. `r` on the list reviews every draft across agents
+    (`Enter` edits, `x` drops one).
 - Submitted answers are typed into each asking pane as one line per pane:
   `[inbox] Q12 answered — <question>: Postgres (note: keep the old schema)`, or for several
   `[inbox] answered — Q12 <q>: A · Q13 <q>: B`; only while that pane still holds the

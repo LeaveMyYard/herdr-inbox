@@ -13,11 +13,11 @@ async def test_withdraw_while_answering_never_answers_another_question(store, fa
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("enter", "enter", *"yes")   # Q2's free-text box
+        await pilot.press("enter", "1", "enter", *"yes")   # Q2's Type something. box
         service.close(store, 2, "withdrawn", "resolved myself")
         app.refresh_list()
         await pilot.pause()
-        await pilot.press("enter", "enter")             # draft + Submit
+        await pilot.press("enter")                         # sends (to Q2 only)
         await pilot.pause()
     assert store.get(1).status == "open", "answer meant for Q2 was applied to Q1"
     assert store.get(2).status == "withdrawn"

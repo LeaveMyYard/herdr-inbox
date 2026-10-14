@@ -1,11 +1,11 @@
-"""Pilot tests for the popup: list, AskUserQuestion-style question view, drafts, review."""
+"""Pilot tests for the popup: list, Claude-Code-style question view, groups, drafts, review."""
 
 from textual.widgets import DataTable, Input, Static
 
 from herdr_inbox import service
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
-from herdr_inbox.tui import GroupScreen, InboxApp, QuestionView, ReviewScreen, ReviewView
+from herdr_inbox.tui import CHAT, OTHER, GroupScreen, InboxApp, QuestionView, ReviewScreen, ReviewView
 
 A = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="tab-A", session_id="sess-A", cwd="/r")
 B = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="tab-B", session_id="sess-A", cwd="/r")
@@ -27,12 +27,16 @@ def text_of(widget) -> str:
     return str(widget.render())
 
 
+def prompts(fake):
+    return [c[3] for c in fake.calls_of("agent", "prompt")]
+
+
 async def started(app, pilot):
     await pilot.pause()
     return app
 
 
-# -- list -----------------------------------------------------------------------
+# -- list -------------------------------------------------------------------------
 
 async def test_list_renders_groups_newest_first(store, fake_herdr):
     service.ask(store, A, "Which DB?", options=DB, header="DB choice", asked_by="infra")
@@ -47,81 +51,85 @@ async def test_list_renders_groups_newest_first(store, fake_herdr):
         assert rows[1][1:3] == ["tab-A", "infra"]
 
 
-# -- question view ----------------------------------------------------------------
+# -- a single question: answers send at once ----------------------------------------
 
-async def test_question_view_layout_cursor_and_number_jump(store, fake_herdr):
+async def test_single_question_layout_cursor_and_jump(store, fake_herdr):
     service.ask(store, A, "Which DB?", options=DB, header="DB choice")
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
         await pilot.press("enter")
-        assert isinstance(app.screen, GroupScreen)
         v = view(app)
-        assert "DB choice" in text_of(app.screen.query_one("#chips")) and "Review" in text_of(app.screen.query_one("#chips"))
-        first = v.row_text(0)
-        assert first.startswith("[$accent]❯[/] ") and "keeps the current ORM" in first
-        assert "Type something…" in v.row_text(3)
+        assert "DB choice" in text_of(v.query_one(".chip"))
+        assert not app.screen.query("#chips")  # no tabs for a single question
+        assert [k for k, _ in v.rows] == ["opt", "opt", "opt", "other", "chat"]
+        assert v.row_text(0).startswith("[$accent]❯[/] ") and "keeps the current ORM" in v.row_text(0)
+        assert OTHER in v.row_text(3) and CHAT in v.row_text(4)
         await pilot.press("down", "j")
         assert v.cursor == 2
-        await pilot.press("k")
-        assert v.cursor == 1
-        await pilot.press("4")
+        await pilot.press("k", "4")
         assert v.cursor == 3
         await pilot.press("1")
         assert v.cursor == 0
         hint = text_of(v.query_one(".hint"))
-        assert "1-9 jump" in hint and "n note" in hint and "Esc back" in hint
+        assert hint == "Enter to select · ↑/↓ to navigate · press n to add notes · Esc to cancel"
 
 
-async def test_single_pick_drafts_then_review_submits(store, fake_herdr):
+async def test_single_pick_sends_immediately(store, fake_herdr):
     service.ask(store, A, "Which DB?", options=DB)
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
-        await pilot.press("enter", "2", "enter")  # pick SQLite -> draft, jump to Review
-        assert store.get(1).status == "open" and store.get(1).draft_json["choices"] == ["SQLite"]
-        assert fake_herdr.calls_of("agent", "prompt") == []  # a draft is not sent
-        review = app.screen.query_one(ReviewView)
-        assert review.cursor == len(review.items)  # on Submit
-        await pilot.press("enter")
+        await pilot.press("enter", "2", "n", *"no server", "enter", "enter")  # note, then pick SQLite
         await pilot.pause()
+        assert app.screen is app.base
     q = store.get(1)
-    assert q.status == "answered" and q.answer == "SQLite" and q.answer_json["choices"] == ["SQLite"]
-    assert fake_herdr.calls_of("agent", "prompt")[-1][3] == "[inbox] Q1 answered — Which DB?: SQLite"
+    assert q.status == "answered" and q.answer == "SQLite (note: no server)"
+    assert q.answer_json == {"choices": ["SQLite"], "notes": {"SQLite": "no server"}, "text": None}
+    assert prompts(fake_herdr) == ["[inbox] Q1 answered — Which DB?: SQLite (note: no server)"]
 
 
-async def test_multi_select_toggle_and_note(store, fake_herdr):
-    service.ask(store, A, "Which DBs?", options=DB, multi_select=True)
-    app = InboxApp(store)
-    async with app.run_test() as pilot:
-        await started(app, pilot)
-        await pilot.press("enter")
-        v = view(app)
-        await pilot.press("enter")  # nothing toggled yet: stays
-        assert store.get(1).draft_json is None and isinstance(app.screen, GroupScreen)
-        await pilot.press("space", "3", "space", "space", "space")  # 1 on, 3 on/off/on
-        assert v.picked == {0, 2}
-        assert "[x]" in v.row_text(0) and "[ ]" in v.row_text(1)
-        await pilot.press("1", "n", *"keep schema", "enter")  # note on Postgres
-        assert v.notes == {0: "keep schema"} and "note: keep schema" in v.row_text(0)
-        await pilot.press("enter")  # save picks
-        await pilot.press("enter")  # Submit on Review
-        await pilot.pause()
-    q = store.get(1)
-    assert q.answer == "Postgres (note: keep schema), DuckDB"
-    assert q.answer_json == {"choices": ["Postgres", "DuckDB"], "notes": {"Postgres": "keep schema"}, "text": None}
-
-
-async def test_free_text_answer(store, fake_herdr):
+async def test_type_something_replaces_the_option_in_single_select(store, fake_herdr):
     service.ask(store, A, "Which DB?", options=DB)
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
         await pilot.press("enter", "4", "enter")
         assert isinstance(app.screen.focused, Input)
-        await pilot.press(*"whatever is cheapest", "enter", "enter")
+        await pilot.press(*"whatever is cheapest", "enter")
         await pilot.pause()
     assert store.get(1).answer == "whatever is cheapest"
+
+
+async def test_multi_select_toggle_other_and_submit(store, fake_herdr):
+    service.ask(store, A, "Which DBs?", options=DB, multi_select=True)
+    app = InboxApp(store)
+    async with app.run_test() as pilot:
+        await started(app, pilot)
+        await pilot.press("enter")
+        v = view(app)
+        assert [k for k, _ in v.rows][-2:] == ["other", "submit"] and CHAT not in "".join(map(v.row_text, range(5)))
+        await pilot.press("enter", "3", "space", "space", "enter")  # 1 on; 3 on/off/on
+        assert v.picked == {0, 2} and "[x]" in v.row_text(0) and "[ ]" in v.row_text(1)
+        await pilot.press("1", "n", *"keep schema", "enter")
+        await pilot.press("4", "enter", *"also redis", "enter")  # Claude Code: added to the picks
+        assert v.text == "also redis" and "[x] also redis" in v.row_text(3)
+        await pilot.press("down", "enter")  # Submit
+        await pilot.pause()
+    q = store.get(1)
+    assert q.answer == "Postgres (note: keep schema), DuckDB, also redis"
+    assert q.answer_json == {"choices": ["Postgres", "DuckDB"], "notes": {"Postgres": "keep schema"}, "text": "also redis"}
+
+
+async def test_chat_about_this_focuses_the_pane_and_keeps_the_question(store, fake_herdr):
+    service.ask(store, A, "Which DB?", options=DB)
+    app = InboxApp(store)
+    async with app.run_test() as pilot:
+        await started(app, pilot)
+        await pilot.press("enter", "5", "enter")
+        await pilot.pause()
+    assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p1"]]
+    assert store.get(1).status == "open" and prompts(fake_herdr) == []
 
 
 async def test_escape_paths(store, fake_herdr):
@@ -131,30 +139,43 @@ async def test_escape_paths(store, fake_herdr):
         await started(app, pilot)
         await pilot.press("enter", "n", *"dq", "escape")  # note box: typed d/q are text; Esc cancels it
         assert isinstance(app.screen, GroupScreen) and view(app).notes == {}
-        assert store.get(1).status == "open"
-        await pilot.press("4", "enter", *"x", "escape")  # free-text box: Esc cancels
+        await pilot.press("4", "enter", *"x", "escape")  # Type something.: Esc cancels
         assert isinstance(app.screen, GroupScreen) and view(app).editing is None
-        await pilot.press("escape")  # back to the list
+        await pilot.press("escape")  # back to the list, nothing sent
         assert app.screen is app.base
         await pilot.press("escape")  # closes the popup
-    assert store.get(1).status == "open" and store.get(1).draft_json is None
+    assert store.get(1).status == "open" and prompts(fake_herdr) == []
 
 
 async def test_old_string_only_options(store, fake_herdr):
-    # rows written before options were objects
     store.db.execute("INSERT INTO questions (created_at, question, norm, options, pane_id, session_id, status)"
                      " VALUES ('2026-10-14T00:00:00+00:00', 'Legacy?', 'legacy', '[\"yes\", \"no\"]', 'w1:p1', 'sess-A', 'open')")
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
-        await pilot.press("enter", "2", "enter", "enter")
+        await pilot.press("enter", "2", "enter")
         await pilot.pause()
     assert store.get(1).answer == "no"
 
 
-# -- groups and drafts -------------------------------------------------------------
+async def test_preview_layout(store, fake_herdr):
+    service.ask(store, A, "Which config?", options=[
+        {"label": "Small", "preview": "workers = 2\nmemory = 1Gi"}, {"label": "Large", "description": "x"}])
+    app = InboxApp(store)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await started(app, pilot)
+        await pilot.press("enter")
+        preview = app.screen.query_one("#preview", Static)
+        assert "workers = 2" in text_of(preview)
+        await pilot.press("down")
+        assert text_of(preview) == "No preview available" and preview.has_class("empty")
+        left, right = app.screen.query_one(".split > .choices"), app.screen.query_one(".preview-box")
+        assert left.region.x < right.region.x  # side by side
 
-async def test_group_chip_navigation(store, fake_herdr):
+
+# -- groups ---------------------------------------------------------------------------
+
+async def test_group_tabs_advance_and_switch(store, fake_herdr):
     service.ask_group(store, A, [{"question": "One?", "header": "First", "options": ["a", "b"]},
                                  {"question": "Two?", "header": "Second", "options": ["c", "d"]}])
     app = InboxApp(store)
@@ -162,19 +183,54 @@ async def test_group_chip_navigation(store, fake_herdr):
         await started(app, pilot)
         await pilot.press("enter")
         screen = app.screen
-        assert view(app).q.id == 1 and "● First" in text_of(screen.query_one("#chips"))
+        chips = lambda: text_of(screen.query_one("#chips"))  # noqa: E731
+        assert view(app).q.id == 1 and "● First" in chips() and "Submit" in chips()
+        assert "Tab/Arrow keys to navigate" in text_of(view(app).query_one(".hint"))
         await pilot.press("right")
         assert view(app).q.id == 2
         await pilot.press("tab")
         assert screen.query(ReviewView)
         await pilot.press("tab")
         assert view(app).q.id == 1  # wraps
-        await pilot.press("shift+tab")
-        assert screen.query(ReviewView)
-        await pilot.press("left")
+        await pilot.press("shift+tab", "left")
         assert view(app).q.id == 2
-        await pilot.press("left", "1", "enter")  # draft One -> moves to the undrafted Two
-        assert view(app).q.id == 2 and "✓ First" in text_of(screen.query_one("#chips"))
+        await pilot.press("left", "1", "enter")  # answering One moves to the next tab
+        assert view(app).q.id == 2 and "✓ First" in chips()
+        await pilot.press("2", "enter")  # Two answered -> Submit tab
+        assert screen.query(ReviewView)
+    assert prompts(fake_herdr) == []  # group answers are drafts until submitted
+
+
+async def test_review_warns_and_partial_submit_leaves_blanks_open(store, fake_herdr):
+    service.ask_group(store, A, [{"question": "One?", "options": ["a", "b"]}, {"question": "Two?", "options": ["c", "d"]},
+                                 {"question": "Three?"}])
+    app = InboxApp(store)
+    async with app.run_test() as pilot:
+        await started(app, pilot)
+        await pilot.press("enter", "1", "enter")  # One=a -> Two
+        await pilot.press("right")  # skip Two -> Three
+        await pilot.press("enter", *"later", "enter")  # Three -> Submit tab
+        body = text_of(app.screen.query_one("#review-body"))
+        assert "Review your answers" in body and "You have not answered all questions" in body
+        assert "(not answered)" in body and "Ready to submit your answers?" in body
+        assert "Submit answers" in body and "Cancel" in body
+        await pilot.press("enter")  # cursor starts on Submit answers
+        await pilot.pause()
+        assert [r[0] for r in cells(app)] == ["Q2"]
+    assert [store.get(i).status for i in (1, 2, 3)] == ["answered", "open", "answered"]
+    assert prompts(fake_herdr) == ["[inbox] answered — Q1 One?: a · Q3 Three?: later"]
+
+
+async def test_review_cancel_keeps_drafts(store, fake_herdr):
+    service.ask_group(store, A, [{"question": "One?", "options": ["a"]}, {"question": "Two?", "options": ["b"]}])
+    app = InboxApp(store)
+    async with app.run_test() as pilot:
+        await started(app, pilot)
+        await pilot.press("enter", "enter", "enter")  # both answered -> Submit tab, no warning
+        assert "not answered all" not in text_of(app.screen.query_one("#review-body"))
+        await pilot.press("2")  # Cancel
+        assert app.screen is app.base and cells(app)[0][5] == "2/2 drafted"
+    assert prompts(fake_herdr) == []
 
 
 async def test_drafts_survive_popup_restart_and_can_be_edited_or_cleared(store, fake_herdr):
@@ -182,53 +238,31 @@ async def test_drafts_survive_popup_restart_and_can_be_edited_or_cleared(store, 
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
-        await pilot.press("enter", "2", "enter", "escape")  # draft One=b, close the view
+        await pilot.press("enter", "2", "enter", "escape")  # draft One=b, back to the list
         assert cells(app)[0][5] == "1/2 drafted"
-    # a new popup (fresh connection) sees the draft
     with Store() as again:
         app = InboxApp(again)
         async with app.run_test() as pilot:
             await started(app, pilot)
             assert cells(app)[0][5] == "1/2 drafted"
             await pilot.press("enter")
-            assert view(app).q.id == 2  # opens on the first undrafted question
+            assert view(app).q.id == 2  # opens on the first unanswered question
             await pilot.press("left")
             v = view(app)
-            assert v.picked == {1} and "✓" in v.row_text(1)
-            await pilot.press("1", "enter")  # edit: a instead of b
+            assert v.picked == {1} and v.cursor == 1
+            await pilot.press("1", "enter")  # edit: a instead of b, moves on to Two
             assert again.get(1).draft_json["choices"] == ["a"]
-            assert view(app).q.id == 2  # editing moved on to the undrafted Two
             await pilot.press("left", "x")  # back to One, clear its draft
             assert again.get(1).draft_json is None
-    assert fake_herdr.calls_of("agent", "prompt") == []
-
-
-async def test_partial_submit_leaves_undrafted_open(store, fake_herdr):
-    service.ask_group(store, A, [{"question": "One?", "options": ["a", "b"]}, {"question": "Two?", "options": ["c", "d"]},
-                                 {"question": "Three?"}])
-    app = InboxApp(store)
-    async with app.run_test() as pilot:
-        await started(app, pilot)
-        await pilot.press("enter", "1", "enter")  # One=a, moves to Two
-        await pilot.press("right")  # skip Two, go to Three
-        await pilot.press("enter", *"later", "enter")  # Three: free text, then Review (Two is undrafted)
-        review = app.screen.query_one(ReviewView)
-        body = text_of(review.query_one("#review-body"))
-        assert "no answer yet: stays open" in body and "Submit 2 answers" in body
-        await pilot.press("enter")
-        await pilot.pause()
-        assert [r[0] for r in cells(app)] == ["Q2"]
-    assert [store.get(i).status for i in (1, 2, 3)] == ["answered", "open", "answered"]
-    prompts = fake_herdr.calls_of("agent", "prompt")
-    assert prompts == [["agent", "prompt", "w1:p1", "[inbox] answered — Q1 One?: a · Q3 Three?: later"]]
+    assert prompts(fake_herdr) == []
 
 
 async def test_global_review_across_two_panes(store, fake_herdr):
-    service.ask(store, A, "From A?", options=["x", "y"])
-    service.ask(store, B, "From B?", options=["p", "q"])
-    service.ask(store, A, "Also from A?")
-    for qid, detail in ((1, {"choices": ["x"]}), (2, {"choices": ["q"]}), (3, {"text": "sure"})):
-        store.set_draft(qid, service.make_detail(detail.get("text"), detail.get("choices")))
+    service.ask_group(store, A, [{"question": "From A?", "options": ["x", "y"]}, {"question": "Also from A?"}])
+    service.ask_group(store, B, [{"question": "From B?", "options": ["p", "q"]}, {"question": "More B?"}])
+    for qid, detail in ((1, service.make_detail(None, ["x"])), (2, service.make_detail("sure")),
+                        (3, service.make_detail(None, ["q"]))):
+        store.set_draft(qid, detail)
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
@@ -236,37 +270,51 @@ async def test_global_review_across_two_panes(store, fake_herdr):
         assert isinstance(app.screen, ReviewScreen)
         review = app.screen.query_one(ReviewView)
         assert [q.id for q in review.items] == [1, 2, 3]
-        await pilot.press("up", "up", "x")  # drop Q2's draft (cursor: Submit -> Q3 -> Q2)
-        assert store.get(2).draft_json is None and [q.id for q in review.items] == [1, 3]
-        await pilot.press("up", "enter")  # edit Q1 -> its group view
+        await pilot.press("up", "x")  # cursor: Submit answers -> Q3; drop Q3's draft
+        assert store.get(3).draft_json is None and [q.id for q in review.items] == [1, 2]
+        await pilot.press("up", "up", "enter")  # edit Q1 -> its group's tab
         assert isinstance(app.screen, GroupScreen) and view(app).q.id == 1
-        await pilot.press("2", "enter")  # change to y -> Review chip of that group
-        await pilot.press("escape")  # back to the global review
+        await pilot.press("2", "enter", "escape")  # change to y, back to the global review
         assert isinstance(app.screen, ReviewScreen)
-        await pilot.press("down", "down", "enter")  # Q1 -> Q3 -> Submit
+        await pilot.press("1")  # Submit answers
         await pilot.pause()
-    assert [store.get(i).status for i in (1, 2, 3)] == ["answered", "open", "answered"]
-    assert store.get(1).answer == "y"
-    prompts = {c[2]: c[3] for c in fake_herdr.calls_of("agent", "prompt")}
-    assert prompts == {"w1:p1": "[inbox] answered — Q1 From A?: y · Q3 Also from A?: sure"}
+    assert [store.get(i).status for i in (1, 2, 3, 4)] == ["answered", "answered", "open", "open"]
+    assert prompts(fake_herdr) == ["[inbox] answered — Q1 From A?: y · Q2 Also from A?: sure"]
 
 
 async def test_dismiss_history_and_goto(store, fake_herdr, monkeypatch):
     service.ask(store, A, "One?")
-    service.ask(store, B, "Two?")
+    service.ask_group(store, B, [{"question": "Two?"}, {"question": "Three?"}])
     monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await started(app, pilot)
-        await pilot.press("d")  # dismiss Q2 (newest row)
+        await pilot.press("d")  # dismiss the whole group Q2–Q3
         await pilot.pause()
-        assert store.get(2).status == "dismissed"
-        await pilot.press("enter", "enter", *"later", "enter", "enter")  # Q1 free text, submit; delivery fails
+        assert [store.get(i).status for i in (2, 3)] == ["dismissed", "dismissed"]
+        await pilot.press("enter", "enter", *"later", "enter")  # Q1: type, sends; delivery fails
         await pilot.pause()
         assert cells(app) == []
         await pilot.press("h")
         await pilot.pause()
-        assert {r[0]: r[5] for r in cells(app)} == {"Q2": "dismissed", "Q1": "answered !"}
-        await pilot.press("down", "g")
+        assert {r[0]: r[5] for r in cells(app)} == {"Q3": "dismissed", "Q2": "dismissed", "Q1": "answered !"}
+        await pilot.press("down", "down", "g")
         await pilot.pause()
     assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p1"]]
+
+
+async def test_busy_database_never_crashes_the_popup(store, fake_herdr, monkeypatch):
+    import sqlite3
+
+    service.ask(store, A, "One?")
+    app = InboxApp(store)
+
+    def locked(*args, **kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    async with app.run_test() as pilot:
+        await started(app, pilot)
+        monkeypatch.setattr(service, "close", locked)
+        await pilot.press("d")
+        await pilot.pause()
+        assert app.is_running and store.get(1).status == "open"

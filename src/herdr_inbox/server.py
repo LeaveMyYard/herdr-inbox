@@ -5,9 +5,12 @@ mcp 2.x renamed FastMCP to ``MCPServer``; the decorator API is the same.
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
+import sqlite3
 import threading
+import time
 from typing import Any
 
 from typing_extensions import NotRequired, TypedDict  # pydantic needs this TypedDict on 3.11
@@ -40,6 +43,8 @@ AskUserQuestion's:
   and attach a note to a choice.
 - `header`: a short chip shown above the question (max 12 chars), e.g. "DB choice".
 - `multi_select`: true when several options may be picked together.
+- `preview` (per option, optional): text shown beside the options while that option is
+  highlighted (a code snippet, a config diff, an ASCII mock); monospace, no markup.
 - `questions`: instead of `question`, up to 4 related questions in one call, each
   `{"question", "header"?, "options"?, "multi_select"?}`. The operator answers them together;
   each gets its own Q id.
@@ -52,6 +57,7 @@ the operator submits together arrive in one `[inbox]` message."""
 class Option(TypedDict):
     label: str
     description: NotRequired[str]
+    preview: NotRequired[str]
 
 
 class QuestionItem(TypedDict):
@@ -61,10 +67,33 @@ class QuestionItem(TypedDict):
     multi_select: NotRequired[bool]
 
 
+BUSY_BACKOFF = (0.3, 1.0, 2.0)
+
+
+def busy_safe(fn):
+    """Retry a tool when SQLite reports the database locked; never surface a raw error."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        for delay in (*BUSY_BACKOFF, None):
+            try:
+                return fn(*args, **kwargs)
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) and "busy" not in str(exc):
+                    raise
+                if delay is None:
+                    return {"status": "error", "message": "The inbox database is busy right now; "
+                            "call this tool again in a few seconds."}
+                time.sleep(delay)
+
+    return wrapper
+
+
 mcp = MCPServer("herdr-inbox", instructions=INSTRUCTIONS)
 
 
 @mcp.tool(description=ASK_DESCRIPTION)
+@busy_safe
 def ask_operator(
     question: str | None = None,
     options: list[str | Option] | None = None,
@@ -91,6 +120,7 @@ def ask_operator(
 
 
 @mcp.tool()
+@busy_safe
 def check_answers() -> dict[str, Any]:
     """Return operator answers to your questions that you have not seen yet, and mark them seen.
 
@@ -104,6 +134,7 @@ def check_answers() -> dict[str, Any]:
 
 
 @mcp.tool()
+@busy_safe
 def list_my_questions(include_closed: bool = False) -> dict[str, Any]:
     """List the questions this session has asked the operator, with their status and answers.
 
@@ -116,6 +147,7 @@ def list_my_questions(include_closed: bool = False) -> dict[str, Any]:
 
 
 @mcp.tool()
+@busy_safe
 def withdraw_question(id: int, reason: str) -> dict[str, Any]:
     """Withdraw one of your open questions because you resolved it yourself.
 

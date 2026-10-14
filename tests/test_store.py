@@ -17,7 +17,7 @@ def test_new_question_is_recorded(store, fake_herdr):
     assert "Recorded as Q1" in out["message"] and "`[inbox]` that names Q1" in out["message"]
     q = store.get(out["id"])
     assert (q.session_id, q.pane_id, q.tab_label, q.options, q.asked_by) == (
-        "sess-A", "w1:p1", "my-tab", [{"label": "yes", "description": None}, {"label": "no", "description": None}],
+        "sess-A", "w1:p1", "my-tab", [{"label": "yes", "description": None, "preview": None}, {"label": "no", "description": None, "preview": None}],
         "reviewer",
     )
 

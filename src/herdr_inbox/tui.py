@@ -1,23 +1,34 @@
 """Textual inbox, opened by herdr as a popup (``inbox tui``).
 
-Screens:
-- the list: open questions across tabs, one row per group (questions an agent
-  filed together), with how many are drafted;
-- a group view that looks and behaves like Claude Code's AskUserQuestion: a
-  chip per question plus a Review chip, ←/→ between them. Picking or typing an
-  answer stores a *draft* in the database (it survives closing the popup);
-  nothing is sent until Submit on a Review;
-- the global review (``r``): every draft across groups and agents.
+The question UI mimics Claude Code's own AskUserQuestion prompt (strings and
+behaviour checked against the Claude Code 2.1.299 binary):
 
-A single question is simply a group of one.
+- one question: Enter on an option, or text in "Type something.", answers and
+  sends at once;
+- a group: one tab per question across the top plus a final Submit tab;
+  answering a question moves to the next tab; the Submit tab shows "Review
+  your answers", warns "You have not answered all questions" when some are
+  blank, and asks "Ready to submit your answers?" (Submit answers / Cancel).
+  Our additions: answers in a group are drafts kept in the database (closing
+  the popup loses nothing), and submitting with blanks sends only the answered
+  ones and leaves the rest open;
+- "Type something." is Claude Code's Other: in single-select it is the answer,
+  in multi-select it is added to the picks; "Chat about this" (single-select)
+  focuses the asking agent's pane and leaves the question open; ``n`` adds
+  notes to an option; Esc goes back without sending;
+- options may carry a ``preview``: then the options sit left and the
+  highlighted option's preview right ("No preview available" otherwise).
 """
 
 from __future__ import annotations
 
+import functools
+import sqlite3
+
 from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Input, Static
@@ -27,7 +38,24 @@ from .cli import _age
 from .store import Question, Store
 
 POLL_SECONDS = 2.0
-TYPE_ROW = "Type something…"
+OTHER = "Type something."
+CHAT = "Chat about this"
+BUSY = "The inbox database is busy; try again in a moment"
+
+
+def guarded(fn):
+    """UI actions never crash the popup on a busy database: they show a notice instead."""
+
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return fn(self, *args, **kwargs)
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc) and "busy" not in str(exc):
+                raise
+            self.app.notify(BUSY, severity="warning")
+
+    return wrapper
 
 
 def _state(q: Question) -> str:
@@ -49,24 +77,34 @@ def _refs(qs: list[Question]) -> str:
     return qs[0].ref if len(qs) == 1 else f"{qs[0].ref}–{qs[-1].ref}"
 
 
+def _typing(screen: Screen) -> bool:
+    return isinstance(screen.focused, Input)
+
+
+def _cursor(here: bool) -> str:
+    # one fixed cell on every row, its own span (exported screenshots drop a span's leading spaces)
+    return "[$accent]❯[/]" if here else "[$background] [/]"
+
+
 def _back(app: App) -> None:
-    """Leave the current view; the list reflects drafts made there right away."""
+    """Leave the current view without sending; the list reflects drafts right away."""
     app.pop_screen()
     if isinstance(app, InboxApp) and app.screen is app.base:
         app.refresh_list()
 
 
-def _typing(screen: Screen) -> bool:
-    return isinstance(screen.focused, Input)
-
-
 class QuestionView(Vertical, can_focus=True):
-    """One question: ❯ cursor over numbered options, notes, a free-text row."""
+    """One question as Claude Code shows it: ❯ over numbered options, Type something., Chat about this."""
 
-    class Drafted(Message):
+    class Answered(Message):
         def __init__(self, qid: int, detail: dict | None) -> None:
             super().__init__()
             self.qid, self.detail = qid, detail
+
+    class Chat(Message):
+        def __init__(self, q: Question) -> None:
+            super().__init__()
+            self.q = q
 
     BINDINGS = [
         Binding("up", "move(-1)", show=False),
@@ -81,32 +119,49 @@ class QuestionView(Vertical, can_focus=True):
         *[Binding(str(n), f"jump({n})", show=False) for n in range(1, 10)],
     ]
 
-    def __init__(self, q: Question):
+    def __init__(self, q: Question, in_group: bool = False, last: bool = True):
         super().__init__()
         self.q = q
+        self.in_group = in_group
+        self.last = last
         self.options = q.options or []
         labels = [o["label"] for o in self.options]
         draft = q.draft_json or {}
         self.picked = {labels.index(c) for c in draft.get("choices") or [] if c in labels}
         self.notes = {labels.index(k): v for k, v in (draft.get("notes") or {}).items() if k in labels}
         self.text = draft.get("text")
-        self.cursor = len(self.options) if self.text else (min(self.picked) if self.picked else 0)
-        self.editing: tuple[str, int] | None = None  # ("note", row) or ("text", row)
+        self.rows = [("opt", i) for i in range(len(self.options))] + [("other", None)]
+        if q.multi_select:
+            self.rows.append(("submit", None))
+        else:
+            self.rows.append(("chat", None))
+        self.cursor = self._initial_cursor()
+        self.editing: tuple[str, int] | None = None  # ("note", option) or ("text", None)
+        self.has_preview = any(o.get("preview") for o in self.options)
 
-    @property
-    def rows(self) -> int:
-        return len(self.options) + 1  # + the free-text row
+    def _initial_cursor(self) -> int:
+        if self.text and not self.picked:
+            return len(self.options)
+        return min(self.picked) if self.picked else 0
+
+    # -- layout --------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
         q = self.q
+        if q.header and not self.in_group:
+            yield Static(f"[reverse b] {escape(q.header)} [/]", classes="chip")
         meta = f"{q.ref} · {q.tab_label or q.pane_id or 'no pane'}" + (f" · {q.asked_by}" if q.asked_by else "")
         yield Static(escape(meta), classes="meta")
         yield Static(f"[b]{escape(q.question)}[/b]", classes="question")
         if q.context:
             yield Static(escape(q.context), classes="context")
-        with VerticalScroll(classes="choices"):
-            for i in range(self.rows):
-                yield Static(id=f"row-{i}", classes="row")
+        rows = [Static(id=f"row-{i}", classes="row") for i in range(len(self.rows))]
+        if self.has_preview:
+            with Horizontal(classes="split"):
+                yield VerticalScroll(*rows, classes="choices")
+                yield VerticalScroll(Static(id="preview", markup=False), classes="preview-box")
+        else:
+            yield VerticalScroll(*rows, classes="choices")
         yield Static(classes="hint")
 
     def on_mount(self) -> None:
@@ -114,80 +169,106 @@ class QuestionView(Vertical, can_focus=True):
 
     def hint(self) -> str:
         if self.editing:
-            return "Enter save · Esc cancel"
-        pick = "Space toggle · Enter save picks" if self.q.multi_select else "Enter select"
-        return f"↑/↓ move · 1-9 jump · {pick} · n note · x clear · ←/→ question · Esc back"
+            return "Enter to save · Esc to cancel"
+        nav = "Tab/Arrow keys to navigate" if self.in_group else "↑/↓ to navigate"
+        pick = "Enter to toggle" if self.q.multi_select else "Enter to select"
+        return f"{pick} · {nav} · press n to add notes · Esc to cancel"
 
     def row_text(self, i: int) -> str:
-        """One option row. Every row is ``<cursor cell> <n>. <label>``, with the cursor cell
-        ("❯" or blank), the number and the label as separate spans, so labels start in the same
-        column on every row (and in exported screenshots, which drop leading spaces of a span)."""
+        kind, opt_i = self.rows[i]
         here = i == self.cursor
-        cursor = "[$accent]❯[/]" if here else "[$background] [/]"
+        cur = _cursor(here)
         number = f"[$text-muted]{i + 1}.[/]"
-        if i == len(self.options):
-            label = f"[b $accent]{TYPE_ROW}[/]" if here else f"[dim]{TYPE_ROW}[/]"
-            line = f"{cursor} {number} {label}"
-            return line + (f"\n      [i]draft: {escape(self.text)}[/]" if self.text else "")
-        opt = self.options[i]
+        if kind == "submit":
+            label = "Submit" if self.last else "Next"
+            return f"{cur} [$text-muted]  [/] " + (f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]")
+        if kind == "chat":
+            return f"{cur} {number} " + (f"[b $accent]{CHAT}[/]" if here else f"[$foreground]{CHAT}[/]")
+        box = ""
         if self.q.multi_select:
-            box = "[x] " if i in self.picked else "[ ] "
-        else:
-            box = "✓ " if i in self.picked else ""
+            on = (opt_i in self.picked) if kind == "opt" else bool(self.text)
+            box = "[x] " if on else "[ ] "
+        if kind == "other":
+            if self.text:
+                label = f"[i]{escape(box + self.text)}[/i]"
+            else:
+                label = f"[dim]{escape(box)}{OTHER}[/dim]"
+            if here:
+                label = f"[b $accent]{escape(box + (self.text or OTHER))}[/]"
+            return f"{cur} {number} {label}"
+        opt = self.options[opt_i]
         text = escape(box + opt["label"])
-        label = f"[b $accent]{text}[/]" if here else f"[$foreground]{text}[/]"
-        lines = [f"{cursor} {number} {label}"]
+        lines = [f"{cur} {number} " + (f"[b $accent]{text}[/]" if here else f"[$foreground]{text}[/]")]
         if opt.get("description"):
             lines.append(f"      [dim]{escape(opt['description'])}[/]")
-        if self.notes.get(i):
-            lines.append(f"      [i]note: {escape(self.notes[i])}[/]")
+        if self.notes.get(opt_i):
+            lines.append(f"      [i]Notes: {escape(self.notes[opt_i])}[/]")
         return "\n".join(lines)
 
     def render_rows(self) -> None:
-        for i in range(self.rows):
+        for i in range(len(self.rows)):
             self.query_one(f"#row-{i}", Static).update(self.row_text(i))
         self.query_one(".hint", Static).update(self.hint())
+        if self.has_preview:
+            kind, opt_i = self.rows[self.cursor]
+            preview = self.options[opt_i].get("preview") if kind == "opt" else None
+            box = self.query_one("#preview", Static)
+            box.update(preview or "No preview available")
+            box.set_class(not preview, "empty")
 
     # -- actions -------------------------------------------------------------
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        # While a note or the free-text box is open, keys belong to it (Esc still cancels).
+        # While a note or the text box is open, keys belong to it (Esc still cancels).
         return action == "back" or not _typing(self.screen)
 
     def action_move(self, delta: int) -> None:
-        self.cursor = (self.cursor + delta) % self.rows
+        self.cursor = (self.cursor + delta) % len(self.rows)
         self.render_rows()
 
     def action_jump(self, n: int) -> None:
-        if 1 <= n <= self.rows:
+        if 1 <= n <= len(self.rows) and self.rows[n - 1][0] != "submit":
             self.cursor = n - 1
             self.render_rows()
 
     def action_toggle(self) -> None:
-        if self.q.multi_select and self.cursor < len(self.options):
-            self.picked ^= {self.cursor}
-            self.render_rows()
+        kind, opt_i = self.rows[self.cursor]
+        if not self.q.multi_select:
+            return
+        if kind == "opt":
+            self.picked ^= {opt_i}
+        elif kind == "other":
+            self._open_input("text")
+            return
+        self.render_rows()
 
     def action_select(self) -> None:
-        if self.cursor == len(self.options):
-            self._open_input("text", self.cursor, self.text or "")
-        elif self.q.multi_select:
-            if not self.picked:
-                self.notify("Space picks options; Enter saves them", severity="warning")
+        kind, opt_i = self.rows[self.cursor]
+        if kind == "chat":
+            self.post_message(self.Chat(self.q))
+        elif kind == "other":
+            self._open_input("text")
+        elif kind == "submit":
+            if not self.picked and not self.text:
+                self.notify("Select at least one option", severity="warning")
                 return
-            self._draft()
+            self._answer()
+        elif self.q.multi_select:
+            self.action_toggle()
         else:
-            self.picked, self.text = {self.cursor}, None
-            self._draft()
+            self.picked, self.text = {opt_i}, None
+            self._answer()
 
     def action_note(self) -> None:
-        if self.cursor < len(self.options):
-            self._open_input("note", self.cursor, self.notes.get(self.cursor, ""))
+        kind, opt_i = self.rows[self.cursor]
+        if kind == "opt":
+            self._open_input("note", opt_i)
 
     def action_clear(self) -> None:
         self.picked, self.notes, self.text = set(), {}, None
         self.render_rows()
-        self.post_message(self.Drafted(self.q.id, None))
+        if self.in_group:
+            self.post_message(self.Answered(self.q.id, None))
 
     def action_back(self) -> None:
         if self.editing:
@@ -195,19 +276,23 @@ class QuestionView(Vertical, can_focus=True):
         else:
             _back(self.app)
 
-    def _draft(self) -> None:
+    def _answer(self) -> None:
         labels = [self.options[i]["label"] for i in sorted(self.picked)]
         notes = {self.options[i]["label"]: n for i, n in self.notes.items()}
-        detail = service.make_detail(None, labels, notes) if labels else service.make_detail(self.text)
         self.render_rows()
-        self.post_message(self.Drafted(self.q.id, detail))
+        self.post_message(self.Answered(self.q.id, service.make_detail(self.text, labels, notes)))
 
     # -- inline inputs -------------------------------------------------------
 
-    def _open_input(self, kind: str, row: int, value: str = "") -> None:
+    def _open_input(self, kind: str, opt_i: int | None = None) -> None:
         self._close_input()
-        self.editing = (kind, row)
-        placeholder = "Note for this option" if kind == "note" else f"Answer to {self.q.ref}"
+        self.editing = (kind, opt_i)
+        if kind == "note":
+            value, placeholder = self.notes.get(opt_i, ""), "Notes"
+            row = self.rows.index(("opt", opt_i))
+        else:
+            value, placeholder = self.text or "", OTHER
+            row = self.rows.index(("other", None))
         box = Input(value=value, placeholder=placeholder, id="inline")
         self.query_one(".choices").mount(box, after=self.query_one(f"#row-{row}"))
         box.focus()
@@ -222,24 +307,26 @@ class QuestionView(Vertical, can_focus=True):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         event.stop()
-        kind, row = self.editing or ("", 0)
+        kind, opt_i = self.editing or ("", None)
         value = event.value.strip()
         self._close_input()
         if kind == "note":
             if value:
-                self.notes[row] = value
+                self.notes[opt_i] = value
             else:
-                self.notes.pop(row, None)
+                self.notes.pop(opt_i, None)
             self.render_rows()
-            if row in self.picked and self.q.draft_json is not None:
-                self._draft()  # keep a saved pick's note in its draft
-        elif kind == "text" and value:
-            self.picked, self.text = set(), value
-            self._draft()
+        elif kind == "text":
+            if self.q.multi_select:  # Claude Code: the typed text is added to the picks
+                self.text = value or None
+                self.render_rows()
+            elif value:  # single-select: the typed text is the answer
+                self.picked, self.text = set(), value
+                self._answer()
 
 
 class ReviewView(Vertical, can_focus=True):
-    """Drafted answers with their questions; Enter edits one, x drops it, Submit sends them."""
+    """Review your answers: every question with its answer, then Submit answers / Cancel."""
 
     class Edit(Message):
         def __init__(self, qid: int) -> None:
@@ -257,6 +344,8 @@ class ReviewView(Vertical, can_focus=True):
         Binding("down", "move(1)", show=False),
         Binding("j", "move(1)", show=False),
         Binding("enter", "select", show=False),
+        Binding("1", "pick(0)", show=False),
+        Binding("2", "pick(1)", show=False),
         Binding("x", "drop", show=False),
         Binding("escape", "back", show=False),
     ]
@@ -267,22 +356,23 @@ class ReviewView(Vertical, can_focus=True):
         self.store = store
         self.qids = qids
         self.items: list[Question] = []
-        self.cursor: int | None = None  # starts on Submit
+        self.cursor: int | None = None  # starts on "Submit answers"
 
     def compose(self) -> ComposeResult:
-        yield Static(classes="question")
         yield VerticalScroll(Static(id="review-body"), classes="choices")
-        yield Static("↑/↓ move · Enter edit / submit · x drop draft · ←/→ question · Esc back", classes="hint")
+        yield Static(classes="hint")
 
     def on_mount(self) -> None:
         self.reload()
 
+    @guarded
     def reload(self) -> None:
         if self.qids is None:
             self.items = self.store.drafted()
         else:
             self.items = [q for q in (self.store.get(i) for i in self.qids) if q and q.status == "open"]
-        self.cursor = len(self.items) if self.cursor is None else min(self.cursor, len(self.items))
+        n = len(self.items)
+        self.cursor = n if self.cursor is None else min(self.cursor, n + 1)
         self.render_rows()
 
     @property
@@ -290,35 +380,49 @@ class ReviewView(Vertical, can_focus=True):
         return [q for q in self.items if q.draft_json]
 
     def render_rows(self) -> None:
-        title = "Review your answers" if self.qids is not None else "Review all drafted answers"
-        self.query_one(".question", Static).update(f"[b]{title}[/b]")
-        lines = []
+        title = "Review your answers" + ("" if self.qids is not None else " (all drafts)")
+        lines = [f"[b]{title}[/b]", ""]
         for i, q in enumerate(self.items):
-            cursor = "[$accent]❯[/]" if i == self.cursor else "[$background] [/]"
-            where = q.tab_label or q.pane_id or "-"
-            lines.append(f"{cursor} [$foreground]{q.ref} · {escape(where)} · "
-                         f"{escape(service.first_line(q.question, 70))}[/]")
+            mark = "[$accent]❯[/]" if i == self.cursor else "[$foreground]●[/]"
+            where = "" if self.qids is not None else f"{q.ref} · {escape(q.tab_label or q.pane_id or '-')} · "
+            lines.append(f"{mark} [$foreground]{where}{escape(service.first_line(q.question, 80))}[/]")
             if q.draft_json:
-                lines.append(f"    [$accent]→[/] [b]{escape(_draft_line(q))}[/b]")
+                lines.append(f"  [$accent]→[/] [b]{escape(_draft_line(q))}[/b]")
             else:
-                lines.append("    [dim]no answer yet: stays open[/dim]")
-        n = len(self.drafted)
-        here = self.cursor == len(self.items)
-        label = f"Submit {n} answer{'s' if n != 1 else ''}" if n else "Nothing drafted yet"
-        cursor = "[$accent]❯[/]" if here else "[$background] [/]"
-        lines.append(f"{cursor} " + (f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"))
+                lines.append("  [dim]→ (not answered)[/dim]")
+        if len(self.drafted) < len(self.items):
+            lines += ["", "[$warning]⚠ You have not answered all questions[/]"]
+        lines += ["", "[b]Ready to submit your answers?[/b]", ""]
+        n = len(self.items)
+        for k, label in enumerate(("Submit answers", "Cancel")):
+            here = self.cursor == n + k
+            text = f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"
+            lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
         self.query_one("#review-body", Static).update("\n".join(lines))
+        self.query_one(".hint", Static).update(
+            "Enter to select · ↑/↓ to navigate · Tab/Arrow keys to switch questions · Esc to cancel")
 
     def action_move(self, delta: int) -> None:
-        self.cursor = (self.cursor + delta) % (len(self.items) + 1)
+        self.cursor = (self.cursor + delta) % (len(self.items) + 2)
         self.render_rows()
 
-    def action_select(self) -> None:
-        if self.cursor < len(self.items):
-            self.post_message(self.Edit(self.items[self.cursor].id))
-        elif self.drafted:
-            self.post_message(self.Submit([q.id for q in self.drafted]))
+    def action_pick(self, k: int) -> None:
+        self.cursor = len(self.items) + k
+        self.action_select()
 
+    def action_select(self) -> None:
+        n = len(self.items)
+        if self.cursor < n:
+            self.post_message(self.Edit(self.items[self.cursor].id))
+        elif self.cursor == n:
+            if self.drafted:
+                self.post_message(self.Submit([q.id for q in self.drafted]))
+            else:
+                self.notify("Nothing answered yet", severity="warning")
+        else:
+            _back(self.app)
+
+    @guarded
     def action_drop(self) -> None:
         if self.cursor < len(self.items):
             self.store.set_draft(self.items[self.cursor].id, None)
@@ -329,10 +433,15 @@ class ReviewView(Vertical, can_focus=True):
 
 
 VIEW_CSS = """
+.chip { width: auto; margin-bottom: 1; }
 .meta { color: $text-muted; }
 .question { margin: 1 0; }
 .context { color: $text-muted; margin-bottom: 1; }
 .choices { height: 1fr; }
+.split { height: 1fr; margin-bottom: 1; }
+.split > .choices { width: 1fr; }
+.preview-box { width: 1fr; border-left: solid $accent; padding: 0 1; }
+#preview.empty { color: $text-muted; }
 .row { height: auto; }
 #inline { margin-left: 4; }
 .hint { dock: bottom; color: $text-muted; height: 1; }
@@ -352,12 +461,12 @@ def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
         else:
             app.notify(msg)
         if len(done) < wanted:
-            app.notify(f"{wanted - len(done)} drafted question(s) had closed meanwhile", severity="warning")
+            app.notify(f"{wanted - len(done)} answered question(s) had closed meanwhile", severity="warning")
     app.refresh_list()
 
 
 class GroupScreen(Screen):
-    """The questions of one group as chips (✓ drafted · ● not yet) plus a Review chip."""
+    """One question alone, or a group as tabs (✓ answered · ● not yet) plus a Submit tab."""
 
     CSS = """
     GroupScreen { padding: 1 2; }
@@ -377,11 +486,16 @@ class GroupScreen(Screen):
         self.index = start
 
     @property
+    def grouped(self) -> bool:
+        return len(self.qids) > 1
+
+    @property
     def review_index(self) -> int:
         return len(self.qids)
 
     def compose(self) -> ComposeResult:
-        yield Static(id="chips")
+        if self.grouped:
+            yield Static(id="chips")
         yield Vertical(id="body")
 
     def on_mount(self) -> None:
@@ -391,15 +505,18 @@ class GroupScreen(Screen):
         parts = []
         for i, qid in enumerate(self.qids):
             q = self.store.get(qid)
-            mark = "✓" if q and q.draft_json else ("·" if q and q.status != "open" else "●")
-            name = escape((q.header if q and q.header else f"Q{qid}"))
+            mark = "✓" if q and q.draft_json else "●"
+            name = escape(q.header if q and q.header else f"Q{qid}")
             chip = f"{mark} {name}"
             parts.append(f"[reverse b] {chip} [/]" if i == self.index else f"[$foreground]{chip}[/]")
-        review = "Review"
-        parts.append(f"[reverse b] {review} [/]" if self.index == self.review_index else f"[$foreground]{review}[/]")
+        label = "Submit"
+        parts.append(f"[reverse b] {label} [/]" if self.index == self.review_index else f"[$foreground]{label}[/]")
         return "[$text-muted]←[/]  " + "  ".join(parts) + "  [$text-muted]→[/]"
 
+    @guarded
     def show(self, index: int) -> None:
+        if not self.grouped:
+            index = 0
         self.index = index % (len(self.qids) + 1)
         body = self.query_one("#body")
         body.remove_children()
@@ -407,37 +524,46 @@ class GroupScreen(Screen):
             view = ReviewView(self.store, self.qids)
         else:
             q = self.store.get(self.qids[self.index])
-            view = QuestionView(q)
+            view = QuestionView(q, in_group=self.grouped, last=not self.grouped or self.index == len(self.qids) - 1)
         body.mount(view)
         view.focus()
-        self.query_one("#chips", Static).update(self.chips())
+        if self.grouped:
+            self.query_one("#chips", Static).update(self.chips())
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        return not _typing(self)
+        return self.grouped and not _typing(self)
 
     def action_switch(self, delta: int) -> None:
         self.show(self.index + delta)
 
-    def on_question_view_drafted(self, event: QuestionView.Drafted) -> None:
+    @guarded
+    def on_question_view_answered(self, event: QuestionView.Answered) -> None:
+        if not self.grouped:  # a single question answers and sends at once, like Claude Code
+            done = service.answer(self.store, event.qid, (event.detail or {}).get("text"),
+                                  choices=(event.detail or {}).get("choices"), notes=(event.detail or {}).get("notes"))
+            app = self.app
+            app.pop_screen()
+            _after_submit(app, [done] if done else [], 1)
+            return
         if not self.store.set_draft(event.qid, event.detail):
             self.notify(f"Q{event.qid} is no longer open", severity="warning")
         if event.detail is None:
             self.query_one("#chips", Static).update(self.chips())
             return
-        # next question without a draft, else Review
-        for offset in range(1, len(self.qids) + 1):
-            i = (self.index + offset) % (len(self.qids) + 1)
-            if i == self.review_index:
-                break
-            q = self.store.get(self.qids[i])
-            if q and q.status == "open" and not q.draft_json:
-                self.show(i)
-                return
-        self.show(self.review_index)
+        self.show(self.index + 1)  # Claude Code moves to the next tab (the last one: Submit)
+
+    def on_question_view_chat(self, event: QuestionView.Chat) -> None:
+        q = event.q
+        err = herdr.focus_agent(q.pane_id) if q.pane_id else "no pane"
+        if err:
+            self.notify(f"could not focus {q.pane_id}: {err}", severity="warning")
+        else:
+            self.app.exit()  # the question stays open; discuss it in the agent's chat
 
     def on_review_view_edit(self, event: ReviewView.Edit) -> None:
         self.show(self.qids.index(event.qid))
 
+    @guarded
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
         done = service.submit(self.store, event.qids)
         app = self.app
@@ -446,7 +572,7 @@ class GroupScreen(Screen):
 
 
 class ReviewScreen(Screen):
-    """Every drafted answer, across groups and agents."""
+    """Every drafted answer, across groups and agents (``r`` on the list)."""
 
     CSS = "ReviewScreen { padding: 1 2; }" + VIEW_CSS
 
@@ -465,11 +591,13 @@ class ReviewScreen(Screen):
         view.reload()
         view.focus()
 
+    @guarded
     def on_review_view_edit(self, event: ReviewView.Edit) -> None:
         q = self.store.get(event.qid)
         group = [g.id for g in self.store.group(q.group)]
         self.app.push_screen(GroupScreen(self.store, group, group.index(q.id)))
 
+    @guarded
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
         done = service.submit(self.store, event.qids)
         app = self.app
@@ -530,6 +658,7 @@ class InboxApp(App):
             return None
         return self.groups[table.cursor_row]
 
+    @guarded
     def refresh_list(self) -> None:
         keep = self.current[0].group if self.current else None
         questions = self.store.list(include_closed=self.history)
@@ -609,6 +738,7 @@ class InboxApp(App):
     def action_review(self) -> None:
         self.push_screen(ReviewScreen(self.store))
 
+    @guarded
     def action_dismiss(self) -> None:
         g = self.current
         closed = [q.ref for q in g or [] if service.close(self.store, q.id, "dismissed")]
