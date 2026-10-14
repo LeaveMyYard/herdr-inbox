@@ -35,7 +35,7 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import herdr, service, tabs
+from . import herdr, radar, service, tabs
 from .store import PENDING, Question, Store
 
 POLL_SECONDS = 2.0
@@ -72,6 +72,7 @@ def guarded(fn):
 
 # The asking tab's label is resolved live (the operator may have renamed it, and an unnamed
 # tab's label is just its position), briefly cached so the popup stays fast.
+RADAR_HINT = "herdr-radar is installed but ?N isn't in its sidebar — run the radar-sidebar action"
 TAB_LABEL_TTL = 5.0
 LIVE_TAB_LABELS = True  # the logic tests pin labels to what was stored at ask time
 _tab_labels: dict[str, tuple[float, str | None]] = {}
@@ -868,6 +869,8 @@ class InboxApp(App):
     #empty { display: none; }
     InboxApp.empty #empty { display: block; }
     InboxApp.empty #chips, InboxApp.empty #body { display: none; }
+    #radar-hint { display: none; height: auto; color: $text-muted; }
+    InboxApp.radar-missing #radar-hint { display: block; }
     """ + VIEW_CSS
     BINDINGS = [
         Binding("left", "switch(-1)", show=False),
@@ -933,8 +936,21 @@ class InboxApp(App):
         yield HorizontalScroll(id="chips")
         yield Vertical(id="body")
         yield Static("No open questions", id="empty")
+        yield Static(RADAR_HINT, id="radar-hint")
+
+    def check_radar(self) -> None:
+        """Read-only: radar's sidebar lacks $inbox_q → one hint line. Never edits anything."""
+        def run() -> None:
+            try:
+                if radar.missing():
+                    self.call_from_thread(self.add_class, "radar-missing")
+            except Exception:  # noqa: BLE001 - a hint is never worth an error
+                pass
+
+        self.run_worker(run, thread=True, group="radar")
 
     def on_mount(self) -> None:
+        self.check_radar()
         if self.focus_pane is None:
             self.focus_pane = (herdr.invocation_pane() or os.environ.get("INBOX_FOCUS_PANE")
                                or herdr.focused_pane())
