@@ -46,8 +46,11 @@ def _version(text: str) -> tuple[int, ...] | None:
 def claim(venv: Path):
     """Mark ``venv`` in use for as long as the returned file stays open (the MCP server keeps
     it for its lifetime), and refresh the lock file's mtime. If the venv was removed (a
-    cleanup won the race before we got here), exit: never run from a deleted tree; Claude
-    Code restarts the server and uv rebuilds the venv."""
+    cleanup won the race before we got here), exit: never run from a deleted tree. Claude
+    Code does not restart a stdio MCP server that exits, so the inbox tools stay unavailable
+    until /mcp → Reconnect (uv rebuilds the venv) or a new session; the
+    stderr line says so.
+    """
     import sys
 
     lock = Path(venv) / LOCK_NAME
@@ -58,7 +61,10 @@ def claim(venv: Path):
     except FileNotFoundError:
         same = False
     if not same:
-        sys.stderr.write(f"herdr-inbox: venv {venv} was removed while starting; exiting so it is rebuilt\n")
+        sys.stderr.write(
+            f"herdr-inbox: its environment {venv} was removed while the server was starting, so it "
+            "stopped. The inbox tools are unavailable until you reconnect the server (/mcp, select "
+            "herdr-inbox, Reconnect; uv rebuilds the environment) or start a new session.\n")
         sys.exit(75)  # EX_TEMPFAIL
     try:
         os.utime(lock)
