@@ -106,11 +106,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "open":
         from . import deeplink
 
+        env = {}
         for kind in deeplink.KINDS:
             if getattr(args, kind):
                 value = getattr(args, kind)
-                deeplink.write_request(kind, value.lstrip("Qq") if kind == "question" else value)
-        err = herdr.open_popup()
+                if not deeplink.valid(kind, value):
+                    parser.error(f"--{kind} {value!r}: expected " + ("Qn or n" if kind == "question" else
+                                                                       "a group number" if kind == "group" else "an id"))
+                if deeplink.popup_is_running():
+                    print("the inbox popup is already open; close it and run this again", file=sys.stderr)
+                    return 3
+                env[deeplink.NONCE_ENV] = deeplink.write_request(kind, value.lstrip("Qq") if kind == "question" else value)
+        err = herdr.open_popup(env)
         if err:
             print(f"could not open the inbox popup: {err}", file=sys.stderr)
             return 1

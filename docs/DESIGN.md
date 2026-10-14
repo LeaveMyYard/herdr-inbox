@@ -263,10 +263,25 @@ command, so `deeplink.py` hands the target over through the state dir:
   - a pane or a session → its oldest open group.
 
   A target that is gone means the list plus a notice ("Q12 is no longer open").
-- **Safety:** the opened view is like any view that appears: armed for
-  `ARM_SECONDS`, cursor on a target. It is opened as a choice (`direct` is
-  false), so Esc returns to the list. Nothing changes for a popup without a
-  request. A popup that is already open does not poll for requests.
+- **Which popup:** `herdr.open_popup` always opens `leavemyyard.herdr-inbox`,
+  with `--cwd` set to the inbox's own checkout (found from the package's
+  location, or else `plugin_root` from `herdr plugin list`). It never uses
+  `HERDR_PLUGIN_ID`/`HERDR_PLUGIN_ROOT`, because when another plugin's action
+  runs `inbox open`, those name the caller.
+- **Handshake:** `inbox open` passes the request's nonce to the popup it opens
+  (`--env INBOX_OPEN_NONCE=…`). A popup takes only the request carrying its
+  nonce, so a popup opened by hand never takes someone's pending request.
+- **Already open:** a running popup holds an exclusive flock on `popup.lock` in
+  the state dir. `inbox open` checks it and, if held, exits 3 with "already
+  open" and writes nothing.
+- **Safety:** a deep link is an event from outside, and a popup takes all
+  keyboard input. So a deep-linked popup starts **held**: until the operator's
+  first navigation key (↑/↓/j/k, Tab, ←/→), every Enter/digit/toggle is refused,
+  through `_armed`, the same gate as `ARM_SECONDS`. A hint line says so. After
+  that the views arm as usual. The view is opened as a choice (`direct` is
+  false), so Esc returns to the list. The README requires callers to run
+  `inbox open` only on an explicit operator action. Nothing changes for a popup
+  without a request.
 
 ## herdr surface
 

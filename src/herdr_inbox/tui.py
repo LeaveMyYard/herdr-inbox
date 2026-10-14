@@ -146,8 +146,17 @@ def _close(app: App) -> None:
 
 
 def _armed(widget) -> bool:
-    """Views ignore Enter and digits for ARM_SECONDS after they appear (however reached)."""
-    return time.monotonic() >= getattr(widget, "armed_at", 0)
+    """Views ignore Enter and digits for ARM_SECONDS after they appear (however reached),
+    and while a deep-linked popup waits for the operator's first deliberate key."""
+    try:
+        held = getattr(widget.app, "held", False)
+    except Exception:  # noqa: BLE001 - not mounted in an app
+        held = False
+    return not held and time.monotonic() >= getattr(widget, "armed_at", 0)
+
+
+HELD_HINT = "Opened from another plugin — press ↑/↓ or Tab to start answering (Esc for the list)"
+RELEASE_KEYS = ("up", "down", "j", "k", "tab", "shift+tab", "left", "right")
 
 
 class QuestionView(Vertical, can_focus=True):
@@ -294,8 +303,8 @@ class QuestionView(Vertical, can_focus=True):
         # While a note or the text box is open, keys belong to it (Esc still cancels).
         if action != "back" and _typing(self.screen):
             return False
-        if action in ("select", "jump", "toggle") and time.monotonic() < getattr(self, "armed_at", 0):
-            return False  # not armed yet (see ARM_SECONDS)
+        if action in ("select", "jump", "toggle") and not _armed(self):
+            return False  # not armed yet (see ARM_SECONDS), or a deep link still held
         return True
 
     def action_move(self, delta: int) -> None:
@@ -893,6 +902,8 @@ class InboxApp(App):
     InboxApp.empty #empty { display: block; }
     InboxApp.empty #chips, InboxApp.empty #body { display: none; }
     #radar-hint { display: none; height: auto; color: $text-muted; }
+    #held-hint { display: none; height: auto; color: $inbox-suggestion; text-style: bold; }
+    InboxApp.held #held-hint { display: block; }
     InboxApp.radar-missing #radar-hint { display: block; }
     """ + VIEW_CSS
     BINDINGS = [
@@ -920,6 +931,7 @@ class InboxApp(App):
         self.arrived_at: dict[Entry, float] = {}  # rows added by a poll (see ROW_ARM_SECONDS)
         self.list_cursor: Entry | None = None
         self.direct = False  # opened straight into the only group: Esc closes the popup
+        self.held = False  # deep-linked: Enter/digits wait for a navigation key (deeplink.py)
         # the open group
         self.entry: Entry | None = None
         self.tabs: list[tuple[str, int]] = []
@@ -960,6 +972,7 @@ class InboxApp(App):
         yield Vertical(id="body")
         yield Static("No open questions", id="empty")
         yield Static(RADAR_HINT, id="radar-hint")
+        yield Static(HELD_HINT, id="held-hint")
 
     def check_radar(self) -> None:
         """Read-only: radar's sidebar lacks $inbox_q → one hint line. Never edits anything."""
@@ -973,6 +986,7 @@ class InboxApp(App):
         self.run_worker(run, thread=True, group="radar")
 
     def on_mount(self) -> None:
+        self._popup_lock = deeplink.hold_popup_lock()  # `inbox open` reports an open popup
         self.check_radar()
         if self.focus_pane is None:
             self.focus_pane = (herdr.invocation_pane() or os.environ.get("INBOX_FOCUS_PANE")
@@ -993,7 +1007,11 @@ class InboxApp(App):
             if target is None:
                 self.notify(f"{deeplink.describe(request)} is no longer open")
         if target and target[0] in self.entries:
-            self.open_group(target[0], start_qid=target[1])  # Esc goes to the list, not out
+            # Another plugin opened us, maybe under the operator's typing: nothing sends
+            # until a deliberate navigation key (RELEASE_KEYS). Esc goes to the list.
+            self.held = True
+            self.add_class("held")
+            self.open_group(target[0], start_qid=target[1])
         elif not self.entries:
             self.show_empty()
         elif len(self.entries) == 1 and self.entries[0][0] == "group":
@@ -1246,7 +1264,15 @@ class InboxApp(App):
             return
         await self.action_quit()
 
+    def on_unmount(self) -> None:
+        lock = getattr(self, "_popup_lock", None)
+        if lock is not None:
+            lock.close()
+
     def on_key(self, event) -> None:
+        if self.held and event.key in RELEASE_KEYS:  # the operator's first deliberate key
+            self.held = False
+            self.remove_class("held")
         if self.mode == "empty" and len(self.screen_stack) == 1:  # empty view: any key closes,
             if event.key in NAV_KEYS and self.entries:           # except Tab/arrows to arrivals
                 return

@@ -29,38 +29,48 @@ def three_groups(store):
 # -- the request file -----------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def no_nonce(monkeypatch):
+    monkeypatch.delenv("INBOX_OPEN_NONCE", raising=False)
+
+
+def take(nonce):
+    os.environ["INBOX_OPEN_NONCE"] = nonce
+    return deeplink.consume_request()
+
+
 def test_request_is_written_atomically_and_consumed_once(fake_herdr):
-    deeplink.write_request("question", "7")
+    nonce = deeplink.write_request("question", "7")
     path = deeplink.request_path()
     data = json.loads(path.read_text())
     assert data["kind"] == "question" and data["value"] == "7" and data["nonce"] and data["created_at"]
     assert not [p for p in path.parent.iterdir() if p.name.startswith(".open-request")]  # no temp left
-    assert deeplink.consume_request() == {"kind": "question", "value": "7"}
-    assert deeplink.consume_request() is None and not path.exists()
+    assert take(nonce) == {"kind": "question", "value": "7"}
+    assert take(nonce) is None and not path.exists()
 
 
 def test_newest_request_wins(fake_herdr):
     deeplink.write_request("question", "1")
-    deeplink.write_request("group", "2")
-    assert deeplink.consume_request() == {"kind": "group", "value": "2"}
+    nonce = deeplink.write_request("group", "2")
+    assert take(nonce) == {"kind": "group", "value": "2"}
 
 
 def test_stale_request_is_ignored_and_removed(fake_herdr, monkeypatch):
-    deeplink.write_request("question", "1")
+    nonce = deeplink.write_request("question", "1")
     real = time.time
     monkeypatch.setattr(deeplink.time, "time", lambda: real() + deeplink.REQUEST_TTL + 1)
-    assert deeplink.consume_request() is None and not deeplink.request_path().exists()
+    assert take(nonce) is None and not deeplink.request_path().exists()
 
 
 def test_garbage_request_is_ignored(fake_herdr):
     path = deeplink.request_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{not json")
-    assert deeplink.consume_request() is None and not path.exists()
+    assert take("x") is None and not path.exists()
 
 
 def test_concurrent_popups_consume_a_request_exactly_once(fake_herdr):
-    deeplink.write_request("question", "3")
+    os.environ["INBOX_OPEN_NONCE"] = deeplink.write_request("question", "3")
     got, start = [], threading.Barrier(8)
 
     def consume():
@@ -98,7 +108,7 @@ async def test_popup_opens_on_the_requested_question(store, fake_herdr, monkeypa
 
     monkeypatch.setattr(tui, "ARM_SECONDS", 0.4)  # the real arming (conftest zeroes it)
     g1, g2, g3 = three_groups(store)
-    deeplink.write_request("question", "4")
+    os.environ["INBOX_OPEN_NONCE"] = deeplink.write_request("question", "4")
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -116,7 +126,7 @@ async def test_popup_opens_on_the_requested_question(store, fake_herdr, monkeypa
 async def test_popup_opens_on_the_group_for_each_target_kind(store, fake_herdr, kind, value):
     g1, g2, g3 = three_groups(store)
     assert g2 == 3
-    deeplink.write_request(kind, value)
+    os.environ["INBOX_OPEN_NONCE"] = deeplink.write_request(kind, value)
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -127,7 +137,7 @@ async def test_popup_opens_on_the_group_for_each_target_kind(store, fake_herdr, 
 async def test_gone_target_falls_back_to_the_list_with_a_notice(store, fake_herdr):
     three_groups(store)
     service.close(store, 4, "dismissed")
-    deeplink.write_request("question", "4")
+    os.environ["INBOX_OPEN_NONCE"] = deeplink.write_request("question", "4")
     app = InboxApp(store, focus_pane="w1:p1")
     notices = []
     app.notify = lambda message, **kw: notices.append(message)
@@ -156,7 +166,7 @@ async def test_no_request_keeps_the_normal_start(store, fake_herdr):
 ])
 def test_open_command_writes_the_request_then_opens_the_popup(fake_herdr, args, expected):
     assert cli.main(["open", *args]) == 0
-    assert deeplink.consume_request() == expected
+    assert take(json.loads(deeplink.request_path().read_text())["nonce"]) == expected
     assert fake_herdr.calls_of("plugin", "pane", "open")
 
 
@@ -164,3 +174,80 @@ def test_open_command_takes_one_target(fake_herdr):
     with pytest.raises(SystemExit):
         cli.main(["open", "--question", "1", "--pane", "w1:p1"])
     assert not fake_herdr.calls_of("plugin", "pane", "open")
+
+
+# -- review of #14 --------------------------------------------------------------------------
+
+ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+
+
+def test_open_from_another_plugins_action_opens_the_inbox(fake_herdr, monkeypatch):
+    """H1: herdr sets HERDR_PLUGIN_ID/ROOT for the CALLER's action (herdr-panorama)."""
+    monkeypatch.setenv("HERDR_PLUGIN_ID", "leavemyyard.herdr-panorama")
+    monkeypatch.setenv("HERDR_PLUGIN_ROOT", "/plugins/panorama")
+    assert cli.main(["open", "--question", "Q5"]) == 0
+    call = fake_herdr.calls_of("plugin", "pane", "open")[-1]
+    assert call[call.index("--plugin") + 1] == "leavemyyard.herdr-inbox"
+    assert call[call.index("--cwd") + 1] == str(ROOT)
+    assert "/plugins/panorama" not in call
+
+
+def test_cli_rejects_a_malformed_target(fake_herdr):
+    for bad in (["--question", "abc"], ["--question", "Q"], ["--group", "x"], ["--group", "Q3"]):
+        with pytest.raises(SystemExit):
+            cli.main(["open", *bad])
+    assert not deeplink.request_path().exists() and not fake_herdr.calls_of("plugin", "pane", "open")
+
+
+def test_a_manual_open_does_not_take_someone_elses_request(store, fake_herdr, monkeypatch):
+    """Low: only the popup `inbox open` started (its nonce) takes the request."""
+    nonce = deeplink.write_request("question", "1")
+    monkeypatch.delenv("INBOX_OPEN_NONCE", raising=False)
+    assert deeplink.consume_request() is None
+    monkeypatch.setenv("INBOX_OPEN_NONCE", "someone-else")
+    assert deeplink.consume_request() is None
+    monkeypatch.setenv("INBOX_OPEN_NONCE", nonce)
+    assert deeplink.consume_request() == {"kind": "question", "value": "1"}
+
+
+def test_the_nonce_is_passed_to_the_popup(fake_herdr):
+    assert cli.main(["open", "--group", "2"]) == 0
+    call = fake_herdr.calls_of("plugin", "pane", "open")[-1]
+    envs = [call[i + 1] for i, a in enumerate(call) if a == "--env"]
+    nonce = json.loads(deeplink.request_path().read_text())["nonce"]
+    assert f"INBOX_OPEN_NONCE={nonce}" in envs
+
+
+def test_open_reports_a_popup_that_is_already_open(fake_herdr, capsys):
+    with deeplink.popup_running():
+        assert cli.main(["open", "--question", "1"]) == 3
+        assert "already open" in capsys.readouterr().err
+    assert not deeplink.request_path().exists() and not fake_herdr.calls_of("plugin", "pane", "open")
+    assert cli.main(["open", "--question", "1"]) == 0  # released with the popup
+
+
+async def test_the_popup_marks_itself_running(store, fake_herdr):
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert deeplink.popup_is_running()
+    assert not deeplink.popup_is_running()
+
+
+async def test_a_deep_linked_view_waits_for_a_deliberate_key(store, fake_herdr, monkeypatch):
+    """M1: a deep link may land under the operator's typing; a lone question must not send
+    on Enter until the operator has pressed a navigation key first."""
+    qid = service.ask(store, A, "solo?", options=["yes", "no"])["id"]
+    monkeypatch.setenv("INBOX_OPEN_NONCE", deeplink.write_request("question", str(qid)))
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "press ↑/↓ or Tab" in str(app.query_one("#held-hint").render())
+        await pilot.press("enter", "1", "2", "enter")
+        await pilot.pause()
+        assert store.get(qid).status == "open" and app.is_running
+        await pilot.press("down")  # the first deliberate key: answering is possible now
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+    assert store.get(qid).status == "answered" and store.get(qid).answer == "no"
