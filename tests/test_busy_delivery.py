@@ -65,14 +65,50 @@ def test_working_agent_waits_the_grace_then_gets_it_anyway(store, fake_herdr, mo
     assert q.delivery_error is None
 
 
-def test_typed_into_a_working_agent_that_swallows_it_stops_after_two(store, fake_herdr, monkeypatch, live_session):
+def test_busy_misses_have_their_own_cap_then_wait_for_idle(store, fake_herdr, monkeypatch, live_session):
+    """Review of #13, M1: typing into a `working` agent that swallows it is tried
+    MAX_BUSY_ATTEMPTS times, then the answer waits for idle -- it is never parked as ⚠."""
     monkeypatch.setenv("FAKE_HERDR_LAND", "none")
     qid = answered_while(store, monkeypatch, "working")
-    for _ in range(6):
+    for _ in range(8):
         age_pending(store, qid, service.BUSY_GRACE + 1)
+        service.retry_deliveries(store, "w1:p1")
+    q = store.get(qid)
+    assert len(prompts(fake_herdr)) == service.MAX_BUSY_ATTEMPTS == 3
+    assert q.delivery_error.startswith("pending: busy") and q.delivery_attempts == 0
+    assert "when it is idle" in __import__("herdr_inbox.tui").tui.pending_text(q.delivery_error[len("pending: "):], 99)
+
+
+def test_reviewer_sequence_working_misses_then_idle_delivers(store, fake_herdr, monkeypatch, live_session):
+    """The reviewer's repro: working + swallowed, then idle: it must end delivered."""
+    monkeypatch.setattr(service, "BUSY_GRACE", 0.0)
+    monkeypatch.setenv("FAKE_HERDR_LAND", "none")
+    qid = answered_while(store, monkeypatch, "working")
+    for _ in range(5):
+        service.retry_deliveries(store, "w1:p1")
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    monkeypatch.setenv("FAKE_HERDR_LAND", "user")
+    service.retry_deliveries(store, "w1:p1")
+    q = store.get(qid)
+    assert q.verified_at and q.acknowledged_at and q.delivery_error is None
+
+
+def test_idle_misses_keep_the_two_attempt_cap(store, fake_herdr, monkeypatch, live_session):
+    monkeypatch.setenv("FAKE_HERDR_LAND", "none")
+    qid = answered_while(store, monkeypatch, "idle")
+    for _ in range(5):
         service.retry_deliveries(store, "w1:p1")
     assert len(prompts(fake_herdr)) == service.MAX_UNVERIFIED_ATTEMPTS
     assert store.get(qid).delivery_error == service.NOT_VERIFIED
+
+
+def test_time_at_a_dialog_does_not_use_up_the_busy_grace(store, fake_herdr, monkeypatch, live_session):
+    """Review of #13, Low: the grace counts from the first `working` moment."""
+    qid = answered_while(store, monkeypatch, "blocked")
+    assert store.get_pending_since(qid) is None
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
+    service.retry_deliveries(store, "w1:p1")
+    assert store.get_pending_since(qid) and prompts(fake_herdr) == []
 
 
 def test_blocked_agent_keeps_waiting(store, fake_herdr, monkeypatch, live_session):
