@@ -6,10 +6,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv",
+            "command": "env",
             "args": [
+              "UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv",
+              "uv",
               "run",
               "--quiet",
+              "--frozen",
+              "--no-dev",
               "--project",
               "${CLAUDE_PLUGIN_ROOT}",
               "inbox",
@@ -26,10 +30,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv",
+            "command": "env",
             "args": [
+              "UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv",
+              "uv",
               "run",
               "--quiet",
+              "--frozen",
+              "--no-dev",
               "--project",
               "${CLAUDE_PLUGIN_ROOT}",
               "inbox",

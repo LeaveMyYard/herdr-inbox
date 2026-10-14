@@ -191,6 +191,15 @@ Code plugin.
   the MCP server inline (`uv run --project ${CLAUDE_PLUGIN_ROOT} inbox mcp`).
   Inline rather than a root `.mcp.json`, because a root `.mcp.json` is also
   Claude Code's project-scope MCP file for anyone working in this repo.
+- Claude Code installs the plugin as a copy in
+  `~/.claude/plugins/cache/herdr-inbox/herdr-inbox/<version>/`, git-ignored
+  files included, and a copied `.venv` has no interpreter. Every plugin command
+  therefore runs `uv run --frozen --no-dev --project ${CLAUDE_PLUGIN_ROOT}` with
+  `UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv` (MCP: the server's `env`;
+  hooks: exec-form `env UV_PROJECT_ENVIRONMENT=… uv …`), so the environment
+  lives in the plugin's persistent data dir and the copy is only read.
+  `tests/test_plugin_copy.py` builds such a copy (broken `.venv` included) and
+  runs the commands exactly as the manifests declare them.
 - `.claude-plugin/marketplace.json` is a local single-plugin marketplace
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.

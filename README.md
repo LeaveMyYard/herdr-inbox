@@ -34,6 +34,26 @@ session's questions that are still pending. Outside herdr the hooks stay silent 
 `ask_operator` tells the agent to ask in chat. `claude plugin validate /home/leavemyyard/Code/herdr-inbox`
 checks the manifests.
 
+Claude Code installs the plugin as a **copy** under
+`~/.claude/plugins/cache/herdr-inbox/herdr-inbox/<version>/` (git-ignored files included, but a
+copied `.venv` loses its interpreter symlinks). The plugin therefore never uses a `.venv` inside
+its own directory: the hooks and the MCP server run with
+`UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv`, i.e.
+`~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv`, which uv creates on first use (about
+0.5 s, offline from a warm uv cache) and which survives plugin updates.
+
+To pick up new code, bump `version` in `.claude-plugin/plugin.json` **and**
+`.claude-plugin/marketplace.json` (the cache directory is keyed by it; an unchanged version means
+`update` does nothing), commit, then:
+
+```sh
+claude plugin marketplace update herdr-inbox
+claude plugin update herdr-inbox@herdr-inbox
+```
+
+and restart the Claude sessions (or `/reload-plugins` in each). The previous cache directory is
+removed by Claude Code 14 days later.
+
 Alternative, MCP server only (no hooks; add [docs/agent-instructions.md](docs/agent-instructions.md)
 to your `CLAUDE.md` instead):
 
