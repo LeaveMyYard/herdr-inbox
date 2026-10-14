@@ -144,6 +144,9 @@ restart. Changing the mark is safe: every mark ever applied is stripped.
     closed one, a delivery result) changes what your next key does. Keys pressed in the half
     second after such a change are dropped, and a question arriving while the popup shows
     "No open questions" is only announced ("1 new question — press Tab/→ to view").
+    Questions arriving while you work wait behind a `+N new (press +)` marker at the end of the
+    tab row, so Tab keeps going where it went before; `+` opens them. A question view also
+    ignores Enter, digits and Space for 0.4 s after it appears.
   - **One open question in total** (decided when the popup opens, and again only when you switch
     tabs, never under your fingers): `Enter` on an option (or text in Type something.) answers
     and sends at once, and the popup closes. Multi-select: `Enter`/`Space` toggle, **Submit**

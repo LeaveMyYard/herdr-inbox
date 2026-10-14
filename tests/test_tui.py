@@ -231,7 +231,7 @@ async def test_cancel_and_drafts_survive_a_restart(store, fake_herdr):
     assert prompts(fake_herdr) == []
 
 
-async def test_new_questions_append_without_moving_the_current_tab(store, fake_herdr):
+async def test_new_questions_wait_behind_a_marker_without_moving_the_current_tab(store, fake_herdr):
     service.ask(store, A, "One?")
     service.ask(store, A, "Two?")
     app = InboxApp(store)
@@ -242,11 +242,14 @@ async def test_new_questions_append_without_moving_the_current_tab(store, fake_h
         service.ask(store, B, "Three?")
         app.poll()
         await pilot.pause()
-        assert app.open_qids == [1, 2, 3] and view(app).q.id == 2
+        assert app.open_qids == [1, 2] and app.pending == [("q", 3)] and view(app).q.id == 2
+        assert chips(app)[-1].strip() == "+1 new (press +)"
         service.close(store, 1, "withdrawn")
         app.poll()
         await pilot.pause()
-        assert app.open_qids == [2, 3] and view(app).q.id == 2
+        assert app.open_qids == [2] and view(app).q.id == 2
+        await pilot.press("plus")
+        assert app.open_qids == [2, 3] and view(app).q.id == 3
 
 
 async def test_one_becomes_several_while_open(store, fake_herdr):
@@ -259,10 +262,10 @@ async def test_one_becomes_several_while_open(store, fake_herdr):
         service.ask(store, B, "Two?", options=["b"])
         app.poll()
         await pilot.pause()
-        assert [c.strip() for c in chips(app)] == ["│ tab-A", "● Q1", "│ tab-B", "● Q2"]  # no Submit yet
-        await pilot.press("right", "left")  # the operator navigates: now several
-        assert "Submit" in "".join(chips(app))
-        await pilot.press("1", "enter")  # a draft, not a send
+        assert [c.strip() for c in chips(app)] == ["│ tab-A", "● Q1", "+1 new (press +)"]  # only marked
+        await pilot.press("plus", "left")  # the operator opens it, then goes back
+        assert "Submit" in "".join(chips(app)) and view(app).q.id == 1
+        await pilot.press("1", "enter")  # several now: a draft, not a send
         assert store.get(1).status == "open" and store.get(1).draft_json
 
 
