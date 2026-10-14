@@ -35,7 +35,7 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import herdr, radar, service, tabs
+from . import deeplink, herdr, radar, service, tabs
 from .store import PENDING, Question, Store
 
 POLL_SECONDS = 2.0
@@ -983,7 +983,18 @@ class InboxApp(App):
             open_qs, failed = [], []
             self.notify(BUSY, severity="warning")
         self.entries = entry_order(open_qs, failed, self.focus_pane)
-        if not self.entries:
+        target = None
+        try:
+            request = deeplink.consume_request()  # `inbox open --question …` (deeplink.py)
+        except Exception:  # noqa: BLE001 - a deep link is never worth a broken popup
+            request = None
+        if request:
+            target = deeplink.resolve(self.store, request)
+            if target is None:
+                self.notify(f"{deeplink.describe(request)} is no longer open")
+        if target and target[0] in self.entries:
+            self.open_group(target[0], start_qid=target[1])  # Esc goes to the list, not out
+        elif not self.entries:
             self.show_empty()
         elif len(self.entries) == 1 and self.entries[0][0] == "group":
             self.direct = True
@@ -1050,7 +1061,7 @@ class InboxApp(App):
         self.render_chips()
         self._mount(GroupListView(self, cursor if cursor is not None else self.list_cursor))
 
-    def open_group(self, entry: Entry) -> None:
+    def open_group(self, entry: Entry, start_qid: int | None = None) -> None:
         """Enter a group (the operator chose it, or it is the only one): its questions as tabs."""
         self.list_cursor = entry
         if entry[0] == "failed":
@@ -1067,6 +1078,8 @@ class InboxApp(App):
         self.gone = {}
         self.single = len(qs) == 1  # decided here, on the operator's move
         start = next((t for t in self.tabs if not self.store.get(t[1]).draft_json), self.tabs[0])
+        if start_qid is not None and ("q", start_qid) in self.tabs:
+            start = ("q", start_qid)
         self.show(start)
 
     def show(self, tab: tuple[str, int] | None) -> None:

@@ -242,6 +242,32 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Deep links: opening the popup on a target (0.6.0)
+
+The integration API for other plugins (e.g. herdr-panorama). It is
+`inbox open [--question Qn | --group G | --pane P | --session S]`, run as
+`uv run --project <plugin_root> inbox open …`; `herdr plugin list --json` gives
+`plugin_root`. `herdr plugin pane open` cannot pass arguments to the pane
+command, so `deeplink.py` hands the target over through the state dir:
+
+- **Write:** `open-request.json` = `{kind, value, created_at, nonce}`, via a temp
+  file and `os.replace` (atomic). The newest request wins, and the popup is then
+  opened as by the `open` action.
+- **Consume:** on start, the popup renames the file to a unique name (atomic, so
+  two popups starting together cannot both take it), reads it and deletes it.
+  It honours the request only if it is ≤ `REQUEST_TTL` = 5 s old. Garbage or
+  stale requests are dropped.
+- **Resolve:**
+  - a question → its group, opened on that tab;
+  - a group → that group;
+  - a pane or a session → its oldest open group.
+
+  A target that is gone means the list plus a notice ("Q12 is no longer open").
+- **Safety:** the opened view is like any view that appears: armed for
+  `ARM_SECONDS`, cursor on a target. It is opened as a choice (`direct` is
+  false), so Esc returns to the list. Nothing changes for a popup without a
+  request. A popup that is already open does not poll for requests.
+
 ## herdr surface
 
 - **Notification** on each new question:
