@@ -72,12 +72,33 @@ def _texts(line: str):
             yield attachment["prompt"]
 
 
-def contains(text: str, qids: list[int]) -> bool:
-    """Our message for every id in ``qids``. A long prompt is recorded wrapped as
-    ``\n\n<pasted_content id="…">\n[inbox] …`` (Claude Code collapses big pastes; checked
-    2026-10-14), so leading whitespace and that wrapper are skipped."""
+_SINGLE = re.compile(r"\[inbox\] Q(\d+) answered — ")
+_BATCH = "[inbox] answered — "
+_FIRST_SEGMENT = re.compile(r"Q(\d+) ")
+_NEXT_SEGMENT = re.compile(r" · Q(\d+) ")
+
+
+def header_ids(text: str) -> set[int]:
+    """The Q ids our own delivery format names, read only where it writes them:
+    ``[inbox] Q7 answered — …`` or ``[inbox] answered — Q7 … · Q8 …``. An id merely
+    mentioned in a question or an answer ("same as Q28") does not count. A long prompt is
+    recorded wrapped as ``\n\n<pasted_content id="…">\n[inbox] …`` (Claude Code collapses
+    big pastes; checked 2026-10-14), so leading whitespace and that wrapper are skipped."""
     text = _PASTE_WRAPPER.sub("", text, count=1)
-    return text.startswith("[inbox]") and all(re.search(rf"\bQ{q}\b", text) for q in qids)
+    if m := _SINGLE.match(text):
+        return {int(m.group(1))}
+    if not text.startswith(_BATCH):
+        return set()
+    rest = text[len(_BATCH):]
+    ids = {int(m.group(1)) for m in _NEXT_SEGMENT.finditer(rest)}
+    if m := _FIRST_SEGMENT.match(rest):
+        ids.add(int(m.group(1)))
+    return ids
+
+
+def contains(text: str, qids: list[int]) -> bool:
+    """Our message, naming every id in ``qids`` (see header_ids)."""
+    return set(qids) <= header_ids(text)
 
 
 def landed_ids(path: Path, candidates: list[int]) -> set[int]:

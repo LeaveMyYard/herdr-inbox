@@ -231,3 +231,47 @@ def test_cli_redeliver(store, fake_herdr, monkeypatch, capsys):
     out = capsys.readouterr()
     assert f"Q{qid}: delivered (verified)" in out.out and "Q999: not an answered question" in out.err
     assert store.get(qid).verified_at and prompts(fake_herdr)[-1].startswith(f"[inbox] Q{qid} answered")
+
+
+def test_a_mention_of_a_q_id_is_not_a_delivery_of_it(tmp_path):
+    """Final review of #9, M1: only the positions our own format writes ids in count."""
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join(json.dumps({"type": "user", "message": {"content": c}}) for c in [
+        "[inbox] Q27 answered — which region?: same as Q28",
+        "[inbox] answered — Q30 Re Q31: ok · Q32 next?: like Q33 · Q34",
+    ]) + "\n")
+    assert transcript.landed_ids(path, [27, 28, 30, 31, 32, 33, 34]) == {27, 30, 32}
+    assert not transcript.landed_since(path, 0, [28])
+    assert transcript.landed_since(path, 0, [30, 32])
+
+
+def test_seven_day_sweep_continues_past_one_batch(tmp_path, fake_herdr, live_session, monkeypatch):
+    """Final review of #9, Low: the done-flag is set only by a pass that saw everything."""
+    from herdr_inbox import store as store_mod
+
+    monkeypatch.setattr(store_mod, "RECONCILE_BATCH", 2)
+    path = tmp_path / "old.db"
+    store = Store(path)
+    ids = [ask(store, f"Q{i}?") for i in range(5)]
+    for qid in ids:
+        store.set_answer(qid, "yes")
+        _old_server_delivery(store, qid, "2026-10-01T00:00:00+00:00")
+    store.db.execute("DELETE FROM meta WHERE key = ?", (RESET_KEY,))
+    store.close()
+    for _ in range(3):
+        Store(path).close()
+    store = Store(path)
+    assert all(store.get(qid).acknowledged_at is None for qid in ids)
+    assert store.db.execute("SELECT 1 FROM meta WHERE key = ?", (RESET_KEY,)).fetchone()
+
+
+def test_verified_delivery_is_written_in_one_transaction(store, fake_herdr, live_session):
+    """Final review of #9, Low: no other process may see delivered+acked without verified_at."""
+    qid = ask(store)
+    store.set_answer(qid, "yes")
+    seen = []
+    store.db.set_trace_callback(seen.append)
+    store.record_delivery(qid, None, verified=True)
+    store.db.set_trace_callback(None)
+    writes = [s for s in seen if s.lstrip().upper().startswith(("UPDATE", "INSERT", "BEGIN", "COMMIT"))]
+    assert writes[0].startswith("BEGIN") and writes[-1] == "COMMIT"
