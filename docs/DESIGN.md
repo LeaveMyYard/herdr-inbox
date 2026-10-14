@@ -452,6 +452,13 @@ Code plugin.
   heavy import, is take a shared `flock` on `<its venv>/.inbox-in-use`. It holds
   that lock for its lifetime and refreshes the file's mtime. If the venv is
   already gone by then, the server exits rather than run from a deleted tree.
+  Claude Code does **not** restart a stdio MCP server that exits: per its MCP
+  docs, only remote servers are reconnected automatically. The inbox tools then
+  stay unavailable in that session until the operator reconnects the server
+  (`/mcp` → Reconnect, after which uv rebuilds the venv) or starts a new
+  session, and the stderr line says so. The race needs an old-version server
+  starting at the same moment as a newer one's cleanup, against a venv whose
+  lock file has been untouched for an hour.
   On start, a background thread (`venvs.py`) then removes a direct child of
   `${CLAUDE_PLUGIN_DATA}` named `venv-<numeric v>` only when all of these hold:
   - v is older than the running version;

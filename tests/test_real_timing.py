@@ -1,15 +1,24 @@
 """The same safety rules with the REAL delays and realistic key spacing (the other pilot
-tests zero the delays to test logic). One test per view type: list, question, Submit, ⚠."""
+tests zero the delays to test logic). One test per view type: list, question, Submit, ⚠.
+
+Keys that must be IGNORED are pressed right after the view or row appears (with the
+reviewer's 0.15 s spacing, well inside the 0.4 s / 1 s arming). Everything that must be
+ACCEPTED waits for the condition it needs (the view mounted, armed, the row settled) with a
+generous deadline instead of a fixed sleep, so a slow CI runner cannot turn a wait that was
+just too short into a failure (macOS py3.11 flake on main, 2026-10-14)."""
+
+import time
 
 import pytest
 
 from herdr_inbox import service, tui
 from herdr_inbox.service import Caller
-from herdr_inbox.tui import FailedView, GroupListView, InboxApp, QuestionView, ReviewView
+from herdr_inbox.tui import FailedView, GroupListView, InboxApp, QuestionView, ReviewView, _armed
 
 A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
 B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
 GAP = 0.15  # the reviewer's spacing between keys
+DEADLINE = 15.0
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +33,26 @@ async def keys(pilot, *names):
         await pilot.pause(GAP)
 
 
+async def until(pilot, cond, what: str):
+    end = time.monotonic() + DEADLINE
+    while not cond():
+        assert time.monotonic() < end, f"timed out waiting for {what}"
+        await pilot.pause(0.02)
+
+
+async def view(pilot, app, cls):
+    """The mounted view of type ``cls`` (waits for it)."""
+    await until(pilot, lambda: bool(app.query(cls)), cls.__name__)
+    return app.query_one(cls)
+
+
+async def armed(pilot, app, cls):
+    """The view of type ``cls``, once it accepts Enter and digits."""
+    widget = await view(pilot, app, cls)
+    await until(pilot, lambda: _armed(widget), f"{cls.__name__} armed")
+    return widget
+
+
 def prompts(fake):
     return [c[3] for c in fake.calls_of("agent", "prompt")]
 
@@ -34,13 +63,13 @@ async def test_list_wrap_with_real_arming(store, fake_herdr):
     service.ask(store, B, "q2?", options=["b"])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
-        await pilot.pause(0.5)
+        await armed(pilot, app, GroupListView)
         await keys(pilot, "down")
         service.ask(store, B, "drop prod?", options=["yes"])
         app.poll()
         await pilot.pause(0.1)
         await keys(pilot, "down", "enter", "enter", "enter")
-        await pilot.pause(0.3)
+        await app.workers.wait_for_complete()
     assert store.get(3).status == "open"
     assert not any("drop prod" in p for p in prompts(fake_herdr))
 
@@ -50,8 +79,7 @@ async def test_list_row_that_just_arrived_is_not_selectable(store, fake_herdr):
     service.ask(store, B, "q2?", options=["b"])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
-        await pilot.pause(0.5)
-        lv = app.query_one(GroupListView)
+        lv = await armed(pilot, app, GroupListView)
         await keys(pilot, "down")
         service.ask(store, B, "fresh?", options=["f"])
         app.poll()
@@ -59,9 +87,10 @@ async def test_list_row_that_just_arrived_is_not_selectable(store, fake_herdr):
         assert lv.cursor == ("group", 2)
         await keys(pilot, "down", "enter")  # an arrow may move onto it, Enter does not open it
         assert lv.cursor == ("group", 3) and app.mode == "list"
-        await pilot.pause(1.0)
+        await until(pilot, lambda: not lv.fresh(("group", 3)), "the new row to settle")
         await keys(pilot, "enter")
-        assert app.mode == "group" and app.query_one(QuestionView).q.id == 3
+        qv = await view(pilot, app, QuestionView)
+        assert app.mode == "group" and qv.q.id == 3
 
 
 async def test_question_view_ignores_keys_until_armed(store, fake_herdr):
@@ -69,12 +98,13 @@ async def test_question_view_ignores_keys_until_armed(store, fake_herdr):
     service.ask(store, B, "q2?", options=["c"])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
-        await pilot.pause(0.5)
+        await armed(pilot, app, GroupListView)
         await pilot.press("enter", "2", "enter")  # open, and keys right behind it
         await pilot.pause(0.05)
         assert app.query_one(QuestionView).cursor == 0 and store.get(1).status == "open"
-        await pilot.pause(0.45)
+        await armed(pilot, app, QuestionView)
         await keys(pilot, "2", "enter")
+        await until(pilot, lambda: store.get(1).status == "answered", "the answer")
         await app.workers.wait_for_complete()
     assert store.get(1).answer == "b"
 
@@ -83,13 +113,12 @@ async def test_submit_tab_ignores_keys_until_armed(store, fake_herdr):
     service.ask_group(store, A, [{"question": "q1?", "options": ["a"]}, {"question": "q2?", "options": ["b"]}])
     app = InboxApp(store)
     async with app.run_test() as pilot:
-        await pilot.pause(0.5)
+        await armed(pilot, app, QuestionView)
         await keys(pilot, "tab", "tab", "enter")  # Submit tab reached, Enter at once: ignored
         assert app.query(ReviewView) and app.is_running
-        await pilot.pause(0.3)
+        await armed(pilot, app, ReviewView)
         await keys(pilot, "down", "enter")  # Cancel, now armed
-        await pilot.pause(0.2)
-        assert not app.is_running
+        await until(pilot, lambda: not app.is_running, "the popup to close")
     assert prompts(fake_herdr) == []
 
 
@@ -101,10 +130,11 @@ async def test_undelivered_view_ignores_keys_until_armed(store, fake_herdr, monk
     monkeypatch.delenv("FAKE_HERDR_FAIL")
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
-        await pilot.pause(0.5)
+        await armed(pilot, app, GroupListView)
         await keys(pilot, "down", "enter", "1")  # open the ⚠ entry, "Retry" at once: ignored
         assert app.query(FailedView) and store.get(qid).delivered_at is None
-        await pilot.pause(0.3)
+        await armed(pilot, app, FailedView)
         await keys(pilot, "1")
+        await until(pilot, lambda: store.get(qid).delivered_at is not None, "the retry")
         await app.workers.wait_for_complete()
     assert store.get(qid).delivered_at
