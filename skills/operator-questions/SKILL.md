@@ -41,6 +41,10 @@ history. Make it self-contained:
 - Several related questions? Pass `questions` (up to 4), each
   `{"question", "header", "options", "multi_select"}`, instead of `question`. Each gets its own
   Q id; the operator answers them in one view and usually submits them together.
+- Give a call with several questions a `title`: a short name for the whole call (≤60
+  chars), e.g. `"Worker rollout settings"`. The operator's inbox lists calls by this name
+  next to calls from other agents. For a single question it is optional (its `header` or
+  text stands in).
 - Put long supporting detail (log excerpts, the tradeoff) in `context`, not in `question`.
 - Set `asked_by` when you are a subagent or one of several roles in the pane, e.g.
   `"reviewer PR 42"`, so the operator knows who is asking.

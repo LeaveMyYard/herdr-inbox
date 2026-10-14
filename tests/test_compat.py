@@ -54,8 +54,9 @@ def test_from_row_ignores_columns_it_does_not_know(tmp_path, fake_herdr):
     assert "added_in_v03" not in {f.name for f in dataclasses.fields(store_v02.Question)}
 
 
-def test_views_are_replaced_not_kept(tmp_path, fake_herdr):
-    """N4: an older view definition is dropped and the versioned one created."""
+def test_views_are_versioned_and_older_ones_left_alone(tmp_path, fake_herdr):
+    """N4, revised in the review of #8: the current view has its own versioned name (so an
+    old definition can never shadow it), and older views are left for older processes."""
     path = tmp_path / "inbox.db"
     db = sqlite3.connect(path)
     db.executescript(store_v02.SCHEMA)
@@ -63,5 +64,8 @@ def test_views_are_replaced_not_kept(tmp_path, fake_herdr):
     db.commit()
     db.close()
     store_v02.Store(path).close()
-    views = {r[0] for r in sqlite3.connect(path).execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
-    assert views == {store_v02.VIEW}
+    db = sqlite3.connect(path)
+    views = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
+    assert views == {store_v02.VIEW, "questions_v2"}
+    columns = [r[1] for r in db.execute(f"PRAGMA table_info({store_v02.VIEW})")]
+    assert "group_title" in columns and "draft_json" in columns

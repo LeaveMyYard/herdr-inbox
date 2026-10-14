@@ -10,7 +10,7 @@ C = Caller("w1:p3", "w1:t3", "tab-C", "sess-A", "/r")
 
 
 def body(app) -> str:
-    return str(app.query_one("#list-body").render())
+    return app.query_one(GroupListView).body_text()
 
 
 async def test_opens_straight_into_the_only_group_but_not_with_a_warning_entry(store, fake_herdr, monkeypatch):

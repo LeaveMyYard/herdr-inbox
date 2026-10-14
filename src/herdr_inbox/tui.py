@@ -654,7 +654,8 @@ class GroupListView(Vertical, can_focus=True):
 
     def compose(self) -> ComposeResult:
         yield Static(id="list-title", classes="question")
-        yield VerticalScroll(Static(id="list-body"), classes="choices")
+        # one widget per row, so the cursor's row can be scrolled into view
+        yield VerticalScroll(Static("No open questions", id="list-empty"), classes="choices", id="list-rows")
         yield Static("Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel", classes="hint")
 
     def on_mount(self) -> None:
@@ -684,21 +685,25 @@ class GroupListView(Vertical, can_focus=True):
         qs = store.group(entry[1], include_closed=True)
         first = qs[0] if qs else None
         where = escape((first.tab_label or first.pane_id or "no pane") if first else "-")
+        live_qs = [q for q in qs if q.status == "open"]
+        name = escape(service.group_name(live_qs or qs)) if qs else where
         if closed or not first:
-            return f"{cur} {number} [$inbox-warning]✕ {where} · {escape(closed or 'closed')}[/]"
+            return f"{cur} {number} [$inbox-warning]✕ {name} · {where} · {escape(closed or 'closed')}[/]"
         live = [q for q in qs if q.status == "open"]
         drafted = sum(1 for q in live if q.draft_json)
-        parts = [where] + ([escape(first.asked_by)] if first.asked_by else [])
-        parts.append(f"{len(live)} question{'s' if len(live) != 1 else ''}")
-        parts.append(_age(first.created_at))
-        if drafted:
-            parts.append(f"[$inbox-success]{drafted} drafted[/]")
-        head = "\u00a0· ".join(parts)  # non-breaking: a span's leading space survives SVG export
+        # line 1: the call's name (its title, see service.group_name) and its state
+        head = f"{name} · {len(live)} question{'s' if len(live) != 1 else ''}"
         line1 = f"{cur} {number} " + (f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]")
-        if len(live) > 1 or any(q.header for q in live):
-            detail = " · ".join(escape(q.header or service.first_line(q.question, 30)) for q in live)
+        if drafted:  # the trailing space stays inside the coloured run (SVG export drops leading ones)
+            line1 += f" [$inbox-success]· {drafted} drafted [/]"
         else:
-            detail = escape(service.first_line(live[0].question, 90)) if live else ""
+            line1 += " "
+        line1 += f"[dim]· {_age(first.created_at)}[/dim]"
+        # line 2: who asked, and the questions' header chips
+        chips = " · ".join(escape(q.header or service.first_line(q.question, 30)) for q in live)
+        if len(live) == 1 and chips == name:  # a lone untitled question: its name already says it
+            chips = ""
+        detail = " · ".join([where] + ([escape(first.asked_by)] if first.asked_by else []) + ([chips] if chips else []))
         return f"{line1}\n      [dim]{detail}[/dim]"
 
     def render_rows(self) -> None:
@@ -707,8 +712,24 @@ class GroupListView(Vertical, can_focus=True):
         failed = len(live) - groups
         parts = [f"{groups} group{'s' if groups != 1 else ''}"] + ([f"{failed} not delivered"] if failed else [])
         self.query_one("#list-title", Static).update(f"[b]Open questions[/b] [dim]· {' · '.join(parts)}[/dim]")
-        rows = [self.row_text(n, e) for n, e in enumerate(self.inbox.entries, 1)]
-        self.query_one("#list-body", Static).update("\n".join(rows) or "No open questions")
+        entries = self.inbox.entries
+        box = self.query_one("#list-rows", VerticalScroll)
+        rows = list(box.query(".entry"))
+        if len(rows) < len(entries):
+            new = [Static(classes="entry") for _ in range(len(entries) - len(rows))]
+            box.mount_all(new)
+            rows += new
+        for extra in rows[len(entries):]:
+            extra.remove()
+        for n, (widget, entry) in enumerate(zip(rows, entries), 1):
+            widget.update(self.row_text(n, entry))
+            if entry == self.cursor:
+                self.call_after_refresh(widget.scroll_visible, animate=False)
+        self.query_one("#list-empty", Static).display = not entries
+
+    def body_text(self) -> str:
+        """All rows as rendered plain text (tests and debugging)."""
+        return "\n".join(str(w.render()) for w in self.query(".entry"))
 
     def fresh(self, entry: Entry | None) -> bool:
         """The row arrived in the background less than ROW_ARM_SECONDS ago."""
@@ -793,6 +814,7 @@ class InboxApp(App):
     TITLE = "herdr inbox"
     CSS = """
     Screen { padding: 1 2; }
+    #group-title { height: auto; margin-bottom: 1; text-style: bold; }
     #chips { height: 1; margin-bottom: 1; scrollbar-size-horizontal: 0; }
     #chips > Static { width: auto; margin-right: 2; }
     #chips > .sep { color: $text-muted; }
@@ -861,6 +883,7 @@ class InboxApp(App):
         self.closed = {e: r for e, r in self.closed.items() if e == keep}
 
     def compose(self) -> ComposeResult:
+        yield Static(id="group-title")
         yield HorizontalScroll(id="chips")
         yield Vertical(id="body")
         yield Static("No open questions", id="empty")
@@ -981,6 +1004,7 @@ class InboxApp(App):
         return self.single or (self.open_qids[-1:] == [qid])
 
     def render_chips(self) -> None:
+        self.render_group_title()
         row = self.base.query_one("#chips", HorizontalScroll)
         row.remove_children()
         tabs = self.all_tabs if self.mode == "group" else []
@@ -1012,6 +1036,16 @@ class InboxApp(App):
         row.mount_all(chips)
         if current is not None:
             self.call_after_refresh(current.scroll_visible, animate=False)
+
+    def render_group_title(self) -> None:
+        """The open group's name above its tabs: its title, or for several untitled questions
+        the fallback name (a lone untitled question already shows its header chip)."""
+        box = self.base.query_one("#group-title", Static)
+        qs = self.store.group(self.entry[1], include_closed=True) if self.mode == "group" and self.entry else []
+        show = bool(qs) and (bool(qs[0].group_title) or len(qs) > 1)
+        box.display = show
+        live = [q for q in qs if q.status == "open"]
+        box.update(escape(service.group_name(live or qs)) if show else "")
 
     def _gone_reason(self, kind: str, qid: int) -> str:
         q = self.store.get(qid)
