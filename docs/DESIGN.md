@@ -132,17 +132,35 @@ delivered and seen. So:
   (typed while idle), or a `queue-operation` `enqueue` / `attachment`
   `queued_command` (queued mid-turn). Found within 15 s → `delivered_at`,
   `verified_at`, and only then `acknowledged_at`. Not found → `delivery_error =
-  "not verified: …"`, retried by the loop. No transcript known at all (the
+  "not verified: …"`, retried by the loop, but at most 2 typings in all
+  (`MAX_UNVERIFIED_ATTEMPTS`): after that it stays a `⚠` entry in the popup and
+  unseen for `check_answers`, so a verifier miss can never type the same answer
+  every tick. The verifier accepts string content, list content (its `text`
+  blocks joined) and a long prompt that Claude Code stored collapsed — checked on
+  a throwaway session 2026-10-14: a ~4000-char prompt is recorded as
+  `"\n\n<pasted_content id=\"…\">\n[inbox] …"`, full text inside the wrapper, so
+  the wrapper is skipped. No transcript known at all (the
   SessionStart hook records `transcript_path` per session; fallback
   `~/.claude/projects/*/<session>.jsonl`) → sent but left unseen for
   `check_answers`, not retried.
 - "Seen" therefore means the agent fetched the answer (`check_answers`,
   `list_my_questions`) or the delivery was verified — never just "sent".
-- Recovery: a one-off migration (flag in `meta`) clears `acknowledged_at` on
-  answers from the last 7 days that were delivered without verification, so
-  `check_answers` returns them; `inbox redeliver <ids>` re-queues answers for
-  delivery. Sessions still running 0.4/0.5.0 MCP servers keep the old
-  behaviour until they restart.
+- Recovery, on every `Store()` open (`_reconcile_unverified`): candidates are
+  (once, flag in `meta`) every answer from the last 7 days marked seen without
+  verification, and (always) rows from the last 24 h with the pre-0.5.1
+  signature `acknowledged_at = delivered_at` and no `verified_at` — what a
+  0.4/0.5.0 MCP server still running in an older session records when it types
+  an answer (it would also type 0.5.1's *pending* rows into a busy pane). Each
+  candidate is looked up in its session's transcript (`landed_ids`): found →
+  `verified_at`; not found or no transcript → `acknowledged_at` cleared so
+  `check_answers` returns it. A fetch by `check_answers` sets `acknowledged_at`
+  later than `delivered_at`, so it never matches the signature. Each row is
+  reset at most twice (`question_ext.reset_count`), so an old server
+  re-acknowledging cannot loop; the reset itself never types anything (the row
+  stays delivered). `inbox redeliver <ids>` re-queues answers for delivery.
+- Hook latency: the SessionStart hook now opens the store on every session start
+  to record the transcript path (schema init, plus the reconcile above). It sits
+  inside the never-fail `try`, with SQLite `timeout=2`.
 - Probe (2026-10-14, disposable Claude in a tab created and closed for the
   test): typing into a *working* pane did land both times — as a
   `queue-operation enqueue` during plain generation and as an `attachment

@@ -24,6 +24,10 @@ DELIVERABLE = ("idle", "done")
 # How long the typed answer may take to show up in the session transcript.
 VERIFY_SECONDS = 15.0
 NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
+# Typed but never seen in the transcript: try at most this many times in all, then leave it
+# as a ⚠ entry (unseen, for check_answers) instead of typing it again and again -- a verifier
+# miss must never turn into the same answer being typed every tick.
+MAX_UNVERIFIED_ATTEMPTS = 2
 MAX_HEADER = 12  # AskUserQuestion's chip limit
 MAX_OPTIONS = 9  # number keys 1-9
 MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
@@ -372,7 +376,8 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
 
 def retry_deliveries(store: Store, pane_id: str) -> None:
     """Retry failed deliveries for one pane (e.g. the agent sat at a permission dialog)."""
-    deliver_batch(store, store.undelivered(pane_id, (NO_AGENT, CHANGED), MAX_STALE_RETRIES), retry=True)
+    caps = {NO_AGENT: MAX_STALE_RETRIES, CHANGED: MAX_STALE_RETRIES, NOT_VERIFIED: MAX_UNVERIFIED_ATTEMPTS}
+    deliver_batch(store, store.undelivered(pane_id, caps), retry=True)
 
 
 def close(store: Store, qid: int, status: str, note: str | None = None) -> bool:
