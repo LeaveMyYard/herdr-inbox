@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv")
 def installed(tmp_path, fake_herdr):
     """A cache-style copy of the plugin with a broken copied .venv, plus its data dir."""
     copy = tmp_path / "cache" / "herdr-inbox" / "herdr-inbox" / "0.1.1"
-    files = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    files = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
     for rel in files:
         (copy / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / rel, copy / rel)

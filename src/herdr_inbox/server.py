@@ -10,6 +10,8 @@ import os
 import threading
 from typing import Any
 
+from typing_extensions import NotRequired, TypedDict  # pydantic needs this TypedDict on 3.11
+
 from mcp.server.mcpserver import MCPServer
 
 from . import service
@@ -18,7 +20,7 @@ from .store import Store
 INSTRUCTIONS = (
     "Non-blocking question inbox for the human operator. Use ask_operator instead of asking the "
     "operator in chat whenever you can keep working. Ask once; the answer arrives later as a "
-    "message starting with `[inbox] Q<n> answered`. After compaction call list_my_questions "
+    "`[inbox]` message naming the Q id. After compaction call list_my_questions "
     "before asking anything."
 )
 
@@ -26,34 +28,73 @@ ASK_DESCRIPTION = """Ask the human operator a question WITHOUT blocking. Returns
 
 Use this instead of asking in chat whenever work can continue without the answer.
 The operator answers asynchronously; the answer will arrive in this conversation as a
-message starting with `[inbox] Q<n>`. After calling it, continue with work that does not
-depend on the answer. Do not repeat the question in chat and do not call ask_operator for
-it again: a repeat is detected and only returns the existing receipt.
+message starting with `[inbox]` that names the question id (Q<n>). After calling it, continue
+with work that does not depend on the answer. Do not repeat the question in chat and do not
+call ask_operator for it again: a repeat is detected and only returns the existing receipt.
 
 Keep the question self-contained: the operator reads it without your chat history, so name
-the repo/PR/file and what you need decided. Put discrete choices in `options` (the operator
-can pick one with a single key). `context` holds supporting detail; `asked_by` describes who
-is asking (e.g. "reviewer PR 595") when you are a subagent or one of several roles."""
+the repo/PR/file and what you need decided. The operator answers in a picker like
+AskUserQuestion's:
+- `options`: up to 9 choices, each a plain string or `{"label", "description"}` (label short,
+  description says what picking it means). The operator can always type a free answer instead
+  and attach a note to a choice.
+- `header`: a short chip shown above the question (max 12 chars), e.g. "DB choice".
+- `multi_select`: true when several options may be picked together.
+- `questions`: instead of `question`, up to 4 related questions in one call, each
+  `{"question", "header"?, "options"?, "multi_select"?}`. The operator answers them together;
+  each gets its own Q id.
+- `context`: supporting detail; `asked_by`: who is asking (e.g. "reviewer PR 595") when you are
+  a subagent or one of several roles.
+Each answer is one line: the picked label(s), notes in parentheses, or the free text. Answers
+the operator submits together arrive in one `[inbox]` message."""
+
+
+class Option(TypedDict):
+    label: str
+    description: NotRequired[str]
+
+
+class QuestionItem(TypedDict):
+    question: str
+    header: NotRequired[str]
+    options: NotRequired[list[str | Option]]
+    multi_select: NotRequired[bool]
+
 
 mcp = MCPServer("herdr-inbox", instructions=INSTRUCTIONS)
 
 
 @mcp.tool(description=ASK_DESCRIPTION)
 def ask_operator(
-    question: str,
-    options: list[str] | None = None,
+    question: str | None = None,
+    options: list[str | Option] | None = None,
     context: str | None = None,
     asked_by: str | None = None,
+    header: str | None = None,
+    multi_select: bool = False,
+    questions: list[QuestionItem] | None = None,
 ) -> dict[str, Any]:
+    if bool(question) == bool(questions):
+        return {"status": "error", "message": "Pass either `question` or `questions` (not both)."}
+    items = list(questions or [{"question": question, "options": options, "header": header,
+                                "multi_select": multi_select}])
+    if len(items) > service.MAX_QUESTIONS:
+        return {"status": "error", "message": f"At most {service.MAX_QUESTIONS} questions per call."}
+    if any(len(i.get("options") or []) > service.MAX_OPTIONS for i in items):
+        return {"status": "error", "message": f"At most {service.MAX_OPTIONS} options; ask fewer or split the question."}
     with Store() as store:
-        return service.ask(store, service.resolve_caller(), question, options, context, asked_by)
+        caller = service.resolve_caller()
+        if questions:
+            return service.ask_group(store, caller, items, context, asked_by)
+        return service.ask(store, caller, question, options, context, asked_by,
+                           header=header, multi_select=multi_select)
 
 
 @mcp.tool()
 def check_answers() -> dict[str, Any]:
     """Return operator answers to your questions that you have not seen yet, and mark them seen.
 
-    Answers are normally delivered as `[inbox] Q<n> answered` messages; use this as a fallback
+    Answers are normally delivered as `[inbox]` messages naming the Q ids; use this as a fallback
     (e.g. after compaction or if a delivery was missed)."""
     caller = service.resolve_caller()
     with Store() as store:

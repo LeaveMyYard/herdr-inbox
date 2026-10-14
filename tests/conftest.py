@@ -24,13 +24,28 @@ if cmd in os.environ.get("FAKE_HERDR_FAIL", "").split(","):
     sys.stderr.write(json.dumps({{"error": {{"code": "boom", "message": "fake failure"}}}}))
     sys.exit(1)
 session = os.environ.get("FAKE_HERDR_SESSION", "sess-A")
+tabs_file = os.environ.get("FAKE_HERDR_TABS")  # JSON {{tab_id: label}}; renames persist there
+tabs = json.load(open(tabs_file)) if tabs_file and os.path.exists(tabs_file) else {{}}
+PANE_TAB = {{"w1:p1": "w1:t1", "w1:p2": "w1:t2", "w1:p3": "w1:t1"}}
 if cmd == "pane get":
-    pane = {{"pane_id": args[2], "tab_id": "w1:t1", "workspace_id": "w1", "agent": "claude"}}
+    pane = {{"pane_id": args[2], "tab_id": PANE_TAB.get(args[2], "w1:t1"), "workspace_id": "w1", "agent": "claude"}}
     if session:
         pane["agent_session"] = {{"agent": "claude", "kind": "id", "source": "herdr:claude", "value": session}}
     result = {{"pane": pane, "type": "pane_info"}}
 elif cmd == "tab get":
-    result = {{"tab": {{"tab_id": args[2], "label": "my-tab", "workspace_id": "w1"}}, "type": "tab_info"}}
+    result = {{"tab": {{"tab_id": args[2], "label": tabs.get(args[2], "my-tab"), "workspace_id": "w1"}}, "type": "tab_info"}}
+elif cmd == "tab rename":
+    tabs[args[2]] = args[3]
+    if tabs_file:
+        json.dump(tabs, open(tabs_file, "w"))
+    result = {{"tab": {{"tab_id": args[2], "label": args[3]}}, "type": "tab_info"}}
+elif cmd == "tab list":
+    result = {{"tabs": [{{"tab_id": t, "label": l, "workspace_id": "w1"}} for t, l in tabs.items()], "type": "tab_list"}}
+elif cmd == "workspace list":
+    result = {{"workspaces": [{{"workspace_id": "w1"}}], "type": "workspace_list"}}
+elif cmd == "plugin config-dir":
+    print(os.environ.get("FAKE_HERDR_CONFIG_DIR", "/nonexistent-config-dir"))
+    sys.exit(0)
 elif cmd == "agent get":
     if os.environ.get("FAKE_HERDR_AGENT", "1") != "1":
         sys.stderr.write(json.dumps({{"error": {{"code": "agent_not_found", "message": "not found"}}}}))
@@ -42,7 +57,7 @@ elif cmd == "agent get":
         agent["agent_session"] = {{"agent": agent["agent"], "kind": "id", "source": "herdr:claude", "value": session}}
     result = {{"agent": agent}}
 elif cmd == "pane list":
-    result = {{"panes": [{{"pane_id": "w1:p1"}}, {{"pane_id": "w1:p2"}}], "type": "pane_list"}}
+    result = {{"panes": [{{"pane_id": p, "tab_id": t}} for p, t in PANE_TAB.items()], "type": "pane_list"}}
 else:
     result = {{"type": "ok"}}
 print(json.dumps({{"id": "cli:" + cmd.replace(" ", ":"), "result": result}}))
@@ -74,8 +89,10 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     monkeypatch.setenv("FAKE_HERDR_LOG", str(fake.log))
     monkeypatch.setenv("HERDR_INBOX_DB", str(tmp_path / "inbox.db"))
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
+    monkeypatch.setenv("HERDR_INBOX_TAB_PREFIX", "off")  # tab-prefix tests turn it on explicitly
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
-                "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED"):
+                "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
+                "FAKE_HERDR_TABS", "FAKE_HERDR_CONFIG_DIR", "HERDR_PLUGIN_CONFIG_DIR"):
         monkeypatch.delenv(var, raising=False)
     return fake
 

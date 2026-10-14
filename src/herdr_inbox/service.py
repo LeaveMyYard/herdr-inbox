@@ -11,7 +11,7 @@ import logging
 import os
 from dataclasses import dataclass
 
-from . import herdr, proc
+from . import herdr, proc, tabs
 from .store import Question, Store, normalize
 
 NO_AGENT = "no live agent in pane"
@@ -19,6 +19,9 @@ CHANGED = "conversation changed in pane"
 # Retries (30 s apart) before giving up on a pane whose conversation is gone;
 # the answer stays available through check_answers either way.
 MAX_STALE_RETRIES = 10
+MAX_HEADER = 12  # AskUserQuestion's chip limit
+MAX_OPTIONS = 9  # number keys 1-9
+MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
 
 log = logging.getLogger("herdr_inbox")
 
@@ -42,7 +45,7 @@ def resolve_caller() -> Caller:
     return Caller(
         pane_id=pane_id,
         tab_id=ident.get("tab_id") or os.environ.get("HERDR_TAB_ID") or None,
-        tab_label=ident.get("tab_label"),
+        tab_label=tabs.base_label(ident.get("tab_label")),  # never our "❓2 " prefix
         session_id=session_id,
         cwd=os.getcwd(),
     )
@@ -53,34 +56,63 @@ def first_line(text: str, width: int) -> str:
     return line if len(line) <= width else line[: width - 1] + "…"
 
 
+UNAVAILABLE = {
+    "status": "unavailable",
+    "message": "The operator inbox only serves the top-level agent of a herdr pane, and this "
+    "session is not one (not in herdr, or nested inside another agent). Ask in chat, or ask "
+    "your caller, instead.",
+}
+
+
 def ask(
     store: Store,
     caller: Caller,
     question: str,
-    options: list[str] | None = None,
+    options: list | None = None,
+    context: str | None = None,
+    asked_by: str | None = None,
+    header: str | None = None,
+    multi_select: bool = False,
+) -> dict:
+    """File one question (a group of one); the receipt keeps its single-question shape."""
+    out = ask_group(store, caller, [{"question": question, "options": options, "header": header,
+                                     "multi_select": multi_select}], context, asked_by)
+    return out["questions"][0] if "questions" in out else out
+
+
+def ask_group(
+    store: Store,
+    caller: Caller,
+    items: list[dict],
     context: str | None = None,
     asked_by: str | None = None,
 ) -> dict:
+    """File several related questions at once (AskUserQuestion's ``questions``).
+
+    Each item gets its own Q id and is deduped on its own; new ones share a group id.
+    """
     if not caller.pane_id:
         # Nobody watches the inbox for agents outside herdr: no popup, no notification, no delivery.
-        return {
-            "status": "unavailable",
-            "message": "The operator inbox only serves the top-level agent of a herdr pane, and this "
-            "session is not one (not in herdr, or nested inside another agent). Ask in chat, or ask "
-            "your caller, instead.",
-        }
-    question = question.strip()
+        return dict(UNAVAILABLE)
+    receipts, new = [], []
     with store.transaction():  # dedupe + insert atomically (parallel calls, subagents)
-        dup = store.find_duplicate(normalize(question), caller.session_id, caller.pane_id)
-        if dup and dup.status == "open":
-            store.bump_repeat(dup.id)
-        elif dup and dup.status == "answered":
-            store.acknowledge([dup.id])
-        else:
-            dup = None
+        group_id = None
+        for item in items:
+            text = item["question"].strip()
+            dup = store.find_duplicate(normalize(text), caller.session_id, caller.pane_id)
+            if dup and dup.status == "open":
+                store.bump_repeat(dup.id)
+                receipts.append({"id": dup.id, "status": "already_open", "message":
+                                 f"{dup.ref} is already with the operator. Do not ask again; keep working."})
+                continue
+            if dup:
+                store.acknowledge([dup.id])
+                receipts.append({"id": dup.id, "status": "answered", "answer": dup.answer, "message":
+                                 f"{dup.ref} was already answered by the operator: {dup.answer}"})
+                continue
             q = store.insert(
-                question,
-                options=options or None,
+                text,
+                options=item.get("options") or None,
                 context=context,
                 asked_by=asked_by,
                 pane_id=caller.pane_id,
@@ -88,95 +120,183 @@ def ask(
                 tab_label=caller.tab_label,
                 session_id=caller.session_id,
                 cwd=caller.cwd,
+                header=(item.get("header") or "").strip()[:MAX_HEADER] or None,
+                multi_select=bool(item.get("multi_select")),
+                group_id=group_id,
             )
-    if dup and dup.status == "open":
-        return {
-            "id": dup.id,
-            "status": "already_open",
-            "message": f"{dup.ref} is already with the operator. Do not ask again; keep working.",
-        }
-    if dup:
-        return {
-            "id": dup.id,
-            "status": "answered",
-            "answer": dup.answer,
-            "message": f"{dup.ref} was already answered by the operator: {dup.answer}",
-        }
-
-    herdr.notify(f"{q.ref} · {q.tab_label or q.pane_id}", first_line(question, 200))
-    update_token(store, q.pane_id)
+            group_id = q.group
+            new.append(q)
+            receipts.append({"id": q.id, "status": "open", "message": (
+                f"Recorded as {q.ref}. The operator will answer asynchronously; the answer will arrive in "
+                f"this conversation as a message starting with `[inbox]` that names {q.ref}. Continue with "
+                f"work that does not depend on it. Do not repeat the question in chat or call ask_operator "
+                f"for it again.")})
+    if new:
+        refs = ", ".join(q.ref for q in new)
+        herdr.notify(f"{refs} · {new[0].tab_label or new[0].pane_id}", first_line(new[0].question, 200))
+        update_markers(store, caller.pane_id)
+    ids = ", ".join(f"Q{r['id']} ({r['status']})" for r in receipts)
     return {
-        "id": q.id,
-        "status": "open",
-        "message": (
-            f"Recorded as {q.ref}. The operator will answer asynchronously; the answer will arrive in "
-            f"this conversation as a message starting with `[inbox] {q.ref}`. Continue with work that "
-            f"does not depend on it. Do not repeat the question in chat or call ask_operator for it again."
-        ),
+        "group": group_id,
+        "questions": receipts,
+        "message": f"Filed {ids}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working "
+        "and do not ask these again.",
     }
 
 
-def delivery_text(q: Question) -> str:
-    return f"[inbox] {q.ref} answered — {first_line(q.question, 80)}: {q.answer}"
+def format_answer(choices: list[str], notes: dict[str, str] | None = None, text: str | None = None) -> str:
+    """One line: ``Postgres (note: keep the old schema)``, picks joined by ``, ``."""
+    notes = notes or {}
+    parts = [f"{c} (note: {notes[c]})" if notes.get(c) else c for c in choices]
+    if text and text.strip():
+        parts.append(text.strip())
+    return ", ".join(parts)
 
 
-def answer(store: Store, qid: int, text: str) -> Question | None:
-    """Answer an open question and deliver it into the asking pane. None if not open."""
-    if not store.set_answer(qid, text.strip()):
+def make_detail(text: str | None = None, choices: list[str] | None = None,
+                notes: dict[str, str] | None = None) -> dict | None:
+    """The structured answer (draft or final): picked labels, their notes, free text."""
+    choices = list(choices or [])
+    notes = {k: v.strip() for k, v in (notes or {}).items() if k in choices and v and v.strip()}
+    text = (text or "").strip() or None
+    if not choices and not text:
         return None
-    q = store.get(qid)
-    deliver(store, q)
-    update_token(store, q.pane_id)
-    return store.get(qid)
+    return {"choices": choices, "notes": notes, "text": text}
+
+
+def save_draft(store: Store, qid: int, detail: dict | None) -> bool:
+    """Keep the operator's answer without sending it (None clears the draft)."""
+    return store.set_draft(qid, detail)
+
+
+def submit(store: Store, qids: list[int]) -> list[Question]:
+    """Send the drafted answers among ``qids``; undrafted or closed questions are skipped.
+
+    Delivery is batched: one `[inbox]` message per pane with all of its answers.
+    """
+    answered = []
+    for qid in qids:
+        q = store.get(qid)
+        if q is None or q.status != "open" or not q.draft_json:
+            continue
+        d = q.draft_json
+        if store.set_answer(qid, format_answer(d.get("choices") or [], d.get("notes"), d.get("text")), d):
+            answered.append(store.get(qid))
+    deliver_batch(store, answered)
+    for pane in dict.fromkeys(q.pane_id for q in answered):
+        update_markers(store, pane)
+    return [store.get(q.id) for q in answered]
+
+
+def answer(
+    store: Store,
+    qid: int,
+    text: str | None = None,
+    *,
+    choices: list[str] | None = None,
+    notes: dict[str, str] | None = None,
+) -> Question | None:
+    """Answer one open question right away (the CLI path): draft + submit. None if not open."""
+    detail = make_detail(text, choices, notes)
+    if detail is None or not store.set_draft(qid, detail):
+        return None
+    done = submit(store, [qid])
+    return done[0] if done else None
+
+
+def answer_line(q: Question) -> str:
+    return f"{q.ref} {first_line(q.question, 80)}: {q.answer}"
+
+
+def delivery_text(qs: list[Question]) -> str:
+    if len(qs) == 1:
+        q = qs[0]
+        return f"[inbox] {q.ref} answered — {first_line(q.question, 80)}: {q.answer}"
+    return "[inbox] answered — " + " · ".join(answer_line(q) for q in qs)
 
 
 def deliver(store: Store, q: Question, retry: bool = False) -> None:
-    """Type the answer into the asking conversation, and only that one.
+    deliver_batch(store, [q], retry)
+
+
+def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None:
+    """Type answers into the asking conversations: one message per pane, only into the
+    conversation that asked.
 
     A pane can hold a different conversation by now (/clear, restart, another agent);
-    then the answer stays for check_answers and the compact/resume hook.
+    those answers stay for check_answers and the compact/resume hook.
     """
-    if not q.pane_id:
-        store.record_delivery(q.id, "no pane: answer available through check_answers")
-        return
-    agent = herdr.live_agent(q.pane_id)
-    if agent is None:
-        store.record_delivery(q.id, f"{NO_AGENT} {q.pane_id}")
-        return
-    if q.session_id and agent["session_id"] != q.session_id:
-        store.record_delivery(q.id, f"{CHANGED} {q.pane_id}")
-        return
-    if retry and (agent["focused"] or agent["status"] == "blocked"):
-        # The operator may be typing there, or about to answer the dialog: the prompt
-        # would merge with their input. Leave it for a later, unfocused tick.
-        return
-    store.record_delivery(q.id, herdr.prompt_agent(q.pane_id, delivery_text(q)))
+    by_pane: dict[str | None, list[Question]] = {}
+    for q in qs:
+        by_pane.setdefault(q.pane_id, []).append(q)
+    for pane, items in by_pane.items():
+        if not pane:
+            for q in items:
+                store.record_delivery(q.id, "no pane: answer available through check_answers")
+            continue
+        agent = herdr.live_agent(pane)
+        if agent is None:
+            for q in items:
+                store.record_delivery(q.id, f"{NO_AGENT} {pane}")
+            continue
+        ours = []
+        for q in items:
+            if q.session_id and agent["session_id"] != q.session_id:
+                store.record_delivery(q.id, f"{CHANGED} {pane}")
+            else:
+                ours.append(q)
+        if not ours:
+            continue
+        if retry and (agent["focused"] or agent["status"] == "blocked"):
+            # The operator may be typing there, or about to answer the dialog: the prompt
+            # would merge with their input. Leave it for a later, unfocused tick.
+            continue
+        err = herdr.prompt_agent(pane, delivery_text(ours))
+        for q in ours:
+            store.record_delivery(q.id, err)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:
     """Retry failed deliveries for one pane (e.g. the agent sat at a permission dialog)."""
-    for q in store.undelivered(pane_id, (NO_AGENT, CHANGED), MAX_STALE_RETRIES):
-        deliver(store, q, retry=True)
+    deliver_batch(store, store.undelivered(pane_id, (NO_AGENT, CHANGED), MAX_STALE_RETRIES), retry=True)
 
 
 def close(store: Store, qid: int, status: str, note: str | None = None) -> bool:
     q = store.get(qid)
     if not q or not store.set_status(qid, status, note):
         return False
-    update_token(store, q.pane_id)
+    update_markers(store, q.pane_id)
     return True
 
 
-def update_token(store: Store, pane_id: str | None) -> None:
-    if pane_id:
-        herdr.set_open_count(pane_id, store.open_counts().get(pane_id, 0))
+def update_markers(store: Store, pane_id: str | None) -> None:
+    """Refresh the pane's ``$inbox_q`` token and the ``❓N`` prefix of the tab it is in now."""
+    if not pane_id:
+        return
+    counts = store.open_counts()
+    herdr.set_open_count(pane_id, counts.get(pane_id, 0))
+    if not tabs.prefix():  # disabled: stale prefixes go at the next sync-tokens
+        return
+    pane_tabs = herdr.pane_tabs()
+    tab_id = (pane_tabs or {}).get(pane_id)
+    if tab_id:
+        tabs.apply(tab_id, tabs.tab_counts(counts, pane_tabs).get(tab_id, 0))
 
 
 def sync_tokens(store: Store) -> None:
-    """Recompute ``inbox_q`` on every live pane (herdr drops tokens on restart)."""
+    """Reconcile every marker with the database (herdr drops tokens on restart; a crash
+    can leave a stale tab prefix): ``inbox_q`` on every pane, the prefix on every tab."""
     counts = store.open_counts()
-    panes = herdr.list_pane_ids()
-    if panes is None:  # herdr unreachable: at least try the panes we know about
-        panes = store.known_panes()
+    pane_tabs = herdr.pane_tabs()
+    panes = list(pane_tabs) if pane_tabs is not None else store.known_panes()
     for pane in panes:
         herdr.set_open_count(pane, counts.get(pane, 0))
+    if pane_tabs is None:
+        return
+    per_tab = tabs.tab_counts(counts, pane_tabs)
+    for tab in herdr.all_tabs() or []:
+        label = tab.get("label")
+        if label is None:
+            continue
+        if tabs.desired_label(tabs.base_label(label), per_tab.get(tab["tab_id"], 0)) != label:
+            tabs.apply(tab["tab_id"], per_tab.get(tab["tab_id"], 0))  # re-reads before renaming

@@ -48,7 +48,7 @@ def test_rules_are_short():
 def test_startup_injects_rules(fake_herdr):
     ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "startup"}))
     assert ctx == SESSION_RULES
-    for phrase in ("ask_operator", "Ask once", "[inbox] Q<n> answered", "list_my_questions",
+    for phrase in ("ask_operator", "Ask once", "`[inbox]` messages naming the Q ids", "list_my_questions",
                    "destructive", "subagent", "herdr-inbox:operator-questions"):
         assert phrase in ctx
 

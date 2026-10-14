@@ -14,10 +14,11 @@ def test_normalize_ignores_case_punctuation_and_whitespace():
 def test_new_question_is_recorded(store, fake_herdr):
     out = service.ask(store, caller(), "Merge PR 595?", options=["yes", "no"], asked_by="reviewer")
     assert out["status"] == "open"
-    assert "Recorded as Q1" in out["message"] and "[inbox] Q1" in out["message"]
+    assert "Recorded as Q1" in out["message"] and "`[inbox]` that names Q1" in out["message"]
     q = store.get(out["id"])
     assert (q.session_id, q.pane_id, q.tab_label, q.options, q.asked_by) == (
-        "sess-A", "w1:p1", "my-tab", ["yes", "no"], "reviewer",
+        "sess-A", "w1:p1", "my-tab", [{"label": "yes", "description": None}, {"label": "no", "description": None}],
+        "reviewer",
     )
 
 

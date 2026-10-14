@@ -32,11 +32,41 @@ CREATE TABLE IF NOT EXISTS questions (
     delivery_error  TEXT,
     acknowledged_at TEXT,
     repeat_count    INTEGER NOT NULL DEFAULT 0,
-    delivery_attempts INTEGER NOT NULL DEFAULT 0
+    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+    header          TEXT,
+    multi_select    INTEGER NOT NULL DEFAULT 0,
+    answer_json     TEXT,
+    group_id        INTEGER,
+    draft_json      TEXT,
+    drafted_at      TEXT
 );
 CREATE INDEX IF NOT EXISTS questions_status ON questions(status);
 CREATE INDEX IF NOT EXISTS questions_session ON questions(session_id);
 """
+
+
+ADDED_COLUMNS = {
+    "delivery_attempts": "INTEGER NOT NULL DEFAULT 0",
+    "header": "TEXT",
+    "multi_select": "INTEGER NOT NULL DEFAULT 0",
+    "answer_json": "TEXT",
+    "group_id": "INTEGER",
+    "draft_json": "TEXT",
+    "drafted_at": "TEXT",
+}
+
+
+def normalize_options(options) -> list[dict] | None:
+    """Plain strings or {label, description} objects -> [{"label", "description"}]."""
+    if not options:
+        return None
+    out = []
+    for o in options:
+        if isinstance(o, str):
+            out.append({"label": o, "description": None})
+        else:
+            out.append({"label": str(o["label"]), "description": o.get("description") or None})
+    return out
 
 
 def db_path() -> Path:
@@ -83,6 +113,16 @@ class Question:
     acknowledged_at: str | None
     repeat_count: int
     delivery_attempts: int = 0
+    header: str | None = None
+    multi_select: bool = False
+    answer_json: dict | None = None  # {"choices": [...], "notes": {label: note}, "text": str|None}
+    group_id: int | None = None  # questions filed by one ask_operator call share it
+    draft_json: dict | None = None  # operator's unsent answer, same shape as answer_json
+    drafted_at: str | None = None
+
+    @property
+    def group(self) -> int:
+        return self.group_id or self.id
 
     @property
     def ref(self) -> str:
@@ -91,7 +131,10 @@ class Question:
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Question":
         data = dict(row)
-        data["options"] = json.loads(data["options"]) if data["options"] else None
+        data["options"] = normalize_options(json.loads(data["options"])) if data["options"] else None
+        data["multi_select"] = bool(data.get("multi_select"))
+        for key in ("answer_json", "draft_json"):
+            data[key] = json.loads(data[key]) if data.get(key) else None
         return cls(**data)
 
     def brief(self) -> dict:
@@ -99,6 +142,8 @@ class Question:
         out = {"id": self.id, "status": self.status, "question": self.question}
         if self.status == "answered":
             out["answer"] = self.answer
+            if self.answer_json:
+                out["answer_detail"] = self.answer_json
         return out
 
 
@@ -112,8 +157,9 @@ class Store:
         self.db.execute("PRAGMA busy_timeout=5000")
         self.db.executescript(SCHEMA)
         columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
-        if "delivery_attempts" not in columns:  # databases from before the column existed
-            self.db.execute("ALTER TABLE questions ADD COLUMN delivery_attempts INTEGER NOT NULL DEFAULT 0")
+        for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
+            if name not in columns:
+                self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
 
     def close(self) -> None:
         self.db.close()
@@ -195,25 +241,55 @@ class Store:
         tab_label: str | None = None,
         session_id: str | None = None,
         cwd: str | None = None,
+        header: str | None = None,
+        multi_select: bool = False,
+        group_id: int | None = None,
     ) -> Question:
+        options = normalize_options(options)
         cur = self.db.execute(
             "INSERT INTO questions (created_at, pane_id, tab_id, tab_label, session_id, cwd, asked_by,"
-            " question, options, context, norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " question, options, context, norm, header, multi_select, group_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 now(), pane_id, tab_id, tab_label, session_id, cwd, asked_by, question,
-                json.dumps(options) if options else None, context, normalize(question),
+                json.dumps(options) if options else None, context, normalize(question), header, int(multi_select),
+                group_id,
             ),
         )
+        if group_id is None:  # first of its group: the group is named after it
+            self.db.execute("UPDATE questions SET group_id = id WHERE id = ?", (cur.lastrowid,))
         return self.get(cur.lastrowid)
+
+    def group(self, group_id: int, include_closed: bool = False) -> list[Question]:
+        where = "" if include_closed else " AND status = 'open'"
+        rows = self.db.execute(
+            f"SELECT * FROM questions WHERE COALESCE(group_id, id) = ?{where} ORDER BY id", (group_id,)
+        ).fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def set_draft(self, qid: int, detail: dict | None) -> bool:
+        """Store (or with None clear) the operator's unsent answer to an open question."""
+        cur = self.db.execute(
+            "UPDATE questions SET draft_json = ?, drafted_at = ? WHERE id = ? AND status = 'open'",
+            (json.dumps(detail) if detail else None, now() if detail else None, qid),
+        )
+        return cur.rowcount == 1
+
+    def drafted(self) -> list[Question]:
+        rows = self.db.execute(
+            "SELECT * FROM questions WHERE status = 'open' AND draft_json IS NOT NULL ORDER BY id"
+        ).fetchall()
+        return [Question.from_row(r) for r in rows]
 
     def bump_repeat(self, qid: int) -> None:
         self.db.execute("UPDATE questions SET repeat_count = repeat_count + 1 WHERE id = ?", (qid,))
 
-    def set_answer(self, qid: int, answer: str) -> bool:
+    def set_answer(self, qid: int, answer: str, detail: dict | None = None) -> bool:
         cur = self.db.execute(
-            "UPDATE questions SET status = 'answered', answer = ?, answered_at = ?,"
+            "UPDATE questions SET status = 'answered', answer = ?, answer_json = ?, answered_at = ?,"
+            " draft_json = NULL, drafted_at = NULL,"
             " delivered_at = NULL, delivery_error = NULL, acknowledged_at = NULL WHERE id = ? AND status = 'open'",
-            (answer, now(), qid),
+            (answer, json.dumps(detail) if detail else None, now(), qid),
         )
         return cur.rowcount == 1
 
