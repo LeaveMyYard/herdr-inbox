@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": ["run", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}", "inbox", "hook", "session-start"],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": ["run", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}", "inbox", "hook", "subagent-start"],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "herdr-inbox": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}", "inbox", "mcp"]
+    }
+  }
+}
