@@ -3,15 +3,17 @@
 Each plugin version runs its MCP server from ``venv-<version>`` (0.5.3+; the shared ``venv``
 before that). The data dir is kept across updates, so old ones pile up.
 
-"In use" is answered by the kernel, not by matching paths in ``ps`` output: every MCP
-server holds a shared ``flock`` on ``<its venv>/.inbox-in-use`` for its lifetime
-(``hold_lock``). Cleanup, on MCP server start, considers only direct children of the data
-dir named ``venv`` or ``venv-<numeric version>`` for a version OLDER than its own and
-untouched for an hour, and removes one only:
-
-- with a lock file: while holding an exclusive non-blocking flock on it (so no server has
-  it), checked to still be the same file;
-- without one (servers from before the lock, 0.5.2 and older): if untouched for 7 days.
+"In use" is answered by the kernel, not by matching paths in ``ps`` output: ``inbox mcp``
+first thing (before any heavy import) takes a shared ``flock`` on ``<its venv>/.inbox-in-use``
+and holds it for its lifetime (``claim``), refreshing the file's mtime; if its venv is gone
+by then it exits instead of running from a deleted tree. Cleanup, on MCP server start,
+considers only direct children of the data dir named ``venv-<numeric version>`` for a
+version OLDER than its own, whose dir AND lock file are untouched for an hour, and removes
+one only while holding an exclusive non-blocking flock on its lock file (so no server has
+it), checked to still be the same file. Venvs without a lock file (servers from before the
+lock, 0.5.2 and older, and the shared ``venv``) are never removed automatically: an mtime
+says nothing about use. ``inbox clean-venvs`` removes them on request. Leftover
+``.removing-*`` dirs (a cleanup killed mid-delete) older than an hour are swept.
 
 The venv is first renamed to a unique ``.removing-…`` name (atomic: concurrent cleanups
 cannot both win), then deleted. Path spelling (symlinked data dir, relative paths) does not
@@ -33,7 +35,6 @@ log = logging.getLogger("herdr_inbox")
 
 LOCK_NAME = ".inbox-in-use"
 SETTLED_SECONDS = 3600
-LOCKLESS_SETTLED_SECONDS = 7 * 86400
 
 
 def _version(text: str) -> tuple[int, ...] | None:
@@ -42,11 +43,27 @@ def _version(text: str) -> tuple[int, ...] | None:
     return tuple(int(p) for p in text.split("."))
 
 
-def hold_lock(venv: Path):
-    """Mark ``venv`` in use for as long as the returned file stays open (the MCP server
-    keeps it for its lifetime)."""
-    fh = open(Path(venv) / LOCK_NAME, "a")
-    fcntl.flock(fh, fcntl.LOCK_SH)
+def claim(venv: Path):
+    """Mark ``venv`` in use for as long as the returned file stays open (the MCP server keeps
+    it for its lifetime), and refresh the lock file's mtime. If the venv was removed (a
+    cleanup won the race before we got here), exit: never run from a deleted tree; Claude
+    Code restarts the server and uv rebuilds the venv."""
+    import sys
+
+    lock = Path(venv) / LOCK_NAME
+    try:
+        fh = open(lock, "a")
+        fcntl.flock(fh, fcntl.LOCK_SH)
+        same = os.fstat(fh.fileno()).st_ino == os.stat(lock).st_ino
+    except FileNotFoundError:
+        same = False
+    if not same:
+        sys.stderr.write(f"herdr-inbox: venv {venv} was removed while starting; exiting so it is rebuilt\n")
+        sys.exit(75)  # EX_TEMPFAIL
+    try:
+        os.utime(lock)
+    except OSError:
+        pass
     return fh
 
 
@@ -61,14 +78,13 @@ def _remove(path: Path) -> bool:
     return True
 
 
-def _try_remove(path: Path, age: float) -> bool:
+def _try_remove(path: Path, lockless: bool) -> bool:
     lock = path / LOCK_NAME
     try:
         fd = os.open(lock, os.O_RDONLY)
     except FileNotFoundError:
-        if not path.is_dir() or age < LOCKLESS_SETTLED_SECONDS:
-            return False  # a pre-lock server may still run from it
-        return _remove(path)
+        # a pre-lock server may still run from it: only on request (inbox clean-venvs)
+        return lockless and path.is_dir() and _remove(path)
     except OSError:
         return False
     try:
@@ -77,8 +93,11 @@ def _try_remove(path: Path, age: float) -> bool:
         except OSError:
             return False  # a server holds it
         try:
-            if os.fstat(fd).st_ino != os.stat(lock).st_ino:
+            st = os.stat(lock)
+            if os.fstat(fd).st_ino != st.st_ino:
                 return False  # removed (and maybe recreated) meanwhile
+            if time.time() - st.st_mtime < SETTLED_SECONDS:
+                return False  # claimed by a server within the hour
         except OSError:
             return False
         return _remove(path)
@@ -86,8 +105,9 @@ def _try_remove(path: Path, age: float) -> bool:
         os.close(fd)
 
 
-def cleanup(data: Path, current: str) -> list[Path]:
-    """Remove the old, settled, unused venvs under ``data``; returns what was removed."""
+def cleanup(data: Path, current: str, lockless: bool = False) -> list[Path]:
+    """Remove the old, settled, unused venvs under ``data``; returns what was removed.
+    ``lockless`` (``inbox clean-venvs``) also removes old venvs that have no lock file."""
     mine = _version(current)
     data = Path(data)
     if mine is None or not data.is_dir():
@@ -97,6 +117,10 @@ def cleanup(data: Path, current: str) -> list[Path]:
         try:
             if not path.is_dir() or path.is_symlink():
                 continue
+            if path.name.startswith(".removing-venv"):  # a cleanup killed mid-delete
+                if time.time() - path.stat().st_mtime >= SETTLED_SECONDS:
+                    shutil.rmtree(path, ignore_errors=True)
+                continue
             if path.name == "venv":
                 older = True  # the shared venv every version before 0.5.3 used
             elif path.name.startswith("venv-") and (v := _version(path.name[5:])) is not None:
@@ -104,7 +128,7 @@ def cleanup(data: Path, current: str) -> list[Path]:
             else:
                 continue
             age = time.time() - path.stat().st_mtime
-            if older and age >= SETTLED_SECONDS and _try_remove(path, age):
+            if older and age >= SETTLED_SECONDS and _try_remove(path, lockless):
                 removed.append(path)
         except OSError as exc:  # vanished meanwhile (a concurrent cleanup), permissions...
             log.debug("old venv %s: %s", path, exc)
@@ -128,19 +152,21 @@ def cleanup_from_env() -> list[Path]:
 _held = None  # the server's own lock, open for the process lifetime
 
 
-def start(prefix: str | None = None) -> None:
-    """MCP server start: hold this venv's lock, then clean up old ones in the background.
-    Never fatal, and the server never waits for the cleanup."""
+def claim_current() -> None:
+    """``inbox mcp``, before anything heavy: hold this venv's lock (exits if it is gone)."""
     import sys
-    import threading
 
     global _held
-    prefix = prefix or sys.prefix
-    if prefix != sys.base_prefix:  # running from a venv
+    if sys.prefix != sys.base_prefix:  # running from a venv
         try:
-            _held = hold_lock(Path(prefix))
-        except OSError as exc:
+            _held = claim(Path(sys.prefix))
+        except OSError as exc:  # e.g. a filesystem without flock: run anyway, cleanup fails safe
             log.warning("venv lock: %s", exc)
+
+
+def start_cleanup() -> None:
+    """Remove old venvs in the background; never fatal, the server never waits for it."""
+    import threading
 
     def run() -> None:
         try:

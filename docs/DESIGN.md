@@ -448,18 +448,25 @@ Code plugin.
   changes the source under MCP servers that are already running, and a module
   they import lazily (e.g. `transcript`) loads the new code into an old process.
   Restart Claude sessions after pulling.
-- **Old venvs are cleaned up.** On start, every MCP server holds a shared
-  `flock` on `<its venv>/.inbox-in-use` for its lifetime. A background thread
-  (`venvs.py`) then looks at the direct children of `${CLAUDE_PLUGIN_DATA}`
-  named `venv-<numeric v>` with v older than its own (and the pre-0.5.3 shared
-  `venv`) that have been untouched for an hour, and removes one only:
-  - if it has a lock file, while holding an exclusive non-blocking flock on it;
-  - if it has none (a pre-lock server may run from it), after 7 days untouched.
+- **Old venvs are cleaned up.** The first thing `inbox mcp` does, before any
+  heavy import, is take a shared `flock` on `<its venv>/.inbox-in-use`. It holds
+  that lock for its lifetime and refreshes the file's mtime. If the venv is
+  already gone by then, the server exits rather than run from a deleted tree.
+  On start, a background thread (`venvs.py`) then removes a direct child of
+  `${CLAUDE_PLUGIN_DATA}` named `venv-<numeric v>` only when all of these hold:
+  - v is older than the running version;
+  - neither the dir nor its lock file has changed for an hour;
+  - the thread can take an exclusive non-blocking flock on the lock file.
 
-  Removal renames the venv to a unique `.removing-…` name first, so concurrent
-  cleanups can't both act, and then deletes it. The kernel answers "in use", so
-  a symlinked data dir, relative paths or a `ps` that hides processes can't fool
-  it.
+  Removal first renames the venv to a unique `.removing-…` name, so concurrent
+  cleanups can't both act, and then deletes it. Leftover `.removing-*` dirs
+  older than an hour are swept. Venvs without a lock file (the pre-0.5.3 shared
+  `venv`, and any from a version older than the lock) are never removed
+  automatically, because an mtime says nothing about use; `inbox clean-venvs`
+  removes them on request. The kernel answers "in use", so path spelling and
+  `ps` don't matter. One assumption remains: a filesystem that only pretends
+  to support flock (some FUSE mounts) would defeat it, whereas one that rejects
+  flock fails safe.
 - `.claude-plugin/marketplace.json` is a local single-plugin marketplace
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.

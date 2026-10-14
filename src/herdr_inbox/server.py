@@ -202,5 +202,5 @@ def run() -> None:
     start_retry_loop()
     from . import venvs
 
-    venvs.start()  # hold this venv's in-use lock; remove old unused venvs (venvs.py)
+    venvs.start_cleanup()  # old unused venvs (venvs.py); the lock was taken in cli
     mcp.run("stdio")
