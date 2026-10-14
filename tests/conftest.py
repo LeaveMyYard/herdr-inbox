@@ -123,8 +123,11 @@ def subprocess_env(**extra: str) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def _armed_at_once(monkeypatch):
-    """Pilot tests press keys immediately; the arming delay has its own test (test_arrivals.py)."""
+    """Logic tests press keys immediately; the real delays have their own tests
+    (tests/test_real_timing.py, which undoes this fixture)."""
     from herdr_inbox import tui
 
     if hasattr(tui, "ARM_SECONDS"):
         monkeypatch.setattr(tui, "ARM_SECONDS", 0.0)
+    if hasattr(tui, "ROW_ARM_SECONDS"):
+        monkeypatch.setattr(tui, "ROW_ARM_SECONDS", 0.0)

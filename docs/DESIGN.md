@@ -246,7 +246,8 @@ tabs with its own Submit tab.
   group; Esc (or Cancel on its Submit tab) closes the popup. Otherwise the
   **group list**; nothing open: "No open questions" (any key closes; arrivals
   are announced as "N new question groups — press Tab/→ to view").
-- **Group list**, rendered like Claude Code's option list (multiline rows):
+- **Group list**, under a title row ("Open questions · 3 groups · 1 not
+  delivered"), rendered like Claude Code's option list (multiline rows):
   `❯ 1. Billing API · planner · 3 questions · 4m · 1 drafted`, with a dim second
   line of the questions' headers (or the lone question's text). ⚠ undelivered
   answers are their own entries (`⚠ Q12 not delivered · <tab> · <error>`,
@@ -276,7 +277,8 @@ tabs with its own Submit tab.
   Submit/Next row. Previews sit to the right ("No preview available").
 - **Colours follow Claude Code's theme roles** (read from the 2.1.299 bundle):
   `suggestion` for the `❯` pointer, the focused option/row and "Notes:";
-  `success` for chosen answers (the ✓ after a picked option, ✓ chips, the
+  `success` for chosen answers (Claude Code's `figures.tick` ✔ after a picked
+  option and on tabs, `[✔]` multi-select boxes, the
   Review list's `→ answer`, "N drafted"); `warning` only for warnings (⚠ not
   delivered, "You have not answered all questions", closed placeholders, the
   dismiss confirmation). Dark and light values are Claude Code's own
@@ -287,7 +289,10 @@ tabs with its own Submit tab.
     place as an inert "✕ … withdrawn/answered/dismissed" placeholder (Enter,
     digits to it, `g`, `d` do nothing) until the operator moves the cursor.
     The list cursor is a target (an entry id), never an index; if its entry is
-    gone when the list reappears it rests on nothing.
+    gone when the list reappears it rests on nothing. The list does not wrap
+    around (↓ on the last row stays put), so an arrival is never where a
+    wrapping key lands, and a row that arrived in the background ignores Enter
+    and digits for 1 s (`ROW_ARM_SECONDS`; an arrow may move onto it).
   - Nothing is ever added to an open group. A question that closes while
     shown becomes an inert "Q<n> was closed" placeholder tab, dropped once the
     operator switches tabs; other tabs coming and going never rebuild the

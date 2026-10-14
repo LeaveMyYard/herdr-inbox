@@ -17,7 +17,7 @@ async def test_roles_follow_claude_code_in_dark_and_light(store, fake_herdr):
         assert v.row_text(0).startswith("[$inbox-suggestion]❯[/]")  # focus: suggestion
         await pilot.press("2", "enter")  # One = b -> Two
         await pilot.press("left")
-        assert "[$inbox-success]✓[/]" in app.query_one(QuestionView).row_text(1)  # chosen: success
+        assert "[$inbox-success]✔[/]" in app.query_one(QuestionView).row_text(1)  # chosen: success
         await pilot.press("tab", "tab")
         body = app.query_one(ReviewView)
         lines = [ln for ln in body.query_one("#review-body").render().plain.split("\n")]
@@ -38,3 +38,33 @@ def test_answers_are_success_and_warning_is_reserved():
         assert warning in src
     # the old accent (orange in the default theme) is gone from the question UI
     assert "$accent" not in src
+
+
+async def test_tick_glyph_and_boxes_match_claude_code(store, fake_herdr):
+    """figures.tick (✔) everywhere; multi-select boxes are "[✔]" in success, "[ ]" otherwise;
+    a tab's mark sits outside the highlighted label (no coloured block)."""
+    from herdr_inbox.tui import TICK
+
+    assert TICK == "✔"
+    service.ask_group(store, A, [{"question": "Pick?", "multi_select": True, "options": ["a", "b"]},
+                                 {"question": "Two?", "options": ["c"]}])
+    app = InboxApp(store)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("space")
+        v = app.query_one(QuestionView)
+        assert "[$inbox-success]\\[✔][/]" in v.row_text(0) and "\\[ ]" in v.row_text(1)
+        await pilot.press("down", "down", "down", "enter")  # Next: drafted, on to Two
+        await pilot.press("left")
+        chip = app.query_one("#chips > .current")
+        rendered = str(chip.render())
+        assert rendered.startswith("✔") and "Q1" in rendered
+
+
+async def test_list_title_row(store, fake_herdr):
+    service.ask(store, A, "one?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r"), "two?")
+    app = InboxApp(store)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert str(app.query_one("#list-title").render()) == "Open questions · 2 groups"
