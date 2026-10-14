@@ -59,9 +59,10 @@ async def test_group_list_rows_and_order(store, fake_herdr):
         assert lv.cursor == ("group", 2)
         first, second = (lv.row_text(1, ("group", 2)).replace("\u00a0", " "),
                           lv.row_text(2, ("group", 1)).replace("\u00a0", " "))
-        assert "tab-A · planner · 2 questions" in first and "DB · A two?" in first
+        # no title given: the name falls back to the first header (see test_group_title.py)
+        assert "DB · 2 questions" in first and "tab-A · planner · DB · A two?" in first
         assert first.startswith("[$inbox-suggestion]❯[/] ") and "\n" in first  # multiline rows
-        assert "tab-B · 1 question" in second and "Deploy" in second
+        assert "Deploy · 1 question" in second and second.endswith("[dim]tab-B[/dim]")  # no repeated chip
         assert text_of(lv.query_one(".hint")) == "Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel"
         await pilot.press("enter")
         assert app.mode == "group" and view(app).q.id == 2

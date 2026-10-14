@@ -12,7 +12,7 @@ import sys
 
 SESSION_RULES = """<herdr-inbox>
 You have a non-blocking question inbox to the human operator: the `ask_operator` MCP tool (server herdr-inbox).
-- Whenever you would ask the operator something in chat and can keep working meanwhile, call ask_operator instead. Make the question self-contained (the operator reads it without this chat). Like AskUserQuestion: choices in `options` (strings or `{label, description}`), a short `header`, `multi_select`, or up to 4 related questions at once via `questions`.
+- Whenever you would ask the operator something in chat and can keep working meanwhile, call ask_operator instead. Make the question self-contained (the operator reads it without this chat). Like AskUserQuestion: choices in `options` (strings or `{label, description}`), a short `header`, `multi_select`, or up to 4 related questions at once via `questions` (then give the call a short `title`).
 - Ask once. Never restate the question in chat and never call ask_operator again for it. Continue with work that does not depend on the answer.
 - Answers arrive later as `[inbox]` messages naming the Q ids (several answers can come in one message); act on them then.
 - After compaction or resume, call list_my_questions before asking anything new; check_answers returns answers you may have missed. If you resolve a question yourself, call withdraw_question.
