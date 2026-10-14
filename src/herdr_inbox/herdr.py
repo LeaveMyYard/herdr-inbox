@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 
 log = logging.getLogger("herdr_inbox.herdr")
@@ -18,13 +19,28 @@ TOKEN = "inbox_q"
 SOURCE = "herdr-inbox"
 
 
+MAX_ARG = 4000
+_SPACE = re.compile(r"[\t\n\r\v\f\u2028\u2029\x85]")
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def clean(text: str, limit: int = MAX_ARG) -> str:
+    """Make agent/operator text safe to hand to herdr, which may type it into a terminal.
+
+    Line and tab breaks become spaces; every other C0/C1 control (ESC, BEL, CSI, ...)
+    and DEL is dropped, so no escape or key sequence survives. Capped at ``limit``.
+    """
+    text = _CONTROL.sub("", _SPACE.sub(" ", text))
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
 def _bin() -> str:
     return os.environ.get("HERDR_BIN_PATH") or "herdr"
 
 
 def call(*args: str, timeout: float = TIMEOUT) -> tuple[dict | None, str | None]:
     """Run ``herdr <args>``; return (``.result`` dict, None) or (None, error)."""
-    argv = [_bin(), *args]
+    argv = [_bin(), *(clean(a) for a in args)]  # every argument, one choke point
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError) as exc:

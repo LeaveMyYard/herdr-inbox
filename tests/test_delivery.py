@@ -102,3 +102,19 @@ def test_cli_answer_list_dismiss(store, fake_herdr, capsys):
     assert cli.main(["dismiss", str(b)]) == 0
     assert store.get(b).status == "dismissed"
     assert cli.main(["dismiss", str(b)]) == 1
+
+
+ESCAPES = "\x1b[201~\x1b[Z\x07\x9b2J\x7f"
+
+
+def test_control_characters_never_reach_herdr(store, fake_herdr):
+    """H3: agent-written text must not smuggle terminal escapes into prompts/notifications."""
+    qid = ask(store, f"merge?{ESCAPES}then\tok x")
+    service.answer(store, qid, f"yes{ESCAPES}\nsecond line")
+    sent = [arg for call in fake_herdr.calls() for arg in call]
+    for bad in ("\x1b", "\x07", "\x9b", "\x7f", "\t", "\n", " "):
+        assert not any(bad in arg for arg in sent), repr(bad)
+    prompt = fake_herdr.calls_of("agent", "prompt")[0][3]
+    assert prompt == "[inbox] Q1 answered — merge?[201~[Z2Jthen ok: yes[201~[Z2J second line"
+    title, body = fake_herdr.calls_of("notification", "show")[0][2:5:2]
+    assert "\x1b" not in title + body and body.startswith("merge?[201~")
