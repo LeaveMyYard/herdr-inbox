@@ -209,6 +209,8 @@ class QuestionView(Vertical, can_focus=True):
         for i in range(len(self.rows)):
             self.query_one(f"#row-{i}", Static).update(self.row_text(i))
         self.query_one(".hint", Static).update(self.hint())
+        # keep the highlighted row on screen (Enter sends it): a short popup scrolls to it
+        self.query_one(f"#row-{self.cursor}").scroll_visible(animate=False)
         if self.has_preview:
             kind, opt_i = self.rows[self.cursor]
             preview = self.options[opt_i].get("preview") if kind == "opt" else None
@@ -465,6 +467,24 @@ def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
     app.refresh_list()
 
 
+def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
+    """Leave the view and send in a background thread: delivery talks to herdr (and may wait
+    for the tab-label lock), and the popup must never freeze on it."""
+    app.pop_screen()
+    app.notify(f"Sending {', '.join(f'Q{q}' for q in qids)}…")
+
+    def run() -> None:
+        try:
+            with Store(store.path) as own:  # sqlite connections stay in the thread that made them
+                done = work(own)
+        except sqlite3.OperationalError:
+            app.call_from_thread(app.notify, BUSY, severity="warning")
+            return
+        app.call_from_thread(_after_submit, app, done, len(qids))
+
+    app.run_worker(run, thread=True, group="send")
+
+
 class GroupScreen(Screen):
     """One question alone, or a group as tabs (✓ answered · ● not yet) plus a Submit tab."""
 
@@ -539,11 +559,10 @@ class GroupScreen(Screen):
     @guarded
     def on_question_view_answered(self, event: QuestionView.Answered) -> None:
         if not self.grouped:  # a single question answers and sends at once, like Claude Code
-            done = service.answer(self.store, event.qid, (event.detail or {}).get("text"),
-                                  choices=(event.detail or {}).get("choices"), notes=(event.detail or {}).get("notes"))
-            app = self.app
-            app.pop_screen()
-            _after_submit(app, [done] if done else [], 1)
+            d = event.detail or {}
+            _send(self.app, self.store, [event.qid],
+                  lambda s: [x for x in [service.answer(s, event.qid, d.get("text"), choices=d.get("choices"),
+                                                         notes=d.get("notes"))] if x])
             return
         if not self.store.set_draft(event.qid, event.detail):
             self.notify(f"Q{event.qid} is no longer open", severity="warning")
@@ -565,10 +584,7 @@ class GroupScreen(Screen):
 
     @guarded
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
-        done = service.submit(self.store, event.qids)
-        app = self.app
-        app.pop_screen()
-        _after_submit(app, done, len(event.qids))
+        _send(self.app, self.store, event.qids, lambda s: service.submit(s, event.qids))
 
 
 class ReviewScreen(Screen):
@@ -599,10 +615,7 @@ class ReviewScreen(Screen):
 
     @guarded
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
-        done = service.submit(self.store, event.qids)
-        app = self.app
-        app.pop_screen()
-        _after_submit(app, done, len(event.qids))
+        _send(self.app, self.store, event.qids, lambda s: service.submit(s, event.qids))
 
 
 class InboxApp(App):
@@ -754,6 +767,11 @@ class InboxApp(App):
                 self.notify(f"could not focus {g[0].pane_id}: {err}", severity="warning")
             else:
                 self.exit()
+
+    async def action_quit(self) -> None:
+        # let an in-flight send finish before the popup (and its process) goes away
+        await self.workers.wait_for_complete()
+        self.exit()
 
     def action_history(self) -> None:
         self.history = not self.history

@@ -324,6 +324,13 @@ def update_markers(store: Store, pane_id: str | None) -> None:
     """
     if not pane_id:
         return
+    try:
+        _update_markers(store, pane_id)
+    except Exception:  # noqa: BLE001 - markers are cosmetic: never fail the ask/answer that changed them
+        log.warning("could not refresh the inbox markers for %s", pane_id, exc_info=True)
+
+
+def _update_markers(store: Store, pane_id: str) -> None:
     herdr.set_open_count(pane_id, store.open_counts().get(pane_id, 0))
     mark = tabs.prefix()
     if not mark:  # disabled: stale prefixes go at the next sync
