@@ -1,29 +1,22 @@
 """Textual inbox, opened by herdr as a popup (``inbox tui``).
 
-The popup opens straight into a tabbed view modelled on Claude Code's own
-AskUserQuestion prompt (strings and behaviour checked against the Claude Code
-2.1.299 binary). Every open question is a tab: first those from the pane that
-was focused when the popup opened, then the rest oldest first, with the
-questions an agent filed together kept adjacent; a dim tab label separates
-agents. New questions are appended while the popup is open.
+Modelled on Claude Code's AskUserQuestion prompt (strings, behaviour and colour roles
+checked against the Claude Code 2.1.299 bundle). A *group* is one ``ask_operator``
+call (1–4 questions):
 
-- one open question in total: Enter on an option, or text in "Type
-  something.", answers and sends at once;
-- several: answering drafts it (kept in the database, so closing the popup
-  loses nothing) and moves to the next tab; the last tab is Submit: "Review
-  your answers", "You have not answered all questions" when some are blank,
-  "Ready to submit your answers?" (Submit answers / Cancel). Submitting sends
-  every answered question at once, batched per pane; the rest stay open;
-- "Type something." is Claude Code's Other (the answer in single-select, added
-  to the picks in multi-select); "Chat about this" (single-select) focuses the
-  asking agent's pane and leaves the question open; ``n`` adds notes; ``g``
-  goes to the asking agent's pane; ``d`` dismisses the current question after
-  a one-key confirmation; Esc closes the popup without sending;
-- a poll never replaces the current view with another question: if its own
-  question closes, the tab becomes an inert placeholder until the operator
-  switches tabs; failed deliveries show up as ``⚠ Q<n> not delivered`` tabs;
-- options may carry a ``preview``: options left, the highlighted option's
-  preview right ("No preview available" otherwise).
+- several open groups (or any ⚠ undelivered answer): a group list of multiline option
+  rows, focused pane first; Enter opens, ``d`` dismisses a group (``y``), ``g`` goes to
+  its agent, Esc closes;
+- inside a group (or straight away when it is the only one): its questions as tabs and
+  its own Submit tab ("Review your answers" / "You have not answered all questions" /
+  "Ready to submit your answers?"); a lone question sends on Enter; Esc goes back;
+- "Type something." is Claude Code's Other; "Chat about this" focuses the agent's pane;
+  ``n`` adds notes; options may carry a ``preview``.
+
+No background event changes what the next key does: list arrivals are appended, ended
+rows and closed tabs become inert placeholders until the operator moves, cursors are
+targets (never indexes), nothing joins an open group, and every view arms 0.4 s after
+it appears.
 """
 
 from __future__ import annotations
@@ -84,12 +77,17 @@ def _typing(screen: Screen) -> bool:
 
 def _cursor(here: bool) -> str:
     # one fixed cell on every row, its own span (exported screenshots drop a span's leading spaces)
-    return "[$accent]❯[/]" if here else "[$background] [/]"
+    return "[$inbox-suggestion]❯[/]" if here else "[$background] [/]"
 
 
 def _close(app: App) -> None:
-    """Close the popup without sending (drafts stay); waits for an in-flight send."""
-    app.call_next(app.action_quit)
+    """Esc: back to the group list, or close the popup there (drafts stay; never sends)."""
+    app.call_next(app.action_back)
+
+
+def _armed(widget) -> bool:
+    """Views ignore Enter and digits for ARM_SECONDS after they appear (however reached)."""
+    return time.monotonic() >= getattr(widget, "armed_at", 0)
 
 
 class QuestionView(Vertical, can_focus=True):
@@ -189,28 +187,31 @@ class QuestionView(Vertical, can_focus=True):
         number = f"[$text-muted]{i + 1}.[/]"
         if kind == "submit":
             label = "Submit" if self.last else "Next"
-            return f"{cur} [$text-muted]  [/] " + (f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]")
+            return f"{cur} [$text-muted]  [/] " + (f"[b $inbox-suggestion]{label}[/]" if here else f"[$foreground]{label}[/]")
         if kind == "chat":
-            return f"{cur} {number} " + (f"[b $accent]{CHAT}[/]" if here else f"[$foreground]{CHAT}[/]")
+            return f"{cur} {number} " + (f"[b $inbox-suggestion]{CHAT}[/]" if here else f"[$foreground]{CHAT}[/]")
         box = ""
         if self.q.multi_select:
             on = (opt_i in self.picked) if kind == "opt" else bool(self.text)
             box = "[x] " if on else "[ ] "
+        # Claude Code's roles: the focused row is "suggestion", a chosen answer "success" (✓)
         if kind == "other":
             if self.text:
                 label = f"[i]{escape(box + self.text)}[/i]"
             else:
                 label = f"[dim]{escape(box)}{OTHER}[/dim]"
             if here:
-                label = f"[b $accent]{escape(box + (self.text or OTHER))}[/]"
-            return f"{cur} {number} {label}"
+                label = f"[b $inbox-suggestion]{escape(box + (self.text or OTHER))}[/]"
+            tick = " [$inbox-success]✓[/]" if self.text else ""
+            return f"{cur} {number} {label}{tick}"
         opt = self.options[opt_i]
         text = escape(box + opt["label"])
-        lines = [f"{cur} {number} " + (f"[b $accent]{text}[/]" if here else f"[$foreground]{text}[/]")]
+        tick = " [$inbox-success]✓[/]" if opt_i in self.picked else ""
+        lines = [f"{cur} {number} " + (f"[b $inbox-suggestion]{text}[/]" if here else f"[$foreground]{text}[/]") + tick]
         if opt.get("description"):
             lines.append(f"      [dim]{escape(opt['description'])}[/]")
         if self.notes.get(opt_i):
-            lines.append(f"      [i]Notes: {escape(self.notes[opt_i])}[/]")
+            lines.append(f"      [$inbox-suggestion]Notes:[/] [i]{escape(self.notes[opt_i])}[/]")
         return "\n".join(lines)
 
     def render_rows(self) -> None:
@@ -379,7 +380,11 @@ class ReviewView(Vertical, can_focus=True):
         yield Static(classes="hint")
 
     def on_mount(self) -> None:
+        self.armed_at = time.monotonic() + ARM_SECONDS
         self.reload()
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        return action not in ("select", "pick") or _armed(self)
 
     @guarded
     def reload(self) -> None:
@@ -399,19 +404,19 @@ class ReviewView(Vertical, can_focus=True):
     def render_rows(self) -> None:
         lines = ["[b]Review your answers[/b]", ""]
         for i, q in enumerate(self.items):
-            mark = "[$accent]❯[/]" if self.cursor == ("item", q.id) else "[$foreground]●[/]"
+            mark = "[$inbox-suggestion]❯[/]" if self.cursor == ("item", q.id) else "[$foreground]●[/]"
             where = f"{q.ref} · {escape(q.tab_label or q.pane_id or '-')} · "
             lines.append(f"{mark} [$foreground]{where}{escape(service.first_line(q.question, 80))}[/]")
             if q.draft_json:
-                lines.append(f"  [$accent]→[/] [b]{escape(_draft_line(q))}[/b]")
+                lines.append(f"  [$inbox-success]→ {escape(_draft_line(q))}[/]")
             else:
                 lines.append("  [dim]→ (not answered)[/dim]")
         if len(self.drafted) < len(self.items):
-            lines += ["", "[$warning]⚠ You have not answered all questions[/]"]
+            lines += ["", "[$inbox-warning]⚠ You have not answered all questions[/]"]
         lines += ["", "[b]Ready to submit your answers?[/b]", ""]
         for k, (target, label) in enumerate((("submit", "Submit answers"), ("cancel", "Cancel"))):
             here = self.cursor == target
-            text = f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"
+            text = f"[b $inbox-suggestion]{label}[/]" if here else f"[$foreground]{label}[/]"
             lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
         self.query_one("#review-body", Static).update("\n".join(lines))
         self.query_one(".hint", Static).update(
@@ -460,7 +465,7 @@ VIEW_CSS = """
 .choices { height: 1fr; }
 .split { height: 1fr; margin-bottom: 1; }
 .split > .choices { width: 1fr; }
-.preview-box { width: 1fr; border-left: solid $accent; padding: 0 1; }
+.preview-box { width: 1fr; border-left: solid $inbox-suggestion; padding: 0 1; }
 #preview.empty { color: $text-muted; }
 .row { height: auto; }
 #inline { margin-left: 4; }
@@ -482,7 +487,7 @@ class GoneView(Vertical, can_focus=True):
         self.ref, self.reason = ref, reason
 
     def compose(self) -> ComposeResult:
-        yield Static(f"[b]{self.ref} was closed[/b] [dim]({escape(self.reason)})[/dim]", classes="question")
+        yield Static(f"[b $inbox-warning]{self.ref} was closed[/] [dim]({escape(self.reason)})[/dim]", classes="question")
         yield Static("Nothing to answer here.", classes="meta")
         yield Static("Tab/Arrow keys to move to another question · Esc to cancel", classes="hint")
 
@@ -520,22 +525,26 @@ class FailedView(Vertical, can_focus=True):
     def compose(self) -> ComposeResult:
         q = self.q
         meta = f"{q.ref} · {q.tab_label or q.pane_id or 'no pane'}" + (f" · {q.asked_by}" if q.asked_by else "")
-        yield Static(f"[$warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]",
+        yield Static(f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]",
                      classes="question")
         yield Static(escape(meta), classes="meta")
-        yield Static(f"[b]{escape(q.question)}[/b]\n  [$accent]→[/] {escape(q.answer or '')}", classes="question")
+        yield Static(f"[b]{escape(q.question)}[/b]\n  [$inbox-success]→ {escape(q.answer or '')}[/]", classes="question")
         yield Static(id="failed-rows")
         yield Static("Enter to select · Tab/Arrow keys to navigate · g go to agent · Esc to cancel", classes="hint")
 
     def on_mount(self) -> None:
+        self.armed_at = time.monotonic() + ARM_SECONDS
         self.render_rows()
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        return action not in ("select", "pick") or _armed(self)
 
     def render_rows(self) -> None:
         labels = ("Retry delivery", "Stop showing it here (the agent can still fetch it with check_answers)")
         lines = []
         for k, label in enumerate(labels):
             here = k == self.cursor
-            text = f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"
+            text = f"[b $inbox-suggestion]{label}[/]" if here else f"[$foreground]{label}[/]"
             lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
         self.query_one("#failed-rows", Static).update("\n".join(lines))
 
@@ -555,24 +564,167 @@ class FailedView(Vertical, can_focus=True):
 
 
 class ConfirmDismiss(ModalScreen[bool]):
-    """One-key confirmation: d (or y) dismisses, any other key keeps the question."""
+    """One-key confirmation: only y dismisses; any other key keeps it."""
 
     CSS = """
     ConfirmDismiss { align: center middle; }
-    #confirm { width: auto; max-width: 80%; padding: 1 2; border: round $warning; background: $panel; }
+    #confirm { width: auto; max-width: 80%; padding: 1 2; border: round $inbox-warning; background: $panel; }
     """
 
-    def __init__(self, q: Question):
+    def __init__(self, what: str, detail: str):
+        """``what``: e.g. "Q7" or "Q2–Q4 (3 questions)"; ``detail``: one dim line."""
         super().__init__()
-        self.q = q
+        self.what, self.detail = what, detail
 
     def compose(self) -> ComposeResult:
-        yield Static(f"Dismiss [b]{self.q.ref}[/b] without answering?\n[dim]{escape(service.first_line(self.q.question, 70))}"
-                     f"[/dim]\n\n[$warning]y[/] to dismiss · any other key to keep it", id="confirm")
+        yield Static(f"Dismiss [b]{escape(self.what)}[/b] without answering?\n[dim]{escape(self.detail)}"
+                     f"[/dim]\n\n[$inbox-warning]y[/] to dismiss · any other key to keep it", id="confirm")
 
     def on_key(self, event) -> None:
         event.stop()
         self.dismiss(event.key == "y")  # not d: a quick double d must not confirm
+
+
+def _age(iso: str) -> str:
+    from .cli import _age as age
+
+    return age(iso)
+
+
+Entry = tuple[str, int]  # ("group", group id) or ("failed", question id)
+
+# Claude Code's own theme roles for its question prompt (read from the 2.1.299 bundle):
+# the pointer and focused option use "suggestion", chosen answers (✓, the Review list's
+# "→ answer") use "success", and "warning" is only for warnings ("You have not answered
+# all questions"). Same roles, dark and light values as Claude Code's default themes.
+CC_COLORS = {
+    "dark": {"inbox-suggestion": "#b1b9f9", "inbox-success": "#4eba65", "inbox-warning": "#ffc107"},
+    "light": {"inbox-suggestion": "#5769f7", "inbox-success": "#2c7a39", "inbox-warning": "#966c1e"},
+}
+SUBMIT = ("submit", 0)
+
+
+def entry_order(questions: list[Question], failed: list[Question], focus_pane: str | None) -> list[Entry]:
+    """Groups from the focused pane first, then the rest oldest first; ⚠ entries after them."""
+    groups: dict[int, list[Question]] = {}
+    for q in sorted(questions, key=lambda q: q.id):
+        groups.setdefault(q.group, []).append(q)
+    ordered = sorted(groups.values(), key=lambda g: (g[0].pane_id != focus_pane, g[0].id))
+    return [("group", g[0].group) for g in ordered] + [("failed", q.id) for q in failed]
+
+
+def tab_order(questions: list[Question], focus_pane: str | None) -> list[int]:
+    """Question ids in entry order (kept for callers that order single questions)."""
+    groups: dict[int, list[Question]] = {}
+    for q in sorted(questions, key=lambda q: q.id):
+        groups.setdefault(q.group, []).append(q)
+    ordered = sorted(groups.values(), key=lambda g: (g[0].pane_id != focus_pane, g[0].id))
+    return [q.id for g in ordered for q in g]
+
+
+class GroupListView(Vertical, can_focus=True):
+    """Every open group (one ask_operator call) and every undelivered answer, as Claude Code
+    option rows. The cursor is a target (an entry), never a row index; a row whose group
+    closed stays in place as an inert placeholder until the operator moves the cursor."""
+
+    class Open(Message):
+        def __init__(self, entry: Entry) -> None:
+            super().__init__()
+            self.entry = entry
+
+    BINDINGS = [
+        Binding("up", "move(-1)", show=False),
+        Binding("k", "move(-1)", show=False),
+        Binding("down", "move(1)", show=False),
+        Binding("j", "move(1)", show=False),
+        Binding("enter", "select", show=False),
+        Binding("escape", "back", show=False),
+        *[Binding(str(n), f"jump({n})", show=False) for n in range(1, 10)],
+    ]
+
+    def __init__(self, inbox: "InboxApp", cursor: Entry | None):
+        super().__init__()
+        self.inbox = inbox
+        self.cursor = cursor
+
+    def compose(self) -> ComposeResult:
+        yield VerticalScroll(Static(id="list-body"), classes="choices")
+        yield Static("Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel", classes="hint")
+
+    def on_mount(self) -> None:
+        self.armed_at = time.monotonic() + ARM_SECONDS
+        if self.cursor not in self.inbox.entries:  # its row is gone: the inert rest position
+            self.cursor = None
+        self.render_rows()
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        return action not in ("select", "jump") or _armed(self)
+
+    def row_text(self, n: int, entry: Entry) -> str:
+        here = entry == self.cursor
+        cur, number = _cursor(here), f"[$text-muted]{n}.[/]"
+        closed = self.inbox.closed.get(entry)
+        store = self.inbox.store
+        if entry[0] == "failed":
+            q = store.get(entry[1])
+            where = escape((q.tab_label or q.pane_id or "no pane") if q else "-")
+            if closed:
+                return f"{cur} {number} [$inbox-warning]✕ Q{entry[1]} · {where} · {escape(closed)}[/]"
+            head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or '')}"
+            line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
+            return f"{line1}\n      [dim]{escape(service.first_line(q.question, 60))} → {escape(q.answer or '')}[/dim]" \
+                if False else f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
+                f"{escape(service.first_line(q.answer or '', 40))}[/dim]"
+        qs = store.group(entry[1], include_closed=True)
+        first = qs[0] if qs else None
+        where = escape((first.tab_label or first.pane_id or "no pane") if first else "-")
+        if closed or not first:
+            return f"{cur} {number} [$inbox-warning]✕ {where} · {escape(closed or 'closed')}[/]"
+        live = [q for q in qs if q.status == "open"]
+        drafted = sum(1 for q in live if q.draft_json)
+        parts = [where] + ([escape(first.asked_by)] if first.asked_by else [])
+        parts.append(f"{len(live)} question{'s' if len(live) != 1 else ''}")
+        parts.append(_age(first.created_at))
+        if drafted:
+            parts.append(f"[$inbox-success]{drafted} drafted[/]")
+        head = "\u00a0· ".join(parts)  # non-breaking: a span's leading space survives SVG export
+        line1 = f"{cur} {number} " + (f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]")
+        if len(live) > 1 or any(q.header for q in live):
+            detail = " · ".join(escape(q.header or service.first_line(q.question, 30)) for q in live)
+        else:
+            detail = escape(service.first_line(live[0].question, 90)) if live else ""
+        return f"{line1}\n      [dim]{detail}[/dim]"
+
+    def render_rows(self) -> None:
+        rows = [self.row_text(n, e) for n, e in enumerate(self.inbox.entries, 1)]
+        self.query_one("#list-body", Static).update("\n".join(rows) or "No open questions")
+
+    def _moved(self) -> None:
+        """A deliberate cursor move: closed placeholders drop out now, the target stays."""
+        self.inbox.purge_closed(keep=self.cursor)
+        self.render_rows()
+
+    def action_move(self, delta: int) -> None:
+        entries = self.inbox.entries
+        if not entries:
+            return
+        if self.cursor not in entries:  # the inert rest position: resume from the top/bottom
+            self.cursor = entries[0] if delta > 0 else entries[-1]
+        else:
+            self.cursor = entries[(entries.index(self.cursor) + delta) % len(entries)]
+        self._moved()
+
+    def action_jump(self, n: int) -> None:
+        if 1 <= n <= len(self.inbox.entries):
+            self.cursor = self.inbox.entries[n - 1]
+            self._moved()
+
+    def action_select(self) -> None:
+        if self.cursor in self.inbox.entries and self.cursor not in self.inbox.closed:
+            self.post_message(self.Open(self.cursor))
+
+    def action_back(self) -> None:
+        self.app.call_next(self.inbox.action_quit)
 
 
 def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
@@ -587,7 +739,7 @@ def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
     if done and len(done) < wanted:
         app.notify(f"{wanted - len(done)} answered question(s) had closed meanwhile", severity="warning")
     app.poll()
-    if not app.tabs and not app.pending and done and not failed:
+    if app.mode in ("list", "empty") and not app.live_entries and done and not failed:
         app.exit()  # like Claude Code's prompt: gone once everything is answered
 
 
@@ -608,26 +760,17 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
     app.run_worker(run, thread=True, group="send")
 
 
-def tab_order(questions: list[Question], focus_pane: str | None) -> list[int]:
-    """Questions from the focused pane first, then the rest oldest first; a group stays together."""
-    groups: dict[int, list[Question]] = {}
-    for q in sorted(questions, key=lambda q: q.id):
-        groups.setdefault(q.group, []).append(q)
-    ordered = sorted(groups.values(), key=lambda g: (g[0].pane_id != focus_pane, g[0].id))
-    return [q.id for g in ordered for q in g]
-
-
-SUBMIT = ("submit", 0)
-
-
 class InboxApp(App):
-    """Every open question as a tab, plus Submit when there are several, plus a ⚠ tab per
-    answer that was not delivered.
+    """A group list (one row per ask_operator call, plus ⚠ undelivered answers), and inside a
+    group its questions as tabs with its own Submit tab.
 
-    Tabs are ("q", id) or ("failed", id). Polls only ever add tabs at the end or drop tabs
-    that are not current; the current tab's view is never replaced by another question's.
-    Whether Enter sends at once (exactly one open question) is decided when the popup opens
-    and re-decided only when the operator navigates.
+    The popup opens straight into the group when there is exactly one open group (and no ⚠
+    entry); otherwise on the list. Background polls never change what the next key does:
+    new list rows are appended without moving the cursor's target, closed rows and closed
+    question tabs turn into inert placeholders until the operator moves, nothing is ever
+    added to an open group, and every view ignores Enter/digits for ARM_SECONDS after it
+    appears. Whether Enter sends at once (a lone question) is decided when the operator
+    opens the group (or when the popup opens straight into it).
     """
 
     TITLE = "herdr inbox"
@@ -636,7 +779,7 @@ class InboxApp(App):
     #chips { height: 1; margin-bottom: 1; scrollbar-size-horizontal: 0; }
     #chips > Static { width: auto; margin-right: 2; }
     #chips > .sep { color: $text-muted; }
-    #chips > .warn { color: $warning; }
+    #chips > .warn { color: $inbox-warning; }
     #empty { display: none; }
     InboxApp.empty #empty { display: block; }
     InboxApp.empty #chips, InboxApp.empty #body { display: none; }
@@ -648,23 +791,30 @@ class InboxApp(App):
         Binding("tab", "switch(1)", show=False, priority=True),
         Binding("d", "dismiss", show=False),
         Binding("g", "goto", show=False),
-        Binding("plus", "take_new", show=False),
-        Binding("escape", "quit", show=False),
+        Binding("escape", "back", show=False),
     ]
+
+    def get_css_variables(self) -> dict[str, str]:
+        variables = super().get_css_variables()
+        variables.update(CC_COLORS["dark" if self.current_theme.dark else "light"])
+        return variables
 
     def __init__(self, store: Store | None = None, focus_pane: str | None = None):
         super().__init__()
         self.store = store or Store()
         self.focus_pane = focus_pane
+        self.mode = "empty"  # "empty" | "list" | "group" | "failed"
+        self.entries: list[Entry] = []
+        self.closed: dict[Entry, str] = {}  # list rows whose group/answer ended: inert placeholders
+        self.list_cursor: Entry | None = None
+        self.direct = False  # opened straight into the only group: Esc closes the popup
+        # the open group
+        self.entry: Entry | None = None
         self.tabs: list[tuple[str, int]] = []
         self.current: tuple[str, int] | None = None
         self.gone: dict[tuple[str, int], str] = {}  # tabs whose question closed while shown
-        self.single = False  # Enter sends at once; decided on open and on navigation only
+        self.single = False  # Enter sends at once; decided when the group is opened
         self.grace_until = 0.0  # keys before this are dropped (see GRACE_SECONDS)
-        # Arrivals while the popup is open wait here, shown as "+N new" on the tab row, and join
-        # the tabs only when the operator opens them (+, or Tab from the empty view): inserting
-        # them would change where Tab from the current tab goes.
-        self.pending: list[tuple[str, int]] = []
 
     @property
     def base(self) -> Screen:
@@ -676,6 +826,10 @@ class InboxApp(App):
         return self.store.list(), self.store.failed_deliveries()
 
     @property
+    def live_entries(self) -> list[Entry]:
+        return [e for e in self.entries if e not in self.closed]
+
+    @property
     def open_qids(self) -> list[int]:
         return [i for k, i in self.tabs if k == "q" and (k, i) not in self.gone]
 
@@ -683,8 +837,10 @@ class InboxApp(App):
     def all_tabs(self) -> list[tuple[str, int]]:
         return self.tabs + ([] if self.single or not self.open_qids else [SUBMIT])
 
-    def _decide_mode(self) -> None:
-        self.single = len(self.open_qids) == 1
+    def purge_closed(self, keep: Entry | None = None) -> None:
+        """Drop closed placeholders from the list (on the operator's own move)."""
+        self.entries = [e for e in self.entries if e not in self.closed or e == keep]
+        self.closed = {e: r for e, r in self.closed.items() if e == keep}
 
     def compose(self) -> ComposeResult:
         yield HorizontalScroll(id="chips")
@@ -700,20 +856,28 @@ class InboxApp(App):
         except sqlite3.OperationalError:
             open_qs, failed = [], []
             self.notify(BUSY, severity="warning")
-        self.tabs = [("q", i) for i in tab_order(open_qs, self.focus_pane)] + [("failed", q.id) for q in failed]
-        self._decide_mode()
-        self.show(self.all_tabs[0] if self.all_tabs else None)
+        self.entries = entry_order(open_qs, failed, self.focus_pane)
+        if not self.entries:
+            self.show_empty()
+        elif len(self.entries) == 1 and self.entries[0][0] == "group":
+            self.direct = True
+            self.open_group(self.entries[0])
+        else:
+            self.show_list(self.entries[0])
         self.set_interval(POLL_SECONDS, self.poll)
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         if isinstance(self.focused, Input):
             return action not in ("switch", "dismiss", "goto")
         if action == "switch":
-            return bool(self.tabs or self.pending)
-        if action == "take_new":
-            return bool(self.pending)
-        if action in ("dismiss", "goto"):  # only on a live question tab (never on a placeholder)
-            return self.current is not None and self.current != SUBMIT and self.current not in self.gone
+            return self.mode == "group" or (self.mode == "empty" and bool(self.entries))
+        if action in ("dismiss", "goto"):
+            if self.mode == "list":
+                cur = self._list_view().cursor if self._list_view() else None
+                return cur is not None and cur in self.entries and cur not in self.closed
+            if self.mode == "group":  # only on a live question tab (never on a placeholder)
+                return self.current is not None and self.current != SUBMIT and self.current not in self.gone
+            return action == "goto" and self.mode == "failed"
         return True
 
     async def on_event(self, event: events.Event) -> None:
@@ -725,34 +889,74 @@ class InboxApp(App):
             return
         await super().on_event(event)
 
-    # -- rendering -----------------------------------------------------------------
+    # -- views ---------------------------------------------------------------------
 
-    def render_empty(self) -> None:
-        n = len(self.tabs) + len(self.pending)
-        text = "No open questions" if not n else f"{n} new question{'s' if n > 1 else ''} — press Tab/→ to view"
-        self.base.query_one("#empty", Static).update(text)
-
-    def show(self, tab: tuple[str, int] | None) -> None:
-        """Mount the view for ``tab`` (only ever called on open or for an operator action)."""
-        self.current = tab
-        self.set_class(tab is None, "empty")
+    def _mount(self, view) -> None:
+        self.set_class(self.mode == "empty", "empty")
         body = self.base.query_one("#body")
         body.remove_children()
-        if tab is None:
+        if view is not None:
+            body.mount(view)
+            view.focus()
+
+    def _list_view(self) -> GroupListView | None:
+        found = self.base.query(GroupListView)
+        return found.first() if found else None
+
+    def show_empty(self) -> None:
+        self.mode = "empty"
+        self.base.query_one("#chips").remove_children()
+        self._mount(None)
+        self.render_empty()
+
+    def render_empty(self) -> None:
+        n = len(self.live_entries)
+        text = "No open questions" if not n else f"{n} new question group{'s' if n > 1 else ''} — press Tab/→ to view"
+        self.base.query_one("#empty", Static).update(text)
+
+    def show_list(self, cursor: Entry | None = None) -> None:
+        """The group list (an operator action, or the popup opening)."""
+        self.mode, self.entry, self.direct = "list", None, False
+        self.tabs, self.current, self.gone = [], None, {}
+        if not self.entries:
+            self.show_empty()
+            return
+        self.base.query_one("#chips").remove_children()
+        self._mount(GroupListView(self, cursor if cursor is not None else self.list_cursor))
+
+    def open_group(self, entry: Entry) -> None:
+        """Enter a group (the operator chose it, or it is the only one): its questions as tabs."""
+        self.list_cursor = entry
+        if entry[0] == "failed":
+            self.mode, self.entry = "failed", entry
             self.base.query_one("#chips").remove_children()
-            self.render_empty()
+            self._mount(FailedView(self.store.get(entry[1])))
+            return
+        qs = [q for q in self.store.group(entry[1]) if q.status == "open"]
+        if not qs:
+            self.show_list(entry)
+            return
+        self.mode, self.entry = "group", entry
+        self.tabs = [("q", q.id) for q in qs]
+        self.gone = {}
+        self.single = len(qs) == 1  # decided here, on the operator's move
+        start = next((t for t in self.tabs if not self.store.get(t[1]).draft_json), self.tabs[0])
+        self.show(start)
+
+    def show(self, tab: tuple[str, int] | None) -> None:
+        """Mount the view for a tab of the open group (operator actions only)."""
+        self.current = tab
+        if tab is None:
+            self.back_to_list()
             return
         kind, qid = tab
         if tab == SUBMIT:
             view = ReviewView(self.store, self.open_qids)
         elif tab in self.gone:
             view = GoneView(f"Q{qid}", self.gone[tab])
-        elif kind == "failed":
-            view = FailedView(self.store.get(qid))
         else:
             view = QuestionView(self.store.get(qid), in_group=not self.single, last=self._last_open(qid))
-        body.mount(view)
-        view.focus()
+        self._mount(view)
         self.render_chips()
 
     def _last_open(self, qid: int) -> bool:
@@ -761,34 +965,28 @@ class InboxApp(App):
     def render_chips(self) -> None:
         row = self.base.query_one("#chips", HorizontalScroll)
         row.remove_children()
-        tabs = self.all_tabs
-        if len(tabs) <= 1 and not self.pending:
+        tabs = self.all_tabs if self.mode == "group" else []
+        if len(tabs) <= 1:
             return
-        chips, current, last_tab = [], None, object()
+        first = self.store.get(self.tabs[0][1])
+        chips = [Static(f"│ {escape((first.tab_label or first.pane_id or 'no pane') if first else '-')}",
+                        classes="sep")]
+        current = None
         for tab in tabs:
             here = tab == self.current
             if tab == SUBMIT:
                 text, classes = "Submit", ""
+            elif tab in self.gone:
+                text, classes = f"✕ Q{tab[1]}", "warn"
             else:
-                kind, qid = tab
-                q = self.store.get(qid)
-                where = (q.tab_label or q.pane_id) if q else None
-                if where != last_tab:  # agent boundary
-                    chips.append(Static(f"│ {escape(where or 'no pane')}", classes="sep"))
-                    last_tab = where
-                if tab in self.gone:
-                    text, classes = f"✕ Q{qid}", "sep"
-                elif kind == "failed":
-                    text, classes = f"⚠ Q{qid} not delivered", "warn"
-                else:
-                    text, classes = f"{'✓' if q and q.draft_json else '●'} {escape(q.header or q.ref)}", ""
+                q = self.store.get(tab[1])
+                mark = "[$inbox-success]✓[/]" if q and q.draft_json else "●"
+                text, classes = f"{mark}\u00a0{escape(q.header or q.ref)}", ""
             chip = Static(f"[reverse b] {text} [/]" if here else text,
                           classes=" ".join(c for c in (classes, "current" if here else "") if c))
             chips.append(chip)
             if here:
                 current = chip
-        if self.pending:
-            chips.append(Static(f"+{len(self.pending)} new (press +)", classes="warn"))
         row.mount_all(chips)
         if current is not None:
             self.call_after_refresh(current.scroll_visible, animate=False)
@@ -804,27 +1002,46 @@ class InboxApp(App):
 
     @guarded
     def poll(self) -> None:
-        """New questions and failed deliveries are appended; tabs that ended are dropped,
-        except the current one, which turns into an inert placeholder. No view is rebuilt
-        unless the current tab itself ended, and the send mode does not change here."""
+        """Arrivals become new list rows at the end (the cursor's target does not move);
+        ended rows and ended question tabs become inert placeholders; nothing is added to an
+        open group; no view is rebuilt unless the one on screen itself ended."""
         if len(self.screen_stack) > 1:  # a confirmation is open
             return
         open_qs, failed = self._live()
-        live = {("q", q.id) for q in open_qs} | {("failed", q.id) for q in failed}
-        known = set(self.tabs) | set(self.pending)
-        ended = [t for t in self.tabs if t not in live and t not in self.gone]
-        self.tabs = [t for t in self.tabs if t in live or t == self.current]
-        self.pending = [t for t in self.pending if t in live]
-        self.pending += [("q", i) for i in tab_order([q for q in open_qs if ("q", q.id) not in known], None)]
-        self.pending += [("failed", q.id) for q in failed if ("failed", q.id) not in known]
+        live = set(entry_order(open_qs, failed, None))
+        for e in self.entries:
+            if e not in live and e not in self.closed:
+                self.closed[e] = self._entry_reason(e)
+        known = set(self.entries)
+        self.entries += [e for e in entry_order(open_qs, failed, None) if e not in known]
+        if self.mode == "empty":
+            self.render_empty()
+        elif self.mode == "list":
+            view = self._list_view()
+            if view:
+                view.render_rows()
+        elif self.mode == "failed":
+            if self.entry in self.closed and not self.base.query(GoneView):
+                self.grace_until = time.monotonic() + GRACE_SECONDS
+                self._mount(GoneView(f"Q{self.entry[1]}", self.closed[self.entry]))
+        elif self.mode == "group":
+            self._poll_group({q.id for q in open_qs})
+
+    def _entry_reason(self, entry: Entry) -> str:
+        if entry[0] == "failed":
+            return self._gone_reason("failed", entry[1])
+        qs = self.store.group(entry[1], include_closed=True)
+        reasons = {self._gone_reason("q", q.id) for q in qs}
+        return reasons.pop() if len(reasons) == 1 else "closed"
+
+    def _poll_group(self, open_ids: set[int]) -> None:
+        ended = [t for t in self.tabs if t[1] not in open_ids and t not in self.gone]
+        self.tabs = [t for t in self.tabs if t[1] in open_ids or t == self.current or t in self.gone]
         if self.current in ended:
             self.gone[self.current] = self._gone_reason(*self.current)
             self.notify(f"Q{self.current[1]} was closed ({self.gone[self.current]})", severity="warning")
             self.grace_until = time.monotonic() + GRACE_SECONDS
             self.show(self.current)  # the same tab, now the placeholder
-            return
-        if self.current is None:  # empty: arrivals are announced, never shown by themselves
-            self.render_empty()
             return
         view = self.base.query("#body > *").first() if self.base.query("#body > *") else None
         if isinstance(view, QuestionView):
@@ -834,57 +1051,61 @@ class InboxApp(App):
             view.reload()
         self.render_chips()
 
-    # -- navigation (operator actions) -------------------------------------------------
+    # -- operator actions -------------------------------------------------------------
 
     def navigate(self, target: tuple[str, int] | int | None) -> None:
-        """Move to ``target`` (a tab, or a relative step): placeholders are dropped and the
-        send mode is re-decided here, on the operator's move."""
-        if self.current is None and self.pending:  # from the empty view: open the arrivals
-            self._take_pending()
+        """Move between the open group's tabs; closed placeholders drop out on this move."""
         tabs = self.all_tabs
         if isinstance(target, int):
-            if self.current is None:  # from the empty view: the first tab
-                target = tabs[0] if tabs else None
-            else:
-                i = tabs.index(self.current) if self.current in tabs else 0
-                target = tabs[(i + target) % len(tabs)] if tabs else None
+            i = tabs.index(self.current) if self.current in tabs else 0
+            target = tabs[(i + target) % len(tabs)] if tabs else None
         self.tabs = [t for t in self.tabs if t not in self.gone or t == target]
         self.gone = {t: r for t, r in self.gone.items() if t == target}
-        self._decide_mode()
         tabs = self.all_tabs
         if target not in tabs:
             target = tabs[0] if tabs else None
         self.show(target)
 
     def action_switch(self, delta: int) -> None:
-        self.navigate(delta)
+        if self.mode == "empty":  # Tab/→ from the empty view: the list of what arrived
+            self.show_list(self.entries[0] if self.entries else None)
+        else:
+            self.navigate(delta)
 
-    def _take_pending(self) -> list[tuple[str, int]]:
-        taken, self.pending = self.pending, []
-        n_q = max((i for i, t in enumerate(self.tabs) if t[0] == "q"), default=-1) + 1
-        self.tabs[n_q:n_q] = [t for t in taken if t[0] == "q"]
-        self.tabs += [t for t in taken if t[0] == "failed"]
-        return taken
+    def back_to_list(self) -> None:
+        """After the operator's send, hide or cancel: the list, with the cursor still on the
+        entry just handled (an inert placeholder if it ended); close if nothing is left."""
+        self.direct = False
+        if not self.live_entries:
+            self.call_next(self.action_quit)
+            return
+        self.show_list(self.list_cursor)
 
-    def action_take_new(self) -> None:
-        """Open the questions that arrived while the popup was open (a deliberate key)."""
-        if self.pending:
-            first = self._take_pending()[0]
-            self.navigate(first)
+    async def action_back(self) -> None:
+        """Esc: from a group or ⚠ entry back to the list (or, when the popup opened straight
+        into the only group, close it); from the list, close the popup. Never sends."""
+        if self.mode in ("group", "failed") and not self.direct:
+            self.show_list(self.list_cursor)
+            return
+        await self.action_quit()
 
     def on_key(self, event) -> None:
-        if self.current is None and len(self.screen_stack) == 1:  # empty view: any key closes,
-            if event.key in NAV_KEYS and (self.tabs or self.pending):  # except Tab/arrows to new ones
+        if self.mode == "empty" and len(self.screen_stack) == 1:  # empty view: any key closes,
+            if event.key in NAV_KEYS and self.entries:           # except Tab/arrows to arrivals
                 return
             event.stop()
             self.exit()
 
+    def on_group_list_view_open(self, event: GroupListView.Open) -> None:
+        self.open_group(event.entry)
+
     @guarded
     def on_question_view_answered(self, event: QuestionView.Answered) -> None:
-        if ("q", event.qid) in self.gone or self.current != ("q", event.qid):
+        if self.mode != "group" or ("q", event.qid) in self.gone or self.current != ("q", event.qid):
             return  # never act for a question that is not the one on screen
-        if self.single:  # the only open question: answer and send at once, like Claude Code
+        if self.single:  # a lone question the operator opened: answer and send at once
             d = event.detail or {}
+            self._sent(self.entry, whole=True)
             _send(self, self.store, [event.qid],
                   lambda s: [x for x in [service.answer(s, event.qid, d.get("text"), choices=d.get("choices"),
                                                          notes=d.get("notes"))] if x])
@@ -896,6 +1117,13 @@ class InboxApp(App):
             return
         self.navigate(1)  # Claude Code moves to the next tab (the last one: Submit)
 
+    def _sent(self, entry: Entry | None, whole: bool) -> None:
+        """After the operator's send: back to the list now (not when the send finishes). A
+        group sent in full stays as an inert row; a partly sent one stays openable."""
+        if entry is not None and whole:
+            self.closed[entry] = "sending…"
+        self.back_to_list()
+
     def on_question_view_chat(self, event: QuestionView.Chat) -> None:
         self._focus_pane(event.q)
 
@@ -903,7 +1131,10 @@ class InboxApp(App):
         self.navigate(("q", event.qid))
 
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
+        whole = set(event.qids) >= set(self.open_qids)
+        entry = self.entry
         _send(self, self.store, event.qids, lambda s: service.submit(s, event.qids))
+        self._sent(entry, whole)
 
     def on_failed_view_retry(self, event: FailedView.Retry) -> None:
         def retry(s: Store) -> list[Question]:
@@ -911,13 +1142,15 @@ class InboxApp(App):
             service.deliver(s, q)
             return [s.get(event.qid)]
 
+        entry = self.entry
         _send(self, self.store, [event.qid], retry)
+        self._sent(entry, whole=True)
 
     @guarded
     def on_failed_view_hide(self, event: FailedView.Hide) -> None:
         self.store.hide_failed(event.qid)
-        self.gone[("failed", event.qid)] = "hidden"
-        self.navigate(1)
+        self.closed[("failed", event.qid)] = "hidden"
+        self.back_to_list()
 
     def _focus_pane(self, q: Question | None) -> None:
         if q is None:
@@ -928,12 +1161,47 @@ class InboxApp(App):
         else:
             self.exit()  # the question stays open; discuss it in the agent's chat
 
+    def _entry_question(self, entry: Entry) -> Question | None:
+        if entry[0] == "failed":
+            return self.store.get(entry[1])
+        qs = self.store.group(entry[1])
+        return qs[0] if qs else None
+
     def action_goto(self) -> None:
-        if self.current and self.current != SUBMIT:
+        if self.mode == "list":
+            view = self._list_view()
+            if view and view.cursor:
+                self._focus_pane(self._entry_question(view.cursor))
+        elif self.mode == "failed" and self.entry:
+            self._focus_pane(self.store.get(self.entry[1]))
+        elif self.current and self.current != SUBMIT:
             self._focus_pane(self.store.get(self.current[1]))
 
     def action_dismiss(self) -> None:
-        if not self.current or self.current[0] != "q" or self.current in self.gone:
+        if self.mode == "list":
+            view = self._list_view()
+            entry = view.cursor if view else None
+            if not entry or entry[0] != "group" or entry in self.closed:
+                return
+            qs = [q for q in self.store.group(entry[1]) if q.status == "open"]
+            if not qs:
+                return
+            what = qs[0].ref if len(qs) == 1 else f"{qs[0].ref}–{qs[-1].ref} ({len(qs)} questions)"
+
+            @guarded
+            def done_group(confirmed: bool | None) -> None:
+                if confirmed:
+                    closed = [q.ref for q in qs if service.close(self.store, q.id, "dismissed")]
+                    if closed:
+                        self.notify(f"{', '.join(closed)} dismissed")
+                    self.closed[entry] = "dismissed"
+                    lv = self._list_view()
+                    if lv:
+                        lv.render_rows()
+
+            self.push_screen(ConfirmDismiss(what, service.first_line(qs[0].question, 70)), done_group)
+            return
+        if self.mode != "group" or not self.current or self.current[0] != "q" or self.current in self.gone:
             return
         q = self.store.get(self.current[1])
         if q is None:
@@ -946,7 +1214,7 @@ class InboxApp(App):
                 self.gone[("q", q.id)] = "dismissed"
                 self.navigate(1)
 
-        self.push_screen(ConfirmDismiss(q), done)
+        self.push_screen(ConfirmDismiss(q.ref, service.first_line(q.question, 70)), done)
 
     async def action_quit(self) -> None:
         # let an in-flight send finish before the popup (and its process) goes away

@@ -5,7 +5,7 @@ from textual.widgets import Input, Static
 from herdr_inbox import service
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
-from herdr_inbox.tui import CHAT, OTHER, InboxApp, QuestionView, ReviewView, tab_order
+from herdr_inbox.tui import CHAT, OTHER, GroupListView, InboxApp, QuestionView, ReviewView, tab_order
 
 A = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="tab-A", session_id="sess-A", cwd="/r")
 B = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="tab-B", session_id="sess-A", cwd="/r")
@@ -23,7 +23,7 @@ def text_of(widget) -> str:
 
 
 def chips(app) -> list[str]:
-    return [text_of(c) for c in app.query("#chips > Static")]
+    return [text_of(c).replace("\u00a0", " ") for c in app.query("#chips > Static")]
 
 
 def prompts(fake):
@@ -47,16 +47,25 @@ def test_tab_order_focused_pane_first_groups_adjacent(store, fake_herdr):
     assert tab_order(qs, None) == [1, 2, 3, 4, 5]
 
 
-async def test_tabs_show_agent_boundaries(store, fake_herdr):
+async def test_group_list_rows_and_order(store, fake_herdr):
+    """Was 'tabs show agent boundaries': each agent's call is now its own list row."""
     service.ask(store, B, "B one?", header="Deploy")
-    service.ask_group(store, A, [{"question": "A one?", "header": "DB"}, {"question": "A two?"}])
+    service.ask_group(store, A, [{"question": "A one?", "header": "DB"}, {"question": "A two?"}], asked_by="planner")
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await opened(app, pilot)
-        assert [c.strip() for c in chips(app)] == ["│ tab-A", "● DB", "● Q3", "│ tab-B", "● Deploy", "Submit"]
-        assert [text_of(c).strip() for c in app.query("#chips > .current")] == ["● DB"]
-        assert app.query("#chips > .sep").first().styles.color != app.query("#chips > .current").first().styles.color
-        assert view(app).q.id == 2  # the focused pane's questions come first
+        assert app.mode == "list" and app.entries == [("group", 2), ("group", 1)]  # focused pane first
+        lv = app.query_one(GroupListView)
+        assert lv.cursor == ("group", 2)
+        first, second = (lv.row_text(1, ("group", 2)).replace("\u00a0", " "),
+                          lv.row_text(2, ("group", 1)).replace("\u00a0", " "))
+        assert "tab-A · planner · 2 questions" in first and "DB · A two?" in first
+        assert first.startswith("[$inbox-suggestion]❯[/] ") and "\n" in first  # multiline rows
+        assert "tab-B · 1 question" in second and "Deploy" in second
+        assert text_of(lv.query_one(".hint")) == "Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel"
+        await pilot.press("enter")
+        assert app.mode == "group" and view(app).q.id == 2
+        assert [c.strip() for c in chips(app)] == ["│ tab-A", "● DB", "● Q3", "Submit"]  # this group only
         assert "tab-A" in text_of(view(app).query_one(".meta"))
 
 
@@ -172,42 +181,47 @@ async def test_answering_drafts_and_moves_to_the_next_tab(store, fake_herdr):
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await opened(app, pilot)
+        await pilot.press("enter")  # open the first group
         assert "Tab/Arrow keys to navigate" in text_of(view(app).query_one(".hint"))
         await pilot.press("right")
         assert view(app).q.id == 2
-        await pilot.press("tab", "tab")
+        await pilot.press("tab")
         assert app.query(ReviewView)
         await pilot.press("tab")
-        assert view(app).q.id == 1  # wraps
+        assert view(app).q.id == 1  # wraps within the group
         await pilot.press("1", "enter")  # answer One -> next tab
         assert view(app).q.id == 2 and "✓ First" in "".join(chips(app))
-        await pilot.press("2", "enter", "1", "enter")  # Two, Three -> Submit tab
-        assert app.query(ReviewView)
+        await pilot.press("2", "enter")  # Two -> this group's Submit tab
+        assert app.query(ReviewView) and [q.id for q in app.query_one(ReviewView).items] == [1, 2]
     assert prompts(fake_herdr) == []  # drafts until Submit
 
 
-async def test_submit_tab_sends_answered_batched_per_pane_and_keeps_blanks(store, fake_herdr):
+async def test_submit_is_per_group_and_keeps_blanks(store, fake_herdr):
     service.ask_group(store, A, [{"question": "One?", "options": ["a", "b"]}, {"question": "Two?", "options": ["c"]}])
-    service.ask(store, B, "Three?")
-    service.ask(store, B, "Four?", options=["x"])
+    service.ask_group(store, B, [{"question": "Three?"}, {"question": "Four?", "options": ["x"]}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await opened(app, pilot)
-        await pilot.press("1", "enter")              # One=a
-        await pilot.press("right")                   # skip Two
-        await pilot.press("enter", *"later", "enter")  # Three typed
-        await pilot.press("1", "enter")              # Four=x -> Submit tab
+        await pilot.press("2", "enter")                 # open B's group
+        await pilot.press("enter", *"later", "enter")   # Three typed
+        await pilot.press("1", "enter")                 # Four=x -> Submit tab
         body = text_of(app.query_one("#review-body"))
-        assert "Review your answers" in body and "You have not answered all questions" in body
-        assert "Ready to submit your answers?" in body and "Submit answers" in body and "Cancel" in body
-        await pilot.press("enter")                   # Submit answers
+        assert "Review your answers" in body and "One?" not in body
+        await pilot.press("enter")                      # Submit answers (this group only)
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert app.open_qids == [2] and app.query(ReviewView)  # the unanswered one stays; no view swap
-        assert "Q2" in text_of(app.query_one("#review-body"))
+        assert app.mode == "list" and app.closed.get(("group", 3)) == "sending…"
+        await pilot.press("1", "enter", "1", "enter")   # A's group: One=a, skip Two
+        await pilot.press("tab")
+        body = text_of(app.query_one("#review-body"))
+        assert "You have not answered all questions" in body
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.mode == "list" and ("group", 1) not in app.closed  # Two stays open: still openable
     assert [store.get(i).status for i in (1, 2, 3, 4)] == ["answered", "open", "answered", "answered"]
-    assert sorted(prompts(fake_herdr)) == ["[inbox] Q1 answered — One?: a",
-                                           "[inbox] answered — Q3 Three?: later · Q4 Four?: x"]
+    assert prompts(fake_herdr) == ["[inbox] answered — Q3 Three?: later · Q4 Four?: x",
+                                   "[inbox] Q1 answered — One?: a"]
 
 
 async def test_cancel_and_drafts_survive_a_restart(store, fake_herdr):
@@ -215,14 +229,16 @@ async def test_cancel_and_drafts_survive_a_restart(store, fake_herdr):
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await opened(app, pilot)
+        assert app.mode == "group"  # the only group: opened straight away
         await pilot.press("2", "enter", "right", "2")  # One=b, Submit tab, Cancel
         await pilot.pause()
-        assert not app.is_running
+        assert not app.is_running  # opened directly: Cancel/Esc closes the popup
     with Store() as again:
         app = InboxApp(again)
         async with app.run_test() as pilot:
             await opened(app, pilot)
-            assert "✓ Q1" in "".join(chips(app))
+            assert "✓ Q1" in "".join(chips(app)) and view(app).q.id == 2  # opens on the first blank
+            await pilot.press("left")
             assert view(app).picked == {1}
             await pilot.press("1", "enter")  # edit
             assert again.get(1).draft_json["choices"] == ["a"]
@@ -231,9 +247,9 @@ async def test_cancel_and_drafts_survive_a_restart(store, fake_herdr):
     assert prompts(fake_herdr) == []
 
 
-async def test_new_questions_wait_behind_a_marker_without_moving_the_current_tab(store, fake_herdr):
-    service.ask(store, A, "One?")
-    service.ask(store, A, "Two?")
+async def test_new_groups_never_join_an_open_group(store, fake_herdr):
+    """Was 'wait behind a marker': arrivals go to the list; the open group never changes."""
+    service.ask_group(store, A, [{"question": "One?"}, {"question": "Two?"}])
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await opened(app, pilot)
@@ -242,40 +258,44 @@ async def test_new_questions_wait_behind_a_marker_without_moving_the_current_tab
         service.ask(store, B, "Three?")
         app.poll()
         await pilot.pause()
-        assert app.open_qids == [1, 2] and app.pending == [("q", 3)] and view(app).q.id == 2
-        assert chips(app)[-1].strip() == "+1 new (press +)"
+        assert app.open_qids == [1, 2] and ("group", 3) in app.entries and view(app).q.id == 2
         service.close(store, 1, "withdrawn")
         app.poll()
         await pilot.pause()
         assert app.open_qids == [2] and view(app).q.id == 2
-        await pilot.press("plus")
-        assert app.open_qids == [2, 3] and view(app).q.id == 3
+        await pilot.press("escape")  # opened straight into the group: Esc closes
+        await pilot.pause()
+        assert not app.is_running
 
 
 async def test_one_becomes_several_while_open(store, fake_herdr):
-    """The send mode is decided on open and re-decided only when the operator navigates."""
+    """The send mode is decided when the group is opened; a second group arriving changes
+    nothing inside it (a lone question still sends on Enter)."""
     service.ask(store, A, "One?", options=["a"])
-    app = InboxApp(store)
+    service.ask(store, A, "Spare?", options=["s"])
+    app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await opened(app, pilot)
+        await pilot.press("enter")  # deliberately open the lone One?
         assert chips(app) == []
         service.ask(store, B, "Two?", options=["b"])
         app.poll()
         await pilot.pause()
-        assert [c.strip() for c in chips(app)] == ["│ tab-A", "● Q1", "+1 new (press +)"]  # only marked
-        await pilot.press("plus", "left")  # the operator opens it, then goes back
-        assert "Submit" in "".join(chips(app)) and view(app).q.id == 1
-        await pilot.press("1", "enter")  # several now: a draft, not a send
-        assert store.get(1).status == "open" and store.get(1).draft_json
+        assert chips(app) == [] and app.single
+        await pilot.press("1", "enter")  # still a deliberate lone question: sends
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.mode == "list"
+    assert store.get(1).answer == "a" and store.get(3).status == "open"
 
 
-async def test_dismiss_asks_and_closes_only_the_current_question(store, fake_herdr):
+async def test_dismiss_question_in_group_and_whole_group_in_list(store, fake_herdr):
     service.ask_group(store, A, [{"question": "One?"}, {"question": "Two?"}])
-    service.ask(store, B, "Three?")
+    service.ask_group(store, B, [{"question": "Three?"}, {"question": "Four?"}])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await opened(app, pilot)
-        await pilot.press("d")
+        await pilot.press("enter", "d")  # inside A's group: one question
         await pilot.pause()
         assert "Dismiss" in text_of(app.screen.query_one("#confirm"))
         await pilot.press("x")  # any other key keeps it
@@ -284,7 +304,16 @@ async def test_dismiss_asks_and_closes_only_the_current_question(store, fake_her
         await pilot.press("d", "y")
         await pilot.pause()
         assert view(app).q.id == 2
-    assert [store.get(i).status for i in (1, 2, 3)] == ["dismissed", "open", "open"]
+        await pilot.press("escape", "down", "d")  # the list: B's whole group
+        await pilot.pause()
+        assert "Q3–Q4 (2 questions)" in text_of(app.screen.query_one("#confirm"))
+        await pilot.press("d")  # not y: kept
+        await pilot.pause()
+        assert store.get(3).status == "open"
+        await pilot.press("d", "y")
+        await pilot.pause()
+        assert app.closed.get(("group", 3)) == "dismissed"
+    assert [store.get(i).status for i in (1, 2, 3, 4)] == ["dismissed", "open", "dismissed", "dismissed"]
 
 
 async def test_busy_database_never_crashes_the_popup(store, fake_herdr, monkeypatch):
@@ -305,12 +334,11 @@ async def test_busy_database_never_crashes_the_popup(store, fake_herdr, monkeypa
 
 
 async def test_tab_row_scrolls_to_keep_the_current_tab_visible(store, fake_herdr):
-    for i in range(12):
-        service.ask(store, A if i % 2 else B, f"Question number {i}?", header=f"Header {i:02d}")
+    service.ask_group(store, A, [{"question": f"Question number {i}?", "header": f"Header {i:02d}"} for i in range(4)])
     app = InboxApp(store, focus_pane="w1:p1")
-    async with app.run_test(size=(60, 20)) as pilot:
+    async with app.run_test(size=(40, 20)) as pilot:
         await opened(app, pilot)
-        for _ in range(11):
+        for _ in range(4):
             await pilot.press("right")
         await pilot.pause()
         row, current = app.query_one("#chips"), app.query_one("#chips > .current")
