@@ -162,6 +162,38 @@ anything the operator is half-way through typing in that pane.
   plugin's `[[startup]]` runs `inbox sync-tokens`. herdr-radar owns the sidebar
   row layout; the README documents how to add `$inbox_q` to it (the PoC does
   not edit the operator's herdr config).
+- **Tab label prefix** `❓N ` (herdr has no per-tab tokens): on every change the
+  pane's current tab (`pane list`) is re-read with `tab get`; the base label is
+  the current label with our marks stripped, repeatedly (never stored, so an
+  operator rename in the meantime is adopted), and `tab rename` runs only when
+  the label differs from `❓<open count in the tab> <base>` (or `<base>` at 0).
+  - Each tab the inbox decorates is recorded with every mark applied to it
+    (`tab_decor`, cleared once the tab is restored); only those marks, plus the
+    default `❓`, are stripped, and repeatedly. Changing the mark can never
+    stack prefixes, and an operator label such as `Q4 roadmap` on a tab we
+    never decorated is never touched.
+  - The setting has one source that herdr-side and Claude-spawned processes
+    both read: `tab_prefix` / `prefix_unnamed_tabs` in `config.toml` in the
+    plugin config dir (`$HERDR_PLUGIN_CONFIG_DIR`, else
+    `herdr plugin config-dir leavemyyard.herdr-inbox`), re-read on each use.
+  - Count → `tab get` → `tab rename` runs under a cross-process `flock` on
+    `inbox.db.markers.lock` (10 s, then the update is skipped and the next
+    change or sync fixes it), with the counts read inside it: concurrent
+    processes cannot leave a stale count. The SQLite write lock is never held
+    across a herdr call, so a slow or wedged herdr cannot block questions,
+    drafts or answers. `sync-tokens` takes the lock per tab; pane tokens are
+    updated outside any lock (per pane, idempotent). MCP tools retry on "database
+    is locked" with backoff and then return a "busy, call again" result; the
+    popup shows a notice instead of exiting.
+  - Tabs labelled by position (all digits) are skipped by default: a rename
+    would freeze the number.
+  - `sync-tokens` reconciles every tab (`workspace list` → `tab list
+    --workspace`); `sync-tokens --remove-prefixes` strips them all (before
+    uninstalling).
+  - Known limitation: herdr has no compare-and-set rename, so an operator
+    rename landing in the few milliseconds between our `tab get` and
+    `tab rename` is overwritten (the base it had is kept).
+  - Questions store the base label.
 - **Popup** `inbox` (placement `popup`, 85% × 80%) running `inbox tui`, plus an
   `open` action; the operator binds `prefix+i` to it in their config.
 
@@ -171,14 +203,62 @@ plugin dir as `uv run --project . inbox ...`; the popup command resolves the
 project from `$HERDR_PLUGIN_ROOT`, since a pane's cwd is not documented to be
 the plugin dir.
 
+## Questions, groups and drafts (v0.2)
+
+- `ask_operator` mirrors AskUserQuestion where it helps: `options` are strings
+  or `{label, description}` (≤ 9), `header` is a ≤ 12-char chip,
+  `multi_select` allows several picks. `questions` (≤ 4, AskUserQuestion's
+  limit) files related questions in one call: each item is deduped on its own
+  and gets its own Q id; the new ones share a `group_id` (the first one's id).
+  A single question is a group of one; its receipt keeps the old shape.
+- Options may carry a `preview` (monospace text shown beside the list).
+  `questions.options` keeps plain label strings (a 0.1.x popup `escape()`s
+  them); the full objects are in `question_ext.options_json`.
+- A single question is answered and sent at once. In a group, an answer is a
+  draft (`draft_json`: choices, notes per choice, free text) until Submit on the
+  group's Submit tab or the global review, which answers only drafted questions:
+  `answer` is the one-line text (`Postgres (note: …)`, picks joined by `, `),
+  `answer_json` the structure. `inbox answer` is draft + submit in one step.
+- Delivery is batched per pane: one `[inbox]` message per pane with all its
+  submitted answers, subject to the same session check, retry focus/blocked
+  guard and retry cap as before. A batch over herdr's 4000-char argument cap is
+  split into several messages, never truncated; a single answer too long for
+  any message is sent as a reference ("call check_answers") and stays
+  unacknowledged. Picks containing `,`, `"`, parentheses or `·` are quoted.
+- The retry also picks up answered rows that were never attempted (the
+  answering process died in between) once they are 60 s old.
+- **Upgrade safety**: the 0.2 fields (`header`, `multi_select`, `answer_json`,
+  `group_id`, drafts) live in a side table `question_ext`, read through the
+  `questions_v3` view (versioned; older views are dropped on open). The `questions` table keeps exactly the 0.1.x columns,
+  because 0.1.x builds its `Question` from `SELECT *`: sessions still running
+  0.1.x keep working against a database 0.2 has opened. `from_row` now ignores
+  columns it does not know, so later versions can add columns safely.
+
 ## TUI
 
-- List of open questions, newest first: `Q<id>`, tab label, `asked_by`, age,
-  repeat count, first line of the question.
-- Detail: full question, context, options. Number keys pick an option; `a` or
-  Enter opens a free-text answer box; Enter sends.
-- `d` dismiss · `g` focus the asking agent's pane (`herdr agent focus`) ·
-  `h` toggle answered/closed history · `q`/Esc close the popup.
+- List: one row per group of open questions, newest first (`Q12–Q14`, tab,
+  `asked_by`, age, repeats, `2/3 drafted`, first question). History (`h`)
+  shows single questions. `Enter`/`a` open the group, `r` the global review,
+  `d` dismiss the group, `g` focus the asking pane, `q`/Esc close.
+- The question UI mimics Claude Code's AskUserQuestion prompt (strings and
+  behaviour checked against the Claude Code 2.1.299 binary): header chip,
+  question in bold, numbered options with a `❯` cursor (label in the accent
+  colour, description dimmed, "Notes:" under an option), then "Type
+  something." (Claude Code's Other: the answer in single-select, added to the
+  picks in multi-select) and, in single-select, "Chat about this" (focuses the
+  asking agent's pane; the question stays open). Multi-select ends with a
+  Submit/Next row. ↑/↓/j/k move, 1–9 jump, Enter selects (toggles in
+  multi-select, Space too), `n` adds notes, `x` clears, Esc goes back without
+  sending. Footer: "Enter to select · ↑/↓ to navigate · press n to add notes ·
+  Esc to cancel" ("Tab/Arrow keys to navigate" in a group). With any option
+  `preview`, options sit left and the highlighted preview right ("No preview
+  available").
+- One question: answering sends at once. A group: tabs per question (`✓`
+  answered, `●` not) plus Submit; ←/→ and Tab/Shift-Tab switch; answering moves
+  to the next tab. The Submit tab: "Review your answers", "You have not
+  answered all questions" when some are blank, "Ready to submit your
+  answers?" with Submit answers / Cancel. Sends only the answered questions.
+- `r`: the same review across every draft (Enter edits, `x` drops).
 - Polls the database every 2 s.
 
 ## Agent onboarding

@@ -38,11 +38,11 @@ def _bin() -> str:
     return os.environ.get("HERDR_BIN_PATH") or "herdr"
 
 
-def call(*args: str, timeout: float = TIMEOUT) -> tuple[dict | None, str | None]:
-    """Run ``herdr <args>``; return (``.result`` dict, None) or (None, error)."""
+def run_raw(*args: str, timeout: float | None = None) -> tuple[str | None, str | None]:
+    """Run ``herdr <args>``; return (stdout, None) or (None, error)."""
     argv = [_bin(), *(clean(a) for a in args)]  # every argument, one choke point
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout or TIMEOUT)
     except (OSError, subprocess.SubprocessError) as exc:
         log.warning("herdr %s failed: %s", args[:2], exc)
         return None, str(exc)
@@ -50,8 +50,16 @@ def call(*args: str, timeout: float = TIMEOUT) -> tuple[dict | None, str | None]
         err = (proc.stderr or proc.stdout).strip() or f"exit {proc.returncode}"
         log.warning("herdr %s failed: %s", args[:2], err)
         return None, err
+    return proc.stdout, None
+
+
+def call(*args: str, timeout: float | None = None) -> tuple[dict | None, str | None]:
+    """Run ``herdr <args>``; return (``.result`` dict, None) or (None, error)."""
+    out, err = run_raw(*args, timeout=timeout)
+    if out is None:
+        return None, err
     try:
-        data = json.loads(proc.stdout) if proc.stdout.strip() else {}
+        data = json.loads(out) if out.strip() else {}
     except json.JSONDecodeError:
         return {}, None  # command succeeded but printed no JSON
     return (data.get("result") or {}) if isinstance(data, dict) else {}, None
@@ -65,9 +73,43 @@ def pane_identity(pane_id: str) -> dict:
     out["tab_id"] = pane.get("tab_id")
     out["session_id"] = (pane.get("agent_session") or {}).get("value")
     if out["tab_id"]:
-        res, _ = call("tab", "get", out["tab_id"])
-        out["tab_label"] = ((res or {}).get("tab") or {}).get("label")
+        out["tab_label"] = tab_label(out["tab_id"])
     return out
+
+
+def tab_label(tab_id: str) -> str | None:
+    res, _ = call("tab", "get", tab_id)
+    return ((res or {}).get("tab") or {}).get("label")
+
+
+def rename_tab(tab_id: str, label: str) -> str | None:
+    _, err = call("tab", "rename", tab_id, label)
+    return err
+
+
+def pane_tabs() -> dict[str, str | None] | None:
+    """pane_id -> tab_id for every pane, or None if herdr is unreachable."""
+    res, _ = call("pane", "list")
+    if res is None:
+        return None
+    return {p["pane_id"]: p.get("tab_id") for p in res.get("panes", []) if p.get("pane_id")}
+
+
+def all_tabs() -> list[dict] | None:
+    """Every tab ({tab_id, label, ...}) in every workspace, or None."""
+    res, _ = call("workspace", "list")
+    if res is None:
+        return None
+    tabs = []
+    for ws in res.get("workspaces", []):
+        res, _ = call("tab", "list", "--workspace", ws["workspace_id"])
+        tabs += (res or {}).get("tabs", [])
+    return tabs
+
+
+def plugin_config_dir(plugin_id: str) -> str | None:
+    out, _ = run_raw("plugin", "config-dir", plugin_id)
+    return out.strip() or None if out else None
 
 
 def live_agent(pane_id: str) -> dict | None:
@@ -108,10 +150,8 @@ def set_open_count(pane_id: str, count: int) -> None:
 
 
 def list_pane_ids() -> list[str] | None:
-    res, _ = call("pane", "list")
-    if res is None:
-        return None
-    return [p["pane_id"] for p in res.get("panes", []) if p.get("pane_id")]
+    panes = pane_tabs()
+    return None if panes is None else list(panes)
 
 
 def open_popup() -> str | None:
