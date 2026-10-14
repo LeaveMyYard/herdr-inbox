@@ -1,9 +1,15 @@
 id = "leavemyyard.herdr-inbox"
 name = "herdr inbox"
-version = "0.1.0"
+version = "0.3.0"
 min_herdr_version = "0.9.0"
 description = "Non-blocking question inbox: agents file questions once through an MCP tool, you answer them from one popup, answers go back into the asking pane."
 platforms = ["linux", "macos"]
+
+# `herdr plugin install` runs this once in the new install directory, so the
+# first popup does not have to download anything. `plugin link` does not run
+# it; the commands below then create the environment on first use instead.
+[[build]]
+command = ["uv", "sync", "--frozen", "--no-dev"]
 
 # Runtime commands run with the plugin directory as cwd, so `--project .` is
 # this checkout. uv must be on PATH for the herdr server.
@@ -15,7 +21,7 @@ platforms = ["linux", "macos"]
 id = "inbox"
 title = "Inbox"
 placement = "popup"
-command = ["sh", "-c", "exec uv run --quiet --project \"${HERDR_PLUGIN_ROOT:-.}\" inbox tui"]
+command = ["sh", "-c", "exec uv run --quiet --frozen --no-dev --project \"${HERDR_PLUGIN_ROOT:-.}\" inbox tui"]
 width = "85%"
 height = "80%"
 
@@ -25,14 +31,14 @@ height = "80%"
 id = "open"
 title = "Inbox: open"
 description = "Open the question inbox popup."
-command = ["uv", "run", "--quiet", "--project", ".", "inbox", "open"]
+command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "open"]
 
 [[actions]]
 id = "sync-tokens"
 title = "Inbox: resync sidebar counts"
 description = "Recompute the $inbox_q pane token from the open questions."
-command = ["uv", "run", "--quiet", "--project", ".", "inbox", "sync-tokens"]
+command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "sync-tokens"]
 
 # Pane tokens do not survive a herdr restart; put the counts back.
 [[startup]]
-command = ["uv", "run", "--quiet", "--project", ".", "inbox", "sync-tokens"]
+command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "sync-tokens"]
