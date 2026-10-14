@@ -31,8 +31,10 @@ One Python package, `herdr_inbox`, one CLI entry point `inbox`:
 | `inbox answer <id> <text>` | answer + deliver (scriptable) |
 | `inbox dismiss <id>` | close without answering |
 | `inbox sync-tokens` | recompute sidebar tokens for every pane (herdr startup hook) |
+| `inbox open` | open the popup (herdr `open` action) |
+| `inbox hook session-start\|subagent-start` | Claude Code hooks (see Agent onboarding) |
 
-Runtime: Python ≥ 3.11, `uv`; dependencies `mcp` (FastMCP) and `textual`.
+Runtime: Python ≥ 3.11, `uv`; dependencies `mcp` (FastMCP, called `MCPServer` since mcp 2.x) and `textual`.
 Storage: stdlib `sqlite3`, WAL mode, at
 `${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/inbox.db` (overridable with
 `HERDR_INBOX_DB` for tests). Multiple MCP server processes and the TUI share it.
@@ -50,6 +52,9 @@ On every `ask_operator` call it resolves, via the `herdr` CLI
 Resolve per call, not once at startup: `/clear` changes the session id, and a
 pane can be moved. Outside herdr the server still works; pane fields are null
 and answers are only available through `check_answers`.
+Session fallback when herdr gives none: `CLAUDE_CODE_SESSION_ID` from the
+environment, else (outside herdr) a per-process id. Outside herdr no herdr
+calls are made at all (no notification, no token).
 
 Which **subagent** asked is out of scope for the PoC; the optional `asked_by`
 argument carries the agent's own description of itself (e.g. "reviewer PR 595").
@@ -121,8 +126,10 @@ anything the operator is half-way through typing in that pane.
   `open` action; the operator binds `prefix+i` to it in their config.
 
 `herdr-plugin.toml` lives at the repo root, id `leavemyyard.herdr-inbox`,
-`min_herdr_version = "0.9.0"`, platforms linux and macos. Commands run from the
-plugin dir as `uv run --project . inbox ...`.
+`min_herdr_version = "0.9.0"`, platforms linux and macos. Actions and startup run from the
+plugin dir as `uv run --project . inbox ...`; the popup command resolves the
+project from `$HERDR_PLUGIN_ROOT`, since a pane's cwd is not documented to be
+the plugin dir.
 
 ## TUI
 
@@ -134,12 +141,47 @@ plugin dir as `uv run --project . inbox ...`.
   `h` toggle answered/closed history · `q`/Esc close the popup.
 - Polls the database every 2 s.
 
-## Agent instruction
+## Agent onboarding
 
-`docs/agent-instructions.md` holds the snippet for the operator's CLAUDE.md:
-questions for the operator go through `ask_operator`, once; never restate them
-in chat; continue working; answers arrive as `[inbox] Q<n> answered` messages;
-after compaction call `list_my_questions` before asking anything.
+Every Claude Code session learns the inbox by default, without a hand-edited
+CLAUDE.md, the way the superpowers plugin does it: the repo is also a Claude
+Code plugin.
+
+- `.claude-plugin/plugin.json` declares the plugin `herdr-inbox` and bundles
+  the MCP server inline (`uv run --project ${CLAUDE_PLUGIN_ROOT} inbox mcp`).
+  Inline rather than a root `.mcp.json`, because a root `.mcp.json` is also
+  Claude Code's project-scope MCP file for anyone working in this repo.
+- `.claude-plugin/marketplace.json` is a local single-plugin marketplace
+  (`source: "./"`): `claude plugin marketplace add <repo>` +
+  `claude plugin install herdr-inbox@herdr-inbox`.
+- `hooks/hooks.json`:
+  - `SessionStart`, matcher `startup|resume|clear|compact`, runs
+    `inbox hook session-start`, which prints
+    `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": …}}`.
+    The text is short (under 250 words; it lands in every session): use
+    `ask_operator` for anything you would otherwise ask in chat while you can
+    keep working; ask once; never restate it; answers arrive as
+    `[inbox] Q<n> answered`; after compaction/resume call `list_my_questions`
+    first; blocking/destructive confirmations keep the normal flow; pass the
+    rule on in subagent briefs; details in the skill. On `compact` and
+    `resume` it appends the session's pending questions (`Q12 (open): …`, and
+    answered-but-unseen ones); on `resume` it also matches the pane, since a
+    resumed conversation may carry a new session id.
+  - `SubagentStart` runs `inbox hook subagent-start`: one paragraph for
+    subagents (ask once with `asked_by`, do not wait, the answer goes to the
+    main session). The hooks reference documents `additionalContext` for
+    SubagentStart. It does not say SessionStart fires for subagents, and the
+    sub-agents page says a subagent starts with a fresh context (own prompt,
+    CLAUDE.md, git status), so SessionStart context is not assumed to reach
+    them; the main agent is also told to pass the rule on.
+  - Both are fast (no mcp/textual import; ~40 ms through `uv run`) and never
+    fail the session: any error means exit 0 with no output.
+- `skills/operator-questions/SKILL.md` holds the fuller guidance (phrasing a
+  self-contained question, options, `asked_by`, withdrawing); the hook text
+  points to it as `herdr-inbox:operator-questions`.
+
+`docs/agent-instructions.md` keeps the equivalent CLAUDE.md snippet for the
+manual route (`claude mcp add` without the plugin).
 
 ## Out of scope for the PoC
 
