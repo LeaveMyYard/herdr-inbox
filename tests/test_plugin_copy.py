@@ -47,7 +47,10 @@ def expand(value: str, copy: Path, data: Path) -> str:
 
 def plugin_env(copy, data, **extra):
     env = {k: v for k, v in os.environ.items() if not k.startswith(("UV_", "VIRTUAL_ENV"))}
-    env.update(CLAUDE_PLUGIN_ROOT=str(copy), CLAUDE_PLUGIN_DATA=str(data), UV_OFFLINE="1", **extra)
+    env.update(CLAUDE_PLUGIN_ROOT=str(copy), CLAUDE_PLUGIN_DATA=str(data), **extra)
+    # A real install has network on first use; set HERDR_INBOX_TEST_OFFLINE=1 to rely on a warm uv cache.
+    if os.environ.get("HERDR_INBOX_TEST_OFFLINE"):
+        env["UV_OFFLINE"] = "1"
     return env
 
 
