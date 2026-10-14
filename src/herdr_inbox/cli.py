@@ -30,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("text", nargs="+")
     p = sub.add_parser("dismiss", help="close a question without answering")
     p.add_argument("id", type=lambda s: int(s.lstrip("Qq")))
+    p = sub.add_parser("redeliver", help="deliver answered questions again (and make them unseen for check_answers)")
+    p.add_argument("ids", nargs="+", type=lambda s: int(s.lstrip("Qq")))
     p = sub.add_parser("sync-tokens", help="recompute sidebar tokens and tab-label counts")
     p.add_argument("--remove-prefixes", action="store_true", help="strip every tab prefix (before uninstalling)")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
@@ -80,6 +82,18 @@ def main(argv: list[str] | None = None) -> int:
         state = f"delivered to {q.pane_id}" if q.delivered_at else f"not delivered: {q.delivery_error}"
         print(f"{q.ref} answered, {state}")
         return 0
+    if args.cmd == "redeliver":
+        done = store.redeliver(args.ids)
+        missing = sorted(set(args.ids) - set(done))
+        if done:
+            service.deliver_batch(store, [store.get(i) for i in done])
+            for qid in done:
+                q = store.get(qid)
+                state = "delivered (verified)" if q.verified_at else (q.delivery_error or "sent, not verified")
+                print(f"Q{qid}: {state}; available to check_answers until seen")
+        for qid in missing:
+            print(f"Q{qid}: not an answered question", file=sys.stderr)
+        return 1 if missing else 0
     if args.cmd == "dismiss":
         if not service.close(store, args.id, "dismissed"):
             print(f"Q{args.id} is not open", file=sys.stderr)

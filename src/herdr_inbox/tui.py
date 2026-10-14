@@ -35,8 +35,8 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import herdr, service
-from .store import Question, Store
+from . import herdr, service, tabs
+from .store import PENDING, Question, Store
 
 POLL_SECONDS = 2.0
 # After a view change the operator did not cause, keys are dropped this long: whatever they
@@ -68,6 +68,41 @@ def guarded(fn):
             self.app.notify(BUSY, severity="warning")
 
     return wrapper
+
+
+# The asking tab's label is resolved live (the operator may have renamed it, and an unnamed
+# tab's label is just its position), briefly cached so the popup stays fast.
+TAB_LABEL_TTL = 5.0
+LIVE_TAB_LABELS = True  # the logic tests pin labels to what was stored at ask time
+_tab_labels: dict[str, tuple[float, str | None]] = {}
+
+
+def tab_name(q: Question | None, store: Store | None = None) -> str:
+    """The question's tab label as herdr shows it now (our ❓ prefix stripped); the label
+    stored at ask time if the tab is gone or herdr is unreachable."""
+    if q is None:
+        return "-"
+    fallback = q.tab_label or q.pane_id or "no pane"
+    if not q.tab_id or not LIVE_TAB_LABELS:
+        return fallback
+    cached = _tab_labels.get(q.tab_id)
+    if cached and time.monotonic() - cached[0] < TAB_LABEL_TTL:
+        label = cached[1]
+    else:
+        label = herdr.tab_label(q.tab_id)
+        if label is not None:
+            marks = tabs.marks_for(store, q.tab_id) if store is not None else {tabs.DEFAULT_PREFIX}
+            label = tabs.base_label(label, marks)
+        _tab_labels[q.tab_id] = (time.monotonic(), label)
+    return label or fallback
+
+
+def _pending(q: Question) -> bool:
+    return bool(q.delivery_error and q.delivery_error.startswith(PENDING))
+
+
+def _pending_reason(q: Question) -> str:
+    return (q.delivery_error or "")[len(PENDING):]
 
 
 def _draft_line(q: Question) -> str:
@@ -153,7 +188,7 @@ class QuestionView(Vertical, can_focus=True):
         q = self.q
         if q.header and not self.in_group:
             yield Static(f"[reverse b] {escape(q.header)} [/]", classes="chip")
-        meta = f"{q.ref} · {q.tab_label or q.pane_id or 'no pane'}" + (f" · {q.asked_by}" if q.asked_by else "")
+        meta = f"{q.ref} · {tab_name(q, getattr(self.app, 'store', None))}" + (f" · {q.asked_by}" if q.asked_by else "")
         yield Static(escape(meta), classes="meta")
         yield Static(f"[b]{escape(q.question)}[/b]", classes="question")
         if q.context:
@@ -410,7 +445,7 @@ class ReviewView(Vertical, can_focus=True):
         lines = ["[b]Review your answers[/b]", ""]
         for i, q in enumerate(self.items):
             mark = "[$inbox-suggestion]❯[/]" if self.cursor == ("item", q.id) else "[$foreground]●[/]"
-            where = f"{q.ref} · {escape(q.tab_label or q.pane_id or '-')} · "
+            where = f"{q.ref} · {escape(tab_name(q, self.store))} · "
             lines.append(f"{mark} [$foreground]{where}{escape(service.first_line(q.question, 80))}[/]")
             if q.draft_json:
                 lines.append(f"  [$inbox-success]→ {escape(_draft_line(q))}[/]")
@@ -529,8 +564,10 @@ class FailedView(Vertical, can_focus=True):
 
     def compose(self) -> ComposeResult:
         q = self.q
-        meta = f"{q.ref} · {q.tab_label or q.pane_id or 'no pane'}" + (f" · {q.asked_by}" if q.asked_by else "")
-        yield Static(f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]",
+        meta = f"{q.ref} · {tab_name(q, getattr(self.app, 'store', None))}" + (f" · {q.asked_by}" if q.asked_by else "")
+        state = (f"⏳ {q.ref} pending delivery[/]: [dim]{escape(_pending_reason(q))}[/dim]" if _pending(q)
+                 else f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]")
+        yield Static(("[b]" + state) if _pending(q) else state,
                      classes="question")
         yield Static(escape(meta), classes="meta")
         yield Static(f"[b]{escape(q.question)}[/b]\n  [$inbox-success]→ {escape(q.answer or '')}[/]", classes="question")
@@ -674,17 +711,20 @@ class GroupListView(Vertical, can_focus=True):
         store = self.inbox.store
         if entry[0] == "failed":
             q = store.get(entry[1])
-            where = escape((q.tab_label or q.pane_id or "no pane") if q else "-")
+            where = escape(tab_name(q, store))
             if closed:
                 return f"{cur} {number} [$inbox-warning]✕ Q{entry[1]} · {where} · {escape(closed)}[/]"
-            head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or '')}"
-            line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
-            return f"{line1}\n      [dim]{escape(service.first_line(q.question, 60))} → {escape(q.answer or '')}[/dim]" \
-                if False else f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
+            if _pending(q):  # waiting for the agent to be idle: information, not a warning
+                head = f"⏳ Q{q.id} pending delivery · {where} · {escape(_pending_reason(q))}"
+                line1 = f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]"
+            else:
+                head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or 'no attempt recorded')}"
+                line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
+            return f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
                 f"{escape(service.first_line(q.answer or '', 40))}[/dim]"
         qs = store.group(entry[1], include_closed=True)
         first = qs[0] if qs else None
-        where = escape((first.tab_label or first.pane_id or "no pane") if first else "-")
+        where = escape(tab_name(first, store))
         live_qs = [q for q in qs if q.status == "open"]
         name = escape(service.group_name(live_qs or qs)) if qs else where
         if closed or not first:
@@ -707,10 +747,16 @@ class GroupListView(Vertical, can_focus=True):
         return f"{line1}\n      [dim]{detail}[/dim]"
 
     def render_rows(self) -> None:
+        if not self.query("#list-title"):
+            return  # a poll can land while this view is still mounting or already leaving
         live = self.inbox.live_entries
         groups = sum(1 for e in live if e[0] == "group")
-        failed = len(live) - groups
-        parts = [f"{groups} group{'s' if groups != 1 else ''}"] + ([f"{failed} not delivered"] if failed else [])
+        others = [self.inbox.store.get(e[1]) for e in live if e[0] == "failed"]
+        pending = sum(1 for q in others if q and _pending(q))
+        failed = len(others) - pending
+        parts = [f"{groups} group{'s' if groups != 1 else ''}"]
+        parts += [f"{pending} pending delivery"] if pending else []
+        parts += [f"{failed} not delivered"] if failed else []
         self.query_one("#list-title", Static).update(f"[b]Open questions[/b] [dim]· {' · '.join(parts)}[/dim]")
         entries = self.inbox.entries
         box = self.query_one("#list-rows", VerticalScroll)
@@ -1012,7 +1058,7 @@ class InboxApp(App):
             row.display = False  # no empty band above the list or a lone question
             return
         first = self.store.get(self.tabs[0][1])
-        chips = [Static(f"│ {escape((first.tab_label or first.pane_id or 'no pane') if first else '-')}",
+        chips = [Static(f"│ {escape(tab_name(first, self.store))}",
                         classes="sep")]
         current = None
         for tab in tabs:
