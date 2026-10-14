@@ -117,6 +117,41 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
 
 ## Answer delivery
 
+**Verified delivery (0.5.1).** A successful `herdr agent prompt` only means the
+keys were written to the pane. In live use (0.4.0) answers typed while the
+agent was mid-turn left no trace in its transcript, yet were recorded as
+delivered and seen. So:
+
+- An answer is typed only when `herdr agent get` reports the agent `idle` or
+  `done`. Otherwise it is *pending delivery* (`delivery_error = "pending: …"`,
+  not a failed attempt, shown as `⏳ Q<n> pending delivery` in the popup) and
+  the asking session's MCP retry loop (every 10 s) delivers it at the next idle.
+- After typing, the session transcript is tail-read from the size it had
+  before the prompt (`transcript.py`, lenient parsing like zoetrope's tailer)
+  for a record carrying the message: a `user` record with string content
+  (typed while idle), or a `queue-operation` `enqueue` / `attachment`
+  `queued_command` (queued mid-turn). Found within 15 s → `delivered_at`,
+  `verified_at`, and only then `acknowledged_at`. Not found → `delivery_error =
+  "not verified: …"`, retried by the loop. No transcript known at all (the
+  SessionStart hook records `transcript_path` per session; fallback
+  `~/.claude/projects/*/<session>.jsonl`) → sent but left unseen for
+  `check_answers`, not retried.
+- "Seen" therefore means the agent fetched the answer (`check_answers`,
+  `list_my_questions`) or the delivery was verified — never just "sent".
+- Recovery: a one-off migration (flag in `meta`) clears `acknowledged_at` on
+  answers from the last 7 days that were delivered without verification, so
+  `check_answers` returns them; `inbox redeliver <ids>` re-queues answers for
+  delivery. Sessions still running 0.4/0.5.0 MCP servers keep the old
+  behaviour until they restart.
+- Probe (2026-10-14, disposable Claude in a tab created and closed for the
+  test): typing into a *working* pane did land both times — as a
+  `queue-operation enqueue` during plain generation and as an `attachment
+  queued_command` during a Bash tool call. The 12:53 loss therefore came from a
+  UI state herdr reports as `working` that swallows input (a dialog, an agent
+  view, a transcript viewer…), which herdr cannot tell apart. Hence idle-only
+  typing plus verification rather than trusting either signal alone.
+
+
 On answer (TUI or `inbox answer`): set status, then if the question has a pane
 and the pane's live agent is **the conversation that asked**
 (`herdr agent get` → `agent_session.value == session_id`; any live agent when

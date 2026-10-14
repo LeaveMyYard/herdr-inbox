@@ -46,7 +46,19 @@ CREATE TABLE IF NOT EXISTS question_ext (
     draft_json      TEXT,
     drafted_at      TEXT,
     options_json    TEXT,
-    hidden_at       TEXT
+    hidden_at       TEXT,
+    verified_at     TEXT
+);
+-- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
+-- is verified by finding the typed answer in it.
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id      TEXT PRIMARY KEY,
+    transcript_path TEXT
+);
+-- One-off migrations and other flags.
+CREATE TABLE IF NOT EXISTS meta (
+    key             TEXT PRIMARY KEY,
+    value           TEXT
 );
 -- One row per group (one ask_operator call) that was given a title (0.5).
 CREATE TABLE IF NOT EXISTS question_groups (
@@ -75,7 +87,7 @@ ADDED_COLUMNS = {
 # Read view, versioned: a release that changes it bumps the name (CREATE VIEW IF NOT EXISTS
 # would keep an old definition). Older views are NEVER dropped: processes of the previous
 # release keep running until their sessions restart, and each queries its own view.
-VIEW = "questions_v5"
+VIEW = "questions_v6"
 OLD_VIEWS: tuple[str, ...] = ()
 VIEW_SQL = f"""
 CREATE VIEW IF NOT EXISTS {VIEW} AS
@@ -84,11 +96,11 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
            q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
            e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
            COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json, e.hidden_at,
-           g.title AS group_title
+           g.title AS group_title, e.verified_at
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -135,6 +147,10 @@ ANSWER_REUSE = timedelta(hours=1)
 # An answered row with no delivery attempt this long after answering was orphaned
 # (the answering process died between answer and delivery): the retry picks it up.
 NEVER_ATTEMPTED_GRACE = timedelta(seconds=60)
+# delivery_error prefix for an answer waiting for its agent to be idle (not a failure).
+PENDING = "pending: "
+RESET_KEY = "0.5.1 unverified acknowledgements reset"
+RESET_WINDOW = timedelta(days=7)
 # A delivery claim older than this belongs to a process that died mid-send.
 CLAIM_STALE = timedelta(seconds=60)
 
@@ -174,6 +190,7 @@ class Question:
     draft_json: dict | None = None  # operator's unsent answer, same shape as answer_json
     drafted_at: str | None = None
     group_title: str | None = None  # the ask_operator call's title (0.5), if the agent gave one
+    verified_at: str | None = None  # the typed answer was seen in the session transcript (0.5.1)
 
     @property
     def group(self) -> int:
@@ -222,6 +239,7 @@ class Store:
         for old in OLD_VIEWS:
             self.db.execute(f"DROP VIEW IF EXISTS {old}")
         self.db.executescript(VIEW_SQL)
+        self._reset_unverified_acknowledgements()
         columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
         for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
             if name not in columns:
@@ -429,8 +447,13 @@ class Store:
         return cur.rowcount == 1
 
     def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True,
-                        claim: str | None = None) -> None:
-        """Write a delivery outcome; with ``claim``, only while that claim is still ours."""
+                        claim: str | None = None, verified: bool = False) -> None:
+        """Write a delivery outcome; with ``claim``, only while that claim is still ours.
+
+        A sent prompt is NOT an answer seen: only a ``verified`` delivery (found in the
+        session transcript) sets ``acknowledged_at``. An unverified one leaves the answer for
+        check_answers.
+        """
         mine, args = (" AND delivery_error = ?", (claim,)) if claim else ("", ())
         if error:
             self.db.execute(
@@ -438,12 +461,66 @@ class Store:
                 f" WHERE id = ?{mine}",
                 (error, qid, *args),
             )
-        else:  # typed into the asking conversation: that counts as seen (unless only referenced)
+            return
+        cur = self.db.execute(
+            "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
+            f" delivery_error = NULL WHERE id = ?{mine}",
+            (now(), now() if acknowledge and verified else None, qid, *args),
+        )
+        if verified and cur.rowcount:
             self.db.execute(
-                "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
-                f" delivery_error = NULL WHERE id = ?{mine}",
-                (now(), now() if acknowledge else None, qid, *args),
+                "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at",
+                (qid, qid, now()),
             )
+
+    def set_pending(self, qid: int, claim: str, reason: str) -> None:
+        """Not sent yet (e.g. the agent is mid-turn): visible as pending, retried, not counted
+        as a failed attempt."""
+        self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
+                        (f"{PENDING}{reason}", qid, claim))
+
+    def record_session(self, session_id: str, transcript_path: str | None) -> None:
+        if session_id and transcript_path:
+            self.db.execute("INSERT OR REPLACE INTO sessions (session_id, transcript_path) VALUES (?, ?)",
+                            (session_id, transcript_path))
+
+    def session_transcript(self, session_id: str | None) -> str | None:
+        if not session_id:
+            return None
+        row = self.db.execute("SELECT transcript_path FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return row[0] if row else None
+
+    def redeliver(self, qids: list[int]) -> list[int]:
+        """Make answered questions pending delivery again (and available to check_answers)."""
+        done = []
+        for qid in qids:
+            cur = self.db.execute(
+                "UPDATE questions SET delivered_at = NULL, acknowledged_at = NULL, delivery_attempts = 0,"
+                " delivery_error = ? WHERE id = ? AND status = 'answered'",
+                (f"{PENDING}redelivery requested", qid),
+            )
+            if cur.rowcount:
+                self.db.execute("UPDATE question_ext SET verified_at = NULL WHERE id = ?", (qid,))
+                done.append(qid)
+        return done
+
+    def _reset_unverified_acknowledgements(self) -> None:
+        """One-off (0.5.1): before verification, a sent prompt counted as seen, and answers
+        typed into a busy pane were lost that way. Every recent delivered-but-unverified
+        answer becomes unseen again, so check_answers returns it."""
+        if self.db.execute("SELECT 1 FROM meta WHERE key = ?", (RESET_KEY,)).fetchone():
+            return
+        with self.transaction():
+            if self.db.execute("SELECT 1 FROM meta WHERE key = ?", (RESET_KEY,)).fetchone():
+                return
+            self.db.execute(
+                "UPDATE questions SET acknowledged_at = NULL WHERE delivered_at IS NOT NULL"
+                " AND acknowledged_at IS NOT NULL AND answered_at >= ?"
+                " AND id NOT IN (SELECT id FROM question_ext WHERE verified_at IS NOT NULL)",
+                (now(-RESET_WINDOW),),
+            )
+            self.db.execute("INSERT INTO meta (key, value) VALUES (?, ?)", (RESET_KEY, now()))
 
     def undelivered(self, pane_id: str, stale_errors: tuple[str, ...], max_stale: int) -> list[Question]:
         """Answers for ``pane_id`` whose delivery failed and that the agent has not seen.

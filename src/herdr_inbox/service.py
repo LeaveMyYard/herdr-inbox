@@ -11,7 +11,7 @@ import logging
 import os
 from dataclasses import dataclass
 
-from . import herdr, proc, tabs
+from . import herdr, proc, tabs, transcript
 from .store import Question, Store, normalize
 
 NO_AGENT = "no live agent in pane"
@@ -19,6 +19,11 @@ CHANGED = "conversation changed in pane"
 # Retries (30 s apart) before giving up on a pane whose conversation is gone;
 # the answer stays available through check_answers either way.
 MAX_STALE_RETRIES = 10
+# herdr agent states in which typing a prompt is safe.
+DELIVERABLE = ("idle", "done")
+# How long the typed answer may take to show up in the session transcript.
+VERIFY_SECONDS = 15.0
+NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
 MAX_HEADER = 12  # AskUserQuestion's chip limit
 MAX_OPTIONS = 9  # number keys 1-9
 MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
@@ -140,7 +145,7 @@ def ask_group(
                 f"Recorded as {q.ref}. The operator will answer asynchronously; the answer will arrive in "
                 f"this conversation as a message starting with `[inbox]` that names {q.ref}. Continue with "
                 f"work that does not depend on it. Do not repeat the question in chat or call ask_operator "
-                f"for it again.")})
+                f"for it again. If an answer seems overdue, call check_answers.")})
         if new:
             store.set_group_title(group_id, title)
     if new:
@@ -152,7 +157,7 @@ def ask_group(
         "group": group_id,
         "questions": receipts,
         "message": f"Filed {ids}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working "
-        "and do not ask these again.",
+        "and do not ask these again. If an answer seems overdue, call check_answers.",
     }
 
 
@@ -307,8 +312,8 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
         if not items:
             continue
 
-        def record(q: Question, error: str | None, acknowledge: bool = True) -> None:
-            store.record_delivery(q.id, error, acknowledge=acknowledge, claim=claims[q.id])
+        def record(q: Question, error: str | None, acknowledge: bool = True, verified: bool = False) -> None:
+            store.record_delivery(q.id, error, acknowledge=acknowledge, claim=claims[q.id], verified=verified)
 
         if not pane:
             for q in items:
@@ -327,16 +332,42 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
                 ours.append(q)
         if not ours:
             continue
-        if retry and (agent["focused"] or agent["status"] == "blocked"):
-            # The operator may be typing there, or about to answer the dialog: the prompt
-            # would merge with their input. Give the claims back; a later tick retries.
+        if agent["status"] not in DELIVERABLE:
+            # Only type into an agent at rest. Mid-turn the text is usually queued, but in live
+            # use (0.4.0) answers typed into a busy pane vanished without a trace, and herdr
+            # still reported success. Keep it pending; the asking session's retry loop
+            # delivers at the next idle.
             for q in ours:
-                store.release_claim(q.id, claims[q.id], q.delivery_error)
+                store.set_pending(q.id, claims[q.id], f"waiting for the agent to be idle (it is {agent['status']})")
             continue
+        if retry and agent["focused"]:
+            # The operator may be typing there: the prompt would merge with their input.
+            for q in ours:
+                store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
+            continue
+        path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
         for text, batch, ack in delivery_messages(ours):
+            offset = transcript.size(path)
             err = herdr.prompt_agent(pane, text)
-            for q in batch:
-                record(q, err, acknowledge=ack)
+            if err:
+                for q in batch:
+                    record(q, err)
+                continue
+            if path is None:  # a brand-new session's transcript may appear with this very prompt
+                path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
+                offset = 0
+            if path is None:
+                # Cannot verify (no transcript known): sent, but never counted as seen, so
+                # check_answers still returns it. Not retried (that could double it).
+                for q in batch:
+                    record(q, None, acknowledge=False)
+                continue
+            if transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS):
+                for q in batch:
+                    record(q, None, acknowledge=ack, verified=True)
+            else:
+                for q in batch:
+                    record(q, NOT_VERIFIED)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:

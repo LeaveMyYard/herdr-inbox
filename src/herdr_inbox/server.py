@@ -171,7 +171,7 @@ def withdraw_question(id: int, reason: str) -> dict[str, Any]:
     return {"id": id, "status": "withdrawn", "message": f"Q{id} withdrawn."}
 
 
-RETRY_SECONDS = 30.0
+RETRY_SECONDS = 10.0  # also how soon an answer pending on a busy agent goes out once it is idle
 log = logging.getLogger("herdr_inbox")
 
 
