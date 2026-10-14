@@ -77,7 +77,8 @@ async def test_single_question_layout_and_keys(store, fake_herdr):
         assert v.cursor == 3
         await pilot.press("1")
         assert v.cursor == 0
-        assert text_of(v.query_one(".hint")) == "Enter to select · ↑/↓ to navigate · press n to add notes · Esc to cancel"
+        assert text_of(v.query_one(".hint")) == ("Enter to select · ↑/↓ to navigate · press n to add notes · "
+                                                 "g go to agent · d dismiss · Esc to cancel")
 
 
 async def test_single_pick_sends_immediately_and_closes(store, fake_herdr):
@@ -202,7 +203,8 @@ async def test_submit_tab_sends_answered_batched_per_pane_and_keeps_blanks(store
         await pilot.press("enter")                   # Submit answers
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert app.order == [2] and view(app).q.id == 2  # the unanswered one stays
+        assert app.open_qids == [2] and app.query(ReviewView)  # the unanswered one stays; no view swap
+        assert "Q2" in text_of(app.query_one("#review-body"))
     assert [store.get(i).status for i in (1, 2, 3, 4)] == ["answered", "open", "answered", "answered"]
     assert sorted(prompts(fake_herdr)) == ["[inbox] Q1 answered — One?: a",
                                            "[inbox] answered — Q3 Three?: later · Q4 Four?: x"]
@@ -240,28 +242,31 @@ async def test_new_questions_append_without_moving_the_current_tab(store, fake_h
         service.ask(store, B, "Three?")
         app.poll()
         await pilot.pause()
-        assert app.order == [1, 2, 3] and view(app).q.id == 2
+        assert app.open_qids == [1, 2, 3] and view(app).q.id == 2
         service.close(store, 1, "withdrawn")
         app.poll()
         await pilot.pause()
-        assert app.order == [2, 3] and view(app).q.id == 2
+        assert app.open_qids == [2, 3] and view(app).q.id == 2
 
 
 async def test_one_becomes_several_while_open(store, fake_herdr):
+    """The send mode is decided on open and re-decided only when the operator navigates."""
     service.ask(store, A, "One?", options=["a"])
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await opened(app, pilot)
         assert chips(app) == []
-        service.ask(store, B, "Two?")
+        service.ask(store, B, "Two?", options=["b"])
         app.poll()
         await pilot.pause()
+        assert [c.strip() for c in chips(app)] == ["│ tab-A", "● Q1", "│ tab-B", "● Q2"]  # no Submit yet
+        await pilot.press("right", "left")  # the operator navigates: now several
         assert "Submit" in "".join(chips(app))
-        await pilot.press("1", "enter")  # now a draft, not a send
+        await pilot.press("1", "enter")  # a draft, not a send
         assert store.get(1).status == "open" and store.get(1).draft_json
 
 
-async def test_dismiss_closes_the_current_group(store, fake_herdr):
+async def test_dismiss_asks_and_closes_only_the_current_question(store, fake_herdr):
     service.ask_group(store, A, [{"question": "One?"}, {"question": "Two?"}])
     service.ask(store, B, "Three?")
     app = InboxApp(store, focus_pane="w1:p1")
@@ -269,8 +274,14 @@ async def test_dismiss_closes_the_current_group(store, fake_herdr):
         await opened(app, pilot)
         await pilot.press("d")
         await pilot.pause()
-        assert app.order == [3] and view(app).q.id == 3
-    assert [store.get(i).status for i in (1, 2, 3)] == ["dismissed", "dismissed", "open"]
+        assert "Dismiss" in text_of(app.screen.query_one("#confirm"))
+        await pilot.press("x")  # any other key keeps it
+        await pilot.pause()
+        assert store.get(1).status == "open" and view(app).q.id == 1
+        await pilot.press("d", "d")
+        await pilot.pause()
+        assert view(app).q.id == 2
+    assert [store.get(i).status for i in (1, 2, 3)] == ["dismissed", "open", "open"]
 
 
 async def test_busy_database_never_crashes_the_popup(store, fake_herdr, monkeypatch):

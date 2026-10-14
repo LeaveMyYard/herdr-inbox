@@ -16,9 +16,12 @@ agents. New questions are appended while the popup is open.
   every answered question at once, batched per pane; the rest stay open;
 - "Type something." is Claude Code's Other (the answer in single-select, added
   to the picks in multi-select); "Chat about this" (single-select) focuses the
-  asking agent's pane and leaves the question open; ``n`` adds notes; ``d``
-  dismisses the current question's group; Esc closes the popup without
-  sending;
+  asking agent's pane and leaves the question open; ``n`` adds notes; ``g``
+  goes to the asking agent's pane; ``d`` dismisses the current question after
+  a one-key confirmation; Esc closes the popup without sending;
+- a poll never replaces the current view with another question: if its own
+  question closes, the tab becomes an inert placeholder until the operator
+  switches tabs; failed deliveries show up as ``⚠ Q<n> not delivered`` tabs;
 - options may carry a ``preview``: options left, the highlighted option's
   preview right ("No preview available" otherwise).
 """
@@ -34,7 +37,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, HorizontalScroll, Vertical, VerticalScroll
 from textual.message import Message
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
 from . import herdr, service
@@ -159,7 +162,13 @@ class QuestionView(Vertical, can_focus=True):
             return "Enter to save · Esc to cancel"
         nav = "Tab/Arrow keys to navigate" if self.in_group else "↑/↓ to navigate"
         pick = "Enter to toggle" if self.q.multi_select else "Enter to select"
-        return f"{pick} · {nav} · press n to add notes · Esc to cancel"
+        return f"{pick} · {nav} · press n to add notes · g go to agent · d dismiss · Esc to cancel"
+
+    def set_mode(self, in_group: bool, last: bool) -> None:
+        """Tabs came or went: update in place, never rebuild (typed text, picks, notes survive)."""
+        if (in_group, last) != (self.in_group, self.last):
+            self.in_group, self.last = in_group, last
+            self.render_rows()
 
     def row_text(self, i: int) -> str:
         kind, opt_i = self.rows[i]
@@ -432,6 +441,113 @@ VIEW_CSS = """
 """
 
 
+class GoneView(Vertical, can_focus=True):
+    """The current tab's question closed under the operator: an inert placeholder.
+
+    Enter and number keys do nothing here; only an explicit tab move (or Esc) leaves, so
+    keystrokes meant for this question can never land on another one.
+    """
+
+    BINDINGS = [Binding("escape", "back", show=False)]
+
+    def __init__(self, ref: str, reason: str):
+        super().__init__()
+        self.ref, self.reason = ref, reason
+
+    def compose(self) -> ComposeResult:
+        yield Static(f"[b]{self.ref} was closed[/b] [dim]({escape(self.reason)})[/dim]", classes="question")
+        yield Static("Nothing to answer here.", classes="meta")
+        yield Static("Tab/Arrow keys to move to another question · Esc to cancel", classes="hint")
+
+    def action_back(self) -> None:
+        _close(self.app)
+
+
+class FailedView(Vertical, can_focus=True):
+    """An answer that was not delivered: retry it, or stop showing it here."""
+
+    class Retry(Message):
+        def __init__(self, qid: int) -> None:
+            super().__init__()
+            self.qid = qid
+
+    class Hide(Message):
+        def __init__(self, qid: int) -> None:
+            super().__init__()
+            self.qid = qid
+
+    BINDINGS = [
+        Binding("up", "move(-1)", show=False),
+        Binding("down", "move(1)", show=False),
+        Binding("enter", "select", show=False),
+        Binding("1", "pick(0)", show=False),
+        Binding("2", "pick(1)", show=False),
+        Binding("escape", "back", show=False),
+    ]
+
+    def __init__(self, q: Question):
+        super().__init__()
+        self.q = q
+        self.cursor = 0
+
+    def compose(self) -> ComposeResult:
+        q = self.q
+        meta = f"{q.ref} · {q.tab_label or q.pane_id or 'no pane'}" + (f" · {q.asked_by}" if q.asked_by else "")
+        yield Static(f"[$warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]",
+                     classes="question")
+        yield Static(escape(meta), classes="meta")
+        yield Static(f"[b]{escape(q.question)}[/b]\n  [$accent]→[/] {escape(q.answer or '')}", classes="question")
+        yield Static(id="failed-rows")
+        yield Static("Enter to select · Tab/Arrow keys to navigate · g go to agent · Esc to cancel", classes="hint")
+
+    def on_mount(self) -> None:
+        self.render_rows()
+
+    def render_rows(self) -> None:
+        labels = ("Retry delivery", "Stop showing it here (the agent can still fetch it with check_answers)")
+        lines = []
+        for k, label in enumerate(labels):
+            here = k == self.cursor
+            text = f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"
+            lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
+        self.query_one("#failed-rows", Static).update("\n".join(lines))
+
+    def action_move(self, delta: int) -> None:
+        self.cursor = (self.cursor + delta) % 2
+        self.render_rows()
+
+    def action_pick(self, k: int) -> None:
+        self.cursor = k
+        self.action_select()
+
+    def action_select(self) -> None:
+        self.post_message((self.Retry if self.cursor == 0 else self.Hide)(self.q.id))
+
+    def action_back(self) -> None:
+        _close(self.app)
+
+
+class ConfirmDismiss(ModalScreen[bool]):
+    """One-key confirmation: d (or y) dismisses, any other key keeps the question."""
+
+    CSS = """
+    ConfirmDismiss { align: center middle; }
+    #confirm { width: auto; max-width: 80%; padding: 1 2; border: round $warning; background: $panel; }
+    """
+
+    def __init__(self, q: Question):
+        super().__init__()
+        self.q = q
+
+    def compose(self) -> ComposeResult:
+        yield Static(f"Dismiss [b]{self.q.ref}[/b] without answering?\n[dim]{escape(service.first_line(self.q.question, 70))}"
+                     f"[/dim]\n\n[$warning]d[/] to dismiss · any other key to keep it", id="confirm")
+
+    def on_key(self, event) -> None:
+        event.stop()
+        self.dismiss(event.key in ("d", "y"))
+
+
 def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
     failed = [q for q in done if not q.delivered_at]
     if not done:
@@ -444,7 +560,7 @@ def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
     if done and len(done) < wanted:
         app.notify(f"{wanted - len(done)} answered question(s) had closed meanwhile", severity="warning")
     app.poll()
-    if not app.order and done and not failed:
+    if not app.tabs and done and not failed:
         app.exit()  # like Claude Code's prompt: gone once everything is answered
 
 
@@ -474,8 +590,18 @@ def tab_order(questions: list[Question], focus_pane: str | None) -> list[int]:
     return [q.id for g in ordered for q in g]
 
 
+SUBMIT = ("submit", 0)
+
+
 class InboxApp(App):
-    """Every open question as a tab, plus Submit when there are several."""
+    """Every open question as a tab, plus Submit when there are several, plus a ⚠ tab per
+    answer that was not delivered.
+
+    Tabs are ("q", id) or ("failed", id). Polls only ever add tabs at the end or drop tabs
+    that are not current; the current tab's view is never replaced by another question's.
+    Whether Enter sends at once (exactly one open question) is decided when the popup opens
+    and re-decided only when the operator navigates.
+    """
 
     TITLE = "herdr inbox"
     CSS = """
@@ -483,6 +609,7 @@ class InboxApp(App):
     #chips { height: 1; margin-bottom: 1; scrollbar-size-horizontal: 0; }
     #chips > Static { width: auto; margin-right: 2; }
     #chips > .sep { color: $text-muted; }
+    #chips > .warn { color: $warning; }
     #empty { display: none; }
     InboxApp.empty #empty { display: block; }
     InboxApp.empty #chips, InboxApp.empty #body { display: none; }
@@ -493,6 +620,7 @@ class InboxApp(App):
         Binding("right", "switch(1)", show=False),
         Binding("tab", "switch(1)", show=False, priority=True),
         Binding("d", "dismiss", show=False),
+        Binding("g", "goto", show=False),
         Binding("escape", "quit", show=False),
     ]
 
@@ -500,22 +628,30 @@ class InboxApp(App):
         super().__init__()
         self.store = store or Store()
         self.focus_pane = focus_pane
-        self.order: list[int] = []
-        self.index = 0
+        self.tabs: list[tuple[str, int]] = []
+        self.current: tuple[str, int] | None = None
+        self.gone: dict[tuple[str, int], str] = {}  # tabs whose question closed while shown
+        self.single = False  # Enter sends at once; decided on open and on navigation only
+
+    @property
+    def base(self) -> Screen:
+        return self.screen_stack[0]
 
     # -- state -------------------------------------------------------------------
 
-    @property
-    def multi(self) -> bool:
-        return len(self.order) > 1
+    def _live(self) -> tuple[list[Question], list[Question]]:
+        return self.store.list(), self.store.failed_deliveries()
 
     @property
-    def review_index(self) -> int:
-        return len(self.order)
+    def open_qids(self) -> list[int]:
+        return [i for k, i in self.tabs if k == "q" and (k, i) not in self.gone]
 
     @property
-    def current_qid(self) -> int | None:
-        return self.order[self.index] if self.index < len(self.order) else None
+    def all_tabs(self) -> list[tuple[str, int]]:
+        return self.tabs + ([] if self.single or not self.open_qids else [SUBMIT])
+
+    def _decide_mode(self) -> None:
+        self.single = len(self.open_qids) == 1
 
     def compose(self) -> ComposeResult:
         yield HorizontalScroll(id="chips")
@@ -524,112 +660,155 @@ class InboxApp(App):
 
     def on_mount(self) -> None:
         if self.focus_pane is None:
-            self.focus_pane = os.environ.get("INBOX_FOCUS_PANE") or herdr.focused_pane()
-        self.order = tab_order(self._open(), self.focus_pane)
-        self.show(0)
+            self.focus_pane = (herdr.invocation_pane() or os.environ.get("INBOX_FOCUS_PANE")
+                               or herdr.focused_pane())
+        try:
+            open_qs, failed = self._live()
+        except sqlite3.OperationalError:
+            open_qs, failed = [], []
+            self.notify(BUSY, severity="warning")
+        self.tabs = [("q", i) for i in tab_order(open_qs, self.focus_pane)] + [("failed", q.id) for q in failed]
+        self._decide_mode()
+        self.show(self.all_tabs[0] if self.all_tabs else None)
         self.set_interval(POLL_SECONDS, self.poll)
 
-    def _open(self) -> list[Question]:
-        try:
-            return self.store.list()
-        except sqlite3.OperationalError:
-            self.notify(BUSY, severity="warning")
-            return []
-
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        if action in ("switch", "dismiss"):
-            return bool(self.order) and not isinstance(self.focused, Input) and (action != "switch" or self.multi)
+        if action in ("switch", "dismiss", "goto"):
+            return bool(self.tabs) and not isinstance(self.focused, Input)
         return True
 
     # -- rendering -----------------------------------------------------------------
 
-    def show(self, index: int) -> None:
-        self.set_class(not self.order, "empty")
-        body = self.query_one("#body")
+    def show(self, tab: tuple[str, int] | None) -> None:
+        """Mount the view for ``tab`` (only ever called on open or for an operator action)."""
+        self.current = tab
+        self.set_class(tab is None, "empty")
+        body = self.base.query_one("#body")
         body.remove_children()
-        if not self.order:
-            self.query_one("#chips").remove_children()
+        if tab is None:
+            self.base.query_one("#chips").remove_children()
             return
-        self.index = index % (len(self.order) + 1) if self.multi else 0
-        qid = self.current_qid
-        if qid is None:
-            view = ReviewView(self.store, list(self.order))
+        kind, qid = tab
+        if tab == SUBMIT:
+            view = ReviewView(self.store, self.open_qids)
+        elif tab in self.gone:
+            view = GoneView(f"Q{qid}", self.gone[tab])
+        elif kind == "failed":
+            view = FailedView(self.store.get(qid))
         else:
-            view = QuestionView(self.store.get(qid), in_group=self.multi, last=self.index == len(self.order) - 1)
+            view = QuestionView(self.store.get(qid), in_group=not self.single, last=self._last_open(qid))
         body.mount(view)
         view.focus()
         self.render_chips()
 
+    def _last_open(self, qid: int) -> bool:
+        return self.single or (self.open_qids[-1:] == [qid])
+
     def render_chips(self) -> None:
-        row = self.query_one("#chips", HorizontalScroll)
+        row = self.base.query_one("#chips", HorizontalScroll)
         row.remove_children()
-        if not self.multi:
+        tabs = self.all_tabs
+        if len(tabs) <= 1:
             return
         chips, current, last_tab = [], None, object()
-        for i, qid in enumerate(self.order):
-            q = self.store.get(qid)
-            if q is None:
-                continue
-            tab = q.tab_label or q.pane_id
-            if tab != last_tab:  # agent boundary
-                chips.append(Static(f"│ {escape(tab or 'no pane')}", classes="sep"))
-                last_tab = tab
-            mark = "✓" if q.draft_json else "●"
-            text = f"{mark} {escape(q.header or q.ref)}"
-            here = i == self.index
-            chip = Static(f"[reverse b] {text} [/]" if here else f"[$foreground]{text}[/]",
-                          classes="current" if here else "")
+        for tab in tabs:
+            here = tab == self.current
+            if tab == SUBMIT:
+                text, classes = "Submit", ""
+            else:
+                kind, qid = tab
+                q = self.store.get(qid)
+                where = (q.tab_label or q.pane_id) if q else None
+                if where != last_tab:  # agent boundary
+                    chips.append(Static(f"│ {escape(where or 'no pane')}", classes="sep"))
+                    last_tab = where
+                if tab in self.gone:
+                    text, classes = f"✕ Q{qid}", "sep"
+                elif kind == "failed":
+                    text, classes = f"⚠ Q{qid} not delivered", "warn"
+                else:
+                    text, classes = f"{'✓' if q and q.draft_json else '●'} {escape(q.header or q.ref)}", ""
+            chip = Static(f"[reverse b] {text} [/]" if here else text,
+                          classes=" ".join(c for c in (classes, "current" if here else "") if c))
             chips.append(chip)
-            if i == self.index:
+            if here:
                 current = chip
-        on_submit = self.current_qid is None
-        submit = Static("[reverse b] Submit [/]" if on_submit else "[$foreground]Submit[/]",
-                        classes="current" if on_submit else "")
-        chips.append(submit)
         row.mount_all(chips)
-        target = current or submit
-        self.call_after_refresh(target.scroll_visible, animate=False)
+        if current is not None:
+            self.call_after_refresh(current.scroll_visible, animate=False)
+
+    def _gone_reason(self, kind: str, qid: int) -> str:
+        q = self.store.get(qid)
+        if kind == "failed":
+            return "delivered" if q and q.delivered_at else "no longer pending"
+        if q is None:
+            return "removed"
+        return {"withdrawn": "withdrawn by the agent", "answered": "answered elsewhere",
+                "dismissed": "dismissed"}.get(q.status, q.status)
 
     @guarded
     def poll(self) -> None:
-        """Pick up new questions (appended, the current tab stays) and drop closed ones."""
-        open_qs = self.store.list()
-        open_ids = {q.id for q in open_qs}
-        keep = [qid for qid in self.order if qid in open_ids]
-        new = tab_order([q for q in open_qs if q.id not in set(self.order)], None)
-        if keep == self.order and not new:
-            if self.multi:
-                self.render_chips()  # drafts may have changed (✓ / ●)
+        """New questions and failed deliveries are appended; tabs that ended are dropped,
+        except the current one, which turns into an inert placeholder. No view is rebuilt
+        unless the current tab itself ended, and the send mode does not change here."""
+        if len(self.screen_stack) > 1:  # a confirmation is open
             return
-        current = self.current_qid
-        was_review = self.multi and current is None
-        was_multi = self.multi
-        self.order = keep + new
-        if current in self.order and was_multi == self.multi:
-            self.index = self.order.index(current)
-            self.render_chips()
-        elif was_review and self.multi:
-            self.index = self.review_index
-            self.query_one(ReviewView).reload()
-            self.render_chips()
-        else:
-            if current is not None and current not in self.order:
-                self.notify(f"Q{current} was closed meanwhile", severity="warning")
-            self.show(min(self.index, len(self.order)))
+        open_qs, failed = self._live()
+        live = {("q", q.id) for q in open_qs} | {("failed", q.id) for q in failed}
+        known = set(self.tabs)
+        ended = [t for t in self.tabs if t not in live and t not in self.gone]
+        self.tabs = [t for t in self.tabs if t in live or t == self.current]
+        n_q = max((i for i, t in enumerate(self.tabs) if t[0] == "q"), default=-1) + 1
+        new_q = [("q", i) for i in tab_order([q for q in open_qs if ("q", q.id) not in known], None)]
+        self.tabs[n_q:n_q] = new_q
+        self.tabs += [("failed", q.id) for q in failed if ("failed", q.id) not in known]
+        if self.current in ended:
+            self.gone[self.current] = self._gone_reason(*self.current)
+            self.notify(f"Q{self.current[1]} was closed ({self.gone[self.current]})", severity="warning")
+            self.show(self.current)  # the same tab, now the placeholder
+            return
+        if self.current is None and self.tabs:  # was empty; something arrived
+            self._decide_mode()
+            self.show(self.all_tabs[0])
+            return
+        view = self.base.query("#body > *").first() if self.base.query("#body > *") else None
+        if isinstance(view, QuestionView):
+            view.set_mode(not self.single, self._last_open(view.q.id))
+        elif isinstance(view, ReviewView):
+            view.qids = self.open_qids
+            view.reload()
+        self.render_chips()
 
-    # -- actions -------------------------------------------------------------------
+    # -- navigation (operator actions) -------------------------------------------------
+
+    def navigate(self, target: tuple[str, int] | int | None) -> None:
+        """Move to ``target`` (a tab, or a relative step): placeholders are dropped and the
+        send mode is re-decided here, on the operator's move."""
+        tabs = self.all_tabs
+        if isinstance(target, int):
+            i = tabs.index(self.current) if self.current in tabs else 0
+            target = tabs[(i + target) % len(tabs)] if tabs else None
+        self.tabs = [t for t in self.tabs if t not in self.gone or t == target]
+        self.gone = {t: r for t, r in self.gone.items() if t == target}
+        self._decide_mode()
+        tabs = self.all_tabs
+        if target not in tabs:
+            target = tabs[0] if tabs else None
+        self.show(target)
 
     def action_switch(self, delta: int) -> None:
-        self.show(self.index + delta)
+        self.navigate(delta)
 
     def on_key(self, event) -> None:
-        if not self.order:  # empty state: any key closes
+        if self.current is None and len(self.screen_stack) == 1:  # empty state: any key closes
             event.stop()
             self.exit()
 
     @guarded
     def on_question_view_answered(self, event: QuestionView.Answered) -> None:
-        if not self.multi:  # the only open question: answer and send at once, like Claude Code
+        if ("q", event.qid) in self.gone or self.current != ("q", event.qid):
+            return  # never act for a question that is not the one on screen
+        if self.single:  # the only open question: answer and send at once, like Claude Code
             d = event.detail or {}
             _send(self, self.store, [event.qid],
                   lambda s: [x for x in [service.answer(s, event.qid, d.get("text"), choices=d.get("choices"),
@@ -640,32 +819,59 @@ class InboxApp(App):
         if event.detail is None:
             self.render_chips()
             return
-        self.show(self.index + 1)  # Claude Code moves to the next tab (the last one: Submit)
+        self.navigate(1)  # Claude Code moves to the next tab (the last one: Submit)
 
     def on_question_view_chat(self, event: QuestionView.Chat) -> None:
-        q = event.q
+        self._focus_pane(event.q)
+
+    def on_review_view_edit(self, event: ReviewView.Edit) -> None:
+        self.navigate(("q", event.qid))
+
+    def on_review_view_submit(self, event: ReviewView.Submit) -> None:
+        _send(self, self.store, event.qids, lambda s: service.submit(s, event.qids))
+
+    def on_failed_view_retry(self, event: FailedView.Retry) -> None:
+        def retry(s: Store) -> list[Question]:
+            q = s.get(event.qid)
+            service.deliver(s, q)
+            return [s.get(event.qid)]
+
+        _send(self, self.store, [event.qid], retry)
+
+    @guarded
+    def on_failed_view_hide(self, event: FailedView.Hide) -> None:
+        self.store.hide_failed(event.qid)
+        self.gone[("failed", event.qid)] = "hidden"
+        self.navigate(1)
+
+    def _focus_pane(self, q: Question | None) -> None:
+        if q is None:
+            return
         err = herdr.focus_agent(q.pane_id) if q.pane_id else "no pane"
         if err:
             self.notify(f"could not focus {q.pane_id}: {err}", severity="warning")
         else:
             self.exit()  # the question stays open; discuss it in the agent's chat
 
-    def on_review_view_edit(self, event: ReviewView.Edit) -> None:
-        self.show(self.order.index(event.qid))
+    def action_goto(self) -> None:
+        if self.current and self.current != SUBMIT:
+            self._focus_pane(self.store.get(self.current[1]))
 
-    def on_review_view_submit(self, event: ReviewView.Submit) -> None:
-        _send(self, self.store, event.qids, lambda s: service.submit(s, event.qids))
-
-    @guarded
     def action_dismiss(self) -> None:
-        qid = self.current_qid
-        q = self.store.get(qid) if qid else None
+        if not self.current or self.current[0] != "q" or self.current in self.gone:
+            return
+        q = self.store.get(self.current[1])
         if q is None:
             return
-        closed = [g.ref for g in self.store.group(q.group) if service.close(self.store, g.id, "dismissed")]
-        if closed:
-            self.notify(f"{', '.join(closed)} dismissed")
-        self.poll()
+
+        @guarded
+        def done(confirmed: bool | None) -> None:
+            if confirmed and service.close(self.store, q.id, "dismissed"):
+                self.notify(f"{q.ref} dismissed")
+                self.gone[("q", q.id)] = "dismissed"
+                self.navigate(1)
+
+        self.push_screen(ConfirmDismiss(q), done)
 
     async def action_quit(self) -> None:
         # let an in-flight send finish before the popup (and its process) goes away

@@ -126,9 +126,17 @@ restart. Changing the mark is safe: every mark ever applied is stripped.
   "No open questions" and closes on any key.
 - `↑/↓` or `j/k` move the `❯`, `1`–`9` jump, `n` adds notes to an option, **Type something.**
   is a free answer (in multi-select it is added to the picks), **Chat about this** jumps to the
-  asking agent's pane and leaves the question open, `d` dismisses the current question's group,
-  `Esc` closes without sending. Options with a `preview` show it beside the list.
-  - **One open question in total**: `Enter` on an option (or text in Type something.) answers
+  asking agent's pane and leaves the question open, `g` goes to the asking agent's pane for any
+  question, `d` dismisses the current question (after a one-key confirmation), `Esc` closes
+  without sending. Options with a `preview` show it beside the list.
+  - Answers that could not be delivered appear as `⚠ Q12 not delivered` tabs with **Retry
+    delivery** / **Stop showing it here** (the agent can still fetch it with `check_answers`).
+  - If the question on screen is closed meanwhile (withdrawn, answered elsewhere), its tab
+    turns into an inert "Q12 was closed" placeholder that ignores Enter and number keys; it
+    leaves only when you switch tabs. Other tabs coming and going never touch what you are
+    typing.
+  - **One open question in total** (decided when the popup opens, and again only when you switch
+    tabs, never under your fingers): `Enter` on an option (or text in Type something.) answers
     and sends at once, and the popup closes. Multi-select: `Enter`/`Space` toggle, **Submit**
     sends.
   - **Several**: answering one drafts it and moves to the next tab (`←/→`, `Tab`/`Shift-Tab`

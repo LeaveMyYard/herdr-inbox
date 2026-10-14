@@ -100,6 +100,19 @@ def focused_pane() -> str | None:
     return next((p["pane_id"] for p in (res or {}).get("panes", []) if p.get("focused")), None)
 
 
+def invocation_pane() -> str | None:
+    """The pane that was focused when herdr invoked this plugin command, if herdr says.
+
+    ``HERDR_PLUGIN_CONTEXT_JSON.focused_pane_id`` is the documented source for actions and
+    pane commands alike (in a popup, HERDR_PANE_ID is the popup itself).
+    """
+    try:
+        ctx = json.loads(os.environ.get("HERDR_PLUGIN_CONTEXT_JSON") or "{}")
+    except json.JSONDecodeError:
+        ctx = {}
+    return (ctx.get("focused_pane_id") if isinstance(ctx, dict) else None) or None
+
+
 def all_tabs() -> list[dict] | None:
     """Every tab ({tab_id, label, ...}) in every workspace, or None."""
     res, _ = call("workspace", "list")
@@ -166,7 +179,7 @@ def open_popup() -> str | None:
     root = os.environ.get("HERDR_PLUGIN_ROOT")
     if root:
         args += ["--cwd", root]
-    focused = os.environ.get("HERDR_PANE_ID")  # the pane focused when the action ran
+    focused = invocation_pane() or os.environ.get("HERDR_PANE_ID")  # focused when the action ran
     if focused:
         args += ["--env", f"INBOX_FOCUS_PANE={focused}"]
     _, err = call(*args)

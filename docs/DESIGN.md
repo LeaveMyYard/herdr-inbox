@@ -244,9 +244,22 @@ the plugin dir.
   `plugin pane open --env`; fallback: the focused pane from `pane list`),
   then the rest oldest first; a group's questions stay adjacent. A dim
   `│ <tab label>` separator marks each agent boundary; the chip row is a
-  horizontal scroll that keeps the current chip visible. Every 2 s new open
-  questions are appended (the current tab does not move) and closed ones are
-  dropped. Empty: "No open questions", any key closes.
+  horizontal scroll that keeps the current chip visible. Empty: "No open
+  questions", any key closes. The focused pane comes from
+  `HERDR_PLUGIN_CONTEXT_JSON.focused_pane_id`, then `INBOX_FOCUS_PANE` (set by
+  `inbox open` from the same context or `HERDR_PANE_ID`), then `pane list`.
+- Polls (every 2 s) only ever append tabs (new questions; failed deliveries as
+  `⚠ Q<n> not delivered` tabs with Retry / Stop showing it) or drop tabs that
+  are not current. The current view is never rebuilt for another question: if
+  its own question closes, the tab becomes an inert "Q<n> was closed
+  (withdrawn by the agent / answered elsewhere)" placeholder that ignores Enter
+  and digits and is dropped once the operator switches tabs. Typed text, picks
+  and notes survive other tabs coming and going (the view's mode is updated in
+  place). Whether Enter sends at once (exactly one open question) is decided
+  when the popup opens and re-decided only on the operator's navigation.
+- `g` focuses the asking agent's pane for any question; `d` dismisses only the
+  current question after a one-key confirmation (`d` again; any other key
+  keeps it). Both are in the key hint.
 - The question UI mimics Claude Code's AskUserQuestion prompt (strings and
   behaviour checked against the Claude Code 2.1.299 binary): header chip,
   question in bold, numbered options with a `❯` cursor (label in the accent
@@ -255,8 +268,8 @@ the plugin dir.
   picks in multi-select) and, in single-select, "Chat about this" (focuses the
   asking agent's pane; the question stays open). Multi-select ends with a
   Submit/Next row. ↑/↓/j/k move, 1–9 jump, Enter selects (toggles in
-  multi-select, Space too), `n` adds notes, `x` clears, `d` dismisses the
-  current question's group, Esc closes without sending. Footer: "Enter to
+  multi-select, Space too), `n` adds notes, `x` clears, `g` goes to the
+  agent, `d` dismisses the current question (confirmed), Esc closes without sending. Footer: "Enter to
   select · ↑/↓ to navigate · press n to add notes · Esc to cancel"
   ("Tab/Arrow keys to navigate" with several tabs). With any option `preview`,
   options sit left and the highlighted preview right ("No preview available").
