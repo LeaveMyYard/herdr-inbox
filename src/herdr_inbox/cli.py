@@ -17,6 +17,19 @@ def _age(iso: str) -> str:
     return f"{max(secs, 0)}s"
 
 
+RADAR_MESSAGES = {
+    "changed": "$inbox_q {verb} herdr-radar's sidebar rows in {path} (backup: config.toml.inbox-bak); herdr reloaded",
+    "unchanged": "nothing to change: herdr-radar's sidebar rows in {path} are already as asked",
+    "no-config": "no herdr config at {path}",
+    "no-radar": "herdr-radar is not installed (or disabled): nothing to do",
+    "no-block": "no herdr-radar sidebar block in {path}: nothing to do",
+    "invalid": "{path} does not parse as TOML: left untouched",
+    "stepped-aside": "herdr-radar already carries $inbox_q (extra_tokens): left to radar",
+    "unsupported": "herdr-radar's block in {path} uses TOML this command does not edit ([[tables]] or multi-line strings): left untouched",
+    "conflict": "{path} changed while editing: left untouched, run it again",
+}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="inbox", description="Non-blocking operator question inbox for herdr")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -34,6 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("ids", nargs="+", type=lambda s: int(s.lstrip("Qq")))
     p = sub.add_parser("sync-tokens", help="recompute sidebar tokens and tab-label counts")
     p.add_argument("--remove-prefixes", action="store_true", help="strip every tab prefix (before uninstalling)")
+    p = sub.add_parser("radar-sidebar", help="show the ❓N count ($inbox_q) in herdr-radar's sidebar rows")
+    p.add_argument("--remove", action="store_true", help="take it out again (before uninstalling)")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
     p.add_argument("event", choices=["session-start", "subagent-start"])
     args = parser.parse_args(argv)
@@ -57,6 +72,12 @@ def main(argv: list[str] | None = None) -> int:
     from . import herdr, service
     from .store import Store
 
+    if args.cmd == "radar-sidebar":
+        from . import radar
+
+        status = radar.ensure(remove=args.remove)
+        print(RADAR_MESSAGES[status].format(path=radar.config_path(), verb="removed from" if args.remove else "added to"))
+        return 0 if status in ("changed", "unchanged", "stepped-aside") else 1
     if args.cmd == "open":
         err = herdr.open_popup()
         if err:

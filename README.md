@@ -156,8 +156,17 @@ the last one closes. Add `$inbox_q` to a row of the agent sidebar:
 rows = [["state_icon", "tab", { token = "$inbox_q", fg = "#c04a4a", bold = true }], ["agent"]]
 ```
 
-If a tool such as herdr-radar manages `[ui.sidebar.agents]` for you, add the token entry to its
-rows instead and re-add it after that tool rewrites them.
+**With [herdr-radar](https://github.com/hhdebb/herdr-radar)**, which replaces the agent rows with
+its own and has no slot for other plugins' tokens yet
+([hhdebb/herdr-radar#57](https://github.com/hhdebb/herdr-radar/issues/57) proposes an
+`extra_tokens` setting), run the action **Inbox: show ?N in herdr-radar's sidebar**
+(`herdr plugin action invoke leavemyyard.herdr-inbox.radar-sidebar`, or `inbox radar-sidebar`).
+It adds the `$inbox_q` cell to each of radar's agent rows, inside radar's managed block only, and
+reloads herdr's config. It runs only when you ask: radar rewrites its block on its configure
+action, and the popup then shows a one-line hint to run it again (`radar_sidebar_hint = false`
+turns the hint off). It leaves the file alone if it does not parse, if a row would exceed herdr's
+16-token limit, or once radar's config carries `$inbox_q` in `extra_tokens` itself; a backup of
+the previous file is kept as `config.toml.inbox-bak`.
 
 ## Install
 
@@ -207,6 +216,7 @@ Settings live in `config.toml` in the plugin's config directory
 ```toml
 tab_prefix = "❓"            # "" turns the tab prefix off
 prefix_unnamed_tabs = false  # true: also prefix tabs named by position (they keep the number)
+radar_sidebar_hint = true    # false: no popup hint when herdr-radar's rows lack $inbox_q
 ```
 
 The popup and every Claude session read this file, and edits apply without a restart. The database
@@ -231,6 +241,7 @@ inbox list [--all]
 inbox answer Q12 "squash it"
 inbox dismiss 12
 inbox sync-tokens
+inbox radar-sidebar [--remove]   # $inbox_q in herdr-radar's sidebar rows (on demand)
 ```
 
 ## Updating
@@ -263,6 +274,7 @@ claude plugin marketplace remove herdr-inbox
 ```
 
 From a checkout, `uv run inbox sync-tokens --remove-prefixes` does the first step in one command.
+If you added `$inbox_q` to herdr-radar's rows, take it out first with `inbox radar-sidebar --remove`.
 Remove the `prefix+i` binding yourself. The database stays in `~/.local/state/herdr-inbox/`
 until you delete it.
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2
+
+- **herdr-radar sidebar, on demand:** `inbox radar-sidebar` and the herdr action *Inbox: show ?N in
+  herdr-radar's sidebar* add the `$inbox_q` cell to every agent row of herdr-radar's managed
+  sidebar block (radar has no slot for other plugins' tokens yet; hhdebb/herdr-radar#57). It edits
+  only inside radar's markers, never past herdr's 16-token row limit, only if the file parses
+  before and after, atomically with a backup, and steps aside once radar carries `$inbox_q` in
+  `extra_tokens`. `--remove` takes it out again. Nothing runs it automatically; the popup shows a
+  one-line hint when radar's rows lack the token (`radar_sidebar_hint = false` hides it).
+
 ## 0.5.1
 
 - **Fix: answers could be lost when the asking agent was busy.** `herdr agent prompt` succeeding

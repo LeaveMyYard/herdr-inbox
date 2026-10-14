@@ -212,9 +212,31 @@ anything the operator is half-way through typing in that pane.
 - **Pane token** `inbox_q` = `"?N"` (N open questions) or cleared, via
   `herdr pane report-metadata <pane> --source herdr-inbox --token inbox_q=...`,
   updated on every state change. Tokens do not survive a herdr restart, so the
-  plugin's `[[startup]]` runs `inbox sync-tokens`. herdr-radar owns the sidebar
-  row layout; the README documents how to add `$inbox_q` to it (the PoC does
-  not edit the operator's herdr config).
+  plugin's `[[startup]]` runs `inbox sync-tokens`.
+- **herdr-radar sidebar (0.5.2, on demand).** herdr-radar owns the agent rows
+  (a marker-fenced block in herdr's `config.toml`) and has no slot for other
+  plugins' tokens; the long-term path is radar's proposed `extra_tokens`
+  setting ([hhdebb/herdr-radar#57](https://github.com/hhdebb/herdr-radar/issues/57)).
+  Until then `inbox radar-sidebar` / the `radar-sidebar` action (`radar.py`)
+  adds `{ token = "$inbox_q", fg = <the row's $title_blocked fg>, bold = true }`
+  after `$title_unknown` in every agent row holding radar's `$title_*` tokens
+  (`rows` and every `rows_by_agent` entry). Only when the operator runs it (the
+  operator chose this over automatic edits): never from `sync-tokens`, the
+  startup command or the popup. Safety: edits only between radar's sidebar
+  markers (everything else byte for byte: raw bytes in and out, CRLF kept);
+  the file must parse before and after; refuses a block holding `[[…]]` tables
+  or multi-line strings (not walked); never a row past herdr's 16-token limit
+  (radar#40 — one bad row makes herdr reject the whole file), counting every
+  top-level cell (inline tables, bare `"$x"`, bare built-ins like
+  `"state_icon"`); atomic write (temp file + `os.replace`, into a symlink's
+  target so the link stays) with the original bytes as `config.toml.inbox-bak`,
+  skipped if the file changed while editing; `herdr server reload-config` only
+  after a change; steps aside once radar's own plugin config has an
+  `extra_tokens` entry naming `$inbox_q`; `--remove` takes our cells out and is
+  never blocked by that. Radar rewrites the block on its configure action; the popup does
+  a read-only check in a worker and shows one hint line. Test fixtures are
+  radar's own output (`tests/fixtures/radar/generate.js` runs its
+  `sidebarBlock` for light/dark, glyph variants and `rows_by_agent` vendors).
 - **Tab label prefix** `❓N ` (herdr has no per-tab tokens): on every change the
   pane's current tab (`pane list`) is re-read with `tab get`; the base label is
   the current label with our marks stripped, repeatedly (never stored, so an

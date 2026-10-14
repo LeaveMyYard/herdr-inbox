@@ -44,7 +44,7 @@ def test_herdr_manifest_required_fields():
     for key in ("id", "name", "version", "min_herdr_version"):
         assert m.get(key), key
     assert [p["id"] for p in m["panes"]] == ["inbox"]
-    assert {a["id"] for a in m["actions"]} == {"open", "sync-tokens"}
+    assert {a["id"] for a in m["actions"]} == {"open", "sync-tokens", "radar-sidebar"}
     # GitHub installs run [[build]] before the first popup.
     assert m["build"][0]["command"][:2] == ["uv", "sync"]
 
