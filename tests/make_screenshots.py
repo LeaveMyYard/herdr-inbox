@@ -61,10 +61,10 @@ async def test_shots(store, fake_herdr):
         await pilot.pause()
         shot(app, "list")
         # inside the Billing group: its own tabs and Submit
-        await pilot.press("enter", "right")
+        await pilot.press("enter", "left")  # opens on the first blank (Cache); back to DB choice
         await pilot.pause()
         shot(app, "tabs")
-        await pilot.press("tab")
+        await pilot.press("tab", "tab")
         await pilot.pause()
         shot(app, "submit")
 

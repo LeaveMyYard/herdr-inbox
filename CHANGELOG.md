@@ -11,7 +11,8 @@
   chosen answers (Review list, ✓), `warning` only for warnings.
 - All 0.3 safety rules carry over to the list: arrivals are appended without moving the cursor's
   target, ended rows are inert placeholders until the operator moves, every view arms 0.4 s after
-  it appears. The `+N new` marker is gone (arrivals are list rows).
+  it appears. The `+N new` marker is gone (arrivals are list rows). The list never wraps around,
+  and a row that just arrived ignores Enter and digits for 1 s.
 
 ## 0.3.0
 

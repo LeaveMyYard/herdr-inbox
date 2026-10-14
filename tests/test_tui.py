@@ -23,7 +23,7 @@ def text_of(widget) -> str:
 
 
 def chips(app) -> list[str]:
-    return [text_of(c).replace("\u00a0", " ") for c in app.query("#chips > Static")]
+    return [" ".join(text_of(c).replace("\u00a0", " ").split()) for c in app.query("#chips > Static")]
 
 
 def prompts(fake):
@@ -190,7 +190,7 @@ async def test_answering_drafts_and_moves_to_the_next_tab(store, fake_herdr):
         await pilot.press("tab")
         assert view(app).q.id == 1  # wraps within the group
         await pilot.press("1", "enter")  # answer One -> next tab
-        assert view(app).q.id == 2 and "✓ First" in "".join(chips(app))
+        assert view(app).q.id == 2 and "✔ First" in "".join(chips(app))
         await pilot.press("2", "enter")  # Two -> this group's Submit tab
         assert app.query(ReviewView) and [q.id for q in app.query_one(ReviewView).items] == [1, 2]
     assert prompts(fake_herdr) == []  # drafts until Submit
@@ -237,7 +237,7 @@ async def test_cancel_and_drafts_survive_a_restart(store, fake_herdr):
         app = InboxApp(again)
         async with app.run_test() as pilot:
             await opened(app, pilot)
-            assert "✓ Q1" in "".join(chips(app)) and view(app).q.id == 2  # opens on the first blank
+            assert "✔ Q1" in "".join(chips(app)) and view(app).q.id == 2  # opens on the first blank
             await pilot.press("left")
             assert view(app).picked == {1}
             await pilot.press("1", "enter")  # edit

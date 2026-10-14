@@ -46,7 +46,11 @@ NAV_KEYS = ("tab", "shift+tab", "left", "right")
 # A question view ignores Enter, digits and Space this long after it appears, however it was
 # reached: a key already on its way can never answer a question the operator has not seen.
 ARM_SECONDS = 0.4
+# A list row that appeared while the popup was open ignores Enter and digits this long:
+# a key aimed at the rows the operator saw must not land on one they have not read.
+ROW_ARM_SECONDS = 1.0
 OTHER = "Type something."
+TICK = "\u2714"  # Claude Code's figures.tick on macOS/Linux
 CHAT = "Chat about this"
 BUSY = "The inbox database is busy; try again in a moment"
 
@@ -190,24 +194,25 @@ class QuestionView(Vertical, can_focus=True):
             return f"{cur} [$text-muted]  [/] " + (f"[b $inbox-suggestion]{label}[/]" if here else f"[$foreground]{label}[/]")
         if kind == "chat":
             return f"{cur} {number} " + (f"[b $inbox-suggestion]{CHAT}[/]" if here else f"[$foreground]{CHAT}[/]")
+        # Claude Code's roles: the focused row is "suggestion", a chosen answer "success" with
+        # its tick (TICK); multi-select boxes are "[✔]" in success, "[ ]" otherwise
         box = ""
         if self.q.multi_select:
             on = (opt_i in self.picked) if kind == "opt" else bool(self.text)
-            box = "[x] " if on else "[ ] "
-        # Claude Code's roles: the focused row is "suggestion", a chosen answer "success" (✓)
+            box = f"[$inbox-success]\\[{TICK}][/]\u00a0" if on else "\\[ ]\u00a0"
         if kind == "other":
             if self.text:
-                label = f"[i]{escape(box + self.text)}[/i]"
+                label = f"[i]{escape(self.text)}[/i]"
             else:
-                label = f"[dim]{escape(box)}{OTHER}[/dim]"
+                label = f"[dim]{OTHER}[/dim]"
             if here:
-                label = f"[b $inbox-suggestion]{escape(box + (self.text or OTHER))}[/]"
-            tick = " [$inbox-success]✓[/]" if self.text else ""
-            return f"{cur} {number} {label}{tick}"
+                label = f"[b $inbox-suggestion]{escape(self.text or OTHER)}[/]"
+            tick = f"\u00a0[$inbox-success]{TICK}[/]" if self.text and not self.q.multi_select else ""
+            return f"{cur} {number} {box}{label}{tick}"
         opt = self.options[opt_i]
-        text = escape(box + opt["label"])
-        tick = " [$inbox-success]✓[/]" if opt_i in self.picked else ""
-        lines = [f"{cur} {number} " + (f"[b $inbox-suggestion]{text}[/]" if here else f"[$foreground]{text}[/]") + tick]
+        text = escape(opt["label"])
+        tick = f"\u00a0[$inbox-success]{TICK}[/]" if opt_i in self.picked and not self.q.multi_select else ""
+        lines = [f"{cur} {number} {box}" + (f"[b $inbox-suggestion]{text}[/]" if here else f"[$foreground]{text}[/]") + tick]
         if opt.get("description"):
             lines.append(f"      [dim]{escape(opt['description'])}[/]")
         if self.notes.get(opt_i):
@@ -648,6 +653,7 @@ class GroupListView(Vertical, can_focus=True):
         self.cursor = cursor
 
     def compose(self) -> ComposeResult:
+        yield Static(id="list-title", classes="question")
         yield VerticalScroll(Static(id="list-body"), classes="choices")
         yield Static("Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel", classes="hint")
 
@@ -696,8 +702,18 @@ class GroupListView(Vertical, can_focus=True):
         return f"{line1}\n      [dim]{detail}[/dim]"
 
     def render_rows(self) -> None:
+        live = self.inbox.live_entries
+        groups = sum(1 for e in live if e[0] == "group")
+        failed = len(live) - groups
+        parts = [f"{groups} group{'s' if groups != 1 else ''}"] + ([f"{failed} not delivered"] if failed else [])
+        self.query_one("#list-title", Static).update(f"[b]Open questions[/b] [dim]· {' · '.join(parts)}[/dim]")
         rows = [self.row_text(n, e) for n, e in enumerate(self.inbox.entries, 1)]
         self.query_one("#list-body", Static).update("\n".join(rows) or "No open questions")
+
+    def fresh(self, entry: Entry | None) -> bool:
+        """The row arrived in the background less than ROW_ARM_SECONDS ago."""
+        arrived = self.inbox.arrived_at.get(entry)
+        return arrived is not None and time.monotonic() - arrived < ROW_ARM_SECONDS
 
     def _moved(self) -> None:
         """A deliberate cursor move: closed placeholders drop out now, the target stays."""
@@ -710,17 +726,18 @@ class GroupListView(Vertical, can_focus=True):
             return
         if self.cursor not in entries:  # the inert rest position: resume from the top/bottom
             self.cursor = entries[0] if delta > 0 else entries[-1]
-        else:
-            self.cursor = entries[(entries.index(self.cursor) + delta) % len(entries)]
+        else:  # no wrap-around: ↓ on the last row stays, so an arrival is never where ↓ wraps to
+            i = entries.index(self.cursor) + delta
+            self.cursor = entries[max(0, min(i, len(entries) - 1))]
         self._moved()
 
     def action_jump(self, n: int) -> None:
-        if 1 <= n <= len(self.inbox.entries):
+        if 1 <= n <= len(self.inbox.entries) and not self.fresh(self.inbox.entries[n - 1]):
             self.cursor = self.inbox.entries[n - 1]
             self._moved()
 
     def action_select(self) -> None:
-        if self.cursor in self.inbox.entries and self.cursor not in self.inbox.closed:
+        if self.cursor in self.inbox.entries and self.cursor not in self.inbox.closed and not self.fresh(self.cursor):
             self.post_message(self.Open(self.cursor))
 
     def action_back(self) -> None:
@@ -806,6 +823,7 @@ class InboxApp(App):
         self.mode = "empty"  # "empty" | "list" | "group" | "failed"
         self.entries: list[Entry] = []
         self.closed: dict[Entry, str] = {}  # list rows whose group/answer ended: inert placeholders
+        self.arrived_at: dict[Entry, float] = {}  # rows added by a poll (see ROW_ARM_SECONDS)
         self.list_cursor: Entry | None = None
         self.direct = False  # opened straight into the only group: Esc closes the popup
         # the open group
@@ -905,7 +923,7 @@ class InboxApp(App):
 
     def show_empty(self) -> None:
         self.mode = "empty"
-        self.base.query_one("#chips").remove_children()
+        self.render_chips()
         self._mount(None)
         self.render_empty()
 
@@ -921,7 +939,7 @@ class InboxApp(App):
         if not self.entries:
             self.show_empty()
             return
-        self.base.query_one("#chips").remove_children()
+        self.render_chips()
         self._mount(GroupListView(self, cursor if cursor is not None else self.list_cursor))
 
     def open_group(self, entry: Entry) -> None:
@@ -929,7 +947,7 @@ class InboxApp(App):
         self.list_cursor = entry
         if entry[0] == "failed":
             self.mode, self.entry = "failed", entry
-            self.base.query_one("#chips").remove_children()
+            self.render_chips()
             self._mount(FailedView(self.store.get(entry[1])))
             return
         qs = [q for q in self.store.group(entry[1]) if q.status == "open"]
@@ -967,6 +985,7 @@ class InboxApp(App):
         row.remove_children()
         tabs = self.all_tabs if self.mode == "group" else []
         if len(tabs) <= 1:
+            row.display = False  # no empty band above the list or a lone question
             return
         first = self.store.get(self.tabs[0][1])
         chips = [Static(f"│ {escape((first.tab_label or first.pane_id or 'no pane') if first else '-')}",
@@ -974,19 +993,22 @@ class InboxApp(App):
         current = None
         for tab in tabs:
             here = tab == self.current
+            # The mark sits outside the highlighted label: a coloured mark inside a reversed
+            # span would paint a coloured block.
             if tab == SUBMIT:
-                text, classes = "Submit", ""
+                mark, label, classes = "", "Submit", ""
             elif tab in self.gone:
-                text, classes = f"✕ Q{tab[1]}", "warn"
+                mark, label, classes = "✕\u00a0", f"Q{tab[1]}", "warn"
             else:
                 q = self.store.get(tab[1])
-                mark = "[$inbox-success]✓[/]" if q and q.draft_json else "●"
-                text, classes = f"{mark}\u00a0{escape(q.header or q.ref)}", ""
-            chip = Static(f"[reverse b] {text} [/]" if here else text,
+                mark = f"[$inbox-success]{TICK}\u00a0[/]" if q and q.draft_json else "●\u00a0"
+                label, classes = escape(q.header or q.ref), ""
+            chip = Static(f"{mark}[reverse b] {label} [/]" if here else f"{mark}{label}",
                           classes=" ".join(c for c in (classes, "current" if here else "") if c))
             chips.append(chip)
             if here:
                 current = chip
+        row.display = True
         row.mount_all(chips)
         if current is not None:
             self.call_after_refresh(current.scroll_visible, animate=False)
@@ -1013,7 +1035,10 @@ class InboxApp(App):
             if e not in live and e not in self.closed:
                 self.closed[e] = self._entry_reason(e)
         known = set(self.entries)
-        self.entries += [e for e in entry_order(open_qs, failed, None) if e not in known]
+        new = [e for e in entry_order(open_qs, failed, None) if e not in known]
+        now = time.monotonic()
+        self.arrived_at.update({e: now for e in new})
+        self.entries += new
         if self.mode == "empty":
             self.render_empty()
         elif self.mode == "list":
