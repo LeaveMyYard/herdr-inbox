@@ -102,6 +102,6 @@ def test_plugin_hook_and_mcp_config_point_at_the_cli():
     assert set(start["matcher"].split("|")) == {"startup", "resume", "clear", "compact"}
     assert start["hooks"][0]["args"][-3:] == ["inbox", "hook", "session-start"]
     assert hooks["SubagentStart"][0]["hooks"][0]["args"][-3:] == ["inbox", "hook", "subagent-start"]
-    server = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["herdr-inbox"]
+    server = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["mcpServers"]["herdr-inbox"]
     assert server["args"][-2:] == ["inbox", "mcp"] and "${CLAUDE_PLUGIN_ROOT}" in server["args"]
     assert (ROOT / "skills/operator-questions/SKILL.md").exists()

@@ -7,5 +7,23 @@
     "name": "LeaveMyYard"
   },
   "repository": "https://github.com/LeaveMyYard/herdr-inbox",
-  "keywords": ["herdr", "questions", "operator", "mcp"]
+  "keywords": [
+    "herdr",
+    "questions",
+    "operator",
+    "mcp"
+  ],
+  "mcpServers": {
+    "herdr-inbox": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "inbox",
+        "mcp"
+      ]
+    }
+  }
 }
