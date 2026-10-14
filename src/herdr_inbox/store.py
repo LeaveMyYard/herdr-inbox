@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from contextlib import contextmanager
 import re
 import sqlite3
@@ -44,7 +45,8 @@ CREATE TABLE IF NOT EXISTS question_ext (
     group_id        INTEGER,
     draft_json      TEXT,
     drafted_at      TEXT,
-    options_json    TEXT
+    options_json    TEXT,
+    hidden_at       TEXT
 );
 -- Tabs whose label the inbox decorated, and with which marks: only these are ever
 -- stripped, so an operator label such as "Q4 roadmap" is never touched.
@@ -67,18 +69,18 @@ ADDED_COLUMNS = {
 
 # Read view, versioned: a release that changes it bumps the name and drops older ones
 # (CREATE VIEW IF NOT EXISTS would keep an old definition). 0.1.x reads no views.
-VIEW = "questions_v3"
-OLD_VIEWS = ("questions_v2",)
+VIEW = "questions_v4"
+OLD_VIEWS = ("questions_v2", "questions_v3")
 VIEW_SQL = f"""
 CREATE VIEW IF NOT EXISTS {VIEW} AS
     SELECT q.id, q.created_at, q.pane_id, q.tab_id, q.tab_label, q.session_id, q.cwd, q.asked_by,
            q.question, q.options, q.context, q.norm, q.status, q.answer, q.answered_at, q.delivered_at,
            q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
            e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
-           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json
+           COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json, e.hidden_at
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id;
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 def normalize_options(options) -> list[dict] | None:
@@ -112,6 +114,8 @@ ANSWER_REUSE = timedelta(hours=1)
 # An answered row with no delivery attempt this long after answering was orphaned
 # (the answering process died between answer and delivery): the retry picks it up.
 NEVER_ATTEMPTED_GRACE = timedelta(seconds=60)
+# A delivery claim older than this belongs to a process that died mid-send.
+CLAIM_STALE = timedelta(seconds=60)
 
 
 def normalize(text: str) -> str:
@@ -318,6 +322,48 @@ class Store:
         )
         return cur.rowcount == 1
 
+    def claim_delivery(self, qid: int) -> str | None:
+        """Compare-and-set before any delivery outcome is written: only one process handles a
+        given answer at a time. Returns the claim token, or None if another process holds it.
+
+        The claim is a ``sending:<time>:<token>`` marker in ``delivery_error``; one older than
+        ``CLAIM_STALE`` (its process died mid-send) can be taken over.
+        """
+        claim = f"sending:{now()}:{uuid.uuid4().hex[:8]}"
+        cur = self.db.execute(
+            "UPDATE questions SET delivery_error = ? WHERE id = ? AND status = 'answered' AND delivered_at IS NULL"
+            " AND acknowledged_at IS NULL"  # the agent already fetched it (check_answers): never retype
+            " AND (delivery_error IS NULL OR delivery_error NOT LIKE 'sending:%' OR delivery_error < ?)",
+            (claim, qid, f"sending:{now(-CLAIM_STALE)}"),
+        )
+        return claim if cur.rowcount == 1 else None
+
+    def release_claim(self, qid: int, claim: str, previous: str | None) -> None:
+        """Give a claim back untouched (e.g. a retry that decided to wait)."""
+        self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
+                        (previous, qid, claim))
+
+    def failed_deliveries(self) -> list[Question]:
+        """Answers whose delivery failed and that the agent has not fetched, unless hidden."""
+        rows = self.db.execute(
+            f"SELECT * FROM {VIEW} WHERE status = 'answered' AND delivered_at IS NULL"
+            # a claim in flight is not a failure; one stranded by a dead sender is, and so is
+            # an answer whose process died before it was ever claimed
+            " AND ((delivery_error IS NOT NULL AND (delivery_error NOT LIKE 'sending:%' OR delivery_error < ?))"
+            "      OR (delivery_error IS NULL AND answered_at < ?))"
+            " AND acknowledged_at IS NULL AND hidden_at IS NULL ORDER BY id",
+            (f"sending:{now(-CLAIM_STALE)}", now(-NEVER_ATTEMPTED_GRACE)),
+        ).fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def hide_failed(self, qid: int) -> None:
+        """Stop showing a failed delivery in the popup (the agent can still check_answers it)."""
+        self.db.execute(
+            "INSERT INTO question_ext (id, group_id, hidden_at) VALUES (?, ?, ?)"
+            " ON CONFLICT(id) DO UPDATE SET hidden_at = excluded.hidden_at",
+            (qid, qid, now()),
+        )
+
     def drafted(self) -> list[Question]:
         rows = self.db.execute(
             f"SELECT * FROM {VIEW} WHERE status = 'open' AND draft_json IS NOT NULL ORDER BY id"
@@ -354,17 +400,21 @@ class Store:
         )
         return cur.rowcount == 1
 
-    def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True) -> None:
+    def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True,
+                        claim: str | None = None) -> None:
+        """Write a delivery outcome; with ``claim``, only while that claim is still ours."""
+        mine, args = (" AND delivery_error = ?", (claim,)) if claim else ("", ())
         if error:
             self.db.execute(
-                "UPDATE questions SET delivery_error = ?, delivery_attempts = delivery_attempts + 1 WHERE id = ?",
-                (error, qid),
+                "UPDATE questions SET delivery_error = ?, delivery_attempts = delivery_attempts + 1"
+                f" WHERE id = ?{mine}",
+                (error, qid, *args),
             )
         else:  # typed into the asking conversation: that counts as seen (unless only referenced)
             self.db.execute(
                 "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
-                " delivery_error = NULL WHERE id = ?",
-                (now(), now() if acknowledge else None, qid),
+                f" delivery_error = NULL WHERE id = ?{mine}",
+                (now(), now() if acknowledge else None, qid, *args),
             )
 
     def undelivered(self, pane_id: str, stale_errors: tuple[str, ...], max_stale: int) -> list[Question]:

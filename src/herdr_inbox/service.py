@@ -274,31 +274,43 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
     for q in qs:
         by_pane.setdefault(q.pane_id, []).append(q)
     for pane, items in by_pane.items():
+        # Claim every row before writing any outcome for it (sent, no agent, conversation
+        # changed): another process mid-send is never overwritten, and never doubled.
+        claims = {q.id: c for q in items if (c := store.claim_delivery(q.id))}
+        items = [q for q in items if q.id in claims]
+        if not items:
+            continue
+
+        def record(q: Question, error: str | None, acknowledge: bool = True) -> None:
+            store.record_delivery(q.id, error, acknowledge=acknowledge, claim=claims[q.id])
+
         if not pane:
             for q in items:
-                store.record_delivery(q.id, "no pane: answer available through check_answers")
+                record(q, "no pane: answer available through check_answers")
             continue
         agent = herdr.live_agent(pane)
         if agent is None:
             for q in items:
-                store.record_delivery(q.id, f"{NO_AGENT} {pane}")
+                record(q, f"{NO_AGENT} {pane}")
             continue
         ours = []
         for q in items:
             if q.session_id and agent["session_id"] != q.session_id:
-                store.record_delivery(q.id, f"{CHANGED} {pane}")
+                record(q, f"{CHANGED} {pane}")
             else:
                 ours.append(q)
         if not ours:
             continue
         if retry and (agent["focused"] or agent["status"] == "blocked"):
             # The operator may be typing there, or about to answer the dialog: the prompt
-            # would merge with their input. Leave it for a later, unfocused tick.
+            # would merge with their input. Give the claims back; a later tick retries.
+            for q in ours:
+                store.release_claim(q.id, claims[q.id], q.delivery_error)
             continue
         for text, batch, ack in delivery_messages(ours):
             err = herdr.prompt_agent(pane, text)
             for q in batch:
-                store.record_delivery(q.id, err, acknowledge=ack)
+                record(q, err, acknowledge=ack)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:
