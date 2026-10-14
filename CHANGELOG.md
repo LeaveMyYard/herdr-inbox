@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+- `ask_operator` takes a `title`: a short name for the whole call (≤60 chars), strongly
+  requested when asking several questions. The group list shows it as each row's main line
+  (`❯ 1. Worker rollout settings · 4 questions · 1 drafted · 4m`), with the tab label, `asked_by`
+  and header chips on the dim second line; inside a group it sits above the tabs. Untitled calls
+  fall back to the single question's header, else its first line.
+- Stored per group in a new side table (`question_groups`); the `questions` table is unchanged.
+
 ## 0.4.0
 
 - Submit is per group (one `ask_operator` call). With exactly one open group the popup opens
