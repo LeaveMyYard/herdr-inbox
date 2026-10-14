@@ -263,8 +263,9 @@ uv run --quiet --frozen --no-dev --project "$root" inbox open --question Q12   #
 a timer. A popup takes all keyboard input, so one that appears under the operator's typing would
 swallow their keys.
 
-As a second guard, a deep-linked popup sends nothing until the operator presses a navigation key
-(↑/↓, Tab, ←/→). Until then it shows "Opened from another plugin — press ↑/↓ or Tab to start
+As a second guard, a deep-linked popup sends nothing until the operator presses Tab or →, at
+least half a second after it appeared. ↑/↓ don't count, since they are what shell history under
+the popup would send. Until then it shows "Opened from another plugin — press Tab or → to start
 answering", and Enter and digits do nothing.
 
 How it works:
