@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+- **Deep links:** `inbox open --question Qn | --group G | --pane P | --session S` opens the popup
+  straight on that question or group, so other plugins can link into the inbox (`herdr plugin list
+  --json` gives `plugin_root` for `uv run --project`). The target is handed over as a one-shot
+  request in the state dir (atomic, newest wins, honoured within 5 s). If it is gone, the popup
+  shows the list with a notice. README: "Opening the inbox from another plugin".
+
 ## 0.5.4
 
 - **Fix: answers to an agent that stays "working" were held indefinitely.** herdr reports
