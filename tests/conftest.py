@@ -89,10 +89,18 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     monkeypatch.setenv("FAKE_HERDR_LOG", str(fake.log))
     monkeypatch.setenv("HERDR_INBOX_DB", str(tmp_path / "inbox.db"))
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
-    monkeypatch.setenv("HERDR_INBOX_TAB_PREFIX", "off")  # tab-prefix tests turn it on explicitly
+    # plugin config dir: tab prefix off unless a test turns it on (tests/test_tabs.py)
+    cfg = tmp_path / "plugin-config"
+    cfg.mkdir()
+    (cfg / "config.toml").write_text('tab_prefix = ""\n')
+    monkeypatch.setenv("HERDR_PLUGIN_CONFIG_DIR", str(cfg))
+    monkeypatch.setenv("FAKE_HERDR_CONFIG_DIR", str(cfg))
+    from herdr_inbox import tabs
+
+    tabs._config_dir.cache_clear()
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
-                "FAKE_HERDR_TABS", "FAKE_HERDR_CONFIG_DIR", "HERDR_PLUGIN_CONFIG_DIR"):
+                "FAKE_HERDR_TABS"):
         monkeypatch.delenv(var, raising=False)
     return fake
 

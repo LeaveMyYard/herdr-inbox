@@ -1,11 +1,20 @@
 """Open-question count in the herdr tab label (``❓2 Farm Issues``), via the fake herdr."""
 
 import json
+import os
+import threading
+import time
+from pathlib import Path
 
 import pytest
 
-from herdr_inbox import service, tabs
+from herdr_inbox import cli, herdr, service, tabs
 from herdr_inbox.service import Caller, resolve_caller
+from herdr_inbox.store import Store
+
+
+def set_config(text: str) -> None:
+    (Path(os.environ["HERDR_PLUGIN_CONFIG_DIR"]) / "config.toml").write_text(text)
 
 
 @pytest.fixture
@@ -14,15 +23,18 @@ def tabbed(fake_herdr, tmp_path, monkeypatch):
     path = tmp_path / "tabs.json"
     path.write_text(json.dumps({"w1:t1": "Farm Issues", "w1:t2": "Proxy"}))
     monkeypatch.setenv("FAKE_HERDR_TABS", str(path))
-    monkeypatch.delenv("HERDR_INBOX_TAB_PREFIX")
-    monkeypatch.setenv("FAKE_HERDR_CONFIG_DIR", str(tmp_path / "cfg"))
-    tabs._file_settings.cache_clear()
-    yield path
-    tabs._file_settings.cache_clear()
+    set_config("")  # defaults: tab_prefix = "❓"
+    return path
 
 
 def labels(path):
     return json.loads(path.read_text())
+
+
+def relabel(path, **changes):
+    data = labels(path)
+    data.update({k.replace("_", ":"): v for k, v in changes.items()})
+    path.write_text(json.dumps(data))
 
 
 def renames(fake):
@@ -57,54 +69,93 @@ def test_no_rename_when_label_already_right(store, fake_herdr, tabbed):
 def test_operator_rename_meanwhile_is_adopted(store, fake_herdr, tabbed):
     a = service.ask(store, caller(), "One?")["id"]
     service.ask(store, caller(), "Two?")
-    tabs_now = labels(tabbed)
-    tabs_now["w1:t1"] = "Farm v2"  # operator renamed the prefixed tab
-    tabbed.write_text(json.dumps(tabs_now))
+    relabel(tabbed, w1_t1="Farm v2")  # operator renamed the prefixed tab
     service.answer(store, a, "ok")
     assert labels(tabbed)["w1:t1"] == "❓1 Farm v2"
-    tabs_now = labels(tabbed)
-    tabs_now["w1:t1"] = "❓1 Farm v3"  # renamed keeping our prefix: still only one prefix
-    tabbed.write_text(json.dumps(tabs_now))
+    relabel(tabbed, w1_t1="❓1 Farm v3")  # renamed keeping our prefix: still only one prefix
     service.close(store, 2, "dismissed")
     assert labels(tabbed)["w1:t1"] == "Farm v3"
 
 
-def test_question_stores_the_base_label(store, fake_herdr, tabbed, monkeypatch):
+def test_question_stores_the_base_label(store, fake_herdr, tabbed):
     service.ask(store, caller(), "One?")
-    c = resolve_caller()  # HERDR_PANE_ID=w1:p1, its tab now reads '❓1 Farm Issues'
-    assert c.tab_label == "Farm Issues"
+    assert resolve_caller().tab_label == "Farm Issues"  # its tab now reads '❓1 Farm Issues'
 
 
-def test_unnamed_tab_is_left_alone_by_default(store, fake_herdr, tabbed, tmp_path):
-    tabbed.write_text(json.dumps({"w1:t1": "6", "w1:t2": "Proxy"}))
+def test_unnamed_tab_is_left_alone_by_default(store, fake_herdr, tabbed):
+    relabel(tabbed, w1_t1="6")
     service.ask(store, caller(label="6"), "One?")
     assert labels(tabbed)["w1:t1"] == "6" and renames(fake_herdr) == []
-    # opt in through the plugin config file
-    (tmp_path / "cfg").mkdir()
-    (tmp_path / "cfg" / "config.toml").write_text("prefix_unnamed_tabs = true\n")
-    tabs._file_settings.cache_clear()
+    set_config("prefix_unnamed_tabs = true\n")
     service.update_markers(store, "w1:p1")
     assert labels(tabbed)["w1:t1"] == "❓1 6"
 
 
-def test_prefix_configurable_and_disableable(store, fake_herdr, tabbed, tmp_path, monkeypatch):
-    (tmp_path / "cfg").mkdir()
-    (tmp_path / "cfg" / "config.toml").write_text('tab_prefix = "Q"\n')
-    tabs._file_settings.cache_clear()
+def test_prefix_configurable_and_disableable(store, fake_herdr, tabbed):
+    set_config('tab_prefix = "Q"\n')
     service.ask(store, caller(), "One?")
     assert labels(tabbed)["w1:t1"] == "Q1 Farm Issues"
-    monkeypatch.setenv("HERDR_INBOX_TAB_PREFIX", "off")  # env wins over the file
+    set_config('tab_prefix = ""\n')
     fake_herdr.reset()
     service.ask(store, caller(), "Two?")
-    assert renames(fake_herdr) == []  # disabled: no tab work on the hot path
+    assert renames(fake_herdr) == [] and not fake_herdr.calls_of("pane", "list")  # no tab work when off
     service.sync_tokens(store)  # ...and the reconcile removes what is left
     assert labels(tabbed)["w1:t1"] == "Farm Issues"
 
 
+def test_changing_marks_never_stacks_prefixes(store, fake_herdr, tabbed):
+    """M1: every applied mark is recorded and stripped, repeatedly."""
+    set_config('tab_prefix = "Q"\n')
+    service.ask(store, caller(), "One?")
+    assert labels(tabbed)["w1:t1"] == "Q1 Farm Issues"
+    for mark in ("❓", "X", "Q", "❓"):  # settings flip, e.g. config edits between processes
+        set_config(f'tab_prefix = "{mark}"\n')
+        service.update_markers(store, "w1:p1")
+        assert labels(tabbed)["w1:t1"] == f"{mark}1 Farm Issues"
+    relabel(tabbed, w1_t1="❓1 Q1 X1 Farm Issues")  # a stack left by an older build heals
+    service.update_markers(store, "w1:p1")
+    assert labels(tabbed)["w1:t1"] == "❓1 Farm Issues"
+    assert {r[0] for r in store.db.execute("SELECT mark FROM tab_marks")} == {"Q", "❓", "X"}
+    assert resolve_caller().tab_label == "Farm Issues"
+
+
+def test_concurrent_updates_never_leave_a_stale_count(store, fake_herdr, tabbed, monkeypatch):
+    """M2: count -> tab get -> rename happens under one cross-process lock."""
+    first = service.ask(store, caller(), "One?")["id"]
+    assert store.set_status(first, "dismissed")  # count is now 0; markers not refreshed yet
+    real_tab_label = herdr.tab_label
+    in_window = threading.Event()
+
+    def slow_tab_label(tab_id):
+        label = real_tab_label(tab_id)
+        if threading.current_thread().name == "closer":
+            in_window.set()
+            time.sleep(0.5)  # the other process files a question meanwhile
+        return label
+
+    monkeypatch.setattr(herdr, "tab_label", slow_tab_label)
+
+    def closer():
+        with Store() as s:
+            service.update_markers(s, "w1:p1")  # computes count 0, renames last without the lock
+
+    def asker():
+        with Store() as s:
+            service.ask(s, caller(pane="w1:p3"), "Two?")
+
+    t1 = threading.Thread(target=closer, name="closer")
+    t1.start()
+    in_window.wait(2)
+    t2 = threading.Thread(target=asker, name="asker")
+    t2.start()
+    t1.join(10)
+    t2.join(10)
+    assert labels(tabbed)["w1:t1"] == "❓1 Farm Issues"
+
+
 def test_reconcile_adds_missing_and_removes_stale(store, fake_herdr, tabbed):
     service.ask(store, caller(), "One?")
-    # after a crash/restart: t1 lost its prefix, t2 kept a stale one
-    tabbed.write_text(json.dumps({"w1:t1": "Farm Issues", "w1:t2": "❓3 Proxy"}))
+    relabel(tabbed, w1_t1="Farm Issues", w1_t2="❓3 Proxy")  # after a crash/restart
     service.sync_tokens(store)
     assert labels(tabbed) == {"w1:t1": "❓1 Farm Issues", "w1:t2": "Proxy"}
     fake_herdr.reset()
@@ -112,8 +163,16 @@ def test_reconcile_adds_missing_and_removes_stale(store, fake_herdr, tabbed):
     assert renames(fake_herdr) == []  # idempotent
 
 
-def test_base_label_strips_only_our_prefix():
-    assert tabs.base_label("❓12 Farm Issues") == "Farm Issues"
-    assert tabs.base_label("❓ not ours") == "❓ not ours"
-    assert tabs.base_label("Farm ❓1 x") == "Farm ❓1 x"
-    assert tabs.base_label(None) is None
+def test_remove_prefixes_before_uninstall(store, fake_herdr, tabbed):
+    service.ask(store, caller(), "One?")
+    assert cli.main(["sync-tokens", "--remove-prefixes"]) == 0
+    assert labels(tabbed)["w1:t1"] == "Farm Issues"
+
+
+def test_base_label_strips_only_our_marks():
+    marks = {"❓", "Q"}
+    assert tabs.base_label("❓12 Farm Issues", marks) == "Farm Issues"
+    assert tabs.base_label("❓1 Q2 ❓3 Farm", marks) == "Farm"
+    assert tabs.base_label("❓ not ours", marks) == "❓ not ours"
+    assert tabs.base_label("Farm ❓1 x", marks) == "Farm ❓1 x"
+    assert tabs.base_label(None, marks) is None

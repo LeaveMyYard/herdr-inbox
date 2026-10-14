@@ -162,10 +162,10 @@ class Store:
     def __init__(self, path: Path | str | None = None):
         self.path = Path(path) if path else db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        self.db = sqlite3.connect(self.path, timeout=15, isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.execute("PRAGMA busy_timeout=5000")
+        self.db.execute("PRAGMA busy_timeout=15000")
         self.db.executescript(SCHEMA)
         columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
         for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
