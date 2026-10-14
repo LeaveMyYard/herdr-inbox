@@ -200,7 +200,7 @@ def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
     start_retry_loop()
-    from .venvs import start_cleanup
+    from . import venvs
 
-    start_cleanup()  # old per-version venvs in ${CLAUDE_PLUGIN_DATA} (venvs.py)
+    venvs.start()  # hold this venv's in-use lock; remove old unused venvs (venvs.py)
     mcp.run("stdio")

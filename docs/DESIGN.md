@@ -448,11 +448,18 @@ Code plugin.
   changes the source under MCP servers that are already running, and a module
   they import lazily (e.g. `transcript`) loads the new code into an old process.
   Restart Claude sessions after pulling.
-- **Old venvs are cleaned up.** On MCP server start, a background thread
-  (`venvs.py`) removes `${CLAUDE_PLUGIN_DATA}/venv-<v>` for versions older than
-  its own, and the pre-0.5.3 shared `venv`. A venv is removed only if it has
-  been untouched for an hour and no running process's command line (`ps -axo
-  command=`) names it. If `ps` fails, nothing is removed.
+- **Old venvs are cleaned up.** On start, every MCP server holds a shared
+  `flock` on `<its venv>/.inbox-in-use` for its lifetime. A background thread
+  (`venvs.py`) then looks at the direct children of `${CLAUDE_PLUGIN_DATA}`
+  named `venv-<numeric v>` with v older than its own (and the pre-0.5.3 shared
+  `venv`) that have been untouched for an hour, and removes one only:
+  - if it has a lock file, while holding an exclusive non-blocking flock on it;
+  - if it has none (a pre-lock server may run from it), after 7 days untouched.
+
+  Removal renames the venv to a unique `.removing-…` name first, so concurrent
+  cleanups can't both act, and then deletes it. The kernel answers "in use", so
+  a symlinked data dir, relative paths or a `ps` that hides processes can't fool
+  it.
 - `.claude-plugin/marketplace.json` is a local single-plugin marketplace
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.
