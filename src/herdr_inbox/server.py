@@ -68,6 +68,11 @@ class QuestionItem(TypedDict):
 
 
 BUSY_BACKOFF = (0.3, 1.0, 2.0)
+TOOL_BUSY_TIMEOUT = 3.0  # per attempt; busy_safe retries, so a tool never hangs for minutes
+
+
+def tool_store() -> Store:
+    return Store(timeout=TOOL_BUSY_TIMEOUT)
 
 
 def busy_safe(fn):
@@ -111,7 +116,7 @@ def ask_operator(
         return {"status": "error", "message": f"At most {service.MAX_QUESTIONS} questions per call."}
     if any(len(i.get("options") or []) > service.MAX_OPTIONS for i in items):
         return {"status": "error", "message": f"At most {service.MAX_OPTIONS} options; ask fewer or split the question."}
-    with Store() as store:
+    with tool_store() as store:
         caller = service.resolve_caller()
         if questions:
             return service.ask_group(store, caller, items, context, asked_by)
@@ -127,7 +132,7 @@ def check_answers() -> dict[str, Any]:
     Answers are normally delivered as `[inbox]` messages naming the Q ids; use this as a fallback
     (e.g. after compaction or if a delivery was missed)."""
     caller = service.resolve_caller()
-    with Store() as store:
+    with tool_store() as store:
         answers = store.unacknowledged_answers(caller.session_id, caller.pane_id)
         store.acknowledge([q.id for q in answers])
     return {"answers": [{"id": q.id, "question": q.question, "answer": q.answer} for q in answers]}
@@ -141,7 +146,7 @@ def list_my_questions(include_closed: bool = False) -> dict[str, Any]:
     Call this after compaction or resume BEFORE asking anything, so you do not re-ask a
     question that is already open or answered."""
     caller = service.resolve_caller()
-    with Store() as store:
+    with tool_store() as store:
         questions = store.mine(caller.session_id, caller.pane_id, include_closed)
     return {"questions": [q.brief() for q in questions]}
 
@@ -153,7 +158,7 @@ def withdraw_question(id: int, reason: str) -> dict[str, Any]:
 
     It is removed from the operator's inbox."""
     caller = service.resolve_caller()
-    with Store() as store:
+    with tool_store() as store:
         mine = {q.id: q for q in store.mine(caller.session_id, caller.pane_id, include_closed=True)}
         if id not in mine:
             return {"id": id, "status": "error", "message": f"Q{id} is not a question of this session."}
@@ -178,7 +183,7 @@ def start_retry_loop(interval: float = RETRY_SECONDS, stop: threading.Event | No
     def loop() -> None:
         while pane_id and not stop.wait(interval):
             try:
-                with Store() as store:
+                with tool_store() as store:
                     service.retry_deliveries(store, pane_id)
             except Exception:  # noqa: BLE001 - keep retrying, never kill the server
                 log.exception("delivery retry failed")
