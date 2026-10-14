@@ -106,6 +106,24 @@ def _pending_reason(q: Question) -> str:
     return (q.delivery_error or "")[len(PENDING):]
 
 
+def pending_text(reason: str, busy_for: float | None) -> str:
+    """Why a pending answer waits, and when it goes: ``busy: …`` waits service.BUSY_GRACE
+    then is typed anyway; ``blocked: …`` waits for the prompt/dialog to go."""
+    if reason.startswith("busy:"):
+        left = int(-(-(service.BUSY_GRACE - (busy_for or 0.0)) // 1))
+        if left > 0:
+            return f"agent busy — will send in {left} s"
+        return "agent busy — sending at the next retry (every 10 s)"
+    if reason.startswith("blocked:"):
+        return "waiting: agent is at a prompt/dialog"
+    return reason
+
+
+def _pending_line(q: Question, store: Store | None) -> str:
+    busy_for = service._busy_for(store, q.id) if store is not None else None
+    return pending_text(_pending_reason(q), busy_for)
+
+
 def _draft_line(q: Question) -> str:
     d = q.draft_json or {}
     return service.format_answer(d.get("choices") or [], d.get("notes"), d.get("text"))
@@ -566,7 +584,8 @@ class FailedView(Vertical, can_focus=True):
     def compose(self) -> ComposeResult:
         q = self.q
         meta = f"{q.ref} · {tab_name(q, getattr(self.app, 'store', None))}" + (f" · {q.asked_by}" if q.asked_by else "")
-        state = (f"⏳ {q.ref} pending delivery[/]: [dim]{escape(_pending_reason(q))}[/dim]" if _pending(q)
+        state = (f"⏳ {q.ref} pending delivery[/]: [dim]{escape(_pending_line(q, getattr(self.app, 'store', None)))}[/dim]"
+                 if _pending(q)
                  else f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]")
         yield Static(("[b]" + state) if _pending(q) else state,
                      classes="question")
@@ -583,7 +602,9 @@ class FailedView(Vertical, can_focus=True):
         return action not in ("select", "pick") or _armed(self)
 
     def render_rows(self) -> None:
-        labels = ("Retry delivery", "Stop showing it here (the agent can still fetch it with check_answers)")
+        busy = _pending(self.q) and _pending_reason(self.q).startswith("busy:")
+        labels = ("Send now (the agent is busy; the transcript check confirms it landed)" if busy else "Retry delivery",
+                  "Stop showing it here (the agent can still fetch it with check_answers)")
         lines = []
         for k, label in enumerate(labels):
             here = k == self.cursor
@@ -715,8 +736,8 @@ class GroupListView(Vertical, can_focus=True):
             where = escape(tab_name(q, store))
             if closed:
                 return f"{cur} {number} [$inbox-warning]✕ Q{entry[1]} · {where} · {escape(closed)}[/]"
-            if _pending(q):  # waiting for the agent to be idle: information, not a warning
-                head = f"⏳ Q{q.id} pending delivery · {where} · {escape(_pending_reason(q))}"
+            if _pending(q):  # waiting for the agent: information, not a warning
+                head = f"⏳ Q{q.id} {escape(_pending_line(q, store))} · {where}"
                 line1 = f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]"
             else:
                 head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or 'no attempt recorded')}"
@@ -1260,7 +1281,7 @@ class InboxApp(App):
     def on_failed_view_retry(self, event: FailedView.Retry) -> None:
         def retry(s: Store) -> list[Question]:
             q = s.get(event.qid)
-            service.deliver(s, q)
+            service.deliver(s, q, force=True)  # the operator's explicit retry / "Send now"
             return [s.get(event.qid)]
 
         entry = self.entry
