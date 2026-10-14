@@ -30,7 +30,7 @@ async def test_cancel_stays_cancel_when_a_question_arrives(store, fake_herdr):
         service.ask(store, A, "q3 new?", options=["m"])
         app.poll()
         await pilot.pause()
-        assert v.cursor == "cancel" and len(v.items) == 3
+        assert v.cursor == "cancel" and len(v.items) == 2 and app.pending == [("q", 3)]
         await pilot.press("enter")
         await app.workers.wait_for_complete()
         await pilot.pause()

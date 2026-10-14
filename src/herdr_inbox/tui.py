@@ -50,6 +50,9 @@ POLL_SECONDS = 2.0
 # were typing was meant for the view that just went away.
 GRACE_SECONDS = 0.5
 NAV_KEYS = ("tab", "shift+tab", "left", "right")
+# A question view ignores Enter, digits and Space this long after it appears, however it was
+# reached: a key already on its way can never answer a question the operator has not seen.
+ARM_SECONDS = 0.4
 OTHER = "Type something."
 CHAT = "Chat about this"
 BUSY = "The inbox database is busy; try again in a moment"
@@ -163,6 +166,7 @@ class QuestionView(Vertical, can_focus=True):
         yield Static(classes="hint")
 
     def on_mount(self) -> None:
+        self.armed_at = time.monotonic() + ARM_SECONDS
         self.render_rows()
 
     def hint(self) -> str:
@@ -226,7 +230,11 @@ class QuestionView(Vertical, can_focus=True):
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         # While a note or the text box is open, keys belong to it (Esc still cancels).
-        return action == "back" or not _typing(self.screen)
+        if action != "back" and _typing(self.screen):
+            return False
+        if action in ("select", "jump", "toggle") and time.monotonic() < getattr(self, "armed_at", 0):
+            return False  # not armed yet (see ARM_SECONDS)
+        return True
 
     def action_move(self, delta: int) -> None:
         self.cursor = (self.cursor + delta) % len(self.rows)
@@ -579,7 +587,7 @@ def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
     if done and len(done) < wanted:
         app.notify(f"{wanted - len(done)} answered question(s) had closed meanwhile", severity="warning")
     app.poll()
-    if not app.tabs and done and not failed:
+    if not app.tabs and not app.pending and done and not failed:
         app.exit()  # like Claude Code's prompt: gone once everything is answered
 
 
@@ -640,6 +648,7 @@ class InboxApp(App):
         Binding("tab", "switch(1)", show=False, priority=True),
         Binding("d", "dismiss", show=False),
         Binding("g", "goto", show=False),
+        Binding("plus", "take_new", show=False),
         Binding("escape", "quit", show=False),
     ]
 
@@ -652,6 +661,10 @@ class InboxApp(App):
         self.gone: dict[tuple[str, int], str] = {}  # tabs whose question closed while shown
         self.single = False  # Enter sends at once; decided on open and on navigation only
         self.grace_until = 0.0  # keys before this are dropped (see GRACE_SECONDS)
+        # Arrivals while the popup is open wait here, shown as "+N new" on the tab row, and join
+        # the tabs only when the operator opens them (+, or Tab from the empty view): inserting
+        # them would change where Tab from the current tab goes.
+        self.pending: list[tuple[str, int]] = []
 
     @property
     def base(self) -> Screen:
@@ -696,7 +709,9 @@ class InboxApp(App):
         if isinstance(self.focused, Input):
             return action not in ("switch", "dismiss", "goto")
         if action == "switch":
-            return bool(self.tabs)
+            return bool(self.tabs or self.pending)
+        if action == "take_new":
+            return bool(self.pending)
         if action in ("dismiss", "goto"):  # only on a live question tab (never on a placeholder)
             return self.current is not None and self.current != SUBMIT and self.current not in self.gone
         return True
@@ -713,7 +728,7 @@ class InboxApp(App):
     # -- rendering -----------------------------------------------------------------
 
     def render_empty(self) -> None:
-        n = len(self.tabs)
+        n = len(self.tabs) + len(self.pending)
         text = "No open questions" if not n else f"{n} new question{'s' if n > 1 else ''} — press Tab/→ to view"
         self.base.query_one("#empty", Static).update(text)
 
@@ -747,7 +762,7 @@ class InboxApp(App):
         row = self.base.query_one("#chips", HorizontalScroll)
         row.remove_children()
         tabs = self.all_tabs
-        if len(tabs) <= 1:
+        if len(tabs) <= 1 and not self.pending:
             return
         chips, current, last_tab = [], None, object()
         for tab in tabs:
@@ -772,6 +787,8 @@ class InboxApp(App):
             chips.append(chip)
             if here:
                 current = chip
+        if self.pending:
+            chips.append(Static(f"+{len(self.pending)} new (press +)", classes="warn"))
         row.mount_all(chips)
         if current is not None:
             self.call_after_refresh(current.scroll_visible, animate=False)
@@ -794,13 +811,12 @@ class InboxApp(App):
             return
         open_qs, failed = self._live()
         live = {("q", q.id) for q in open_qs} | {("failed", q.id) for q in failed}
-        known = set(self.tabs)
+        known = set(self.tabs) | set(self.pending)
         ended = [t for t in self.tabs if t not in live and t not in self.gone]
         self.tabs = [t for t in self.tabs if t in live or t == self.current]
-        n_q = max((i for i, t in enumerate(self.tabs) if t[0] == "q"), default=-1) + 1
-        new_q = [("q", i) for i in tab_order([q for q in open_qs if ("q", q.id) not in known], None)]
-        self.tabs[n_q:n_q] = new_q
-        self.tabs += [("failed", q.id) for q in failed if ("failed", q.id) not in known]
+        self.pending = [t for t in self.pending if t in live]
+        self.pending += [("q", i) for i in tab_order([q for q in open_qs if ("q", q.id) not in known], None)]
+        self.pending += [("failed", q.id) for q in failed if ("failed", q.id) not in known]
         if self.current in ended:
             self.gone[self.current] = self._gone_reason(*self.current)
             self.notify(f"Q{self.current[1]} was closed ({self.gone[self.current]})", severity="warning")
@@ -823,6 +839,8 @@ class InboxApp(App):
     def navigate(self, target: tuple[str, int] | int | None) -> None:
         """Move to ``target`` (a tab, or a relative step): placeholders are dropped and the
         send mode is re-decided here, on the operator's move."""
+        if self.current is None and self.pending:  # from the empty view: open the arrivals
+            self._take_pending()
         tabs = self.all_tabs
         if isinstance(target, int):
             if self.current is None:  # from the empty view: the first tab
@@ -841,9 +859,22 @@ class InboxApp(App):
     def action_switch(self, delta: int) -> None:
         self.navigate(delta)
 
+    def _take_pending(self) -> list[tuple[str, int]]:
+        taken, self.pending = self.pending, []
+        n_q = max((i for i, t in enumerate(self.tabs) if t[0] == "q"), default=-1) + 1
+        self.tabs[n_q:n_q] = [t for t in taken if t[0] == "q"]
+        self.tabs += [t for t in taken if t[0] == "failed"]
+        return taken
+
+    def action_take_new(self) -> None:
+        """Open the questions that arrived while the popup was open (a deliberate key)."""
+        if self.pending:
+            first = self._take_pending()[0]
+            self.navigate(first)
+
     def on_key(self, event) -> None:
         if self.current is None and len(self.screen_stack) == 1:  # empty view: any key closes,
-            if event.key in NAV_KEYS and self.tabs:              # except Tab/arrows to new questions
+            if event.key in NAV_KEYS and (self.tabs or self.pending):  # except Tab/arrows to new ones
                 return
             event.stop()
             self.exit()

@@ -258,7 +258,12 @@ the plugin dir.
   place). Whether Enter sends at once (exactly one open question) is decided
   when the popup opens and re-decided only on the operator's navigation.
 - General rule: no background event (poll, arrival, close, delivery result)
-  changes what the next keypress does. Concretely: the send mode changes only
+  changes what the next keypress does. Arrivals never join the tab cycle by
+  themselves: they wait in `pending`, shown as `+N new (press +)` after Submit,
+  and join (before the ⚠ tabs) only when the operator presses `+` or Tab/→ from
+  the empty view, so Tab from any tab reaches the same target as before the
+  arrival. Every question view is armed 0.4 s after it mounts (Enter, digits,
+  Space), however it was reached. Concretely: the send mode changes only
   on navigation; a question arriving into the empty view is announced ("1 new
   question — press Tab/→ to view"; any other key still closes); a placeholder
   tab has no `g`/`d`/Enter/digits; and for 0.5 s after a view change the
@@ -278,7 +283,9 @@ the plugin dir.
   process died) before writing any outcome, including "no live agent" and
   "conversation changed"; outcomes are written only while the claim is still
   ours, and a retry that backs off gives the claim back. A claim stranded for
-  more than 60 s shows as a ⚠ undelivered tab. So a popup retry and the MCP
+  more than 60 s shows as a ⚠ undelivered tab, and so does an answer never
+  claimed at all 60 s after it was answered (its process died). A claim is
+  refused once the agent has fetched the answer with `check_answers`. So a popup retry and the MCP
   retry loop never both send an answer (see the README for the mixed-version
   window during an upgrade).
 - The question UI mimics Claude Code's AskUserQuestion prompt (strings and

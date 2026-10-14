@@ -119,3 +119,12 @@ def subprocess_env(**extra: str) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items()}
     env.update(extra)
     return env
+
+
+@pytest.fixture(autouse=True)
+def _armed_at_once(monkeypatch):
+    """Pilot tests press keys immediately; the arming delay has its own test (test_arrivals.py)."""
+    from herdr_inbox import tui
+
+    if hasattr(tui, "ARM_SECONDS"):
+        monkeypatch.setattr(tui, "ARM_SECONDS", 0.0)

@@ -332,6 +332,7 @@ class Store:
         claim = f"sending:{now()}:{uuid.uuid4().hex[:8]}"
         cur = self.db.execute(
             "UPDATE questions SET delivery_error = ? WHERE id = ? AND status = 'answered' AND delivered_at IS NULL"
+            " AND acknowledged_at IS NULL"  # the agent already fetched it (check_answers): never retype
             " AND (delivery_error IS NULL OR delivery_error NOT LIKE 'sending:%' OR delivery_error < ?)",
             (claim, qid, f"sending:{now(-CLAIM_STALE)}"),
         )
@@ -346,10 +347,12 @@ class Store:
         """Answers whose delivery failed and that the agent has not fetched, unless hidden."""
         rows = self.db.execute(
             f"SELECT * FROM {VIEW} WHERE status = 'answered' AND delivered_at IS NULL"
-            # a claim in flight is not a failure; one stranded by a dead sender is
-            " AND delivery_error IS NOT NULL AND (delivery_error NOT LIKE 'sending:%' OR delivery_error < ?)"
+            # a claim in flight is not a failure; one stranded by a dead sender is, and so is
+            # an answer whose process died before it was ever claimed
+            " AND ((delivery_error IS NOT NULL AND (delivery_error NOT LIKE 'sending:%' OR delivery_error < ?))"
+            "      OR (delivery_error IS NULL AND answered_at < ?))"
             " AND acknowledged_at IS NULL AND hidden_at IS NULL ORDER BY id",
-            (f"sending:{now(-CLAIM_STALE)}",),
+            (f"sending:{now(-CLAIM_STALE)}", now(-NEVER_ATTEMPTED_GRACE)),
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
