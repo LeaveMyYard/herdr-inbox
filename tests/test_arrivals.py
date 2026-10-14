@@ -61,7 +61,7 @@ async def test_arrivals_are_list_rows_and_never_move_the_cursor(store, fake_herd
         app.poll()
         await pilot.pause()
         assert app.entries == [("group", 1), ("group", 2), ("group", 3), ("group", 4)]
-        assert lv.cursor == ("group", 2) and "+" not in str(lv.query_one("#list-body").render())
+        assert lv.cursor == ("group", 2) and "+" not in lv.body_text()
         await pilot.press("enter")
         assert app.mode == "group" and app.query_one(QuestionView).q.id == 2
 

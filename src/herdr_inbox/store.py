@@ -72,10 +72,11 @@ ADDED_COLUMNS = {
 }
 
 
-# Read view, versioned: a release that changes it bumps the name and drops older ones
-# (CREATE VIEW IF NOT EXISTS would keep an old definition). 0.1.x reads no views.
+# Read view, versioned: a release that changes it bumps the name (CREATE VIEW IF NOT EXISTS
+# would keep an old definition). Older views are NEVER dropped: processes of the previous
+# release keep running until their sessions restart, and each queries its own view.
 VIEW = "questions_v5"
-OLD_VIEWS = ("questions_v2", "questions_v3", "questions_v4")
+OLD_VIEWS: tuple[str, ...] = ()
 VIEW_SQL = f"""
 CREATE VIEW IF NOT EXISTS {VIEW} AS
     SELECT q.id, q.created_at, q.pane_id, q.tab_id, q.tab_label, q.session_id, q.cwd, q.asked_by,
