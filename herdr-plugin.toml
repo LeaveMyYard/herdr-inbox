@@ -1,6 +1,6 @@
 id = "leavemyyard.herdr-inbox"
 name = "herdr inbox"
-version = "0.5.1"
+version = "0.5.2"
 min_herdr_version = "0.9.0"
 description = "Non-blocking question inbox: agents file questions once through an MCP tool, you answer them from one popup, answers go back into the asking pane."
 platforms = ["linux", "macos"]
@@ -38,6 +38,14 @@ id = "sync-tokens"
 title = "Inbox: resync sidebar counts"
 description = "Recompute the $inbox_q pane token from the open questions."
 command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "sync-tokens"]
+
+# herdr-radar replaces the agent rows and has no slot for $inbox_q (hhdebb/herdr-radar#57);
+# this adds it to radar's rows, on demand only.
+[[actions]]
+id = "radar-sidebar"
+title = "Inbox: show ?N in herdr-radar's sidebar"
+description = "Add the open-question count ($inbox_q) to herdr-radar's sidebar rows in herdr's config.toml (run again after radar rewrites its block)."
+command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "radar-sidebar"]
 
 # Pane tokens do not survive a herdr restart; put the counts back.
 [[startup]]

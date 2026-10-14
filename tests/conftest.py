@@ -44,8 +44,14 @@ elif cmd == "tab list":
 elif cmd == "workspace list":
     result = {{"workspaces": [{{"workspace_id": "w1"}}], "type": "workspace_list"}}
 elif cmd == "plugin config-dir":
-    print(os.environ.get("FAKE_HERDR_CONFIG_DIR", "/nonexistent-config-dir"))
+    if args[2] == "hhdebb.herdr-radar":
+        print(os.environ.get("FAKE_HERDR_RADAR_CONFIG_DIR", "/nonexistent-config-dir"))
+    else:
+        print(os.environ.get("FAKE_HERDR_CONFIG_DIR", "/nonexistent-config-dir"))
     sys.exit(0)
+elif cmd == "plugin list":
+    ids = [p for p in os.environ.get("FAKE_HERDR_PLUGINS", "").split(",") if p]
+    result = {{"plugins": [{{"plugin_id": p, "enabled": True, "name": p}} for p in ids]}}
 elif cmd == "agent get":
     if os.environ.get("FAKE_HERDR_AGENT", "1") != "1":
         sys.stderr.write(json.dumps({{"error": {{"code": "agent_not_found", "message": "not found"}}}}))
@@ -106,6 +112,8 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     monkeypatch.setenv("HERDR_INBOX_DB", str(tmp_path / "inbox.db"))
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))  # transcripts the fake writes
+    # herdr's own config.toml (radar.py): never the real one
+    monkeypatch.setenv("HERDR_INBOX_HERDR_CONFIG", str(tmp_path / "herdr-config" / "config.toml"))
     # plugin config dir: tab prefix off unless a test turns it on (tests/test_tabs.py)
     cfg = tmp_path / "plugin-config"
     cfg.mkdir()
@@ -117,7 +125,7 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     tabs._config_dir.cache_clear()
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
-                "FAKE_HERDR_TABS", "FAKE_HERDR_LAND"):
+                "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR"):
         monkeypatch.delenv(var, raising=False)
     return fake
 
