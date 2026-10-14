@@ -131,6 +131,8 @@ class QuestionView(Vertical, can_focus=True):
             self.rows.append(("submit", None))
         else:
             self.rows.append(("chat", None))
+        # ``rows`` is fixed for the life of this view (a question's options never change), so
+        # ``cursor`` indexes an immutable list of row identities; nothing reloads it.
         self.cursor = self._initial_cursor()
         self.editing: tuple[str, int] | None = None  # ("note", option) or ("text", None)
         self.has_preview = any(o.get("preview") for o in self.options)
@@ -359,7 +361,10 @@ class ReviewView(Vertical, can_focus=True):
         self.store = store
         self.qids = qids
         self.items: list[Question] = []
-        self.cursor: int | None = None  # starts on "Submit answers"
+        # The cursor is a target, never a row index: ("item", qid), "submit" or "cancel";
+        # None is the inert position (nothing highlighted, Enter does nothing). Reloads
+        # re-resolve it, so rows appearing or vanishing can never move it onto an action.
+        self.cursor: tuple[str, int] | str | None = "submit"
 
     def compose(self) -> ComposeResult:
         yield VerticalScroll(Static(id="review-body"), classes="choices")
@@ -371,9 +376,13 @@ class ReviewView(Vertical, can_focus=True):
     @guarded
     def reload(self) -> None:
         self.items = [q for q in (self.store.get(i) for i in self.qids) if q and q.status == "open"]
-        n = len(self.items)
-        self.cursor = n if self.cursor is None else min(self.cursor, n + 1)
+        if self.cursor not in self.targets:  # its question went away: park, never on an action
+            self.cursor = None
         self.render_rows()
+
+    @property
+    def targets(self) -> list:
+        return [("item", q.id) for q in self.items] + ["submit", "cancel"]
 
     @property
     def drafted(self) -> list[Question]:
@@ -382,7 +391,7 @@ class ReviewView(Vertical, can_focus=True):
     def render_rows(self) -> None:
         lines = ["[b]Review your answers[/b]", ""]
         for i, q in enumerate(self.items):
-            mark = "[$accent]❯[/]" if i == self.cursor else "[$foreground]●[/]"
+            mark = "[$accent]❯[/]" if self.cursor == ("item", q.id) else "[$foreground]●[/]"
             where = f"{q.ref} · {escape(q.tab_label or q.pane_id or '-')} · "
             lines.append(f"{mark} [$foreground]{where}{escape(service.first_line(q.question, 80))}[/]")
             if q.draft_json:
@@ -392,9 +401,8 @@ class ReviewView(Vertical, can_focus=True):
         if len(self.drafted) < len(self.items):
             lines += ["", "[$warning]⚠ You have not answered all questions[/]"]
         lines += ["", "[b]Ready to submit your answers?[/b]", ""]
-        n = len(self.items)
-        for k, label in enumerate(("Submit answers", "Cancel")):
-            here = self.cursor == n + k
+        for k, (target, label) in enumerate((("submit", "Submit answers"), ("cancel", "Cancel"))):
+            here = self.cursor == target
             text = f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"
             lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
         self.query_one("#review-body", Static).update("\n".join(lines))
@@ -402,18 +410,23 @@ class ReviewView(Vertical, can_focus=True):
             "Enter to select · ↑/↓ to navigate · Tab/Arrow keys to switch questions · Esc to cancel")
 
     def action_move(self, delta: int) -> None:
-        self.cursor = (self.cursor + delta) % (len(self.items) + 2)
+        targets = self.targets
+        if self.cursor is None:  # from the inert position: the first row (or the last, going up)
+            self.cursor = targets[0] if delta > 0 else targets[-1]
+        else:
+            self.cursor = targets[(targets.index(self.cursor) + delta) % len(targets)]
         self.render_rows()
 
     def action_pick(self, k: int) -> None:
-        self.cursor = len(self.items) + k
+        self.cursor = ("submit", "cancel")[k]
         self.action_select()
 
     def action_select(self) -> None:
-        n = len(self.items)
-        if self.cursor < n:
-            self.post_message(self.Edit(self.items[self.cursor].id))
-        elif self.cursor == n:
+        if self.cursor is None:
+            return
+        if isinstance(self.cursor, tuple):
+            self.post_message(self.Edit(self.cursor[1]))
+        elif self.cursor == "submit":
             if self.drafted:
                 self.post_message(self.Submit([q.id for q in self.drafted]))
             else:
@@ -423,8 +436,8 @@ class ReviewView(Vertical, can_focus=True):
 
     @guarded
     def action_drop(self) -> None:
-        if self.cursor < len(self.items):
-            self.store.set_draft(self.items[self.cursor].id, None)
+        if isinstance(self.cursor, tuple):
+            self.store.set_draft(self.cursor[1], None)
             self.reload()
 
     def action_back(self) -> None:

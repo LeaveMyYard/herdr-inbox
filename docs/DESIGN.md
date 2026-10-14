@@ -266,9 +266,21 @@ the plugin dir.
 - `g` focuses the asking agent's pane for any live question; `d` dismisses only
   the current question after a confirmation that accepts only `y` (so a quick
   `dd` keeps it). Both are in the key hint.
+- Cursors are target identities, never row indexes, wherever the rows can
+  change under them: the tab row tracks the current tab (`("q", id)`,
+  `("failed", id)`, Submit); the Submit tab tracks `("item", qid)` /
+  `"submit"` / `"cancel"` and re-resolves after every reload; a vanished target
+  parks the cursor on nothing (Enter does nothing; arrows resume from the top).
+  A question's option list never changes while shown, so its cursor indexes an
+  immutable list.
 - Every delivery first claims the row with a compare-and-set
-  (`delivery_error = 'sending:<time>'`, taken over after 60 s if its process
-  died), so a popup retry and the MCP retry loop never both send an answer.
+  (`delivery_error = 'sending:<time>:<token>'`, taken over after 60 s if its
+  process died) before writing any outcome, including "no live agent" and
+  "conversation changed"; outcomes are written only while the claim is still
+  ours, and a retry that backs off gives the claim back. A claim stranded for
+  more than 60 s shows as a ⚠ undelivered tab. So a popup retry and the MCP
+  retry loop never both send an answer (see the README for the mixed-version
+  window during an upgrade).
 - The question UI mimics Claude Code's AskUserQuestion prompt (strings and
   behaviour checked against the Claude Code 2.1.299 binary): header chip,
   question in bold, numbered options with a `❯` cursor (label in the accent

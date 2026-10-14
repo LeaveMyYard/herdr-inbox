@@ -54,6 +54,12 @@ claude plugin update herdr-inbox@herdr-inbox
 and restart the Claude sessions (or `/reload-plugins` in each). The previous cache directory is
 removed by Claude Code 14 days later.
 
+Restart sessions after updating: a session started before the update keeps its old MCP server
+until then. Sessions on 0.2.x run a retry loop that doesn't honour 0.3's delivery claims, so
+while old and new sessions overlap, an answer that is being sent at the same moment as an old
+session's 30 s retry tick can (rarely) be delivered twice. The window closes once every session
+has restarted.
+
 Alternative, MCP server only (no hooks; add [docs/agent-instructions.md](docs/agent-instructions.md)
 to your `CLAUDE.md` instead):
 
