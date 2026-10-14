@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+- Submit is per group (one `ask_operator` call). With exactly one open group the popup opens
+  straight into it; with several it opens on a group list styled like Claude Code's option list
+  (`❯ 1. Billing API · planner · 3 questions · 4m`, headers on a second line), with ⚠ undelivered
+  answers as their own entries. Inside a group: its tabs and its own Submit; Esc returns to the
+  list. `d` on the list dismisses a whole group (`y` confirms).
+- Colours follow Claude Code's theme roles: `suggestion` for the cursor and focus, `success` for
+  chosen answers (Review list, ✓), `warning` only for warnings.
+- All 0.3 safety rules carry over to the list: arrivals are appended without moving the cursor's
+  target, ended rows are inert placeholders until the operator moves, every view arms 0.4 s after
+  it appears. The `+N new` marker is gone (arrivals are list rows). The list never wraps around,
+  and a row that just arrived ignores Enter and digits for 1 s.
+
 ## 0.3.0
 
 - The popup opens straight into Claude-Code-style tabs, one per open question (no list screen).
