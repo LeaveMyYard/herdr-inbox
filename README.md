@@ -182,8 +182,10 @@ claude plugin install herdr-inbox@herdr-inbox
 
 This registers the MCP server (tools appear as `mcp__plugin_herdr-inbox_herdr-inbox__ask_operator`
 etc.) and the hooks. Restart running Claude sessions (or `/reload-plugins`). Claude Code installs
-plugins as a copy, so the plugin keeps its Python environment in `${CLAUDE_PLUGIN_DATA}/venv`
-(created by uv on first use, about 0.5 s from a warm cache). MCP server only, without hooks: run
+plugins as a copy, so the MCP server keeps its Python environment in
+`${CLAUDE_PLUGIN_DATA}/venv-<version>` (created by uv on first use, about 0.5 s from a warm cache;
+older versions' venvs there can be deleted once no session uses them). The hooks need only the
+system `python3` (3.11+; older falls back to uv) and always exit 0. MCP server only, without hooks: run
 `claude mcp add --scope user herdr-inbox -- uv run --project /path/to/herdr-inbox inbox mcp` from a
 checkout and add [docs/agent-instructions.md](docs/agent-instructions.md) to your `CLAUDE.md`; use
 one route, not both.

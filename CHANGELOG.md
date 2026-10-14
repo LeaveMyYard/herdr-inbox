@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.3
+
+- **Hooks can no longer fail the session start.** The SessionStart and SubagentStart hooks went
+  through `uv run`, which exits 2 when uv itself fails, e.g. two plugin versions sharing one
+  venv right after an update. Claude Code then shows a hook error and drops the inbox rules from
+  the session. The hooks now run stdlib-only with `python3 -I hooks/run.py`, behind an `sh`
+  wrapper that always exits 0. A python3 older than 3.11 falls back to uv.
+- The MCP server's venv is per version (`${CLAUDE_PLUGIN_DATA}/venv-<version>`), so sessions on
+  the old and new versions never re-sync each other's environment.
+
 ## 0.5.2
 
 - **herdr-radar sidebar, on demand:** `inbox radar-sidebar` and the herdr action *Inbox: show ?N in
