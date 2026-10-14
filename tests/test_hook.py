@@ -82,7 +82,10 @@ def test_broken_db_never_fails(tmp_path, fake_herdr):
     blocker.write_text("")
     proc = run_hook("session-start", {"session_id": "s", "source": "compact"},
                     HERDR_INBOX_DB=str(blocker / "sub" / "inbox.db"))
-    assert (proc.returncode, proc.stdout) == (0, "")
+    # since 0.5.3 (review of #11): an unusable DB costs the pending list, never the rules
+    assert proc.returncode == 0
+    context = json.loads(proc.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert context.startswith("<herdr-inbox>") and "already with the operator" not in context
 
 
 def test_garbage_input_never_fails(fake_herdr):

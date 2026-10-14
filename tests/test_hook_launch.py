@@ -120,3 +120,57 @@ def test_old_python_falls_back_to_uv_and_still_exits_0(tmp_path, fake_herdr, mon
     assert run.main(["session-start"]) == 0
     assert capsys.readouterr().out == ""
     assert log.read_text().startswith(f"{tmp_path / 'data'}/venv-{VERSION} run ")
+
+
+# -- review of #11 -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("source", ["startup", "compact"])
+def test_a_locked_inbox_db_still_gets_the_rules_out_fast(tmp_path, fake_herdr, source):
+    """M1: the rules are printed first; the pending-question lookup and the transcript
+    record each give up quickly on a locked DB and never cost the rules."""
+    import sqlite3
+    import time
+
+    from herdr_inbox.store import Store
+
+    Store().close()  # schema exists
+    lock = sqlite3.connect(os.environ["HERDR_INBOX_DB"], isolation_level=None)
+    lock.execute("PRAGMA journal_mode=DELETE")
+    lock.execute("BEGIN EXCLUSIVE")
+    try:
+        spec = HOOKS["SessionStart"][0]["hooks"][0]
+        argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)) for a in spec["args"])]
+        started = time.monotonic()
+        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        proc.stdin.write(json.dumps({"session_id": "s", "source": source, "transcript_path": "/x/s.jsonl"}))
+        proc.stdin.close()
+        line = proc.stdout.readline()
+        printed = time.monotonic() - started
+        assert proc.wait(timeout=10) == 0
+    finally:
+        lock.execute("ROLLBACK")
+        lock.close()
+    assert "<herdr-inbox>" in json.loads(line)["hookSpecificOutput"]["additionalContext"]
+    assert printed < 1.0, printed  # python start (~0.1-0.2 s) + at most the short lookup timeout
+
+
+def test_old_python_fallback_kills_the_whole_group_on_timeout(tmp_path, fake_herdr, monkeypatch):
+    """Low: a grandchild holding stdout must not keep the fallback past its timeout."""
+    import importlib.util
+    import time
+
+    spec = importlib.util.spec_from_file_location("hook_run", ROOT / "hooks" / "run.py")
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "uv").write_text("#!/bin/sh\n(sleep 30) &\nsleep 30\n")
+    (bin_dir / "uv").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(run.sys, "version_info", (3, 9, 6))
+    monkeypatch.setattr(run, "FALLBACK_TIMEOUT", 0.5)
+    monkeypatch.setattr(run.sys, "stdin", __import__("io").StringIO("{}"))
+    started = time.monotonic()
+    assert run.main(["session-start"]) == 0
+    assert time.monotonic() - started < 5

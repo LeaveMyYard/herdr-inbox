@@ -433,7 +433,26 @@ Code plugin.
   `uv run` (with the version's venv), forwarding output only on success.
   `tests/test_hook_launch.py` covers a fake failing `uv`, a failing `python3`,
   bad arguments, the old-Python fallback and two versions' hooks running
-  concurrently.
+  concurrently. The fallback runs uv in its own process group and kills the
+  whole group on timeout, so a grandchild holding stdout cannot outlive it.
+- **The rules come out first.** The SessionStart hook builds its context and
+  prints it before anything that writes. The compact/resume pending-question
+  lookup is a read-only connection with a 0.2 s timeout; if it fails, the hook
+  prints the rules alone. Recording the transcript path comes after the output,
+  in its own `try` with a 0.5 s timeout. It is an optimisation: verification
+  falls back to the projects-dir glob. With the DB exclusively locked, the rules
+  still print in ~0.2 s plus interpreter start.
+- **What a per-version venv does not cover.** A plugin installed from a
+  local-path marketplace (as here) is loaded in place and not pinned by
+  `version`, so `${CLAUDE_PLUGIN_ROOT}` is the live checkout. A `git pull`
+  changes the source under MCP servers that are already running, and a module
+  they import lazily (e.g. `transcript`) loads the new code into an old process.
+  Restart Claude sessions after pulling.
+- **Old venvs are cleaned up.** On MCP server start, a background thread
+  (`venvs.py`) removes `${CLAUDE_PLUGIN_DATA}/venv-<v>` for versions older than
+  its own, and the pre-0.5.3 shared `venv`. A venv is removed only if it has
+  been untouched for an hour and no running process's command line (`ps -axo
+  command=`) names it. If `ps` fails, nothing is removed.
 - `.claude-plugin/marketplace.json` is a local single-plugin marketplace
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.

@@ -13,11 +13,13 @@ Kept parsable by old Python 3 (no walrus, no match), so the fallback check runs 
 """
 
 import os
+import signal
 import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MIN_PYTHON = (3, 11)
+FALLBACK_TIMEOUT = 18  # under Claude Code's 20 s hook timeout
 
 
 def _version():
@@ -39,14 +41,24 @@ def _via_uv(event, payload):
     if data:
         env["UV_PROJECT_ENVIRONMENT"] = os.path.join(data, "venv-" + _version())
     try:
-        proc = subprocess.run(
+        # its own process group: on timeout the whole group goes, so a grandchild still
+        # holding stdout cannot keep us waiting on the pipe
+        proc = subprocess.Popen(
             ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ROOT, "inbox", "hook", event],
-            input=payload, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            universal_newlines=True, env=env, timeout=18)
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            universal_newlines=True, env=env, start_new_session=True)
     except Exception:  # noqa: BLE001
         return
-    if proc.returncode == 0 and proc.stdout:
-        sys.stdout.write(proc.stdout)
+    try:
+        out, _ = proc.communicate(payload, timeout=FALLBACK_TIMEOUT)
+    except Exception:  # noqa: BLE001 - timeout (or anything else): kill the group, print nothing
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except Exception:  # noqa: BLE001
+            pass
+        return
+    if proc.returncode == 0 and out:
+        sys.stdout.write(out)
 
 
 def main(argv):
