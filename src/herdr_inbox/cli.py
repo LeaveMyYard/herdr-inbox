@@ -49,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--remove-prefixes", action="store_true", help="strip every tab prefix (before uninstalling)")
     p = sub.add_parser("radar-sidebar", help="show the ❓N count ($inbox_q) in herdr-radar's sidebar rows")
     p.add_argument("--remove", action="store_true", help="take it out again (before uninstalling)")
+    p = sub.add_parser("clean-venvs", help="remove old versions' MCP venvs, including ones from before 0.5.3")
+    p.add_argument("--data", help="the plugin data dir (default: $CLAUDE_PLUGIN_DATA or ~/.claude/plugins/data/herdr-inbox-herdr-inbox)")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
     p.add_argument("event", choices=["session-start", "subagent-start"])
     args = parser.parse_args(argv)
@@ -58,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
 
         return run(args.event)
     if args.cmd == "mcp":
+        from . import venvs
+
+        venvs.claim_current()  # before any heavy import: this venv is in use (venvs.py)
         from .server import run
 
         run()
@@ -78,6 +83,21 @@ def main(argv: list[str] | None = None) -> int:
         status = radar.ensure(remove=args.remove)
         print(RADAR_MESSAGES[status].format(path=radar.config_path(), verb="removed from" if args.remove else "added to"))
         return 0 if status in ("changed", "unchanged", "stepped-aside") else 1
+    if args.cmd == "clean-venvs":
+        import os
+        from importlib.metadata import version
+        from pathlib import Path
+
+        from . import venvs
+
+        data = Path(args.data or os.environ.get("CLAUDE_PLUGIN_DATA")
+                    or Path.home() / ".claude" / "plugins" / "data" / "herdr-inbox-herdr-inbox")
+        removed = venvs.cleanup(data, version("herdr-inbox"), lockless=True)
+        for path in removed:
+            print(f"removed {path}")
+        if not removed:
+            print(f"nothing to remove in {data}")
+        return 0
     if args.cmd == "open":
         err = herdr.open_popup()
         if err:

@@ -410,13 +410,63 @@ Code plugin.
   Claude Code's project-scope MCP file for anyone working in this repo.
 - Claude Code installs the plugin as a copy in
   `~/.claude/plugins/cache/herdr-inbox/herdr-inbox/<version>/`, git-ignored
-  files included, and a copied `.venv` has no interpreter. Every plugin command
+  files included, and a copied `.venv` has no interpreter. The MCP server
   therefore runs `uv run --frozen --no-dev --project ${CLAUDE_PLUGIN_ROOT}` with
-  `UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv` (MCP: the server's `env`;
-  hooks: exec-form `env UV_PROJECT_ENVIRONMENT=… uv …`), so the environment
-  lives in the plugin's persistent data dir and the copy is only read.
+  `UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv-<version>` (the server's
+  `env`), so the environment lives in the plugin's persistent data dir and the
+  copy is only read. One venv **per version** (0.5.3): the data dir is kept
+  across updates while sessions started earlier keep the old root, so two
+  versions sharing one venv would re-sync it under each other.
   `tests/test_plugin_copy.py` builds such a copy (broken `.venv` included) and
   runs the commands exactly as the manifests declare them.
+- **Hooks never exit non-zero and never run uv (0.5.3).** Claude Code gives exit
+  code 2 a meaning of its own. For SessionStart and SubagentStart it cannot
+  block, but the run is a hook error: a "hook error" notice is shown, Claude
+  doesn't see it, and the hook's `additionalContext` (the inbox rules) is lost.
+  Other non-zero codes are non-blocking errors too. `uv run` exits 2 on its own
+  failures: in a sibling plugin's review, 9 of 48 concurrent runs did so with two
+  versions sharing one venv. The hooks are therefore exec-form
+  `sh -c 'python3 -I "$1" "$2" 2>/dev/null; exit 0' herdr-inbox-hook
+  ${CLAUDE_PLUGIN_ROOT}/hooks/run.py <event>`. `hooks/run.py` imports the
+  package from `src/`; the hook's import chain is stdlib only. `-I` keeps out
+  user site, PYTHONPATH and the cwd. Only a python3 older than 3.11 hands over to
+  `uv run` (with the version's venv), forwarding output only on success.
+  `tests/test_hook_launch.py` covers a fake failing `uv`, a failing `python3`,
+  bad arguments, the old-Python fallback and two versions' hooks running
+  concurrently. The fallback runs uv in its own process group and kills the
+  whole group on timeout, so a grandchild holding stdout cannot outlive it.
+- **The rules come out first.** The SessionStart hook builds its context and
+  prints it before anything that writes. The compact/resume pending-question
+  lookup is a read-only connection with a 0.2 s timeout; if it fails, the hook
+  prints the rules alone. Recording the transcript path comes after the output,
+  in its own `try` with a 0.5 s timeout. It is an optimisation: verification
+  falls back to the projects-dir glob. With the DB exclusively locked, the rules
+  still print in ~0.2 s plus interpreter start.
+- **What a per-version venv does not cover.** A plugin installed from a
+  local-path marketplace (as here) is loaded in place and not pinned by
+  `version`, so `${CLAUDE_PLUGIN_ROOT}` is the live checkout. A `git pull`
+  changes the source under MCP servers that are already running, and a module
+  they import lazily (e.g. `transcript`) loads the new code into an old process.
+  Restart Claude sessions after pulling.
+- **Old venvs are cleaned up.** The first thing `inbox mcp` does, before any
+  heavy import, is take a shared `flock` on `<its venv>/.inbox-in-use`. It holds
+  that lock for its lifetime and refreshes the file's mtime. If the venv is
+  already gone by then, the server exits rather than run from a deleted tree.
+  On start, a background thread (`venvs.py`) then removes a direct child of
+  `${CLAUDE_PLUGIN_DATA}` named `venv-<numeric v>` only when all of these hold:
+  - v is older than the running version;
+  - neither the dir nor its lock file has changed for an hour;
+  - the thread can take an exclusive non-blocking flock on the lock file.
+
+  Removal first renames the venv to a unique `.removing-…` name, so concurrent
+  cleanups can't both act, and then deletes it. Leftover `.removing-*` dirs
+  older than an hour are swept. Venvs without a lock file (the pre-0.5.3 shared
+  `venv`, and any from a version older than the lock) are never removed
+  automatically, because an mtime says nothing about use; `inbox clean-venvs`
+  removes them on request. The kernel answers "in use", so path spelling and
+  `ps` don't matter. One assumption remains: a filesystem that only pretends
+  to support flock (some FUSE mounts) would defeat it, whereas one that rejects
+  flock fails safe.
 - `.claude-plugin/marketplace.json` is a local single-plugin marketplace
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.

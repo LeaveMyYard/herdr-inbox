@@ -200,4 +200,7 @@ def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
     start_retry_loop()
+    from . import venvs
+
+    venvs.start_cleanup()  # old unused venvs (venvs.py); the lock was taken in cli
     mcp.run("stdio")
