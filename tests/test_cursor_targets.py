@@ -108,8 +108,8 @@ def test_retry_that_backs_off_releases_its_claim(store, fake_herdr, monkeypatch)
     monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")
     service.answer(store, qid, "yes")
     monkeypatch.delenv("FAKE_HERDR_FAIL")
-    before = store.get(qid).delivery_error
     monkeypatch.setenv("FAKE_HERDR_FOCUSED", "1")  # the operator is in that pane: wait
     service.retry_deliveries(store, "w1:p1")
-    assert store.get(qid).delivery_error == before  # not left claimed
+    # not left claimed: pending (0.5.1), listed in the popup, retried on a later tick
+    assert store.get(qid).delivery_error == "pending: waiting: the operator is in that pane"
     assert [q.id for q in store.failed_deliveries()] == [qid]

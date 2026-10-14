@@ -46,7 +46,20 @@ CREATE TABLE IF NOT EXISTS question_ext (
     draft_json      TEXT,
     drafted_at      TEXT,
     options_json    TEXT,
-    hidden_at       TEXT
+    hidden_at       TEXT,
+    verified_at     TEXT,
+    reset_count     INTEGER
+);
+-- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
+-- is verified by finding the typed answer in it.
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id      TEXT PRIMARY KEY,
+    transcript_path TEXT
+);
+-- One-off migrations and other flags.
+CREATE TABLE IF NOT EXISTS meta (
+    key             TEXT PRIMARY KEY,
+    value           TEXT
 );
 -- One row per group (one ask_operator call) that was given a title (0.5).
 CREATE TABLE IF NOT EXISTS question_groups (
@@ -75,7 +88,7 @@ ADDED_COLUMNS = {
 # Read view, versioned: a release that changes it bumps the name (CREATE VIEW IF NOT EXISTS
 # would keep an old definition). Older views are NEVER dropped: processes of the previous
 # release keep running until their sessions restart, and each queries its own view.
-VIEW = "questions_v5"
+VIEW = "questions_v6"
 OLD_VIEWS: tuple[str, ...] = ()
 VIEW_SQL = f"""
 CREATE VIEW IF NOT EXISTS {VIEW} AS
@@ -84,11 +97,11 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
            q.delivery_error, q.acknowledged_at, q.repeat_count, q.delivery_attempts,
            e.header, COALESCE(e.multi_select, 0) AS multi_select, e.answer_json,
            COALESCE(e.group_id, q.id) AS group_id, e.draft_json, e.drafted_at, e.options_json, e.hidden_at,
-           g.title AS group_title
+           g.title AS group_title, e.verified_at
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -135,6 +148,13 @@ ANSWER_REUSE = timedelta(hours=1)
 # An answered row with no delivery attempt this long after answering was orphaned
 # (the answering process died between answer and delivery): the retry picks it up.
 NEVER_ATTEMPTED_GRACE = timedelta(seconds=60)
+# delivery_error prefix for an answer waiting for its agent to be idle (not a failure).
+PENDING = "pending: "
+RESET_KEY = "0.5.1 unverified acknowledgements reset"
+RESET_WINDOW = timedelta(days=7)
+SIGNATURE_WINDOW = timedelta(hours=24)
+RECONCILE_BATCH = 200  # rows per open; the 7-day sweep is done only once a pass sees fewer
+MAX_RESETS = 2
 # A delivery claim older than this belongs to a process that died mid-send.
 CLAIM_STALE = timedelta(seconds=60)
 
@@ -174,6 +194,7 @@ class Question:
     draft_json: dict | None = None  # operator's unsent answer, same shape as answer_json
     drafted_at: str | None = None
     group_title: str | None = None  # the ask_operator call's title (0.5), if the agent gave one
+    verified_at: str | None = None  # the typed answer was seen in the session transcript (0.5.1)
 
     @property
     def group(self) -> int:
@@ -222,6 +243,7 @@ class Store:
         for old in OLD_VIEWS:
             self.db.execute(f"DROP VIEW IF EXISTS {old}")
         self.db.executescript(VIEW_SQL)
+        self._reconcile_unverified()
         columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
         for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
             if name not in columns:
@@ -429,8 +451,13 @@ class Store:
         return cur.rowcount == 1
 
     def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True,
-                        claim: str | None = None) -> None:
-        """Write a delivery outcome; with ``claim``, only while that claim is still ours."""
+                        claim: str | None = None, verified: bool = False) -> None:
+        """Write a delivery outcome; with ``claim``, only while that claim is still ours.
+
+        A sent prompt is NOT an answer seen: only a ``verified`` delivery (found in the
+        session transcript) sets ``acknowledged_at``. An unverified one leaves the answer for
+        check_answers.
+        """
         mine, args = (" AND delivery_error = ?", (claim,)) if claim else ("", ())
         if error:
             self.db.execute(
@@ -438,27 +465,116 @@ class Store:
                 f" WHERE id = ?{mine}",
                 (error, qid, *args),
             )
-        else:  # typed into the asking conversation: that counts as seen (unless only referenced)
-            self.db.execute(
+            return
+        # one transaction: another process's reconcile pass must never see the row delivered
+        # and acknowledged together (the pre-0.5.1 signature) without its verified_at
+        with self.transaction():
+            cur = self.db.execute(
                 "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
                 f" delivery_error = NULL WHERE id = ?{mine}",
-                (now(), now() if acknowledge else None, qid, *args),
+                (now(), now() if acknowledge and verified else None, qid, *args),
             )
+            if verified and cur.rowcount:
+                self.db.execute(
+                    "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
+                    " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at",
+                    (qid, qid, now()),
+                )
 
-    def undelivered(self, pane_id: str, stale_errors: tuple[str, ...], max_stale: int) -> list[Question]:
+    def set_pending(self, qid: int, claim: str, reason: str) -> None:
+        """Not sent yet (e.g. the agent is mid-turn): visible as pending, retried, not counted
+        as a failed attempt."""
+        self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
+                        (f"{PENDING}{reason}", qid, claim))
+
+    def record_session(self, session_id: str, transcript_path: str | None) -> None:
+        if session_id and transcript_path:
+            self.db.execute("INSERT OR REPLACE INTO sessions (session_id, transcript_path) VALUES (?, ?)",
+                            (session_id, transcript_path))
+
+    def session_transcript(self, session_id: str | None) -> str | None:
+        if not session_id:
+            return None
+        row = self.db.execute("SELECT transcript_path FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return row[0] if row else None
+
+    def redeliver(self, qids: list[int]) -> list[int]:
+        """Make answered questions pending delivery again (and available to check_answers)."""
+        done = []
+        for qid in qids:
+            cur = self.db.execute(
+                "UPDATE questions SET delivered_at = NULL, acknowledged_at = NULL, delivery_attempts = 0,"
+                " delivery_error = ? WHERE id = ? AND status = 'answered'",
+                (f"{PENDING}redelivery requested", qid),
+            )
+            if cur.rowcount:
+                self.db.execute("UPDATE question_ext SET verified_at = NULL WHERE id = ?", (qid,))
+                done.append(qid)
+        return done
+
+    def _reconcile_unverified(self) -> None:
+        """Re-check answers marked seen without a verified delivery, on every open.
+
+        - Once (0.5.1 upgrade): every such answer from the last 7 days.
+        - Always: rows with the signature of a pre-0.5.1 server, still running in sessions
+          started before the update (``acknowledged_at = delivered_at``, set together on
+          "send"), from the last 24 h.
+        Each is looked up in its session's transcript: found → marked verified; not found
+        (or no transcript) → un-seen, so check_answers returns it. A row is reset at most
+        MAX_RESETS times, so an old server can never make this loop (and un-seen rows are not
+        re-typed by anyone: they are already marked delivered).
+        """
+        one_off = not self.db.execute("SELECT 1 FROM meta WHERE key = ?", (RESET_KEY,)).fetchone()
+        rows = self.db.execute(
+            "SELECT q.id, q.session_id FROM questions q LEFT JOIN question_ext e ON e.id = q.id"
+            " WHERE q.delivered_at IS NOT NULL AND q.acknowledged_at IS NOT NULL AND e.verified_at IS NULL"
+            " AND COALESCE(e.reset_count, 0) < ?"
+            " AND ((? AND q.answered_at >= ?) OR (q.acknowledged_at = q.delivered_at AND q.delivered_at >= ?))"
+            " ORDER BY q.id LIMIT ?",
+            (MAX_RESETS, int(one_off), now(-RESET_WINDOW), now(-SIGNATURE_WINDOW), RECONCILE_BATCH),
+        ).fetchall()
+        if not rows and not one_off:
+            return
+        from . import transcript  # stdlib only; kept local so the store has no import cycle
+
+        by_session: dict[str | None, list[int]] = {}
+        for qid, session in rows:
+            by_session.setdefault(session, []).append(qid)
+        found: set[int] = set()
+        for session, qids in by_session.items():
+            path = transcript.find(session, self.session_transcript(session))
+            if path is not None:
+                found |= transcript.landed_ids(path, qids)
+        with self.transaction():
+            for qid, _ in rows:
+                if qid in found:
+                    self.db.execute(
+                        "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
+                        " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at", (qid, qid, now()))
+                else:
+                    self.db.execute("UPDATE questions SET acknowledged_at = NULL WHERE id = ?", (qid,))
+                    self.db.execute(
+                        "INSERT INTO question_ext (id, group_id, reset_count) VALUES (?, ?, 1)"
+                        " ON CONFLICT(id) DO UPDATE SET reset_count = COALESCE(reset_count, 0) + 1", (qid, qid))
+            if one_off and len(rows) < RECONCILE_BATCH:
+                self.db.execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)", (RESET_KEY, now()))
+
+    def undelivered(self, pane_id: str, caps: dict[str, int]) -> list[Question]:
         """Answers for ``pane_id`` whose delivery failed and that the agent has not seen.
 
-        Errors starting with one of ``stale_errors`` (the conversation is gone) are
-        given up after ``max_stale`` attempts; transient ones are retried indefinitely.
+        An error starting with a key of ``caps`` is given up after that many attempts (the
+        conversation is gone; the text was typed but never showed up); transient ones
+        (pending, herdr errors) are retried indefinitely.
         """
-        stale = " OR ".join("delivery_error LIKE ?" for _ in stale_errors) or "0"
+        clauses = " OR ".join("(delivery_error LIKE ? AND delivery_attempts >= ?)" for _ in caps) or "0"
+        args = [a for prefix, cap in caps.items() for a in (prefix + "%", cap)]
         rows = self.db.execute(
             f"SELECT * FROM {VIEW} WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
             " AND acknowledged_at IS NULL"
             # failed attempts, or never attempted (the answering process died) after a grace period
             " AND (delivery_error IS NOT NULL OR answered_at < ?)"
-            f" AND NOT (({stale}) AND delivery_attempts >= ?) ORDER BY id",
-            (pane_id, now(-NEVER_ATTEMPTED_GRACE), *(e + "%" for e in stale_errors), max_stale),
+            f" AND NOT ({clauses}) ORDER BY id",
+            (pane_id, now(-NEVER_ATTEMPTED_GRACE), *args),
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
