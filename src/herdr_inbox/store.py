@@ -93,6 +93,9 @@ def now(delta: timedelta = timedelta()) -> str:
 # An answered question is handed back to a repeat only this long; later the
 # same words are probably a new instance ("Proceed with the next step?").
 ANSWER_REUSE = timedelta(hours=1)
+# An answered row with no delivery attempt this long after answering was orphaned
+# (the answering process died between answer and delivery): the retry picks it up.
+NEVER_ATTEMPTED_GRACE = timedelta(seconds=60)
 
 
 def normalize(text: str) -> str:
@@ -324,17 +327,17 @@ class Store:
         )
         return cur.rowcount == 1
 
-    def record_delivery(self, qid: int, error: str | None) -> None:
+    def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True) -> None:
         if error:
             self.db.execute(
                 "UPDATE questions SET delivery_error = ?, delivery_attempts = delivery_attempts + 1 WHERE id = ?",
                 (error, qid),
             )
-        else:  # typed into the asking conversation: that counts as seen
+        else:  # typed into the asking conversation: that counts as seen (unless only referenced)
             self.db.execute(
                 "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
                 " delivery_error = NULL WHERE id = ?",
-                (now(), now(), qid),
+                (now(), now() if acknowledge else None, qid),
             )
 
     def undelivered(self, pane_id: str, stale_errors: tuple[str, ...], max_stale: int) -> list[Question]:
@@ -346,9 +349,11 @@ class Store:
         stale = " OR ".join("delivery_error LIKE ?" for _ in stale_errors) or "0"
         rows = self.db.execute(
             "SELECT * FROM questions_v2 WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
-            f" AND acknowledged_at IS NULL AND delivery_error IS NOT NULL"
+            " AND acknowledged_at IS NULL"
+            # failed attempts, or never attempted (the answering process died) after a grace period
+            " AND (delivery_error IS NOT NULL OR answered_at < ?)"
             f" AND NOT (({stale}) AND delivery_attempts >= ?) ORDER BY id",
-            (pane_id, *(e + "%" for e in stale_errors), max_stale),
+            (pane_id, now(-NEVER_ATTEMPTED_GRACE), *(e + "%" for e in stale_errors), max_stale),
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 

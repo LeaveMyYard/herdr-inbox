@@ -119,19 +119,24 @@ class QuestionView(Vertical, can_focus=True):
         return f"↑/↓ move · 1-9 jump · {pick} · n note · x clear · ←/→ question · Esc back"
 
     def row_text(self, i: int) -> str:
+        """One option row. Every row is ``<cursor cell> <n>. <label>``, with the cursor cell
+        ("❯" or blank), the number and the label as separate spans, so labels start in the same
+        column on every row (and in exported screenshots, which drop leading spaces of a span)."""
         here = i == self.cursor
-        arrow = "[b $accent]❯[/]" if here else " "
+        cursor = "[$accent]❯[/]" if here else "[$background] [/]"
+        number = f"[$text-muted]{i + 1}.[/]"
         if i == len(self.options):
             label = f"[b $accent]{TYPE_ROW}[/]" if here else f"[dim]{TYPE_ROW}[/]"
-            line = f"{arrow} {i + 1}. {label}"
+            line = f"{cursor} {number} {label}"
             return line + (f"\n      [i]draft: {escape(self.text)}[/]" if self.text else "")
         opt = self.options[i]
         if self.q.multi_select:
             box = "[x] " if i in self.picked else "[ ] "
         else:
             box = "✓ " if i in self.picked else ""
-        label = escape(opt["label"])
-        lines = [f"{arrow} {i + 1}. {escape(box)}" + (f"[b $accent]{label}[/]" if here else label)]
+        text = escape(box + opt["label"])
+        label = f"[b $accent]{text}[/]" if here else f"[$foreground]{text}[/]"
+        lines = [f"{cursor} {number} {label}"]
         if opt.get("description"):
             lines.append(f"      [dim]{escape(opt['description'])}[/]")
         if self.notes.get(i):
@@ -289,18 +294,19 @@ class ReviewView(Vertical, can_focus=True):
         self.query_one(".question", Static).update(f"[b]{title}[/b]")
         lines = []
         for i, q in enumerate(self.items):
-            arrow = "[b $accent]❯[/]" if i == self.cursor else " "
+            cursor = "[$accent]❯[/]" if i == self.cursor else "[$background] [/]"
             where = q.tab_label or q.pane_id or "-"
-            lines.append(f"{arrow} {q.ref} · {escape(where)} · {escape(service.first_line(q.question, 70))}")
+            lines.append(f"{cursor} [$foreground]{q.ref} · {escape(where)} · "
+                         f"{escape(service.first_line(q.question, 70))}[/]")
             if q.draft_json:
-                lines.append(f"      → [b]{escape(_draft_line(q))}[/b]")
+                lines.append(f"    [$accent]→[/] [b]{escape(_draft_line(q))}[/b]")
             else:
-                lines.append("      [dim]no answer yet: stays open[/dim]")
+                lines.append("    [dim]no answer yet: stays open[/dim]")
         n = len(self.drafted)
         here = self.cursor == len(self.items)
         label = f"Submit {n} answer{'s' if n != 1 else ''}" if n else "Nothing drafted yet"
-        arrow = "[b $accent]❯[/]" if here else " "
-        lines.append(f"{arrow} " + (f"[b $accent]{label}[/]" if here else label))
+        cursor = "[$accent]❯[/]" if here else "[$background] [/]"
+        lines.append(f"{cursor} " + (f"[b $accent]{label}[/]" if here else f"[$foreground]{label}[/]"))
         self.query_one("#review-body", Static).update("\n".join(lines))
 
     def action_move(self, delta: int) -> None:
@@ -387,11 +393,11 @@ class GroupScreen(Screen):
             q = self.store.get(qid)
             mark = "✓" if q and q.draft_json else ("·" if q and q.status != "open" else "●")
             name = escape((q.header if q and q.header else f"Q{qid}"))
-            chip = f" {mark} {name} "
-            parts.append(f"[reverse b]{chip}[/]" if i == self.index else chip)
-        review = " Review "
-        parts.append(f"[reverse b]{review}[/]" if self.index == self.review_index else review)
-        return "←  " + " ".join(parts) + "  →"
+            chip = f"{mark} {name}"
+            parts.append(f"[reverse b] {chip} [/]" if i == self.index else f"[$foreground]{chip}[/]")
+        review = "Review"
+        parts.append(f"[reverse b] {review} [/]" if self.index == self.review_index else f"[$foreground]{review}[/]")
+        return "[$text-muted]←[/]  " + "  ".join(parts) + "  [$text-muted]→[/]"
 
     def show(self, index: int) -> None:
         self.index = index % (len(self.qids) + 1)

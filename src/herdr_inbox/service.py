@@ -151,10 +151,17 @@ def ask_group(
     }
 
 
+def _quote(label: str) -> str:
+    """Quote a picked label that contains our separators, so the agent can split picks."""
+    if any(ch in label for ch in ',"()·'):
+        return '"' + label.replace('"', '\\"') + '"'
+    return label
+
+
 def format_answer(choices: list[str], notes: dict[str, str] | None = None, text: str | None = None) -> str:
     """One line: ``Postgres (note: keep the old schema)``, picks joined by ``, ``."""
     notes = notes or {}
-    parts = [f"{c} (note: {notes[c]})" if notes.get(c) else c for c in choices]
+    parts = [f"{_quote(c)} (note: {notes[c]})" if notes.get(c) else _quote(c) for c in choices]
     if text and text.strip():
         parts.append(text.strip())
     return ", ".join(parts)
@@ -222,6 +229,36 @@ def delivery_text(qs: list[Question]) -> str:
     return "[inbox] answered — " + " · ".join(answer_line(q) for q in qs)
 
 
+def _too_long(q: Question) -> bool:
+    return len(delivery_text([q])) > herdr.MAX_ARG
+
+
+def _reference(q: Question) -> str:
+    return (f"[inbox] {q.ref} answered — {first_line(q.question, 80)}: (long answer, {len(q.answer)} chars; "
+            f"call check_answers to read it)")
+
+
+def delivery_messages(qs: list[Question]) -> list[tuple[str, list[Question], bool]]:
+    """Split one pane's answers into messages that fit herdr's argument cap, never truncating.
+
+    Returns (text, questions, acknowledged): an answer too long for any message is sent as a
+    reference and stays unacknowledged, so check_answers still returns it.
+    """
+    out: list[tuple[str, list[Question], bool]] = []
+    batch: list[Question] = []
+    for q in qs:
+        if _too_long(q):
+            out.append((_reference(q), [q], False))
+            continue
+        if batch and len(delivery_text(batch + [q])) > herdr.MAX_ARG:
+            out.append((delivery_text(batch), batch, True))
+            batch = []
+        batch.append(q)
+    if batch:
+        out.append((delivery_text(batch), batch, True))
+    return out
+
+
 def deliver(store: Store, q: Question, retry: bool = False) -> None:
     deliver_batch(store, [q], retry)
 
@@ -258,9 +295,10 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
             # The operator may be typing there, or about to answer the dialog: the prompt
             # would merge with their input. Leave it for a later, unfocused tick.
             continue
-        err = herdr.prompt_agent(pane, delivery_text(ours))
-        for q in ours:
-            store.record_delivery(q.id, err)
+        for text, batch, ack in delivery_messages(ours):
+            err = herdr.prompt_agent(pane, text)
+            for q in batch:
+                store.record_delivery(q.id, err, acknowledge=ack)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:

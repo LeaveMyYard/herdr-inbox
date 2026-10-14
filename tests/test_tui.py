@@ -59,7 +59,7 @@ async def test_question_view_layout_cursor_and_number_jump(store, fake_herdr):
         v = view(app)
         assert "DB choice" in text_of(app.screen.query_one("#chips")) and "Review" in text_of(app.screen.query_one("#chips"))
         first = v.row_text(0)
-        assert first.startswith("[b $accent]❯[/] 1.") and "keeps the current ORM" in first
+        assert first.startswith("[$accent]❯[/] ") and "keeps the current ORM" in first
         assert "Type something…" in v.row_text(3)
         await pilot.press("down", "j")
         assert v.cursor == 2
