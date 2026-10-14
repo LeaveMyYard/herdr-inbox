@@ -95,6 +95,11 @@ def pane_tabs() -> dict[str, str | None] | None:
     return {p["pane_id"]: p.get("tab_id") for p in res.get("panes", []) if p.get("pane_id")}
 
 
+def focused_pane() -> str | None:
+    res, _ = call("pane", "list")
+    return next((p["pane_id"] for p in (res or {}).get("panes", []) if p.get("focused")), None)
+
+
 def all_tabs() -> list[dict] | None:
     """Every tab ({tab_id, label, ...}) in every workspace, or None."""
     res, _ = call("workspace", "list")
@@ -161,5 +166,8 @@ def open_popup() -> str | None:
     root = os.environ.get("HERDR_PLUGIN_ROOT")
     if root:
         args += ["--cwd", root]
+    focused = os.environ.get("HERDR_PANE_ID")  # the pane focused when the action ran
+    if focused:
+        args += ["--env", f"INBOX_FOCUS_PANE={focused}"]
     _, err = call(*args)
     return err
