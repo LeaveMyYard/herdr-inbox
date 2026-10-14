@@ -29,7 +29,8 @@ def populate(store):
     service.ask_group(store, BILLING, [
         {"question": "Which database should the invoice store use?", "header": "DB choice", "options": DB},
         {"question": "Which caches should the API warm on deploy?", "header": "Cache", "multi_select": True,
-         "options": ["redis", "in-process", "CDN"]}], context="Invoice rows ~1M/day", asked_by="planner")  # Q2, Q3
+         "options": ["redis", "in-process", "CDN"]}], context="Invoice rows ~1M/day", asked_by="planner",
+        title="Invoice storage and caching")  # Q2, Q3
     service.ask(store, DOCS, "Publish the v2 docs now or after the release?", options=["now", "after"],
                 header="Rollout")                                                                       # Q4
 

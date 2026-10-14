@@ -45,6 +45,9 @@ AskUserQuestion's:
 - `multi_select`: true when several options may be picked together.
 - `preview` (per option, optional): text shown beside the options while that option is
   highlighted (a code snippet, a config diff, an ASCII mock); monospace, no markup.
+- `title`: a short name for the whole call (≤60 chars), e.g. "Worker rollout settings". The
+  operator's inbox lists calls by this name, so ALWAYS set it when you pass `questions`;
+  optional for a single question (its header or text is used instead).
 - `questions`: instead of `question`, up to 4 related questions in one call, each
   `{"question", "header"?, "options"?, "multi_select"?}`. The operator answers them together;
   each gets its own Q id.
@@ -107,6 +110,7 @@ def ask_operator(
     header: str | None = None,
     multi_select: bool = False,
     questions: list[QuestionItem] | None = None,
+    title: str | None = None,
 ) -> dict[str, Any]:
     if bool(question) == bool(questions):
         return {"status": "error", "message": "Pass either `question` or `questions` (not both)."}
@@ -119,9 +123,9 @@ def ask_operator(
     with tool_store() as store:
         caller = service.resolve_caller()
         if questions:
-            return service.ask_group(store, caller, items, context, asked_by)
+            return service.ask_group(store, caller, items, context, asked_by, title=title)
         return service.ask(store, caller, question, options, context, asked_by,
-                           header=header, multi_select=multi_select)
+                           header=header, multi_select=multi_select, title=title)
 
 
 @mcp.tool()

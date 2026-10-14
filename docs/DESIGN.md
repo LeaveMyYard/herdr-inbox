@@ -231,7 +231,7 @@ the plugin dir.
   answering process died in between) once they are 60 s old.
 - **Upgrade safety**: the 0.2 fields (`header`, `multi_select`, `answer_json`,
   `group_id`, drafts) live in a side table `question_ext`, read through the
-  `questions_v3` view (versioned; older views are dropped on open). The `questions` table keeps exactly the 0.1.x columns,
+  `questions_v<N>` view (versioned; older views are never dropped, because processes of the previous release keep querying theirs until their sessions restart). The `questions` table keeps exactly the 0.1.x columns,
   because 0.1.x builds its `Question` from `SELECT *`: sessions still running
   0.1.x keep working against a database 0.2 has opened. `from_row` now ignores
   columns it does not know, so later versions can add columns safely.
@@ -246,10 +246,18 @@ tabs with its own Submit tab.
   group; Esc (or Cancel on its Submit tab) closes the popup. Otherwise the
   **group list**; nothing open: "No open questions" (any key closes; arrivals
   are announced as "N new question groups — press Tab/→ to view").
+- **Group names (0.5).** `ask_operator(title=…)` names the whole call (≤60
+  chars, sanitised like everything else; strongly requested when asking several
+  questions). Stored once per group in the side table `question_groups`
+  (joined into the read view as `group_title`; `questions` keeps the 0.1.x
+  column set). Older read views stay in place for 0.4 processes. Untitled calls (older sessions, single questions) fall back to
+  the first question's header, else its first line (`service.group_name`).
 - **Group list**, under a title row ("Open questions · 3 groups · 1 not
   delivered"), rendered like Claude Code's option list (multiline rows):
-  `❯ 1. Billing API · planner · 3 questions · 4m · 1 drafted`, with a dim second
-  line of the questions' headers (or the lone question's text). ⚠ undelivered
+  `❯ 1. Worker rollout settings · 4 questions · 1 drafted · 4m`, with a dim
+  second line `<tab label> · <asked_by> · <header chips>`. Inside a group the
+  name sits above the tabs (a lone untitled question shows its header chip
+  instead). ⚠ undelivered
   answers are their own entries (`⚠ Q12 not delivered · <tab> · <error>`,
   question → answer), opening a Retry / Stop-showing view. Order: groups from
   the focused pane first, then oldest first; ⚠ entries after them. ↑/↓/j/k move,

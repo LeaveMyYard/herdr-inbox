@@ -107,7 +107,7 @@ async def test_failed_delivery_entry_retry_and_hide(store, fake_herdr, monkeypat
         await pilot.pause()
         assert app.mode == "list"
         assert app.entries == [("group", c), ("failed", a), ("failed", b)]  # groups first, ⚠ after
-        body = str(app.query_one("#list-body").render())
+        body = app.query_one(GroupListView).body_text()
         assert "⚠ Q1 not delivered" in body and "⚠ Q2 not delivered" in body
         await pilot.press("2", "enter")
         assert "Q1 not delivered" in str(app.query("#body > *").first().query_one(".question").render())
