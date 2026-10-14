@@ -410,13 +410,30 @@ Code plugin.
   Claude Code's project-scope MCP file for anyone working in this repo.
 - Claude Code installs the plugin as a copy in
   `~/.claude/plugins/cache/herdr-inbox/herdr-inbox/<version>/`, git-ignored
-  files included, and a copied `.venv` has no interpreter. Every plugin command
+  files included, and a copied `.venv` has no interpreter. The MCP server
   therefore runs `uv run --frozen --no-dev --project ${CLAUDE_PLUGIN_ROOT}` with
-  `UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv` (MCP: the server's `env`;
-  hooks: exec-form `env UV_PROJECT_ENVIRONMENT=… uv …`), so the environment
-  lives in the plugin's persistent data dir and the copy is only read.
+  `UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv-<version>` (the server's
+  `env`), so the environment lives in the plugin's persistent data dir and the
+  copy is only read. One venv **per version** (0.5.3): the data dir is kept
+  across updates while sessions started earlier keep the old root, so two
+  versions sharing one venv would re-sync it under each other.
   `tests/test_plugin_copy.py` builds such a copy (broken `.venv` included) and
   runs the commands exactly as the manifests declare them.
+- **Hooks never exit non-zero and never run uv (0.5.3).** Claude Code gives exit
+  code 2 a meaning of its own. For SessionStart and SubagentStart it cannot
+  block, but the run is a hook error: a "hook error" notice is shown, Claude
+  doesn't see it, and the hook's `additionalContext` (the inbox rules) is lost.
+  Other non-zero codes are non-blocking errors too. `uv run` exits 2 on its own
+  failures: in a sibling plugin's review, 9 of 48 concurrent runs did so with two
+  versions sharing one venv. The hooks are therefore exec-form
+  `sh -c 'python3 -I "$1" "$2" 2>/dev/null; exit 0' herdr-inbox-hook
+  ${CLAUDE_PLUGIN_ROOT}/hooks/run.py <event>`. `hooks/run.py` imports the
+  package from `src/`; the hook's import chain is stdlib only. `-I` keeps out
+  user site, PYTHONPATH and the cwd. Only a python3 older than 3.11 hands over to
+  `uv run` (with the version's venv), forwarding output only on success.
+  `tests/test_hook_launch.py` covers a fake failing `uv`, a failing `python3`,
+  bad arguments, the old-Python fallback and two versions' hooks running
+  concurrently.
 - `.claude-plugin/marketplace.json` is a local single-plugin marketplace
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.
