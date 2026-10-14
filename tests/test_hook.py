@@ -82,7 +82,10 @@ def test_broken_db_never_fails(tmp_path, fake_herdr):
     blocker.write_text("")
     proc = run_hook("session-start", {"session_id": "s", "source": "compact"},
                     HERDR_INBOX_DB=str(blocker / "sub" / "inbox.db"))
-    assert (proc.returncode, proc.stdout) == (0, "")
+    # since 0.5.3 (review of #11): an unusable DB costs the pending list, never the rules
+    assert proc.returncode == 0
+    context = json.loads(proc.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert context.startswith("<herdr-inbox>") and "already with the operator" not in context
 
 
 def test_garbage_input_never_fails(fake_herdr):
@@ -94,8 +97,9 @@ def test_plugin_hook_and_mcp_config_point_at_the_cli():
     hooks = json.loads((ROOT / "hooks/hooks.json").read_text())["hooks"]
     start = hooks["SessionStart"][0]
     assert set(start["matcher"].split("|")) == {"startup", "resume", "clear", "compact", "fork"}
-    assert start["hooks"][0]["args"][-3:] == ["inbox", "hook", "session-start"]
-    assert hooks["SubagentStart"][0]["hooks"][0]["args"][-3:] == ["inbox", "hook", "subagent-start"]
+    # stdlib runner behind an always-exit-0 sh wrapper (tests/test_hook_launch.py)
+    assert start["hooks"][0]["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run.py", "session-start"]
+    assert hooks["SubagentStart"][0]["hooks"][0]["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run.py", "subagent-start"]
     server = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["mcpServers"]["herdr-inbox"]
     assert server["args"][-2:] == ["inbox", "mcp"] and "${CLAUDE_PLUGIN_ROOT}" in server["args"]
     assert (ROOT / "skills/operator-questions/SKILL.md").exists()
