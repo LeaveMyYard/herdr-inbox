@@ -2,12 +2,20 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
             "type": "command",
             "command": "uv",
-            "args": ["run", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}", "inbox", "hook", "session-start"],
+            "args": [
+              "run",
+              "--quiet",
+              "--project",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "inbox",
+              "hook",
+              "session-start"
+            ],
             "timeout": 20
           }
         ]
@@ -19,7 +27,15 @@
           {
             "type": "command",
             "command": "uv",
-            "args": ["run", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}", "inbox", "hook", "subagent-start"],
+            "args": [
+              "run",
+              "--quiet",
+              "--project",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "inbox",
+              "hook",
+              "subagent-start"
+            ],
             "timeout": 20
           }
         ]

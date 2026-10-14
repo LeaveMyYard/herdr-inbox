@@ -9,17 +9,12 @@ from __future__ import annotations
 
 import logging
 import os
-import uuid
 from dataclasses import dataclass
 
 from . import herdr
 from .store import Question, Store, normalize
 
 log = logging.getLogger("herdr_inbox")
-
-# Identity for a server that has neither herdr nor a Claude session id in its
-# environment: questions stay retrievable through check_answers in this process.
-_PROCESS_SESSION = f"local-{uuid.uuid4().hex[:12]}"
 
 
 @dataclass
@@ -35,11 +30,7 @@ def resolve_caller() -> Caller:
     """Who is asking. Resolved per call: /clear changes the session, panes move."""
     pane_id = os.environ.get("HERDR_PANE_ID") or None
     ident = herdr.pane_identity(pane_id) if pane_id else {}
-    session_id = (
-        ident.get("session_id")
-        or os.environ.get("CLAUDE_CODE_SESSION_ID")
-        or (None if pane_id else _PROCESS_SESSION)
-    )
+    session_id = ident.get("session_id") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
     return Caller(
         pane_id=pane_id,
         tab_id=ident.get("tab_id") or os.environ.get("HERDR_TAB_ID") or None,
@@ -62,17 +53,40 @@ def ask(
     context: str | None = None,
     asked_by: str | None = None,
 ) -> dict:
+    if not caller.pane_id:
+        # Nobody watches the inbox for agents outside herdr: no popup, no notification, no delivery.
+        return {
+            "status": "unavailable",
+            "message": "Not running inside herdr, so the operator inbox is not watched. "
+            "Ask the operator in chat instead.",
+        }
     question = question.strip()
-    dup = store.find_duplicate(normalize(question), caller.session_id, caller.pane_id)
+    with store.transaction():  # dedupe + insert atomically (parallel calls, subagents)
+        dup = store.find_duplicate(normalize(question), caller.session_id, caller.pane_id)
+        if dup and dup.status == "open":
+            store.bump_repeat(dup.id)
+        elif dup and dup.status == "answered":
+            store.acknowledge([dup.id])
+        else:
+            dup = None
+            q = store.insert(
+                question,
+                options=options or None,
+                context=context,
+                asked_by=asked_by,
+                pane_id=caller.pane_id,
+                tab_id=caller.tab_id,
+                tab_label=caller.tab_label,
+                session_id=caller.session_id,
+                cwd=caller.cwd,
+            )
     if dup and dup.status == "open":
-        store.bump_repeat(dup.id)
         return {
             "id": dup.id,
             "status": "already_open",
             "message": f"{dup.ref} is already with the operator. Do not ask again; keep working.",
         }
-    if dup and dup.status == "answered":
-        store.acknowledge([dup.id])
+    if dup:
         return {
             "id": dup.id,
             "status": "answered",
@@ -80,20 +94,8 @@ def ask(
             "message": f"{dup.ref} was already answered by the operator: {dup.answer}",
         }
 
-    q = store.insert(
-        question,
-        options=options or None,
-        context=context,
-        asked_by=asked_by,
-        pane_id=caller.pane_id,
-        tab_id=caller.tab_id,
-        tab_label=caller.tab_label,
-        session_id=caller.session_id,
-        cwd=caller.cwd,
-    )
-    if q.pane_id:  # outside herdr: no notification, the TUI still lists it
-        herdr.notify(f"{q.ref} · {q.tab_label or q.pane_id}", first_line(question, 200))
-        update_token(store, q.pane_id)
+    herdr.notify(f"{q.ref} · {q.tab_label or q.pane_id}", first_line(question, 200))
+    update_token(store, q.pane_id)
     return {
         "id": q.id,
         "status": "open",
@@ -120,13 +122,28 @@ def answer(store: Store, qid: int, text: str) -> Question | None:
 
 
 def deliver(store: Store, q: Question) -> None:
+    """Type the answer into the asking conversation, and only that one.
+
+    A pane can hold a different conversation by now (/clear, restart, another agent);
+    then the answer stays for check_answers and the compact/resume hook.
+    """
     if not q.pane_id:
         store.record_delivery(q.id, "no pane: answer available through check_answers")
         return
-    if not herdr.agent_live(q.pane_id):
+    agent = herdr.live_agent(q.pane_id)
+    if agent is None:
         store.record_delivery(q.id, f"no live agent in pane {q.pane_id}")
         return
+    if q.session_id and agent["session_id"] != q.session_id:
+        store.record_delivery(q.id, f"conversation changed in pane {q.pane_id}")
+        return
     store.record_delivery(q.id, herdr.prompt_agent(q.pane_id, delivery_text(q)))
+
+
+def retry_deliveries(store: Store, pane_id: str) -> None:
+    """Retry failed deliveries for one pane (e.g. the agent sat at a permission dialog)."""
+    for q in store.undelivered(pane_id):
+        deliver(store, q)
 
 
 def close(store: Store, qid: int, status: str, note: str | None = None) -> bool:

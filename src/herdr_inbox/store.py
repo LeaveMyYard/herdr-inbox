@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import contextmanager
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SCHEMA = """
@@ -44,8 +45,13 @@ def db_path() -> Path:
     return Path(state) / "herdr-inbox" / "inbox.db"
 
 
-def now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def now(delta: timedelta = timedelta()) -> str:
+    return (datetime.now(timezone.utc) + delta).isoformat(timespec="seconds")
+
+
+# An answered question is handed back to a repeat only this long; later the
+# same words are probably a new instance ("Proceed with the next step?").
+ANSWER_REUSE = timedelta(hours=1)
 
 
 def normalize(text: str) -> str:
@@ -107,6 +113,17 @@ class Store:
     def close(self) -> None:
         self.db.close()
 
+    @contextmanager
+    def transaction(self):
+        """Write lock for read-then-write sequences (other processes wait on busy_timeout)."""
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except BaseException:
+            self.db.execute("ROLLBACK")
+            raise
+        self.db.execute("COMMIT")
+
     def __enter__(self) -> "Store":
         return self
 
@@ -130,9 +147,10 @@ class Store:
     def find_duplicate(self, norm: str, session_id: str | None, pane_id: str | None) -> Question | None:
         where, args = self._owner_clause(session_id, pane_id)
         row = self.db.execute(
-            f"SELECT * FROM questions WHERE {where} AND norm = ? AND status IN ('open', 'answered')"
+            f"SELECT * FROM questions WHERE {where} AND norm = ?"
+            " AND (status = 'open' OR (status = 'answered' AND answered_at >= ?))"
             " ORDER BY status = 'open' DESC, id DESC LIMIT 1",
-            (*args, norm),
+            (*args, norm, now(-ANSWER_REUSE)),
         ).fetchone()
         return Question.from_row(row) if row else None
 
@@ -205,10 +223,21 @@ class Store:
     def record_delivery(self, qid: int, error: str | None) -> None:
         if error:
             self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ?", (error, qid))
-        else:
+        else:  # typed into the asking conversation: that counts as seen
             self.db.execute(
-                "UPDATE questions SET delivered_at = ?, delivery_error = NULL WHERE id = ?", (now(), qid)
+                "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
+                " delivery_error = NULL WHERE id = ?",
+                (now(), now(), qid),
             )
+
+    def undelivered(self, pane_id: str) -> list[Question]:
+        """Answers for ``pane_id`` whose delivery failed and that the agent has not seen."""
+        rows = self.db.execute(
+            "SELECT * FROM questions WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
+            " AND acknowledged_at IS NULL AND delivery_error IS NOT NULL ORDER BY id",
+            (pane_id,),
+        ).fetchall()
+        return [Question.from_row(r) for r in rows]
 
     def acknowledge(self, qids: list[int]) -> None:
         self.db.executemany(

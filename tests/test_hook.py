@@ -31,11 +31,13 @@ def context_of(proc, event="SessionStart"):
     return out["hookSpecificOutput"]["additionalContext"]
 
 
-def seed(store):
+def seed(store, monkeypatch):
     c = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="t", session_id="sess-A", cwd="/r")
     service.ask(store, c, "Which region?")
     answered = service.ask(store, c, "Squash or merge?")["id"]
+    monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")  # delivered answers count as seen
     service.answer(store, answered, "squash")
+    monkeypatch.delenv("FAKE_HERDR_FAIL")
     service.ask(store, Caller("w1:p2", None, None, "sess-B", "/r"), "Other session question?")
 
 
@@ -51,27 +53,19 @@ def test_startup_injects_rules(fake_herdr):
         assert phrase in ctx
 
 
-def test_startup_does_not_list_questions(store, fake_herdr):
-    seed(store)
+def test_startup_does_not_list_questions(store, fake_herdr, monkeypatch):
+    seed(store, monkeypatch)
     ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "startup"}))
     assert "Q1" not in ctx
 
 
-def test_compact_lists_this_sessions_pending_questions(store, fake_herdr):
-    seed(store)
+def test_compact_lists_this_sessions_pending_questions(store, fake_herdr, monkeypatch):
+    seed(store, monkeypatch)
     ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "compact"}))
     assert ctx.startswith(SESSION_RULES)
     assert "Q1 (open): Which region?" in ctx
     assert "Q2 (answered, not yet seen): Squash or merge? -> squash" in ctx
     assert "Other session question" not in ctx
-
-
-def test_resume_also_matches_the_pane(store, fake_herdr):
-    seed(store)
-    # a resumed conversation may carry a new session id; the pane still identifies it
-    ctx = context_of(run_hook("session-start", {"session_id": "sess-new", "source": "resume"}, HERDR_PANE_ID="w1:p2"))
-    assert "Q3 (open): Other session question?" in ctx
-    assert "Which region" not in ctx
 
 
 def test_compact_without_questions_is_just_the_rules(store, fake_herdr):
@@ -99,7 +93,7 @@ def test_garbage_input_never_fails(fake_herdr):
 def test_plugin_hook_and_mcp_config_point_at_the_cli():
     hooks = json.loads((ROOT / "hooks/hooks.json").read_text())["hooks"]
     start = hooks["SessionStart"][0]
-    assert set(start["matcher"].split("|")) == {"startup", "resume", "clear", "compact"}
+    assert set(start["matcher"].split("|")) == {"startup", "resume", "clear", "compact", "fork"}
     assert start["hooks"][0]["args"][-3:] == ["inbox", "hook", "session-start"]
     assert hooks["SubagentStart"][0]["hooks"][0]["args"][-3:] == ["inbox", "hook", "subagent-start"]
     server = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["mcpServers"]["herdr-inbox"]

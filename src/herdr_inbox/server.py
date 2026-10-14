@@ -6,6 +6,8 @@ mcp 2.x renamed FastMCP to ``MCPServer``; the decorator API is the same.
 from __future__ import annotations
 
 import logging
+import os
+import threading
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -87,7 +89,33 @@ def withdraw_question(id: int, reason: str) -> dict[str, Any]:
     return {"id": id, "status": "withdrawn", "message": f"Q{id} withdrawn."}
 
 
+RETRY_SECONDS = 30.0
+log = logging.getLogger("herdr_inbox")
+
+
+def start_retry_loop(interval: float = RETRY_SECONDS, stop: threading.Event | None = None) -> threading.Event:
+    """Retry failed answer deliveries into this server's pane, every ``interval`` seconds.
+
+    The asking session's own MCP server is the one process that lives as long as the
+    conversation, so it owns the retry; ``deliver`` still checks the session matches.
+    """
+    stop = stop or threading.Event()
+    pane_id = os.environ.get("HERDR_PANE_ID")
+
+    def loop() -> None:
+        while pane_id and not stop.wait(interval):
+            try:
+                with Store() as store:
+                    service.retry_deliveries(store, pane_id)
+            except Exception:  # noqa: BLE001 - keep retrying, never kill the server
+                log.exception("delivery retry failed")
+
+    threading.Thread(target=loop, name="inbox-retry", daemon=True).start()
+    return stop
+
+
 def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
+    start_retry_loop()
     mcp.run("stdio")

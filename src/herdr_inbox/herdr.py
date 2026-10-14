@@ -70,9 +70,13 @@ def pane_identity(pane_id: str) -> dict:
     return out
 
 
-def agent_live(pane_id: str) -> bool:
+def live_agent(pane_id: str) -> dict | None:
+    """The agent currently in ``pane_id`` (``{"agent", "session_id"}``), or None."""
     res, _ = call("agent", "get", pane_id)
-    return bool(res and res.get("agent"))
+    agent = (res or {}).get("agent")
+    if not agent:
+        return None
+    return {"agent": agent.get("agent"), "session_id": (agent.get("agent_session") or {}).get("value")}
 
 
 def prompt_agent(pane_id: str, text: str) -> str | None:

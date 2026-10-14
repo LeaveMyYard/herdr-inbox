@@ -26,20 +26,15 @@ If you need a decision from the human operator and can keep working without it, 
 </herdr-inbox>"""
 
 
-def _pending(session_id: str, pane_id: str | None, include_pane: bool) -> list[str]:
+def _pending(session_id: str) -> list[str]:
     from .store import Store  # sqlite only; still cheap
 
     store = Store()
     try:
-        where = "session_id = ?"
-        args: list = [session_id]
-        if include_pane and pane_id:
-            where = "(session_id = ? OR pane_id = ?)"
-            args.append(pane_id)
         rows = store.db.execute(
-            f"SELECT id, status, question, answer FROM questions WHERE {where}"
+            "SELECT id, status, question, answer FROM questions WHERE session_id = ?"
             " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL)) ORDER BY id",
-            args,
+            (session_id,),
         ).fetchall()
     finally:
         store.close()
@@ -58,7 +53,7 @@ def session_start_context(payload: dict) -> str:
     source = payload.get("source")
     session_id = payload.get("session_id")
     if source in ("compact", "resume") and session_id:
-        lines = _pending(session_id, os.environ.get("HERDR_PANE_ID"), include_pane=source == "resume")
+        lines = _pending(session_id)
         if lines:
             text += (
                 "\nYour questions already with the operator (do not ask them again; "
@@ -68,6 +63,8 @@ def session_start_context(payload: dict) -> str:
 
 
 def run(event: str) -> int:
+    if not os.environ.get("HERDR_PANE_ID"):
+        return 0  # outside herdr nobody watches the inbox: say nothing, chat stays the channel
     try:
         raw = sys.stdin.read()
         payload = json.loads(raw) if raw.strip() else {}

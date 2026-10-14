@@ -27,7 +27,7 @@ async def test_tools_are_registered_with_guidance():
     assert set(tools["ask_operator"].input_schema["properties"]) == {"question", "options", "context", "asked_by"}
 
 
-async def test_full_round_trip_through_registered_tools(fake_herdr):
+async def test_full_round_trip_through_registered_tools(fake_herdr, monkeypatch):
     async with Client(mcp) as client:
         r = await call(client, "ask_operator", {"question": "Deploy to prod?", "options": ["yes", "no"],
                                                 "asked_by": "release agent"})
@@ -41,10 +41,13 @@ async def test_full_round_trip_through_registered_tools(fake_herdr):
         assert mine["questions"] == [{"id": 1, "status": "open", "question": "Deploy to prod?"}]
         assert (await call(client, "check_answers"))["answers"] == []
 
-        # operator answers from the TUI/CLI side
+        # operator answers from the TUI/CLI side; delivery fails (agent at a dialog),
+        # so the answer waits for check_answers
+        monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")
         store = Store()
         service.answer(store, 1, "no, wait for Monday")
         store.close()
+        monkeypatch.delenv("FAKE_HERDR_FAIL")
 
         got = await call(client, "check_answers")
         assert got["answers"] == [{"id": 1, "question": "Deploy to prod?", "answer": "no, wait for Monday"}]
@@ -90,26 +93,11 @@ async def test_session_change_is_resolved_per_call(fake_herdr, monkeypatch):
         assert r["status"] == "open" and r["id"] == 2  # new conversation, not a repeat
 
 
-async def test_works_without_herdr_pane(fake_herdr, monkeypatch):
-    monkeypatch.delenv("HERDR_PANE_ID")
-    async with Client(mcp) as client:
-        r = await call(client, "ask_operator", {"question": "Outside herdr?"})
-        assert r["status"] == "open"
-        q = Store().get(r["id"])
-        assert q.pane_id is None and q.tab_label is None and q.session_id.startswith("local-")
-
-        service.answer(Store(), r["id"], "yes")
-        assert Store().get(r["id"]).delivery_error.startswith("no pane")
-        got = await call(client, "check_answers")
-        assert got["answers"][0]["answer"] == "yes"
-    assert fake_herdr.calls() == []  # no herdr calls at all outside herdr
-
-
-async def test_claude_session_env_is_used_without_herdr(fake_herdr, monkeypatch):
-    monkeypatch.delenv("HERDR_PANE_ID")
+async def test_claude_session_env_is_the_fallback(fake_herdr, monkeypatch):
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "")  # herdr knows the pane but not the session
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "claude-sess")
     async with Client(mcp) as client:
-        r = await call(client, "ask_operator", {"question": "Outside herdr?"})
+        r = await call(client, "ask_operator", {"question": "Which session?"})
     assert Store().get(r["id"]).session_id == "claude-sess"
 
 

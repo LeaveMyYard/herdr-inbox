@@ -50,11 +50,13 @@ On every `ask_operator` call it resolves, via the `herdr` CLI
 - `herdr tab get <tab>` → tab `label` (the name the operator gave the tab)
 
 Resolve per call, not once at startup: `/clear` changes the session id, and a
-pane can be moved. Outside herdr the server still works; pane fields are null
-and answers are only available through `check_answers`.
-Session fallback when herdr gives none: `CLAUDE_CODE_SESSION_ID` from the
-environment, else (outside herdr) a per-process id. Outside herdr no herdr
-calls are made at all (no notification, no token).
+pane can be moved. Session fallback when herdr gives none:
+`CLAUDE_CODE_SESSION_ID` from the environment.
+
+Outside herdr (no `HERDR_PANE_ID`) nobody watches the inbox, so nothing is
+filed: `ask_operator` returns `{"status": "unavailable"}` telling the agent to
+ask in chat, the hooks print nothing, and no herdr call is made. The plugin is
+installed at user scope, so this covers plain terminals, IDEs and `claude -p`.
 
 Which **subagent** asked is out of scope for the PoC; the optional `asked_by`
 argument carries the agent's own description of itself (e.g. "reviewer PR 595").
@@ -78,7 +80,11 @@ All tools are non-blocking and return immediately.
   - open match → increment `repeat_count`, return
     `{"id","status":"already_open"}` with the message "Q12 is already with the
     operator. Do not ask again; keep working."
-  - answered match → return the stored answer right away.
+  - answered match (answered within the last hour) → return the stored answer
+    right away. Older answers are not reused: the same words later are
+    probably a new instance ("Proceed with the next step?").
+  - The lookup and the insert run in one `BEGIN IMMEDIATE` transaction, so
+    parallel calls in one turn or two subagents cannot file the same Q twice.
 - Otherwise insert, notify, update tokens, return
   `{"id": 12, "status": "open"}` with the message:
   "Recorded as Q12. The operator will answer asynchronously; the answer will
@@ -103,11 +109,24 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
 ## Answer delivery
 
 On answer (TUI or `inbox answer`): set status, then if the question has a pane
-and an agent is live in it, run
+and the pane's live agent is **the conversation that asked**
+(`herdr agent get` → `agent_session.value == session_id`; any live agent when
+the question has no session id), run
 `herdr agent prompt <pane_id> "[inbox] Q12 answered — <question, truncated to 80 chars>: <answer>"`
 without `--wait`. Claude Code queues a prompt submitted while it is working.
-Record `delivered_at`, or `delivery_error` on failure (the answer then stays
-available through `check_answers`). The TUI shows delivery state.
+After `/clear`, a restart or another agent in the pane the answer is not typed
+anywhere (`delivery_error = "conversation changed …"`).
+
+A successful delivery sets `delivered_at` and `acknowledged_at` (typed into the
+conversation counts as seen). A failure records `delivery_error`; the answer
+stays available through `check_answers` and the compact/resume hook, and the
+asking session's own MCP server retries it every 30 s (it is the one process
+that lives exactly as long as the conversation). The TUI shows delivery state.
+
+Everything passed to herdr goes through one sanitizer: line breaks and tabs
+become spaces, all other C0/C1 control characters and DEL are dropped, and each
+argument is capped at 4000 characters, so agent-written text cannot smuggle
+escape or key sequences into a prompt, notification or token.
 
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
@@ -155,7 +174,7 @@ Code plugin.
   (`source: "./"`): `claude plugin marketplace add <repo>` +
   `claude plugin install herdr-inbox@herdr-inbox`.
 - `hooks/hooks.json`:
-  - `SessionStart`, matcher `startup|resume|clear|compact`, runs
+  - `SessionStart`, matcher `startup|resume|clear|compact|fork`, runs
     `inbox hook session-start`, which prints
     `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": …}}`.
     The text is short (under 250 words; it lands in every session): use
@@ -165,8 +184,8 @@ Code plugin.
     first; blocking/destructive confirmations keep the normal flow; pass the
     rule on in subagent briefs; details in the skill. On `compact` and
     `resume` it appends the session's pending questions (`Q12 (open): …`, and
-    answered-but-unseen ones); on `resume` it also matches the pane, since a
-    resumed conversation may carry a new session id.
+    answered-but-unseen ones), matched by session id only: `--resume` keeps
+    the session id (checked with a real `claude -p --resume` run).
   - `SubagentStart` runs `inbox hook subagent-start`: one paragraph for
     subagents (ask once with `asked_by`, do not wait, the answer goes to the
     main session). The hooks reference documents `additionalContext` for
@@ -175,7 +194,8 @@ Code plugin.
     CLAUDE.md, git status), so SessionStart context is not assumed to reach
     them; the main agent is also told to pass the rule on.
   - Both are fast (no mcp/textual import; ~40 ms through `uv run`) and never
-    fail the session: any error means exit 0 with no output.
+    fail the session: any error means exit 0 with no output. Outside herdr
+    they print nothing.
 - `skills/operator-questions/SKILL.md` holds the fuller guidance (phrasing a
   self-contained question, options, `asked_by`, withdrawing); the hook text
   points to it as `herdr-inbox:operator-questions`.

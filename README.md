@@ -30,7 +30,8 @@ claude plugin install herdr-inbox@herdr-inbox
 One install registers the MCP server (tools appear as
 `mcp__plugin_herdr-inbox_herdr-inbox__ask_operator` etc.) and the hooks. New sessions get a
 short `<herdr-inbox>` block in their context; after `/compact` or `--resume` it also lists the
-session's questions that are still pending. `claude plugin validate /home/leavemyyard/Code/herdr-inbox`
+session's questions that are still pending. Outside herdr the hooks stay silent and
+`ask_operator` tells the agent to ask in chat. `claude plugin validate /home/leavemyyard/Code/herdr-inbox`
 checks the manifests.
 
 Alternative, MCP server only (no hooks; add [docs/agent-instructions.md](docs/agent-instructions.md)
@@ -80,9 +81,10 @@ rewrites that block, so re-add it after running configure.
 - `prefix+i` opens the inbox: `↑/↓` select, `1`–`9` put an option in the answer box,
   `a`/`Enter` free-text answer (`Enter` sends, `Esc` cancels), `d` dismiss, `g` jump to the
   asking pane, `h` answered/closed history, `q`/`Esc` close.
-- The answer is typed into the asking pane as `[inbox] Q12 answered — <question>: <answer>`.
-  If that fails (pane gone, no agent), the TUI shows `answered !` and the agent can still get it
-  through `check_answers`.
+- The answer is typed into the asking pane as `[inbox] Q12 answered — <question>: <answer>`,
+  but only while that pane still holds the conversation that asked. If delivery fails (agent at
+  a dialog, pane gone, conversation changed), the TUI shows `answered !`; the asking session's
+  MCP server retries every 30 s, and the agent can always get it through `check_answers`.
 
 From a shell:
 

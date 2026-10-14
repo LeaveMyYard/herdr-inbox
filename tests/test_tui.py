@@ -8,7 +8,7 @@ from herdr_inbox.tui import InboxApp
 def seed(store):
     c = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="my-tab", session_id="sess-A", cwd="/repo")
     service.ask(store, c, "Which region for the bucket?", options=["eu-west-1", "us-east-1"], asked_by="infra")
-    c2 = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="other-tab", session_id="sess-B", cwd="/repo")
+    c2 = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="other-tab", session_id="sess-A", cwd="/repo")
     service.ask(store, c2, "Squash or merge PR 12?", context="PR has 40 commits")
 
 

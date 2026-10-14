@@ -35,7 +35,10 @@ elif cmd == "agent get":
     if os.environ.get("FAKE_HERDR_AGENT", "1") != "1":
         sys.stderr.write(json.dumps({{"error": {{"code": "agent_not_found", "message": "not found"}}}}))
         sys.exit(1)
-    result = {{"agent": {{"pane_id": args[2], "agent": "claude", "agent_status": "working"}}}}
+    agent = {{"pane_id": args[2], "agent": os.environ.get("FAKE_HERDR_AGENT_KIND", "claude"), "agent_status": "working"}}
+    if session:
+        agent["agent_session"] = {{"agent": agent["agent"], "kind": "id", "source": "herdr:claude", "value": session}}
+    result = {{"agent": agent}}
 elif cmd == "pane list":
     result = {{"panes": [{{"pane_id": "w1:p1"}}, {{"pane_id": "w1:p2"}}], "type": "pane_list"}}
 else:
@@ -69,7 +72,7 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     monkeypatch.setenv("FAKE_HERDR_LOG", str(fake.log))
     monkeypatch.setenv("HERDR_INBOX_DB", str(tmp_path / "inbox.db"))
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
-    for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION"):
+    for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND"):
         monkeypatch.delenv(var, raising=False)
     return fake
 
