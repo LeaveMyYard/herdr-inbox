@@ -122,10 +122,36 @@ keys were written to the pane. In live use (0.4.0) answers typed while the
 agent was mid-turn left no trace in its transcript, yet were recorded as
 delivered and seen. So:
 
-- An answer is typed only when `herdr agent get` reports the agent `idle` or
-  `done`. Otherwise it is *pending delivery* (`delivery_error = "pending: …"`,
-  not a failed attempt, shown as `⏳ Q<n> pending delivery` in the popup) and
-  the asking session's MCP retry loop (every 10 s) delivers it at the next idle.
+- When to type (0.5.4), by `herdr agent get` status:
+  - **idle / done:** typed now.
+  - **blocked** (a prompt or dialog, which swallows typed text): *pending
+    delivery*, retried every 10 s by the asking session's MCP loop, for however
+    long it takes. The popup says `waiting: agent is at a prompt/dialog`.
+  - **working, or anything else:** pending for `BUSY_GRACE` = 20 s, counted
+    from `question_ext.pending_since`. That is the first *busy* moment (time
+    spent blocked doesn't count), and it is cleared on delivery. After the grace
+    the answer is typed anyway, with the transcript check as the safety net. The
+    popup says `agent busy — will send in N s`.
+  - Misses while busy (typed, not seen) are counted separately
+    (`question_ext.busy_attempts`, at most `MAX_BUSY_ATTEMPTS` = 3) and stay
+    pending, not failed. After 3 the answer waits for idle (`agent busy — will
+    send when it is idle`). Only misses at idle/done count toward
+    `MAX_UNVERIFIED_ATTEMPTS` = 2, so an answer always gets its tries at rest
+    before it is parked as ⚠.
+  - A transcript record that shows up after the 15 s verify window counts as a
+    miss, so the next try types a second copy. The caps bound this (the probe
+    saw the queued record immediately), so the agent may at worst get the
+    answer twice.
+
+  Pending is never a failed attempt. A pending row in the popup offers **Send
+  now** (`1`), which skips the grace and the focused-pane wait, but not
+  `blocked`.
+- Why not idle-only (0.5.1–0.5.3): herdr reports `working` for as long as
+  Claude Code waits on a background workflow ("✻ Waiting for 1 dynamic workflow
+  to finish"), which can be hours. Claude Code accepts typed input in that state:
+  live Q45, typed by a pre-0.5.1 server during the wait, landed as a `user`
+  record and was answered within 3 s. The 0.5.3 servers held it as pending the
+  whole time, which the operator read as "fails to be uploaded".
 - After typing, the session transcript is tail-read from the size it had
   before the prompt (`transcript.py`, lenient parsing like zoetrope's tailer)
   for a record carrying the message: a `user` record with string content
@@ -166,8 +192,19 @@ delivered and seen. So:
   `queue-operation enqueue` during plain generation and as an `attachment
   queued_command` during a Bash tool call. The 12:53 loss therefore came from a
   UI state herdr reports as `working` that swallows input (a dialog, an agent
-  view, a transcript viewer…), which herdr cannot tell apart. Hence idle-only
-  typing plus verification rather than trusting either signal alone.
+  view, a transcript viewer…), which herdr cannot tell apart. Hence
+  verification rather than trusting either signal alone.
+- Probe 2 (2026-10-14, a disposable haiku session in a tab created and closed
+  for the test): during a long foreground Bash computation (`working`),
+  `[inbox] Q9103 …` typed at 15:46:44 appeared at once as `queue-operation
+  enqueue` + `attachment queued_command` (so verification passes within
+  `VERIFY_SECONDS`). It was dequeued and answered when the tool finished at
+  15:47:56.
+  - A background subagent did not reproduce the long `working`: the main turn
+    ended and herdr reported `done`.
+  - The workflow wait itself ("Waiting for 1 dynamic workflow") couldn't be
+    reproduced on haiku. The live Q45 record above is the evidence that it
+    accepts input.
 
 
 On answer (TUI or `inbox answer`): set status, then if the question has a pane

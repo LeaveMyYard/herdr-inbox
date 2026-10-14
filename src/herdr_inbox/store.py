@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS question_ext (
     options_json    TEXT,
     hidden_at       TEXT,
     verified_at     TEXT,
-    reset_count     INTEGER
+    reset_count     INTEGER,
+    pending_since   TEXT,
+    busy_attempts   INTEGER
 );
 -- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
 -- is verified by finding the typed answer in it.
@@ -101,7 +103,7 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -474,6 +476,8 @@ class Store:
                 f" delivery_error = NULL WHERE id = ?{mine}",
                 (now(), now() if acknowledge and verified else None, qid, *args),
             )
+            if cur.rowcount:
+                self.db.execute("UPDATE question_ext SET pending_since = NULL WHERE id = ?", (qid,))
             if verified and cur.rowcount:
                 self.db.execute(
                     "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
@@ -483,9 +487,35 @@ class Store:
 
     def set_pending(self, qid: int, claim: str, reason: str) -> None:
         """Not sent yet (e.g. the agent is mid-turn): visible as pending, retried, not counted
-        as a failed attempt."""
-        self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
-                        (f"{PENDING}{reason}", qid, claim))
+        as a failed attempt. ``pending_since`` keeps the first time (the busy grace counts
+        from it) until the answer is delivered."""
+        with self.transaction():
+            cur = self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
+                                  (f"{PENDING}{reason}", qid, claim))
+            if cur.rowcount and reason.startswith("busy:"):  # the grace counts from the first busy moment
+                self.db.execute(
+                    "INSERT INTO question_ext (id, group_id, pending_since) VALUES (?, ?, ?)"
+                    " ON CONFLICT(id) DO UPDATE SET pending_since = COALESCE(pending_since, excluded.pending_since)",
+                    (qid, qid, now()))
+
+    def record_busy_miss(self, qid: int, claim: str, reason: str) -> None:
+        """Typed while the agent was busy but not seen in the transcript: back to pending
+        (not a failed attempt, so the idle path keeps its full cap), counted separately."""
+        with self.transaction():
+            cur = self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
+                                  (f"{PENDING}{reason}", qid, claim))
+            if cur.rowcount:
+                self.db.execute(
+                    "INSERT INTO question_ext (id, group_id, busy_attempts) VALUES (?, ?, 1)"
+                    " ON CONFLICT(id) DO UPDATE SET busy_attempts = COALESCE(busy_attempts, 0) + 1", (qid, qid))
+
+    def busy_attempts(self, qid: int) -> int:
+        row = self.db.execute("SELECT busy_attempts FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return (row[0] or 0) if row else 0
+
+    def get_pending_since(self, qid: int) -> str | None:
+        row = self.db.execute("SELECT pending_since FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return row[0] if row else None
 
     def record_session(self, session_id: str, transcript_path: str | None) -> None:
         if session_id and transcript_path:
@@ -508,7 +538,7 @@ class Store:
                 (f"{PENDING}redelivery requested", qid),
             )
             if cur.rowcount:
-                self.db.execute("UPDATE question_ext SET verified_at = NULL WHERE id = ?", (qid,))
+                self.db.execute("UPDATE question_ext SET verified_at = NULL, pending_since = NULL, busy_attempts = NULL WHERE id = ?", (qid,))
                 done.append(qid)
         return done
 

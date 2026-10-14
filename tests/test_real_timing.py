@@ -4,7 +4,8 @@ tests zero the delays to test logic). One test per view type: list, question, Su
 Keys that must be IGNORED are pressed right after the view or row appears (with the
 reviewer's 0.15 s spacing, well inside the 0.4 s / 1 s arming). Everything that must be
 ACCEPTED waits for the condition it needs (the view mounted, armed, the row settled) with a
-generous deadline instead of a fixed sleep, so a slow CI runner cannot turn a wait that was
+generous deadline instead of a fixed sleep, and a key meant for a newly opened view is
+sent only once that view is mounted (otherwise the previous view would get it), so a slow CI runner cannot turn a wait that was
 just too short into a failure (macOS py3.11 flake on main, 2026-10-14)."""
 
 import time
@@ -99,7 +100,9 @@ async def test_question_view_ignores_keys_until_armed(store, fake_herdr):
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await armed(pilot, app, GroupListView)
-        await pilot.press("enter", "2", "enter")  # open, and keys right behind it
+        await pilot.press("enter")
+        await view(pilot, app, QuestionView)  # mounted: keys now reach it, still unarmed
+        await pilot.press("2", "enter")  # keys right behind the open: ignored
         await pilot.pause(0.05)
         assert app.query_one(QuestionView).cursor == 0 and store.get(1).status == "open"
         await armed(pilot, app, QuestionView)
@@ -114,7 +117,9 @@ async def test_submit_tab_ignores_keys_until_armed(store, fake_herdr):
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await armed(pilot, app, QuestionView)
-        await keys(pilot, "tab", "tab", "enter")  # Submit tab reached, Enter at once: ignored
+        await keys(pilot, "tab", "tab")
+        await view(pilot, app, ReviewView)
+        await keys(pilot, "enter")  # Submit tab reached, Enter at once: ignored
         assert app.query(ReviewView) and app.is_running
         await armed(pilot, app, ReviewView)
         await keys(pilot, "down", "enter")  # Cancel, now armed
@@ -131,7 +136,9 @@ async def test_undelivered_view_ignores_keys_until_armed(store, fake_herdr, monk
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await armed(pilot, app, GroupListView)
-        await keys(pilot, "down", "enter", "1")  # open the ⚠ entry, "Retry" at once: ignored
+        await keys(pilot, "down", "enter")
+        await view(pilot, app, FailedView)  # mounted (a slow runner may take longer than GAP)
+        await keys(pilot, "1")  # "Retry" right after it opened: ignored
         assert app.query(FailedView) and store.get(qid).delivered_at is None
         await armed(pilot, app, FailedView)
         await keys(pilot, "1")

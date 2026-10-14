@@ -69,8 +69,8 @@ def test_busy_agent_keeps_the_answer_pending(store, fake_herdr, monkeypatch):
     qid = ask(store)
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
     q = service.answer(store, qid, "yes")
-    assert prompts(fake_herdr) == []  # never typed into a busy pane
-    assert q.delivery_error == "pending: waiting for the agent to be idle (it is working)"
+    assert prompts(fake_herdr) == []  # not typed at once into a busy pane (0.5.4: BUSY_GRACE)
+    assert q.delivery_error == "pending: busy: the agent is working"
     assert q.acknowledged_at is None and q.delivery_attempts == 0
     monkeypatch.setenv("FAKE_HERDR_STATUS", "blocked")
     service.retry_deliveries(store, "w1:p1")
@@ -142,7 +142,7 @@ async def test_popup_shows_pending_delivery(store, fake_herdr, monkeypatch):
         await pilot.pause()
         lv = app.query_one(GroupListView)
         body = lv.body_text()
-        assert f"⏳ Q{qid} pending delivery" in body and "waiting for the agent to be idle" in body
+        assert f"⏳ Q{qid} agent busy — will send in" in body  # 0.5.4: says why and when
         assert "1 pending delivery" in str(lv.query_one("#list-title").render())
 
 

@@ -8,6 +8,7 @@ recorded on the question.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 import os
 from dataclasses import dataclass
 
@@ -21,6 +22,19 @@ CHANGED = "conversation changed in pane"
 MAX_STALE_RETRIES = 10
 # herdr agent states in which typing a prompt is safe.
 DELIVERABLE = ("idle", "done")
+# A prompt or dialog: typed text would be swallowed, so wait however long it takes.
+BLOCKED = "blocked"
+# Any other state (working): herdr says "working" for as long as Claude Code waits on a
+# background workflow (hours), yet typed text is accepted then (queued mid-turn; probe
+# 2026-10-14). Wait this long, then type anyway: the transcript check (2-attempt cap) is
+# the safety net for a state that swallows input.
+BUSY_GRACE = 20.0
+# Typed while busy but not seen in the transcript: try this many times while busy, then wait
+# for idle. Busy misses never count toward MAX_UNVERIFIED_ATTEMPTS, so an answer always gets
+# its tries at idle/done before it is parked as ⚠.
+MAX_BUSY_ATTEMPTS = 3
+BUSY_WAIT_IDLE = "busy: typed while the agent was busy but never seen; waiting for it to be idle"
+BUSY_MISS = "busy: typed while the agent was busy, not seen yet; trying again"
 # How long the typed answer may take to show up in the session transcript.
 VERIFY_SECONDS = 15.0
 NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
@@ -294,11 +308,21 @@ def delivery_messages(qs: list[Question]) -> list[tuple[str, list[Question], boo
     return out
 
 
-def deliver(store: Store, q: Question, retry: bool = False) -> None:
-    deliver_batch(store, [q], retry)
+def deliver(store: Store, q: Question, retry: bool = False, force: bool = False) -> None:
+    deliver_batch(store, [q], retry, force)
 
 
-def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None:
+def _busy_for(store: Store, qid: int) -> float:
+    """Seconds this answer has been pending (0 if it is not)."""
+    since = store.get_pending_since(qid)
+    if not since:
+        return 0.0
+    return (datetime.now(timezone.utc) - datetime.fromisoformat(since)).total_seconds()
+
+
+def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: bool = False) -> None:
+    """``force``: the operator's "Send now" -- skip the busy grace and the focused-pane wait
+    (never a blocked agent: a dialog would swallow the text)."""
     """Type answers into the asking conversations: one message per pane, only into the
     conversation that asked.
 
@@ -336,15 +360,29 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
                 ours.append(q)
         if not ours:
             continue
-        if agent["status"] not in DELIVERABLE:
-            # Only type into an agent at rest. Mid-turn the text is usually queued, but in live
-            # use (0.4.0) answers typed into a busy pane vanished without a trace, and herdr
-            # still reported success. Keep it pending; the asking session's retry loop
-            # delivers at the next idle.
+        status = agent["status"]
+        if status == BLOCKED:
+            # At a prompt or dialog, typed text is swallowed: wait (the retry loop delivers
+            # once it is answered), however long that takes.
             for q in ours:
-                store.set_pending(q.id, claims[q.id], f"waiting for the agent to be idle (it is {agent['status']})")
+                store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
             continue
-        if retry and agent["focused"]:
+        busy = status not in DELIVERABLE
+        if busy:
+            # Give it BUSY_GRACE to come to rest, then type anyway (verified below); after
+            # MAX_BUSY_ATTEMPTS misses while busy, wait for idle. "Send now" skips the grace.
+            waiting = []
+            for q in ours:
+                if not force and store.busy_attempts(q.id) >= MAX_BUSY_ATTEMPTS:
+                    store.set_pending(q.id, claims[q.id], BUSY_WAIT_IDLE)
+                    waiting.append(q)
+                elif not force and _busy_for(store, q.id) < BUSY_GRACE:
+                    store.set_pending(q.id, claims[q.id], f"busy: the agent is {status}")
+                    waiting.append(q)
+            ours = [q for q in ours if q not in waiting]
+            if not ours:
+                continue
+        if retry and agent["focused"] and not force:
             # The operator may be typing there: the prompt would merge with their input.
             for q in ours:
                 store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
@@ -369,6 +407,9 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False) -> None
             if transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS):
                 for q in batch:
                     record(q, None, acknowledge=ack, verified=True)
+            elif busy:  # not counted toward the idle cap (see MAX_BUSY_ATTEMPTS)
+                for q in batch:
+                    store.record_busy_miss(q.id, claims[q.id], BUSY_MISS)
             else:
                 for q in batch:
                     record(q, NOT_VERIFIED)
