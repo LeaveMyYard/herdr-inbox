@@ -1,0 +1,15 @@
+{
+  "name": "herdr-inbox",
+  "description": "Local single-plugin marketplace for herdr-inbox",
+  "owner": {
+    "name": "LeaveMyYard"
+  },
+  "plugins": [
+    {
+      "name": "herdr-inbox",
+      "description": "Non-blocking operator questions for agents in herdr: ask_operator MCP tool plus session instructions",
+      "version": "0.2.0",
+      "source": "./"
+    }
+  ]
+}

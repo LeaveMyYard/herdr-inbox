@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env",
+            "args": [
+              "UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv",
+              "uv",
+              "run",
+              "--quiet",
+              "--frozen",
+              "--no-dev",
+              "--project",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "inbox",
+              "hook",
+              "session-start"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env",
+            "args": [
+              "UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv",
+              "uv",
+              "run",
+              "--quiet",
+              "--frozen",
+              "--no-dev",
+              "--project",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "inbox",
+              "hook",
+              "subagent-start"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

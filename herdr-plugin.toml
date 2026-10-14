@@ -1,0 +1,38 @@
+id = "leavemyyard.herdr-inbox"
+name = "herdr inbox"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Non-blocking question inbox: agents file questions once through an MCP tool, you answer them from one popup, answers go back into the asking pane."
+platforms = ["linux", "macos"]
+
+# Runtime commands run with the plugin directory as cwd, so `--project .` is
+# this checkout. uv must be on PATH for the herdr server.
+
+# The inbox itself. Bind a key to the `open` action below (prefix+i).
+# A pane's cwd is not documented to be the plugin dir (herdr-radar passes
+# --cwd when opening its popup), so resolve the project from HERDR_PLUGIN_ROOT.
+[[panes]]
+id = "inbox"
+title = "Inbox"
+placement = "popup"
+command = ["sh", "-c", "exec uv run --quiet --project \"${HERDR_PLUGIN_ROOT:-.}\" inbox tui"]
+width = "85%"
+height = "80%"
+
+# Opens the popup via `herdr plugin pane open ... --cwd $HERDR_PLUGIN_ROOT`
+# (same approach as herdr-radar's settings popup).
+[[actions]]
+id = "open"
+title = "Inbox: open"
+description = "Open the question inbox popup."
+command = ["uv", "run", "--quiet", "--project", ".", "inbox", "open"]
+
+[[actions]]
+id = "sync-tokens"
+title = "Inbox: resync sidebar counts"
+description = "Recompute the $inbox_q pane token from the open questions."
+command = ["uv", "run", "--quiet", "--project", ".", "inbox", "sync-tokens"]
+
+# Pane tokens do not survive a herdr restart; put the counts back.
+[[startup]]
+command = ["uv", "run", "--quiet", "--project", ".", "inbox", "sync-tokens"]
