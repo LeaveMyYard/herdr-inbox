@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from contextlib import contextmanager
 import re
 import sqlite3
@@ -321,25 +322,34 @@ class Store:
         )
         return cur.rowcount == 1
 
-    def claim_delivery(self, qid: int) -> bool:
-        """Compare-and-set before prompting: only one process sends a given answer.
+    def claim_delivery(self, qid: int) -> str | None:
+        """Compare-and-set before any delivery outcome is written: only one process handles a
+        given answer at a time. Returns the claim token, or None if another process holds it.
 
-        The claim is a ``sending:<time>`` marker in ``delivery_error``; one older than
+        The claim is a ``sending:<time>:<token>`` marker in ``delivery_error``; one older than
         ``CLAIM_STALE`` (its process died mid-send) can be taken over.
         """
+        claim = f"sending:{now()}:{uuid.uuid4().hex[:8]}"
         cur = self.db.execute(
             "UPDATE questions SET delivery_error = ? WHERE id = ? AND status = 'answered' AND delivered_at IS NULL"
             " AND (delivery_error IS NULL OR delivery_error NOT LIKE 'sending:%' OR delivery_error < ?)",
-            (f"sending:{now()}", qid, f"sending:{now(-CLAIM_STALE)}"),
+            (claim, qid, f"sending:{now(-CLAIM_STALE)}"),
         )
-        return cur.rowcount == 1
+        return claim if cur.rowcount == 1 else None
+
+    def release_claim(self, qid: int, claim: str, previous: str | None) -> None:
+        """Give a claim back untouched (e.g. a retry that decided to wait)."""
+        self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivery_error = ?",
+                        (previous, qid, claim))
 
     def failed_deliveries(self) -> list[Question]:
         """Answers whose delivery failed and that the agent has not fetched, unless hidden."""
         rows = self.db.execute(
             f"SELECT * FROM {VIEW} WHERE status = 'answered' AND delivered_at IS NULL"
-            " AND delivery_error IS NOT NULL AND delivery_error NOT LIKE 'sending:%'"
-            " AND acknowledged_at IS NULL AND hidden_at IS NULL ORDER BY id"
+            # a claim in flight is not a failure; one stranded by a dead sender is
+            " AND delivery_error IS NOT NULL AND (delivery_error NOT LIKE 'sending:%' OR delivery_error < ?)"
+            " AND acknowledged_at IS NULL AND hidden_at IS NULL ORDER BY id",
+            (f"sending:{now(-CLAIM_STALE)}",),
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
@@ -387,17 +397,21 @@ class Store:
         )
         return cur.rowcount == 1
 
-    def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True) -> None:
+    def record_delivery(self, qid: int, error: str | None, acknowledge: bool = True,
+                        claim: str | None = None) -> None:
+        """Write a delivery outcome; with ``claim``, only while that claim is still ours."""
+        mine, args = (" AND delivery_error = ?", (claim,)) if claim else ("", ())
         if error:
             self.db.execute(
-                "UPDATE questions SET delivery_error = ?, delivery_attempts = delivery_attempts + 1 WHERE id = ?",
-                (error, qid),
+                "UPDATE questions SET delivery_error = ?, delivery_attempts = delivery_attempts + 1"
+                f" WHERE id = ?{mine}",
+                (error, qid, *args),
             )
         else:  # typed into the asking conversation: that counts as seen (unless only referenced)
             self.db.execute(
                 "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
-                " delivery_error = NULL WHERE id = ?",
-                (now(), now() if acknowledge else None, qid),
+                f" delivery_error = NULL WHERE id = ?{mine}",
+                (now(), now() if acknowledge else None, qid, *args),
             )
 
     def undelivered(self, pane_id: str, stale_errors: tuple[str, ...], max_stale: int) -> list[Question]:
