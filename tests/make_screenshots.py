@@ -96,3 +96,15 @@ async def test_single_and_preview(fake_herdr, tmp_path, monkeypatch):
         await pilot.pause()
         shot(app, "preview")
     store.close()
+
+
+async def test_arrivals(store, fake_herdr):
+    size = (125, 30)
+    populate(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        service.ask(store, SEARCH, "Keep the old query syntax as an alias?", options=["yes", "no"], header="Syntax")
+        service.ask(store, DOCS, "Which landing page copy do you prefer?", options=["A", "B"], header="Copy")
+        await pilot.pause(2.6)
+        shot(app, "arrivals")
