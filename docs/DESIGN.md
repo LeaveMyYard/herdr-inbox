@@ -53,8 +53,17 @@ Resolve per call, not once at startup: `/clear` changes the session id, and a
 pane can be moved. Session fallback when herdr gives none:
 `CLAUDE_CODE_SESSION_ID` from the environment.
 
-Outside herdr (no `HERDR_PANE_ID`) nobody watches the inbox, so nothing is
-filed: `ask_operator` returns `{"status": "unavailable"}` telling the agent to
+A `claude` nested inside the pane's agent (e.g. `claude -p` run from its Bash
+tool) inherits `HERDR_PANE_ID` but is not that agent. It is recognised from the
+process tree: walking up from the server or hook, the nearest `claude` is our
+own; a second `claude` further up means nested (verified on a real nested run).
+An unreadable tree counts as not nested. A nested session is treated like one
+outside herdr. (Comparing `CLAUDE_CODE_SESSION_ID` with the pane's session was
+rejected: the MCP server's environment is fixed at spawn, so it would misfire
+after `/clear`, and the SessionStart hook races herdr's own session report.)
+
+Outside herdr (no `HERDR_PANE_ID`) or nested, nobody watches the inbox, so
+nothing is filed: `ask_operator` returns `{"status": "unavailable"}` telling the agent to
 ask in chat, the hooks print nothing, and no herdr call is made. The plugin is
 installed at user scope, so this covers plain terminals, IDEs and `claude -p`.
 
@@ -121,7 +130,19 @@ A successful delivery sets `delivered_at` and `acknowledged_at` (typed into the
 conversation counts as seen). A failure records `delivery_error`; the answer
 stays available through `check_answers` and the compact/resume hook, and the
 asking session's own MCP server retries it every 30 s (it is the one process
-that lives exactly as long as the conversation). The TUI shows delivery state.
+that lives exactly as long as the conversation). A retry is skipped while the
+pane is focused or the agent is `blocked` (the operator may be typing there or
+answering the dialog; the prompt would merge with their input). "No live agent"
+and "conversation changed" are given up after 10 attempts. The TUI shows
+delivery state.
+
+The first delivery, from the popup, has no focus guard: the popup is modal and
+usually opened over the very pane whose agent asked, so the operator is typing
+in the popup, not the pane, and guarding would turn the main path into a 30 s
+wait. A blocked agent is refused by `agent prompt` itself (`agent_blocked`).
+
+PoC limitation: an `agent prompt` that times out after herdr already submitted
+it is recorded as failed and retried, so the agent can receive that answer twice.
 
 Everything passed to herdr goes through one sanitizer: line breaks and tabs
 become spaces, all other C0/C1 control characters and DEL are dropped, and each

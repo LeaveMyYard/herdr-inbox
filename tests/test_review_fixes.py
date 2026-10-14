@@ -108,7 +108,7 @@ async def test_ask_outside_herdr_says_ask_in_chat(fake_herdr, monkeypatch):
     monkeypatch.delenv("HERDR_PANE_ID")
     async with Client(mcp) as client:
         r = (await client.call_tool("ask_operator", {"question": "Outside herdr?"})).structured_content
-        assert r["status"] == "unavailable" and "Ask the operator in chat" in r["message"]
+        assert r["status"] == "unavailable" and "Ask in chat" in r["message"]
         assert (await client.call_tool("check_answers", {})).structured_content == {"answers": []}
     assert Store().list(include_closed=True) == []
     assert fake_herdr.calls() == []

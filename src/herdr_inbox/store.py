@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS questions (
     delivered_at    TEXT,
     delivery_error  TEXT,
     acknowledged_at TEXT,
-    repeat_count    INTEGER NOT NULL DEFAULT 0
+    repeat_count    INTEGER NOT NULL DEFAULT 0,
+    delivery_attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS questions_status ON questions(status);
 CREATE INDEX IF NOT EXISTS questions_session ON questions(session_id);
@@ -81,6 +82,7 @@ class Question:
     delivery_error: str | None
     acknowledged_at: str | None
     repeat_count: int
+    delivery_attempts: int = 0
 
     @property
     def ref(self) -> str:
@@ -109,6 +111,9 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA busy_timeout=5000")
         self.db.executescript(SCHEMA)
+        columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
+        if "delivery_attempts" not in columns:  # databases from before the column existed
+            self.db.execute("ALTER TABLE questions ADD COLUMN delivery_attempts INTEGER NOT NULL DEFAULT 0")
 
     def close(self) -> None:
         self.db.close()
@@ -222,7 +227,10 @@ class Store:
 
     def record_delivery(self, qid: int, error: str | None) -> None:
         if error:
-            self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ?", (error, qid))
+            self.db.execute(
+                "UPDATE questions SET delivery_error = ?, delivery_attempts = delivery_attempts + 1 WHERE id = ?",
+                (error, qid),
+            )
         else:  # typed into the asking conversation: that counts as seen
             self.db.execute(
                 "UPDATE questions SET delivered_at = ?, acknowledged_at = COALESCE(acknowledged_at, ?),"
@@ -230,12 +238,18 @@ class Store:
                 (now(), now(), qid),
             )
 
-    def undelivered(self, pane_id: str) -> list[Question]:
-        """Answers for ``pane_id`` whose delivery failed and that the agent has not seen."""
+    def undelivered(self, pane_id: str, stale_errors: tuple[str, ...], max_stale: int) -> list[Question]:
+        """Answers for ``pane_id`` whose delivery failed and that the agent has not seen.
+
+        Errors starting with one of ``stale_errors`` (the conversation is gone) are
+        given up after ``max_stale`` attempts; transient ones are retried indefinitely.
+        """
+        stale = " OR ".join("delivery_error LIKE ?" for _ in stale_errors) or "0"
         rows = self.db.execute(
             "SELECT * FROM questions WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL"
-            " AND acknowledged_at IS NULL AND delivery_error IS NOT NULL ORDER BY id",
-            (pane_id,),
+            f" AND acknowledged_at IS NULL AND delivery_error IS NOT NULL"
+            f" AND NOT (({stale}) AND delivery_attempts >= ?) ORDER BY id",
+            (pane_id, *(e + "%" for e in stale_errors), max_stale),
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 

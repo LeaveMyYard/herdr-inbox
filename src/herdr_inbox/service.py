@@ -11,8 +11,14 @@ import logging
 import os
 from dataclasses import dataclass
 
-from . import herdr
+from . import herdr, proc
 from .store import Question, Store, normalize
+
+NO_AGENT = "no live agent in pane"
+CHANGED = "conversation changed in pane"
+# Retries (30 s apart) before giving up on a pane whose conversation is gone;
+# the answer stays available through check_answers either way.
+MAX_STALE_RETRIES = 10
 
 log = logging.getLogger("herdr_inbox")
 
@@ -29,6 +35,8 @@ class Caller:
 def resolve_caller() -> Caller:
     """Who is asking. Resolved per call: /clear changes the session, panes move."""
     pane_id = os.environ.get("HERDR_PANE_ID") or None
+    if pane_id and proc.nested_claude():
+        pane_id = None  # a claude run by the pane's agent is not the pane's agent
     ident = herdr.pane_identity(pane_id) if pane_id else {}
     session_id = ident.get("session_id") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
     return Caller(
@@ -57,8 +65,9 @@ def ask(
         # Nobody watches the inbox for agents outside herdr: no popup, no notification, no delivery.
         return {
             "status": "unavailable",
-            "message": "Not running inside herdr, so the operator inbox is not watched. "
-            "Ask the operator in chat instead.",
+            "message": "The operator inbox only serves the top-level agent of a herdr pane, and this "
+            "session is not one (not in herdr, or nested inside another agent). Ask in chat, or ask "
+            "your caller, instead.",
         }
     question = question.strip()
     with store.transaction():  # dedupe + insert atomically (parallel calls, subagents)
@@ -121,7 +130,7 @@ def answer(store: Store, qid: int, text: str) -> Question | None:
     return store.get(qid)
 
 
-def deliver(store: Store, q: Question) -> None:
+def deliver(store: Store, q: Question, retry: bool = False) -> None:
     """Type the answer into the asking conversation, and only that one.
 
     A pane can hold a different conversation by now (/clear, restart, another agent);
@@ -132,18 +141,22 @@ def deliver(store: Store, q: Question) -> None:
         return
     agent = herdr.live_agent(q.pane_id)
     if agent is None:
-        store.record_delivery(q.id, f"no live agent in pane {q.pane_id}")
+        store.record_delivery(q.id, f"{NO_AGENT} {q.pane_id}")
         return
     if q.session_id and agent["session_id"] != q.session_id:
-        store.record_delivery(q.id, f"conversation changed in pane {q.pane_id}")
+        store.record_delivery(q.id, f"{CHANGED} {q.pane_id}")
+        return
+    if retry and (agent["focused"] or agent["status"] == "blocked"):
+        # The operator may be typing there, or about to answer the dialog: the prompt
+        # would merge with their input. Leave it for a later, unfocused tick.
         return
     store.record_delivery(q.id, herdr.prompt_agent(q.pane_id, delivery_text(q)))
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:
     """Retry failed deliveries for one pane (e.g. the agent sat at a permission dialog)."""
-    for q in store.undelivered(pane_id):
-        deliver(store, q)
+    for q in store.undelivered(pane_id, (NO_AGENT, CHANGED), MAX_STALE_RETRIES):
+        deliver(store, q, retry=True)
 
 
 def close(store: Store, qid: int, status: str, note: str | None = None) -> bool:

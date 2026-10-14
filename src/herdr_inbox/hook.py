@@ -63,8 +63,13 @@ def session_start_context(payload: dict) -> str:
 
 
 def run(event: str) -> int:
-    if not os.environ.get("HERDR_PANE_ID"):
-        return 0  # outside herdr nobody watches the inbox: say nothing, chat stays the channel
+    try:
+        from .proc import nested_claude
+
+        if not os.environ.get("HERDR_PANE_ID") or nested_claude():
+            return 0  # not the pane's own agent: nobody watches the inbox for it, chat stays the channel
+    except BaseException:  # noqa: BLE001
+        return 0
     try:
         raw = sys.stdin.read()
         payload = json.loads(raw) if raw.strip() else {}

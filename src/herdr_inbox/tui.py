@@ -129,6 +129,8 @@ class InboxApp(App):
         self.answering = q.id
         box = self.query_one("#answer", Input)
         box.value = value
+        box.border_title = f"Answering {q.ref}"
+        box.placeholder = f"Answer to {q.ref}, Enter sends, Esc cancels"
         box.add_class("visible")
         box.focus()
 
