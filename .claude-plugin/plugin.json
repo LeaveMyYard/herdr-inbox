@@ -1,0 +1,34 @@
+{
+  "name": "herdr-inbox",
+  "displayName": "herdr inbox",
+  "version": "0.2.0",
+  "description": "Non-blocking operator questions for agents in herdr: ask_operator MCP tool plus session instructions",
+  "author": {
+    "name": "LeaveMyYard"
+  },
+  "repository": "https://github.com/LeaveMyYard/herdr-inbox",
+  "keywords": [
+    "herdr",
+    "questions",
+    "operator",
+    "mcp"
+  ],
+  "mcpServers": {
+    "herdr-inbox": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--frozen",
+        "--no-dev",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "inbox",
+        "mcp"
+      ],
+      "env": {
+        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv"
+      }
+    }
+  }
+}

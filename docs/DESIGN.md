@@ -31,8 +31,10 @@ One Python package, `herdr_inbox`, one CLI entry point `inbox`:
 | `inbox answer <id> <text>` | answer + deliver (scriptable) |
 | `inbox dismiss <id>` | close without answering |
 | `inbox sync-tokens` | recompute sidebar tokens for every pane (herdr startup hook) |
+| `inbox open` | open the popup (herdr `open` action) |
+| `inbox hook session-start\|subagent-start` | Claude Code hooks (see Agent onboarding) |
 
-Runtime: Python ≥ 3.11, `uv`; dependencies `mcp` (FastMCP) and `textual`.
+Runtime: Python ≥ 3.11, `uv`; dependencies `mcp` (FastMCP, called `MCPServer` since mcp 2.x) and `textual`.
 Storage: stdlib `sqlite3`, WAL mode, at
 `${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/inbox.db` (overridable with
 `HERDR_INBOX_DB` for tests). Multiple MCP server processes and the TUI share it.
@@ -48,8 +50,22 @@ On every `ask_operator` call it resolves, via the `herdr` CLI
 - `herdr tab get <tab>` → tab `label` (the name the operator gave the tab)
 
 Resolve per call, not once at startup: `/clear` changes the session id, and a
-pane can be moved. Outside herdr the server still works; pane fields are null
-and answers are only available through `check_answers`.
+pane can be moved. Session fallback when herdr gives none:
+`CLAUDE_CODE_SESSION_ID` from the environment.
+
+A `claude` nested inside the pane's agent (e.g. `claude -p` run from its Bash
+tool) inherits `HERDR_PANE_ID` but is not that agent. It is recognised from the
+process tree: walking up from the server or hook, the nearest `claude` is our
+own; a second `claude` further up means nested (verified on a real nested run).
+An unreadable tree counts as not nested. A nested session is treated like one
+outside herdr. (Comparing `CLAUDE_CODE_SESSION_ID` with the pane's session was
+rejected: the MCP server's environment is fixed at spawn, so it would misfire
+after `/clear`, and the SessionStart hook races herdr's own session report.)
+
+Outside herdr (no `HERDR_PANE_ID`) or nested, nobody watches the inbox, so
+nothing is filed: `ask_operator` returns `{"status": "unavailable"}` telling the agent to
+ask in chat, the hooks print nothing, and no herdr call is made. The plugin is
+installed at user scope, so this covers plain terminals, IDEs and `claude -p`.
 
 Which **subagent** asked is out of scope for the PoC; the optional `asked_by`
 argument carries the agent's own description of itself (e.g. "reviewer PR 595").
@@ -73,7 +89,11 @@ All tools are non-blocking and return immediately.
   - open match → increment `repeat_count`, return
     `{"id","status":"already_open"}` with the message "Q12 is already with the
     operator. Do not ask again; keep working."
-  - answered match → return the stored answer right away.
+  - answered match (answered within the last hour) → return the stored answer
+    right away. Older answers are not reused: the same words later are
+    probably a new instance ("Proceed with the next step?").
+  - The lookup and the insert run in one `BEGIN IMMEDIATE` transaction, so
+    parallel calls in one turn or two subagents cannot file the same Q twice.
 - Otherwise insert, notify, update tokens, return
   `{"id": 12, "status": "open"}` with the message:
   "Recorded as Q12. The operator will answer asynchronously; the answer will
@@ -98,11 +118,36 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
 ## Answer delivery
 
 On answer (TUI or `inbox answer`): set status, then if the question has a pane
-and an agent is live in it, run
+and the pane's live agent is **the conversation that asked**
+(`herdr agent get` → `agent_session.value == session_id`; any live agent when
+the question has no session id), run
 `herdr agent prompt <pane_id> "[inbox] Q12 answered — <question, truncated to 80 chars>: <answer>"`
 without `--wait`. Claude Code queues a prompt submitted while it is working.
-Record `delivered_at`, or `delivery_error` on failure (the answer then stays
-available through `check_answers`). The TUI shows delivery state.
+After `/clear`, a restart or another agent in the pane the answer is not typed
+anywhere (`delivery_error = "conversation changed …"`).
+
+A successful delivery sets `delivered_at` and `acknowledged_at` (typed into the
+conversation counts as seen). A failure records `delivery_error`; the answer
+stays available through `check_answers` and the compact/resume hook, and the
+asking session's own MCP server retries it every 30 s (it is the one process
+that lives exactly as long as the conversation). A retry is skipped while the
+pane is focused or the agent is `blocked` (the operator may be typing there or
+answering the dialog; the prompt would merge with their input). "No live agent"
+and "conversation changed" are given up after 10 attempts. The TUI shows
+delivery state.
+
+The first delivery, from the popup, has no focus guard: the popup is modal and
+usually opened over the very pane whose agent asked, so the operator is typing
+in the popup, not the pane, and guarding would turn the main path into a 30 s
+wait. A blocked agent is refused by `agent prompt` itself (`agent_blocked`).
+
+PoC limitation: an `agent prompt` that times out after herdr already submitted
+it is recorded as failed and retried, so the agent can receive that answer twice.
+
+Everything passed to herdr goes through one sanitizer: line breaks and tabs
+become spaces, all other C0/C1 control characters and DEL are dropped, and each
+argument is capped at 4000 characters, so agent-written text cannot smuggle
+escape or key sequences into a prompt, notification or token.
 
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
@@ -117,29 +162,156 @@ anything the operator is half-way through typing in that pane.
   plugin's `[[startup]]` runs `inbox sync-tokens`. herdr-radar owns the sidebar
   row layout; the README documents how to add `$inbox_q` to it (the PoC does
   not edit the operator's herdr config).
+- **Tab label prefix** `❓N ` (herdr has no per-tab tokens): on every change the
+  pane's current tab (`pane list`) is re-read with `tab get`; the base label is
+  the current label with our marks stripped, repeatedly (never stored, so an
+  operator rename in the meantime is adopted), and `tab rename` runs only when
+  the label differs from `❓<open count in the tab> <base>` (or `<base>` at 0).
+  - Each tab the inbox decorates is recorded with every mark applied to it
+    (`tab_decor`, cleared once the tab is restored); only those marks, plus the
+    default `❓`, are stripped, and repeatedly. Changing the mark can never
+    stack prefixes, and an operator label such as `Q4 roadmap` on a tab we
+    never decorated is never touched.
+  - The setting has one source that herdr-side and Claude-spawned processes
+    both read: `tab_prefix` / `prefix_unnamed_tabs` in `config.toml` in the
+    plugin config dir (`$HERDR_PLUGIN_CONFIG_DIR`, else
+    `herdr plugin config-dir leavemyyard.herdr-inbox`), re-read on each use.
+  - Count → `tab get` → `tab rename` runs under a cross-process `flock` on
+    `inbox.db.markers.lock` (10 s, then the update is skipped and the next
+    change or sync fixes it), with the counts read inside it: concurrent
+    processes cannot leave a stale count. The SQLite write lock is never held
+    across a herdr call, so a slow or wedged herdr cannot block questions,
+    drafts or answers. `sync-tokens` takes the lock per tab; pane tokens are
+    updated outside any lock (per pane, idempotent). MCP tools retry on "database
+    is locked" with backoff and then return a "busy, call again" result; the
+    popup shows a notice instead of exiting.
+  - Tabs labelled by position (all digits) are skipped by default: a rename
+    would freeze the number.
+  - `sync-tokens` reconciles every tab (`workspace list` → `tab list
+    --workspace`); `sync-tokens --remove-prefixes` strips them all (before
+    uninstalling).
+  - Known limitation: herdr has no compare-and-set rename, so an operator
+    rename landing in the few milliseconds between our `tab get` and
+    `tab rename` is overwritten (the base it had is kept).
+  - Questions store the base label.
 - **Popup** `inbox` (placement `popup`, 85% × 80%) running `inbox tui`, plus an
   `open` action; the operator binds `prefix+i` to it in their config.
 
 `herdr-plugin.toml` lives at the repo root, id `leavemyyard.herdr-inbox`,
-`min_herdr_version = "0.9.0"`, platforms linux and macos. Commands run from the
-plugin dir as `uv run --project . inbox ...`.
+`min_herdr_version = "0.9.0"`, platforms linux and macos. Actions and startup run from the
+plugin dir as `uv run --project . inbox ...`; the popup command resolves the
+project from `$HERDR_PLUGIN_ROOT`, since a pane's cwd is not documented to be
+the plugin dir.
+
+## Questions, groups and drafts (v0.2)
+
+- `ask_operator` mirrors AskUserQuestion where it helps: `options` are strings
+  or `{label, description}` (≤ 9), `header` is a ≤ 12-char chip,
+  `multi_select` allows several picks. `questions` (≤ 4, AskUserQuestion's
+  limit) files related questions in one call: each item is deduped on its own
+  and gets its own Q id; the new ones share a `group_id` (the first one's id).
+  A single question is a group of one; its receipt keeps the old shape.
+- Options may carry a `preview` (monospace text shown beside the list).
+  `questions.options` keeps plain label strings (a 0.1.x popup `escape()`s
+  them); the full objects are in `question_ext.options_json`.
+- A single question is answered and sent at once. In a group, an answer is a
+  draft (`draft_json`: choices, notes per choice, free text) until Submit on the
+  group's Submit tab or the global review, which answers only drafted questions:
+  `answer` is the one-line text (`Postgres (note: …)`, picks joined by `, `),
+  `answer_json` the structure. `inbox answer` is draft + submit in one step.
+- Delivery is batched per pane: one `[inbox]` message per pane with all its
+  submitted answers, subject to the same session check, retry focus/blocked
+  guard and retry cap as before. A batch over herdr's 4000-char argument cap is
+  split into several messages, never truncated; a single answer too long for
+  any message is sent as a reference ("call check_answers") and stays
+  unacknowledged. Picks containing `,`, `"`, parentheses or `·` are quoted.
+- The retry also picks up answered rows that were never attempted (the
+  answering process died in between) once they are 60 s old.
+- **Upgrade safety**: the 0.2 fields (`header`, `multi_select`, `answer_json`,
+  `group_id`, drafts) live in a side table `question_ext`, read through the
+  `questions_v3` view (versioned; older views are dropped on open). The `questions` table keeps exactly the 0.1.x columns,
+  because 0.1.x builds its `Question` from `SELECT *`: sessions still running
+  0.1.x keep working against a database 0.2 has opened. `from_row` now ignores
+  columns it does not know, so later versions can add columns safely.
 
 ## TUI
 
-- List of open questions, newest first: `Q<id>`, tab label, `asked_by`, age,
-  repeat count, first line of the question.
-- Detail: full question, context, options. Number keys pick an option; `a` or
-  Enter opens a free-text answer box; Enter sends.
-- `d` dismiss · `g` focus the asking agent's pane (`herdr agent focus`) ·
-  `h` toggle answered/closed history · `q`/Esc close the popup.
+- List: one row per group of open questions, newest first (`Q12–Q14`, tab,
+  `asked_by`, age, repeats, `2/3 drafted`, first question). History (`h`)
+  shows single questions. `Enter`/`a` open the group, `r` the global review,
+  `d` dismiss the group, `g` focus the asking pane, `q`/Esc close.
+- The question UI mimics Claude Code's AskUserQuestion prompt (strings and
+  behaviour checked against the Claude Code 2.1.299 binary): header chip,
+  question in bold, numbered options with a `❯` cursor (label in the accent
+  colour, description dimmed, "Notes:" under an option), then "Type
+  something." (Claude Code's Other: the answer in single-select, added to the
+  picks in multi-select) and, in single-select, "Chat about this" (focuses the
+  asking agent's pane; the question stays open). Multi-select ends with a
+  Submit/Next row. ↑/↓/j/k move, 1–9 jump, Enter selects (toggles in
+  multi-select, Space too), `n` adds notes, `x` clears, Esc goes back without
+  sending. Footer: "Enter to select · ↑/↓ to navigate · press n to add notes ·
+  Esc to cancel" ("Tab/Arrow keys to navigate" in a group). With any option
+  `preview`, options sit left and the highlighted preview right ("No preview
+  available").
+- One question: answering sends at once. A group: tabs per question (`✓`
+  answered, `●` not) plus Submit; ←/→ and Tab/Shift-Tab switch; answering moves
+  to the next tab. The Submit tab: "Review your answers", "You have not
+  answered all questions" when some are blank, "Ready to submit your
+  answers?" with Submit answers / Cancel. Sends only the answered questions.
+- `r`: the same review across every draft (Enter edits, `x` drops).
 - Polls the database every 2 s.
 
-## Agent instruction
+## Agent onboarding
 
-`docs/agent-instructions.md` holds the snippet for the operator's CLAUDE.md:
-questions for the operator go through `ask_operator`, once; never restate them
-in chat; continue working; answers arrive as `[inbox] Q<n> answered` messages;
-after compaction call `list_my_questions` before asking anything.
+Every Claude Code session learns the inbox by default, without a hand-edited
+CLAUDE.md, the way the superpowers plugin does it: the repo is also a Claude
+Code plugin.
+
+- `.claude-plugin/plugin.json` declares the plugin `herdr-inbox` and bundles
+  the MCP server inline (`uv run --project ${CLAUDE_PLUGIN_ROOT} inbox mcp`).
+  Inline rather than a root `.mcp.json`, because a root `.mcp.json` is also
+  Claude Code's project-scope MCP file for anyone working in this repo.
+- Claude Code installs the plugin as a copy in
+  `~/.claude/plugins/cache/herdr-inbox/herdr-inbox/<version>/`, git-ignored
+  files included, and a copied `.venv` has no interpreter. Every plugin command
+  therefore runs `uv run --frozen --no-dev --project ${CLAUDE_PLUGIN_ROOT}` with
+  `UV_PROJECT_ENVIRONMENT=${CLAUDE_PLUGIN_DATA}/venv` (MCP: the server's `env`;
+  hooks: exec-form `env UV_PROJECT_ENVIRONMENT=… uv …`), so the environment
+  lives in the plugin's persistent data dir and the copy is only read.
+  `tests/test_plugin_copy.py` builds such a copy (broken `.venv` included) and
+  runs the commands exactly as the manifests declare them.
+- `.claude-plugin/marketplace.json` is a local single-plugin marketplace
+  (`source: "./"`): `claude plugin marketplace add <repo>` +
+  `claude plugin install herdr-inbox@herdr-inbox`.
+- `hooks/hooks.json`:
+  - `SessionStart`, matcher `startup|resume|clear|compact|fork`, runs
+    `inbox hook session-start`, which prints
+    `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": …}}`.
+    The text is short (under 250 words; it lands in every session): use
+    `ask_operator` for anything you would otherwise ask in chat while you can
+    keep working; ask once; never restate it; answers arrive as
+    `[inbox] Q<n> answered`; after compaction/resume call `list_my_questions`
+    first; blocking/destructive confirmations keep the normal flow; pass the
+    rule on in subagent briefs; details in the skill. On `compact` and
+    `resume` it appends the session's pending questions (`Q12 (open): …`, and
+    answered-but-unseen ones), matched by session id only: `--resume` keeps
+    the session id (checked with a real `claude -p --resume` run).
+  - `SubagentStart` runs `inbox hook subagent-start`: one paragraph for
+    subagents (ask once with `asked_by`, do not wait, the answer goes to the
+    main session). The hooks reference documents `additionalContext` for
+    SubagentStart. It does not say SessionStart fires for subagents, and the
+    sub-agents page says a subagent starts with a fresh context (own prompt,
+    CLAUDE.md, git status), so SessionStart context is not assumed to reach
+    them; the main agent is also told to pass the rule on.
+  - Both are fast (no mcp/textual import; ~40 ms through `uv run`) and never
+    fail the session: any error means exit 0 with no output. Outside herdr
+    they print nothing.
+- `skills/operator-questions/SKILL.md` holds the fuller guidance (phrasing a
+  self-contained question, options, `asked_by`, withdrawing); the hook text
+  points to it as `herdr-inbox:operator-questions`.
+
+`docs/agent-instructions.md` keeps the equivalent CLAUDE.md snippet for the
+manual route (`claude mcp add` without the plugin).
 
 ## Out of scope for the PoC
 
