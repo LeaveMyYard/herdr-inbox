@@ -747,7 +747,7 @@ class GroupListView(Vertical, can_focus=True):
         return f"{line1}\n      [dim]{detail}[/dim]"
 
     def render_rows(self) -> None:
-        if not self.is_mounted or not self.query("#list-title"):
+        if not self.query("#list-title"):
             return  # a poll can land while this view is still mounting or already leaving
         live = self.inbox.live_entries
         groups = sum(1 for e in live if e[0] == "group")
