@@ -21,6 +21,7 @@ it appears.
 
 from __future__ import annotations
 
+import concurrent.futures
 import functools
 import os
 import sqlite3
@@ -877,12 +878,16 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
     app.notify(f"Sending {', '.join(f'Q{q}' for q in qids)}…")
 
     def report(fn, *args, **kwargs) -> None:
-        # the popup may be gone by now ("go to agent", Esc): the send itself is done and
-        # recorded; reporting back must not raise from this thread
+        # The popup may be gone by now ("go to agent", Esc): the send itself is done and
+        # recorded. Only "the app has stopped" is swallowed -- any other error, or one while
+        # the app still runs, surfaces.
+        if not app.is_running:
+            return
         try:
             app.call_from_thread(fn, *args, **kwargs)
-        except Exception:  # noqa: BLE001
-            pass
+        except (RuntimeError, concurrent.futures.CancelledError):
+            if app.is_running:
+                raise
 
     def run() -> None:
         try:

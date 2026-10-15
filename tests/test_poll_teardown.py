@@ -57,3 +57,46 @@ async def test_poll_does_nothing_once_unmounting(store, fake_herdr, monkeypatch)
         app._unmounted = True  # on_unmount has run; widgets may still be there
         app.poll()
         assert reads == []
+
+
+async def test_an_error_inside_the_send_report_still_surfaces(store, fake_herdr, monkeypatch):
+    """Review of #18: only 'the app is gone' is swallowed, never a real error."""
+    import pytest
+
+    from herdr_inbox import tui
+
+    qid = service.ask(store, A, "q?", options=["yes"])["id"]
+    app = InboxApp(store, focus_pane="w1:p1")
+    captured = []
+    monkeypatch.setattr(app, "run_worker", lambda fn, **kw: captured.append(fn))
+
+    def boom(*a, **k):
+        raise ValueError("a real bug in _after_submit")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tui._send(app, store, [qid], lambda s: [s.get(qid)])
+        monkeypatch.setattr(app, "call_from_thread", lambda fn, *a, **k: boom())
+        with pytest.raises(ValueError):
+            captured[-1]()  # the app is running: the error must not be hidden
+
+
+async def test_a_runtime_error_while_the_app_still_runs_is_not_swallowed(store, fake_herdr, monkeypatch):
+    import pytest
+
+    from herdr_inbox import tui
+
+    qid = service.ask(store, A, "q?", options=["yes"])["id"]
+    app = InboxApp(store, focus_pane="w1:p1")
+    captured = []
+    monkeypatch.setattr(app, "run_worker", lambda fn, **kw: captured.append(fn))
+
+    def gone_but_not_really(*a, **k):
+        raise RuntimeError("something else")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tui._send(app, store, [qid], lambda s: [s.get(qid)])
+        monkeypatch.setattr(app, "call_from_thread", gone_but_not_really)
+        with pytest.raises(RuntimeError):
+            captured[-1]()
