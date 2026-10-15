@@ -30,7 +30,8 @@ from .store import Question, Store, db_path
 REQUEST_TTL = 5.0
 KINDS = ("question", "group", "pane", "session")
 NONCE_ENV = "INBOX_OPEN_NONCE"  # `inbox open` hands its request's nonce to the popup it opens
-VALID = {"question": re.compile(r"[Qq]?\d+"), "group": re.compile(r"\d+"),
+# a question may name a remote machine: machine:Q12
+VALID = {"question": re.compile(r"(?:[A-Za-z0-9._-]{1,64}:)?[Qq]?\d+"), "group": re.compile(r"\d+"),
          "pane": re.compile(r"\S+"), "session": re.compile(r"\S+")}
 
 
@@ -106,6 +107,8 @@ def _oldest_group(qs: list[Question]) -> tuple[tuple[str, int], None] | None:
 def resolve(store: Store, target: dict) -> tuple[tuple[str, int], int | None] | None:
     """(group entry, question id to show or None) for an open target; None if it is gone."""
     kind, value = target.get("kind"), str(target.get("value", "")).strip()
+    if kind == "question" and ":" in value:
+        return _resolve_remote(store, value)
     open_qs = store.list()
     if kind in ("question", "group"):
         try:
@@ -175,3 +178,21 @@ def hold_popup_lock():
     except OSError:
         pass
     return fh
+
+
+def _resolve_remote(store: Store, value: str):
+    """``machine:Q12``: the open remote group holding that question, if ``machine`` is an
+    enabled herdr machine (anything else is refused)."""
+    from . import remote
+
+    label, _, ref = value.partition(":")
+    if not any(label in (m.get("label"), m.get("id")) for m in remote.enabled_machines()):
+        return None
+    try:
+        n = int(ref.lstrip("Qq"))
+    except ValueError:
+        return None
+    for key, m, qs in remote.open_groups(store):
+        if label in (m.get("label"), m.get("machine_id")) and any(q["id"] == n for q in qs):
+            return ("remote", key), None
+    return None

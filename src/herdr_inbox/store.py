@@ -84,6 +84,82 @@ CREATE TABLE IF NOT EXISTS tab_decor (
 );
 CREATE INDEX IF NOT EXISTS questions_status ON questions(status);
 CREATE INDEX IF NOT EXISTS questions_session ON questions(session_id);
+-- Remote machines (0.7, docs/REMOTE.md). On every machine: a change feed for `inbox export`
+-- (filled by triggers, pruned by the worker) and the outcomes of `inbox apply` requests.
+CREATE TABLE IF NOT EXISTS changes (
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+    qid             INTEGER NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS changes_q_ins AFTER INSERT ON questions BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_q_upd AFTER UPDATE ON questions BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_q_del AFTER DELETE ON questions BEGIN
+    INSERT INTO changes (qid) VALUES (OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_x_ins AFTER INSERT ON question_ext BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_x_upd AFTER UPDATE ON question_ext BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TABLE IF NOT EXISTS applied_requests (
+    request_id      TEXT PRIMARY KEY,
+    qid             INTEGER,
+    outcome         TEXT NOT NULL,
+    reason          TEXT,
+    at              TEXT NOT NULL
+);
+-- On the operator's machine: the mirror of each remote machine and the actions queued for it.
+CREATE TABLE IF NOT EXISTS remote_machines (
+    machine_id      TEXT PRIMARY KEY,
+    label           TEXT,
+    target          TEXT,
+    db_id           TEXT,
+    cursor_seq      INTEGER,
+    version         TEXT,
+    uv              TEXT,
+    herdr           TEXT,
+    plugin_root     TEXT,
+    pulls           INTEGER NOT NULL DEFAULT 0,
+    failures        INTEGER NOT NULL DEFAULT 0,
+    last_ok_at      TEXT,
+    last_error      TEXT,
+    last_try_at     TEXT,
+    backoff_until   TEXT
+);
+CREATE TABLE IF NOT EXISTS remote_questions (
+    machine_id      TEXT NOT NULL,
+    db_id           TEXT NOT NULL,
+    remote_id       INTEGER NOT NULL,
+    qkey            TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    data_json       TEXT NOT NULL,
+    first_seen_at   TEXT NOT NULL,
+    notified_at     TEXT,
+    issue_notified_at TEXT,
+    cleared_at      TEXT,
+    PRIMARY KEY (machine_id, remote_id)
+);
+CREATE TABLE IF NOT EXISTS remote_outbox (
+    request_id      TEXT PRIMARY KEY,
+    machine_id      TEXT NOT NULL,
+    db_id           TEXT NOT NULL,
+    remote_id       INTEGER NOT NULL,
+    qkey            TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    detail_json     TEXT,
+    created_at      TEXT NOT NULL,
+    expires_at      TEXT NOT NULL,
+    state           TEXT NOT NULL DEFAULT 'queued',
+    result          TEXT,
+    sent_at         TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_try_at     TEXT,
+    sending_at      TEXT
+);
 """
 
 
@@ -112,6 +188,16 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
 """
 EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT",
                      "agent_gone_at": "TEXT", "legacy_misses": "INTEGER", "legacy_checked_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+
+# Columns added to a table after it first shipped, per table: Store._migrate adds whichever an
+# existing database lacks (tests/test_schema_migrations.py fails if a CREATE TABLE gains a
+# column that is neither in its first-shipped set nor here).
+TABLE_ADDED_COLUMNS = {
+    "questions": ADDED_COLUMNS,
+    "question_ext": EXT_ADDED_COLUMNS,
+    "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
+    "remote_outbox": {"sending_at": "TEXT"},
+}
 
 
 MAX_TITLE = 60
@@ -271,7 +357,7 @@ def _schema_stamp(migration_source: str | None = None) -> int:
             migration_source = inspect.getsource(Store._migrate)
         except (OSError, TypeError):
             migration_source = f"revision {MIGRATION_REVISION}"
-    text = (SCHEMA + VIEW_SQL + repr(sorted(EXT_ADDED_COLUMNS.items())) + repr(sorted(ADDED_COLUMNS.items()))
+    text = (SCHEMA + VIEW_SQL + repr(sorted((t, sorted(c.items())) for t, c in TABLE_ADDED_COLUMNS.items()))
             + migration_source)
     return zlib.crc32(text.encode()) & 0x7FFFFFFF
 
@@ -305,10 +391,13 @@ class Store:
                 return
             for statement in _statements(SCHEMA):
                 self.db.execute(statement)
-            ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
-            for name, decl in EXT_ADDED_COLUMNS.items():
-                if name not in ext_columns:
-                    self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
+            for table, added in TABLE_ADDED_COLUMNS.items():
+                if table == "questions":
+                    continue  # after the views, below (as before)
+                have = {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}
+                for name, decl in added.items():
+                    if name not in have:
+                        self.db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
             for old in OLD_VIEWS:
                 self.db.execute(f"DROP VIEW IF EXISTS {old}")
             for statement in _statements(VIEW_SQL):

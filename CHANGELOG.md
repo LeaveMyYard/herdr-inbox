@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0
+
+- **Remote herdr machines** (docs/REMOTE.md).
+  - Questions from agents on saved herdr SSH machines appear in this machine's popup as
+    `moneylust:Q12`. You answer them here, and the remote's own inbox delivers them there.
+  - This machine's delivery worker pulls each enabled machine every `remote_sync_seconds`
+    (default 5) over key-only ssh. It runs the remote's own `inbox export` and sends your
+    answers, dismissals and Send now through `inbox apply`, with request ids so retries are
+    safe. All data travels as JSON on stdin and stdout.
+  - Each new remote question raises a notification here.
+  - Offline machines are shown, never wait on, and answers to them queue for up to 12 h.
+  - Deep links accept `--question moneylust:Q12`.
+- `inbox remote install|upgrade <machine> [--ref]` installs or upgrades both plugins on a remote
+  over ssh.
+- **Note:** after this update the delivery worker pulls every machine `herdr machine list` shows as
+  enabled, every 5 s (machines in parallel, each call capped at 10 s). For a machine without the inbox
+  installed, the pull fails quietly and backs off (5 s up to 60 s).
+
 ## 0.6.3
 
 - **Fix: the popup and agents no longer wait for deliveries, tab labels or herdr.** The popup
