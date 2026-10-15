@@ -1026,8 +1026,9 @@ class InboxApp(App):
         if target and target[0] in self.entries:
             # Another plugin opened us, maybe under the operator's typing: nothing sends
             # until a deliberate Tab/→ (see RELEASE_GRACE). Esc goes to the list.
-            self.held, self.held_at = True, time.monotonic()
-            self.add_class("held")
+            self.held, self.held_at = request.get("hold") is not False, time.monotonic()
+            if self.held:  # `inbox open --no-hold`: the caller says an operator key opened it
+                self.add_class("held")
             self.open_group(target[0], start_qid=target[1])
         elif not self.entries:
             self.show_empty()
@@ -1036,7 +1037,7 @@ class InboxApp(App):
             self.open_group(self.entries[0])
         else:
             self.show_list(self.entries[0])
-        self.set_interval(POLL_SECONDS, self.poll)
+        self._poll_timer = self.set_interval(POLL_SECONDS, self.poll)
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         if isinstance(self.focused, Input):
@@ -1196,6 +1197,8 @@ class InboxApp(App):
         open group; no view is rebuilt unless the one on screen itself ended."""
         if len(self.screen_stack) > 1:  # a confirmation is open
             return
+        if not self.screen_stack or not self.query("#group-title"):
+            return  # tearing down (a late timer tick): the widgets are gone, nothing to update
         open_qs, failed = self._live()
         live = set(entry_order(open_qs, failed, None))
         for e in self.entries:
@@ -1287,6 +1290,9 @@ class InboxApp(App):
         await self.action_quit()
 
     def on_unmount(self) -> None:
+        timer = getattr(self, "_poll_timer", None)
+        if timer is not None:
+            timer.stop()  # no poll may land on a screen being torn down
         lock = getattr(self, "_popup_lock", None)
         if lock is not None:
             lock.close()
