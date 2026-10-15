@@ -124,7 +124,27 @@ def main():
                 holder.wait()
             return lat, contended
         lat, contended = asyncio.run(asks())
+
+        async def fresh_servers(n=5):
+            """The first two calls of a FRESHLY started MCP server, n times (each start also
+            ensures the delivery worker, as a real session start does)."""
+            from mcp import Client, StdioServerParameters
+            out = []
+            for k in range(n):
+                params = StdioServerParameters(command=str(ROOT / ".venv/bin/inbox"), args=["mcp"],
+                                               env={**os.environ, "HERDR_PANE_ID": pa, "HERDR_TAB_ID": ta})
+                async with Client(params, mode="legacy", read_timeout_seconds=60) as client:
+                    pair = []
+                    for i in range(2):
+                        t = time.perf_counter()
+                        await client.call_tool("ask_operator", {"question": f"Fresh {k}.{i}?", "options": ["a"]})
+                        pair.append(round((time.perf_counter() - t) * 1000))
+                    out.append(pair)
+                time.sleep(0.5)
+            return out
+        results["ask_operator_fresh_server_first_two_ms"] = asyncio.run(fresh_servers())
         results["ask_operator_ms"] = pct(lat)
+        results["ask_operator_each_ms"] = [round(x) for x in lat]
         results["ask_operator_lock_held_ms"] = [round(x) for x in contended]
 
         # (B) popup submit-to-close, with (C) herdr latency during the send

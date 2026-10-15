@@ -413,6 +413,17 @@ change:
   lost; they are cosmetic, and the next change or `sync-tokens` fixes the labels.
 - **No stranded answers:** the popup's record step ensures the delivery worker before
   spawning the sender. A popup killed in between leaves the answer to the worker.
+- **First calls on a fresh MCP server** (cycle review: 0.8–1.4 s). Each tool call, and each
+  background tab-label job, opened a `Store` that re-ran the schema script and the reconcile
+  pass. Those are write transactions, so several connections in one process, plus the
+  freshly spawned worker, waited on SQLite's busy handler for up to ~1 s.
+  - The database is now stamped (`PRAGMA user_version` = a hash of the schema), so a
+    reopen does no schema work.
+  - Tool calls and background jobs open with `maintenance=False` and skip reconcile; the
+    worker reconciles every tick.
+  - Bench, `ask_operator` ms, before → after:
+    - six calls on one server: 179, 952, 997, 61, 35, 31 → 83/95 (DB creation), then 7–27;
+    - first two calls on five fresh servers: up to 342 and 537 → at most 25.
 - **herdr:** a send never stalled herdr for other panes. `herdr agent prompt` itself
   takes ~300 ms for one message, and only that call waits on it.
 - **`INBOX_TRACE=<file>`** (off by default) appends one JSON line per step to `<file>`:

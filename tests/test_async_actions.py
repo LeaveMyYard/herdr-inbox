@@ -383,3 +383,58 @@ async def test_l3_send_now_says_when_the_answer_is_already_being_delivered(store
         await app.workers.wait_for_complete()
         await pilot.pause()
     assert spawned == [] and any("already being delivered" in n for n in notes)
+
+
+# -- cycle reviewer's Lows on a3a35e5 -------------------------------------------------------
+
+
+def test_a_reopened_store_skips_schema_work_and_tools_skip_reconcile(fake_herdr, tmp_path, monkeypatch):
+    """First ask_operator calls on a fresh MCP server took 0.8-1.4 s (reviewer): every tool
+    call re-ran the schema script and the reconcile pass, contending with the worker."""
+    from herdr_inbox import server
+    from herdr_inbox.store import Store
+
+    Store().close()  # the schema exists now (and is stamped)
+    statements = []
+    real_connect = __import__("sqlite3").connect
+
+    def connect(*a, **k):
+        db = real_connect(*a, **k)
+        db.set_trace_callback(statements.append)
+        return db
+
+    monkeypatch.setattr("herdr_inbox.store.sqlite3.connect", connect)
+    reconciled = []
+    monkeypatch.setattr(Store, "_reconcile_unverified", lambda self: reconciled.append(1))
+    server.tool_store().close()
+    assert not [s for s in statements if s.lstrip().upper().startswith(("CREATE", "ALTER"))]
+    assert reconciled == []  # the worker reconciles; a tool call does not
+
+
+def test_a_failing_verify_spawn_does_not_break_the_send(store, fake_herdr, live_session, monkeypatch):
+    """Like the other spawn: an OSError starting `inbox verify` is logged; the claim goes
+    stale and the worker (looking at the transcript first) takes the row over."""
+    class NoProcesses:
+        DEVNULL = -3
+
+        @staticmethod
+        def Popen(*a, **k):
+            raise OSError("fork failed")
+
+    monkeypatch.setattr(tui, "subprocess", NoProcesses)
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    service.answer(store, qid, "yes", deliver=False)
+    service.deliver_batch(store, [store.get(qid)], verify_later=tui.spawn_verify)  # must not raise
+    assert len(fake_herdr.calls_of("agent", "prompt")) == 1
+    assert store.get(qid).delivery_error.startswith("sending:")  # left for a stale takeover
+
+
+async def test_waiting_for_the_operator_to_leave_the_pane_says_so(store, fake_herdr, monkeypatch):
+    qid = service.ask(store, A, "Busy?", options=["yes"])["id"]
+    monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")
+    service.answer(store, qid, "yes")
+    monkeypatch.delenv("FAKE_HERDR_FAIL")
+    monkeypatch.setenv("FAKE_HERDR_FOCUSED", "1")
+    service.retry_deliveries(store, "w1:p1")
+    assert tui.pending_text(store.get(qid).delivery_error[len("pending: "):], 0) == \
+        "waiting for you to leave that pane (it is focused)"

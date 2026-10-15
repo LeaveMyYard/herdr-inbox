@@ -12,6 +12,8 @@ from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from . import trace
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS questions (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,14 +241,37 @@ class Question:
         return out
 
 
+def _schema_stamp() -> int:
+    """A stamp of this code's schema (tables, added columns, views): a database carrying it
+    needs no schema work on open. Any change to the schema changes the stamp."""
+    import zlib
+
+    text = SCHEMA + VIEW_SQL + repr(sorted(EXT_ADDED_COLUMNS.items())) + repr(sorted(ADDED_COLUMNS.items()))
+    return zlib.crc32(text.encode()) & 0x7FFFFFFF
+
+
+SCHEMA_STAMP = _schema_stamp()
+
+
 class Store:
-    def __init__(self, path: Path | str | None = None, timeout: float = 15.0):
+    def __init__(self, path: Path | str | None = None, timeout: float = 15.0, maintenance: bool = True):
+        """``maintenance=False`` (MCP tool calls): skip the reconcile pass -- the delivery
+        worker runs it every tick -- so a tool call never contends for the write lock with
+        it. Schema work runs only when the database's stamp differs from this code's."""
         self.path = Path(path) if path else db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(self.path, timeout=timeout, isolation_level=None)
         self.db.row_factory = sqlite3.Row
-        self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+        if self.db.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_STAMP:
+            with trace.step("store.schema"):
+                self._migrate()
+        if maintenance:
+            with trace.step("store.reconcile"):
+                self._reconcile_unverified()
+
+    def _migrate(self) -> None:
+        self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript(SCHEMA)
         ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
         for name, decl in EXT_ADDED_COLUMNS.items():
@@ -255,11 +280,11 @@ class Store:
         for old in OLD_VIEWS:
             self.db.execute(f"DROP VIEW IF EXISTS {old}")
         self.db.executescript(VIEW_SQL)
-        self._reconcile_unverified()
         columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
         for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
             if name not in columns:
                 self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+        self.db.execute(f"PRAGMA user_version = {SCHEMA_STAMP}")
 
     def close(self) -> None:
         self.db.close()

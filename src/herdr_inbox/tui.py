@@ -123,7 +123,7 @@ def _read_label(tab_id: str, store: Store | None) -> str | None:
 def _refresh_label(tab_id: str, path) -> None:
     try:
         if path is not None:
-            with Store(path, timeout=2) as own:
+            with Store(path, timeout=2, maintenance=False) as own:
                 label = _read_label(tab_id, own)
         else:
             label = _read_label(tab_id, None)
@@ -160,6 +160,8 @@ def pending_text(reason: str, busy_for: float | None) -> str:
         return "agent busy — sending at the next retry (every 10 s)"
     if reason.startswith("blocked:"):
         return "waiting: agent is at a prompt/dialog"
+    if reason == "waiting: the operator is in that pane":
+        return "waiting for you to leave that pane (it is focused)"
     return reason
 
 
@@ -920,16 +922,21 @@ def spawn_delivery(qids: list[int], force: bool = False) -> None:
 
 
 def spawn_verify(job: dict) -> None:
-    """Start ``inbox verify <job>`` detached: the transcript check for answers this popup typed."""
+    """Start ``inbox verify <job>`` detached: the transcript check for answers this popup typed.
+    If it cannot start, the claims go stale (60 s) and the worker takes the rows over, looking
+    at the transcript before typing anything again."""
     import json as _json
 
     from . import worker
 
     args = [sys.executable, "-m", "herdr_inbox.cli", "verify", _json.dumps(job)]
     log_path = worker.db_path().parent / "worker.log"
-    with open(log_path, "a") as err:
-        subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
-                         start_new_session=True, close_fds=True, env=worker._spawn_env())
+    try:
+        with open(log_path, "a") as err:
+            subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
+                             start_new_session=True, close_fds=True, env=worker._spawn_env())
+    except OSError:
+        log.warning("could not start the transcript check; the worker will take it over", exc_info=True)
 
 
 class AlreadySending(Exception):
