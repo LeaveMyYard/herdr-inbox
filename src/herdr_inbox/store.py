@@ -12,6 +12,8 @@ from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from . import trace
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS questions (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +54,10 @@ CREATE TABLE IF NOT EXISTS question_ext (
     pending_since   TEXT,
     busy_attempts   INTEGER,
     notified_at     TEXT,
-    herdr_server    TEXT
+    herdr_server    TEXT,
+    agent_gone_at   TEXT,
+    legacy_misses   INTEGER,
+    legacy_checked_at TEXT
 );
 -- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
 -- is verified by finding the typed answer in it.
@@ -105,7 +110,8 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT",
+                     "agent_gone_at": "TEXT", "legacy_misses": "INTEGER", "legacy_checked_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -159,6 +165,7 @@ RESET_WINDOW = timedelta(days=7)
 SIGNATURE_WINDOW = timedelta(hours=24)
 RECONCILE_BATCH = 200  # rows per open; the 7-day sweep is done only once a pass sees fewer
 REQUEUE_WINDOW = timedelta(hours=1)
+AGENT_GONE = "agent gone: "
 REQUEUE_SETTLE = timedelta(seconds=20)  # > service.VERIFY_SECONDS: the record may still be on its way  # an old server's unlanded delivery this recent is sent again
 REQUEUED = "pending: requeued: an earlier delivery never reached the conversation; sending when the agent is idle"
 MAX_RESETS = 2
@@ -234,27 +241,87 @@ class Question:
         return out
 
 
+MIGRATION_REVISION = 1  # used only if the migration's source cannot be read (no .py on disk)
+
+
+def _statements(script: str) -> list[str]:
+    """Split a SQL script into statements (so they can run inside one transaction:
+    executescript would commit it)."""
+    out, buf = [], ""
+    for line in script.splitlines(keepends=True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            if buf.strip():
+                out.append(buf.strip())
+            buf = ""
+    if buf.strip():
+        out.append(buf.strip())
+    return out
+
+
+def _schema_stamp(migration_source: str | None = None) -> int:
+    """A stamp of this code's schema AND of the code that migrates to it (tables, added
+    columns, views, Store._migrate's source): a database carrying it needs no schema work on
+    open. Changing either changes the stamp."""
+    import inspect
+    import zlib
+
+    if migration_source is None:
+        try:
+            migration_source = inspect.getsource(Store._migrate)
+        except (OSError, TypeError):
+            migration_source = f"revision {MIGRATION_REVISION}"
+    text = (SCHEMA + VIEW_SQL + repr(sorted(EXT_ADDED_COLUMNS.items())) + repr(sorted(ADDED_COLUMNS.items()))
+            + migration_source)
+    return zlib.crc32(text.encode()) & 0x7FFFFFFF
+
+
 class Store:
-    def __init__(self, path: Path | str | None = None, timeout: float = 15.0):
+    def __init__(self, path: Path | str | None = None, timeout: float = 15.0, maintenance: bool = True):
+        """``maintenance=False`` (MCP tool calls): skip the reconcile pass -- the delivery
+        worker runs it every tick -- so a tool call never contends for the write lock with
+        it. Schema work runs only when the database's stamp differs from this code's."""
         self.path = Path(path) if path else db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(self.path, timeout=timeout, isolation_level=None)
         self.db.row_factory = sqlite3.Row
-        self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
-        self.db.executescript(SCHEMA)
-        ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
-        for name, decl in EXT_ADDED_COLUMNS.items():
-            if name not in ext_columns:
-                self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
-        for old in OLD_VIEWS:
-            self.db.execute(f"DROP VIEW IF EXISTS {old}")
-        self.db.executescript(VIEW_SQL)
-        self._reconcile_unverified()
-        columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
-        for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
-            if name not in columns:
-                self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+        if self.db.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_STAMP:
+            with trace.step("store.schema"):
+                self._migrate()
+        if maintenance:
+            with trace.step("store.reconcile"):
+                self._reconcile_unverified()
+
+    def _migrate(self) -> None:
+        """Bring the schema up to this code's, once, under the write lock: several servers
+        opening an old database together (an upgrade with many agent panes) serialize here,
+        and every one after the first finds the stamp already set and does nothing."""
+        self.db.execute("PRAGMA journal_mode=WAL")  # cannot change inside a transaction
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            if self.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_STAMP:
+                self.db.execute("COMMIT")  # someone else migrated while we waited
+                return
+            for statement in _statements(SCHEMA):
+                self.db.execute(statement)
+            ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
+            for name, decl in EXT_ADDED_COLUMNS.items():
+                if name not in ext_columns:
+                    self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
+            for old in OLD_VIEWS:
+                self.db.execute(f"DROP VIEW IF EXISTS {old}")
+            for statement in _statements(VIEW_SQL):
+                self.db.execute(statement)
+            columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
+            for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
+                if name not in columns:
+                    self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+            self.db.execute(f"PRAGMA user_version = {SCHEMA_STAMP}")
+            self.db.execute("COMMIT")
+        except BaseException:
+            self.db.execute("ROLLBACK")
+            raise
 
     def close(self) -> None:
         self.db.close()
@@ -588,7 +655,10 @@ class Store:
         for session, qids in by_session.items():
             path = transcript.find(session, self.session_transcript(session))
             if path is not None:
-                found |= transcript.landed_ids(path, qids)
+                from .service import expected_segments  # local: service imports the store
+
+                qs = [q for q in (self.get(i) for i in qids) if q is not None]
+                found |= transcript.landed_exact(path, {q.id: (expected_segments(q), q.answered_at) for q in qs})
                 read |= set(qids)
         with self.transaction():
             for qid, _, recent_signature in rows:
@@ -629,6 +699,40 @@ class Store:
             " AND NOT (delivered_at IS NOT NULL AND delivery_error IS NULL) ORDER BY id").fetchall()
         return [Question.from_row(r) for r in rows]
 
+    def mark_agent_gone(self, qid: int, reason: str) -> None:
+        """The asking agent is gone (pane closed, conversation replaced): stop retrying; the
+        answer stays unseen for check_answers (and the compact/resume hook)."""
+        with self.transaction():
+            self.db.execute("UPDATE question_ext SET agent_gone_at = COALESCE(agent_gone_at, ?) WHERE id = ?",
+                            (now(), qid))
+            self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivered_at IS NULL"
+                            " AND COALESCE(delivery_error, '') NOT LIKE 'sending:%'", (f"{AGENT_GONE}{reason}", qid))
+
+    def agent_gone(self, qid: int) -> bool:
+        row = self.db.execute("SELECT agent_gone_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return bool(row and row[0])
+
+    def gone_candidates(self, prefixes: tuple[str, ...], cap: int) -> list[Question]:
+        """Undelivered answers whose 'no agent' / 'conversation changed' retries ran out."""
+        clauses = " OR ".join("delivery_error LIKE ?" for _ in prefixes)
+        rows = self.db.execute(
+            f"SELECT * FROM {VIEW} WHERE status = 'answered' AND delivered_at IS NULL AND acknowledged_at IS NULL"
+            f" AND ({clauses}) AND delivery_attempts >= ?"
+            " AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL) ORDER BY id",
+            (*(p + "%" for p in prefixes), cap)).fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def legacy_check_due(self, qid: int, every: timedelta) -> bool:
+        row = self.db.execute("SELECT legacy_checked_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return not (row and row[0] and row[0] > now(-every))
+
+    def legacy_miss(self, qid: int) -> int:
+        """Count one more 'that pane does not hold the asking conversation here'."""
+        self.db.execute("UPDATE question_ext SET legacy_misses = COALESCE(legacy_misses, 0) + 1,"
+                        " legacy_checked_at = ? WHERE id = ?", (now(), qid))
+        row = self.db.execute("SELECT legacy_misses FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return row[0] if row else 0
+
     def set_server(self, qid: int, server: str | None) -> None:
         """The herdr server (its socket) the question was asked on: only that server's
         delivery worker types it."""
@@ -666,6 +770,9 @@ class Store:
             " AND acknowledged_at IS NULL"
             # failed attempts, or never attempted (the answering process died) after a grace period
             " AND (delivery_error IS NOT NULL OR answered_at < ?)"
+            # its agent is gone: left for check_answers, not retried (hiding a row only takes
+            # it out of the popup -- a hidden pending answer is still delivered)
+            " AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL)"
             f" AND NOT ({clauses}) ORDER BY id",
             (pane_id, now(-NEVER_ATTEMPTED_GRACE), *args),
         ).fetchall()
@@ -684,3 +791,6 @@ class Store:
             args,
         ).fetchall()
         return [Question.from_row(r) for r in rows]
+
+
+SCHEMA_STAMP = _schema_stamp()  # after Store: it covers Store._migrate's source

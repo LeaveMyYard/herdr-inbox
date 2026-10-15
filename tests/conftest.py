@@ -116,6 +116,10 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))  # transcripts the fake writes
     monkeypatch.setenv("HERDR_INBOX_NO_WORKER", "1")  # never spawn a real delivery worker
+    from herdr_inbox import tui as _tui
+
+    monkeypatch.setattr(_tui, "DETACHED_SEND", False)  # the popup delivers in its thread here
+    monkeypatch.setattr(_tui, "ENABLE_BACKGROUND", False)  # side effects inline: deterministic tests
     # herdr's own config.toml (radar.py): never the real one
     monkeypatch.setenv("HERDR_INBOX_HERDR_CONFIG", str(tmp_path / "herdr-config" / "config.toml"))
     # plugin config dir: tab prefix off unless a test turns it on (tests/test_tabs.py)

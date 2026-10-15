@@ -38,7 +38,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from . import herdr
+from . import herdr, trace
 from .store import Store
 
 log = logging.getLogger("herdr_inbox")
@@ -81,10 +81,12 @@ def marker_lock(store: Store, timeout: float = LOCK_TIMEOUT):
     """Serialize label updates across processes; yields False if the lock was not had in time."""
     path = Path(str(store.path) + ".markers.lock")
     with open(path, "a+") as fh:
-        deadline = time.monotonic() + timeout
+        started = time.monotonic()
+        deadline = started + timeout
         while True:
             try:
                 fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                trace.record("tabs.marker_lock_wait", (time.monotonic() - started) * 1000)
                 break
             except BlockingIOError:
                 if time.monotonic() >= deadline:

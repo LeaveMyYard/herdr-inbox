@@ -148,8 +148,18 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   window, since Claude Code writes the record a moment after the old server's DB write) and
   an hour ago (`REQUEUE_WINDOW`). Its transcript must actually have been read and must lack
   it. Without a transcript the row is only un-seen, never retyped blind.
-- **Look before retyping:** before typing a row that was typed before (unverified, requeued,
-  busy miss), `deliver_batch` checks the transcript once more. A late record marks it
+- **Look before typing:** whenever the transcript is known, `deliver_batch` checks it
+  before **every** typing attempt (0.6.3; before, only rows typed before). This covers a
+  late landing and a sender killed mid-verify whose stale claim is being taken over.
+  The check matches each answer's **full expected text** (`transcript.landed_exact`): the
+  single message, its batch segment `Q<n> <first line>: <answer>` at a segment start, or
+  the long-answer reference. If only the reference landed, the row is verified but **not**
+  acknowledged, since the agent was only told to call check_answers. The id alone isn't enough, so an id written inside another
+  answer ("… · Q28 can wait") can't make a never-typed answer count as landed. Records
+  older than the answer are ignored too, since ids restart if `inbox.db` is recreated.
+  The expected strings are what herdr actually types (`herdr.clean`: tabs, newlines and
+  U+2028 become spaces), and both sides are compared with runs of whitespace collapsed.
+  Reconcile uses the same check. A late record marks it
   verified instead of typing a second copy. The "operator in this pane" check is repeated
   right before each prompt. The row then becomes `pending: requeued`, delivered only at
   idle/done. Older rows are only un-seen, as before. `reset_count` (≤ 2) bounds any
@@ -364,6 +374,79 @@ command, so `deeplink.py` hands the target over through the state dir:
   false), so Esc returns to the list. The README requires callers to run
   `inbox open` only on an explicit operator action. Nothing changes for a popup
   without a request.
+
+## Responsiveness (0.6.3)
+
+Operator report: "sometimes sending inbox messages blocks all inputs and everything just
+lags". This was measured on an isolated herdr (own HOME/XDG/socket/DB under `.scratch`), with
+a stand-in agent reported idle, so sends really type. Before = main @ d56f785, after = this
+change:
+
+| | before | after |
+|---|---|---|
+| popup: Enter on a lone question → popup closed (send lands at once) | 386 ms | 82 ms |
+| same, the answer never lands (15 s transcript check) | **15 373 ms** | 82 ms |
+| `ask_operator` round trip (stdio MCP server), p50 / max | 23 / 121 ms | 17 / 56 ms |
+| `ask_operator` while another process holds the tab-label lock | **4 030 ms** | 17 ms |
+| herdr API latency for another pane during a send, p95 | 2.0–2.2 ms | 1.9–2.3 ms |
+
+- **Popup:** it records the answer in a thread (one DB write) and hands delivery to a
+  detached `inbox deliver <ids> [--force]`, which outlives the popup; claims serialize it.
+  That sender keeps the worker's rule and never types into the pane the operator is in;
+  only `--force` (Send now) skips it.
+  - The exception is the pane the popup returns to: the operator came from it and will
+    type there next. Its answers are typed in the popup's thread before it closes, while
+    the popup still holds the keyboard (~0.3–0.6 s: `herdr agent prompt` ≈ 300 ms). Only
+    the transcript check is handed off, to a detached `inbox verify` that records the
+    outcome under the same claims.
+  - Send now on an answer another process is delivering says "already being delivered".
+  - Queued background jobs are drained (≤ 1 s) when the popup or an MCP server exits.
+  The popup then closes or returns to the list at once, and Esc waits only for that record
+  step. Before, the popup waited for the whole delivery, including the 15 s verify window.
+  - Herdr calls leave the UI thread: tab-label lookups refresh in a background thread
+    (the popup shows the last known label meanwhile), "go to agent" focuses from a
+    thread, and markers after a dismiss go to the background queue.
+- **Agent side:** the MCP server calls `service.enable_background()`. Tab-label updates
+  (a lock that can wait 10 s) and herdr notifications run on one background thread
+  after the tool has answered. A failing job (even a `BaseException`) is logged and the
+  thread carries on. Jobs still queued when a short-lived server exits (`claude -p`) are
+  lost; they are cosmetic, and the next change or `sync-tokens` fixes the labels.
+- **No stranded answers:** the popup's record step ensures the delivery worker before
+  spawning the sender. A popup killed in between leaves the answer to the worker.
+- **First calls on a fresh MCP server** (cycle review: 0.8–1.4 s). Each tool call, and each
+  background tab-label job, opened a `Store` that re-ran the schema script and the reconcile
+  pass. Those are write transactions, so several connections in one process, plus the
+  freshly spawned worker, waited on SQLite's busy handler for up to ~1 s.
+  - The database is now stamped (`PRAGMA user_version` = a hash of the schema and of
+    `Store._migrate`'s source), so a reopen does no schema work. The migration runs under
+    `BEGIN IMMEDIATE`, checks the stamp again once it holds the lock, and stamps in the
+    same transaction. Several servers opening an old database together (an upgrade with
+    many agent panes) serialize, and only the first one migrates.
+  - Tool calls and background jobs open with `maintenance=False` and skip reconcile; the
+    worker reconciles every tick.
+  - Bench, `ask_operator` ms, before → after:
+    - six calls on one server: 179, 952, 997, 61, 35, 31 → 83/95 (DB creation), then 7–27;
+    - first two calls on five fresh servers: up to 342 and 537 → at most 25.
+- **herdr:** a send never stalled herdr for other panes. `herdr agent prompt` itself
+  takes ~300 ms for one message, and only that call waits on it.
+- **`INBOX_TRACE=<file>`** (off by default) appends one JSON line per step to `<file>`:
+  every herdr call, the popup's handlers, `ask_operator`, delivery phases and lock waits,
+  each with its milliseconds and thread. Use it to investigate any future lag.
+
+**Answers that can't be delivered (0.6.3).**
+- A row whose "no agent" / "conversation changed" retries ran out is marked
+  `agent_gone_at` once. The worker never polls it again and sends one notification ("the
+  agent in <tab> is gone — the answer is kept; a new session can fetch it with
+  check_answers"). The answer stays unseen for `check_answers`.
+- Hiding a row only takes it out of the popup: a hidden pending answer is still delivered.
+- Pre-0.6.1 rows with no server recorded are checked at most every 60 s, and called gone
+  after 10 misses. Before, a gone pane's `agent get` failed on every 5 s tick.
+- In the popup:
+  - a gone row reads `⚠ Q77 agent closed — answer kept for check_answers`, and `d` hides
+    it at once (no confirmation: nothing is lost);
+  - pending rows read `⏳ Q75 answered · waiting to deliver: …`, so nobody tries to
+    answer them again;
+  - hidden rows are not listed.
 
 ## herdr surface
 
