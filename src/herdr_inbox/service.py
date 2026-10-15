@@ -8,11 +8,14 @@ recorded on the question.
 from __future__ import annotations
 
 import logging
+import queue
+import threading
+import time
 from datetime import datetime, timezone
 import os
 from dataclasses import dataclass
 
-from . import herdr, proc, tabs, transcript
+from . import herdr, proc, tabs, trace, transcript
 from .store import PENDING, REQUEUED, Question, Store, normalize
 
 NO_AGENT = "no live agent in pane"
@@ -170,8 +173,10 @@ def ask_group(
             store.set_group_title(group_id, title)
     if new:
         refs = ", ".join(q.ref for q in new)
-        herdr.notify(f"{refs} · {new[0].tab_label or new[0].pane_id}", notification_body(store.group(group_id)))
-        update_markers(store, caller.pane_id)
+        title, body = f"{refs} · {new[0].tab_label or new[0].pane_id}", notification_body(store.group(group_id))
+        later(lambda: herdr.notify(title, body))
+        with trace.step("ask.markers"):
+            update_markers(store, caller.pane_id)
     ids = ", ".join(f"Q{r['id']} ({r['status']})" for r in receipts)
     return {
         "group": group_id,
@@ -234,10 +239,12 @@ def save_draft(store: Store, qid: int, detail: dict | None) -> bool:
     return store.set_draft(qid, detail)
 
 
-def submit(store: Store, qids: list[int]) -> list[Question]:
+def submit(store: Store, qids: list[int], deliver: bool = True) -> list[Question]:
     """Send the drafted answers among ``qids``; undrafted or closed questions are skipped.
 
     Delivery is batched: one `[inbox]` message per pane with all of its answers.
+    ``deliver=False`` only records the answers (the popup hands delivery to a detached
+    ``inbox deliver`` process and closes at once).
     """
     answered = []
     for qid in qids:
@@ -247,7 +254,8 @@ def submit(store: Store, qids: list[int]) -> list[Question]:
         d = q.draft_json
         if store.set_answer(qid, format_answer(d.get("choices") or [], d.get("notes"), d.get("text")), d):
             answered.append(store.get(qid))
-    deliver_batch(store, answered)
+    if deliver:
+        deliver_batch(store, answered)
     for pane in dict.fromkeys(q.pane_id for q in answered):
         update_markers(store, pane)
     return [store.get(q.id) for q in answered]
@@ -260,12 +268,13 @@ def answer(
     *,
     choices: list[str] | None = None,
     notes: dict[str, str] | None = None,
+    deliver: bool = True,
 ) -> Question | None:
     """Answer one open question right away (the CLI path): draft + submit. None if not open."""
     detail = make_detail(text, choices, notes)
     if detail is None or not store.set_draft(qid, detail):
         return None
-    done = submit(store, [qid])
+    done = submit(store, [qid], deliver=deliver)
     return done[0] if done else None
 
 
@@ -445,7 +454,8 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                         store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
                     continue
             offset = transcript.size(path)
-            err = herdr.prompt_agent(pane, text)
+            with trace.step("deliver.prompt", chars=len(text)):
+                err = herdr.prompt_agent(pane, text)
             if err:
                 for q in batch:
                     record(q, err)
@@ -459,7 +469,9 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 for q in batch:
                     record(q, None, acknowledge=False)
                 continue
-            if transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS):
+            with trace.step("deliver.verify_wait"):
+                landed_now = transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS)
+            if landed_now:
                 for q in batch:
                     record(q, None, acknowledge=ack, verified=True)
             elif busy:  # not counted toward the idle cap (see MAX_BUSY_ATTEMPTS)
@@ -484,6 +496,52 @@ def close(store: Store, qid: int, status: str, note: str | None = None) -> bool:
     return True
 
 
+# -- side effects off the caller's thread ---------------------------------------------------
+# Tab labels (a lock that can wait 10 s), herdr notifications and the like are cosmetic: the
+# MCP tools and the popup must not wait for them. A process that cares (the MCP server, the
+# popup) calls enable_background(); the CLI and the tests run them inline.
+_bg_queue: "queue.Queue | None" = None
+
+
+def enable_background() -> None:
+    global _bg_queue
+    if _bg_queue is not None:
+        return
+    q: queue.Queue = queue.Queue()
+
+    def run() -> None:
+        while True:
+            fn = q.get()
+            try:
+                with trace.step("background.job"):
+                    fn()
+            except Exception:  # noqa: BLE001 - cosmetic work never kills the process
+                log.warning("background job failed", exc_info=True)
+            finally:
+                q.task_done()
+
+    threading.Thread(target=run, name="inbox-background", daemon=True).start()
+    _bg_queue = q
+
+
+def later(fn) -> None:
+    """Run ``fn`` in the background thread if enabled, else now."""
+    if _bg_queue is None:
+        fn()
+    else:
+        _bg_queue.put(fn)
+
+
+def drain(timeout: float) -> bool:
+    """Wait up to ``timeout`` for queued background work; True if it all ran."""
+    if _bg_queue is None:
+        return True
+    deadline = time.monotonic() + timeout
+    while _bg_queue.unfinished_tasks and time.monotonic() < deadline:
+        time.sleep(0.02)
+    return not _bg_queue.unfinished_tasks
+
+
 def update_markers(store: Store, pane_id: str | None) -> None:
     """Refresh the pane's ``$inbox_q`` token and the ``❓N`` prefix of the tab it is in now.
 
@@ -494,6 +552,19 @@ def update_markers(store: Store, pane_id: str | None) -> None:
     """
     if not pane_id:
         return
+    if _bg_queue is not None:  # off this thread: its own connection, its own wait for the lock
+        path = store.path
+
+        def job() -> None:
+            with Store(path, timeout=5) as own:
+                update_markers_now(own, pane_id)
+
+        later(job)
+        return
+    update_markers_now(store, pane_id)
+
+
+def update_markers_now(store: Store, pane_id: str) -> None:
     try:
         _update_markers(store, pane_id)
     except Exception:  # noqa: BLE001 - markers are cosmetic: never fail the ask/answer that changed them

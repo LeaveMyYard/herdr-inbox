@@ -25,16 +25,17 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import herdr, service, tabs
-from .store import Question, Store, db_path
+from .store import AGENT_GONE, Question, Store, db_path
 
 log = logging.getLogger("herdr_inbox")
 
 TICK = float(os.environ.get("HERDR_INBOX_WORKER_TICK", "5"))
 IDLE_EXIT = float(os.environ.get("HERDR_INBOX_WORKER_IDLE_EXIT", "600"))
 NOTIFY_AFTER = 300.0
+LEGACY_RECHECK = timedelta(seconds=60)
 
 
 def _lock_path(server: str | None = None):
@@ -103,8 +104,8 @@ def _ids(qids: list[int]) -> str:
     return ", ".join(f"Q{q}" for q in qids)
 
 
-def _where(q: Question) -> str:
-    label = herdr.tab_label(q.tab_id) if q.tab_id else None
+def _where(q: Question, lookup: bool = True) -> str:
+    label = herdr.tab_label(q.tab_id) if q.tab_id and lookup else None
     if label is not None:
         label = tabs.base_label(label, {tabs.DEFAULT_PREFIX})
     return label or q.tab_label or q.pane_id or "its pane"
@@ -114,6 +115,10 @@ def _age(iso: str | None) -> float:
     if not iso:
         return 0.0
     return (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds()
+
+
+def _gone(q: Question) -> bool:
+    return (q.delivery_error or "").startswith(AGENT_GONE)
 
 
 def _blocked(q: Question) -> bool:
@@ -127,11 +132,15 @@ def notify_stuck(store: Store, rows: list[Question]) -> None:
     for q in rows:
         out_of_tries = (q.delivery_error == service.NOT_VERIFIED
                         and q.delivery_attempts >= service.MAX_UNVERIFIED_ATTEMPTS)
-        if (out_of_tries or _age(q.answered_at) >= NOTIFY_AFTER) and not store.notified(q.id):
-            stuck.setdefault((q.pane_id or "-", _blocked(q)), []).append(q)
-    for (_, blocked), items in stuck.items():
-        ids, where = _ids([q.id for q in items]), _where(items[0])
-        if blocked:
+        if (out_of_tries or _gone(q) or _age(q.answered_at) >= NOTIFY_AFTER) and not store.notified(q.id):
+            kind = "gone" if _gone(q) else "blocked" if _blocked(q) else "stuck"
+            stuck.setdefault((q.pane_id or "-", kind), []).append(q)
+    for (_, kind), items in stuck.items():
+        ids, where = _ids([q.id for q in items]), _where(items[0], lookup=kind != "gone")
+        if kind == "gone":
+            herdr.notify(f"{ids}: the agent in {where} is gone",
+                         "The answer is kept; a new session can fetch it with check_answers.")
+        elif kind == "blocked":
             herdr.notify(f"waiting: {where} is at a prompt ({ids})",
                          "Answer the prompt in that pane; the inbox delivers right after.")
         else:
@@ -158,12 +167,28 @@ def served(store: Store) -> dict[str, list[Question]]:
         legacy = [q for q in items if store.server_of(q.id) is None]
         if not legacy:
             continue
-        agent = herdr.live_agent(pane)
-        ok = [q for q in legacy if q.session_id and agent and agent["session_id"] == q.session_id]
+        # pre-0.6.1 rows may belong to another herdr server: look at most every
+        # LEGACY_RECHECK, and after MAX_STALE_RETRIES misses call the agent gone
+        due = [q for q in legacy if store.legacy_check_due(q.id, LEGACY_RECHECK)]
+        ok: list[Question] = []
+        if due:
+            agent = herdr.live_agent(pane)
+            for q in due:
+                if q.session_id and agent and agent["session_id"] == q.session_id:
+                    ok.append(q)
+                elif store.legacy_miss(q.id) >= service.MAX_STALE_RETRIES:
+                    store.mark_agent_gone(q.id, f"no agent of that conversation in pane {pane}")
         by_pane[pane] = [q for q in items if q not in legacy or q in ok]
         if not by_pane[pane]:
             del by_pane[pane]
     return by_pane
+
+
+def mark_gone(store: Store) -> None:
+    """Answers whose 'no agent' / 'conversation changed' retries ran out: the agent is gone.
+    Marked once (then never polled again); notify_stuck tells the operator once."""
+    for q in store.gone_candidates((service.NO_AGENT, service.CHANGED), service.MAX_STALE_RETRIES):
+        store.mark_agent_gone(q.id, q.delivery_error or "the agent is gone")
 
 
 def tick(store: Store) -> int:
@@ -176,6 +201,7 @@ def tick(store: Store) -> int:
             service.deliver_batch(store, items, retry=True)
         except Exception:  # noqa: BLE001 - one pane's trouble never stops the others
             log.exception("delivery to %s failed", items[0].pane_id)
+    mark_gone(store)
     left = [q for q in store.stuck_answers() if store.server_of(q.id) in (None, mine)]
     notify_stuck(store, left)
     return sum(len(items) for items in served(store).values())

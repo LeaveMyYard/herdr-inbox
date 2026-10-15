@@ -59,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--remove", action="store_true", help="take it out again (before uninstalling)")
     p = sub.add_parser("clean-venvs", help="remove old versions' MCP venvs, including ones from before 0.5.3")
     p.add_argument("--data", help="the plugin data dir (default: $CLAUDE_PLUGIN_DATA or ~/.claude/plugins/data/herdr-inbox-herdr-inbox)")
+    p = sub.add_parser("deliver", help="deliver answered questions now (the popup's detached sender)")
+    p.add_argument("ids", nargs="+", type=lambda s: int(s.lstrip("Qq")))
+    p.add_argument("--force", action="store_true", help="the operator's Send now: skip the busy grace and focus wait")
     p = sub.add_parser("worker", help="run the delivery worker (one per machine; retries every pending answer)")
     p.add_argument("--ensure", action="store_true", help="start it in the background unless it is running, then return")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
@@ -107,6 +110,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"removed {path}")
         if not removed:
             print(f"nothing to remove in {data}")
+        return 0
+    if args.cmd == "deliver":
+        with Store() as store:
+            qs = [q for q in (store.get(i) for i in args.ids)
+                  if q and q.status == "answered" and not q.delivered_at and not q.acknowledged_at]
+            if qs:
+                service.deliver_batch(store, qs, force=args.force)
         return 0
     if args.cmd == "worker":
         from . import worker

@@ -142,7 +142,7 @@ async def test_popup_shows_pending_delivery(store, fake_herdr, monkeypatch):
         await pilot.pause()
         lv = app.query_one(GroupListView)
         body = lv.body_text()
-        assert f"⏳ Q{qid} agent busy — will send in" in body  # 0.5.4: says why and when
+        assert f"⏳ Q{qid} answered · waiting to deliver: agent busy — will send in" in body  # 0.5.4: says why and when
         assert "1 pending delivery" in str(lv.query_one("#list-title").render())
 
 

@@ -23,8 +23,11 @@ from __future__ import annotations
 
 import concurrent.futures
 import functools
+import logging
 import os
 import sqlite3
+import sys
+import subprocess
 import time
 
 from rich.markup import escape
@@ -36,8 +39,10 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import deeplink, herdr, radar, service, tabs
-from .store import PENDING, Question, Store
+from . import deeplink, herdr, radar, service, tabs, trace
+from .store import AGENT_GONE, PENDING, Question, Store
+
+log = logging.getLogger("herdr_inbox")
 
 POLL_SECONDS = 2.0
 # After a view change the operator did not cause, keys are dropped this long: whatever they
@@ -90,13 +95,44 @@ def tab_name(q: Question | None, store: Store | None = None) -> str:
     cached = _tab_labels.get(q.tab_id)
     if cached and time.monotonic() - cached[0] < TAB_LABEL_TTL:
         label = cached[1]
+    elif service._bg_queue is not None:
+        # the popup: never a herdr call on the UI thread -- refresh in the background, show
+        # what we have meanwhile (the next poll re-renders with the fresh label)
+        if q.tab_id not in _refreshing:
+            _refreshing.add(q.tab_id)
+            service.later(functools.partial(_refresh_label, q.tab_id, store.path if store is not None else None))
+        label = cached[1] if cached else None
     else:
-        label = herdr.tab_label(q.tab_id)
-        if label is not None:
-            marks = tabs.marks_for(store, q.tab_id) if store is not None else {tabs.DEFAULT_PREFIX}
-            label = tabs.base_label(label, marks)
+        label = _read_label(q.tab_id, store)
         _tab_labels[q.tab_id] = (time.monotonic(), label)
     return label or fallback
+
+
+_refreshing: set[str] = set()
+
+
+def _read_label(tab_id: str, store: Store | None) -> str | None:
+    label = herdr.tab_label(tab_id)
+    if label is not None:
+        marks = tabs.marks_for(store, tab_id) if store is not None else {tabs.DEFAULT_PREFIX}
+        label = tabs.base_label(label, marks)
+    return label
+
+
+def _refresh_label(tab_id: str, path) -> None:
+    try:
+        if path is not None:
+            with Store(path, timeout=2) as own:
+                label = _read_label(tab_id, own)
+        else:
+            label = _read_label(tab_id, None)
+        _tab_labels[tab_id] = (time.monotonic(), label)
+    finally:
+        _refreshing.discard(tab_id)
+
+
+def _gone(q: Question | None) -> bool:
+    return bool(q and (q.delivery_error or "").startswith(AGENT_GONE))
 
 
 def _pending(q: Question) -> bool:
@@ -603,9 +639,14 @@ class FailedView(Vertical, can_focus=True):
     def compose(self) -> ComposeResult:
         q = self.q
         meta = f"{q.ref} · {tab_name(q, getattr(self.app, 'store', None))}" + (f" · {q.asked_by}" if q.asked_by else "")
-        state = (f"⏳ {q.ref} pending delivery[/]: [dim]{escape(_pending_line(q, getattr(self.app, 'store', None)))}[/dim]"
-                 if _pending(q)
-                 else f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]")
+        if _gone(q):
+            state = (f"[$inbox-warning]⚠ {q.ref} agent closed — answer kept for check_answers[/]: "
+                     f"[dim]{escape((q.delivery_error or '')[len(AGENT_GONE):])}[/dim]")
+        elif _pending(q):
+            state = (f"⏳ {q.ref} is already answered — waiting to be delivered[/]: "
+                     f"[dim]{escape(_pending_line(q, getattr(self.app, 'store', None)))}[/dim]")
+        else:
+            state = f"[$inbox-warning]⚠ {q.ref} not delivered[/]: [dim]{escape(q.delivery_error or '')}[/dim]"
         yield Static(("[b]" + state) if _pending(q) else state,
                      classes="question")
         yield Static(escape(meta), classes="meta")
@@ -756,11 +797,14 @@ class GroupListView(Vertical, can_focus=True):
             if closed:
                 return f"{cur} {number} [$inbox-warning]✕ Q{entry[1]} · {where} · {escape(closed)}[/]"
             text = _pending_line(q, store) if _pending(q) else ""
-            if _pending(q) and text.startswith("⚠ "):  # pending, but it already failed once
-                head = f"⚠ Q{q.id} {escape(text[2:])} · {where}"
+            if _gone(q):  # nothing to do here: the answer waits for check_answers (d hides it)
+                head = f"⚠ Q{q.id} agent closed — answer kept for check_answers · {where}"
                 line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
-            elif _pending(q):  # waiting for the agent: information, not a warning
-                head = f"⏳ Q{q.id} {escape(text)} · {where}"
+            elif _pending(q) and text.startswith("⚠ "):  # answered; it already failed once
+                head = f"⚠ Q{q.id} answered · {escape(text[2:])} · {where}"
+                line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
+            elif _pending(q):  # answered, waiting for the agent: information, not a warning
+                head = f"⏳ Q{q.id} answered · waiting to deliver: {escape(text)} · {where}"
                 line1 = f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]"
             else:
                 head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or 'no attempt recorded')}"
@@ -856,10 +900,31 @@ class GroupListView(Vertical, can_focus=True):
         self.app.call_next(self.inbox.action_quit)
 
 
-def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
-    failed = [q for q in done if not q.delivered_at]
+# The popup records answers and hands their delivery to a detached `inbox deliver` process,
+# so it can close at once (a delivery can take seconds: herdr typing, the 15 s transcript
+# check, tab labels). The test suite turns this off and delivers in a thread instead.
+DETACHED_SEND = True
+ENABLE_BACKGROUND = True  # side effects (tab labels, markers) off the UI thread; tests: inline
+
+
+def spawn_delivery(qids: list[int], force: bool = False) -> None:
+    """Start ``inbox deliver <ids>`` detached (it outlives the popup; claims serialize it)."""
+    from . import worker
+
+    args = [sys.executable, "-m", "herdr_inbox.cli", "deliver", *map(str, qids)] + (["--force"] if force else [])
+    log_path = worker.db_path().parent / "worker.log"
+    with open(log_path, "a") as err:
+        subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
+                         start_new_session=True, close_fds=True, env=worker._spawn_env())
+
+
+@trace.traced("popup.after_submit")
+def _after_submit(app: "InboxApp", done: list[Question], wanted: int, detached: bool = False) -> None:
+    failed = [] if detached else [q for q in done if not q.delivered_at]
     if not done:
         app.notify("Nothing sent: those questions are no longer open", severity="warning")
+    elif detached:
+        app.notify(f"Sending {', '.join(q.ref for q in done)} (in the background; see ⏳/⚠ here if it waits)")
     elif failed:
         app.notify(f"Sent {', '.join(q.ref for q in done)}; not delivered: "
                    f"{', '.join(f'{q.ref} ({q.delivery_error})' for q in failed)}", severity="warning")
@@ -872,9 +937,10 @@ def _after_submit(app: "InboxApp", done: list[Question], wanted: int) -> None:
         app.exit()  # like Claude Code's prompt: gone once everything is answered
 
 
-def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
-    """Send in a background thread: delivery talks to herdr (and may wait for the
-    tab-label lock), and the popup must never freeze on it."""
+def _send(app: "InboxApp", store: Store, qids: list[int], work, force: bool = False) -> None:
+    """Record in a background thread, then deliver detached (DETACHED_SEND) or in that
+    thread: the popup never waits for herdr, the tab-label lock or the transcript check.
+    ``work(store, deliver)`` records the answers (and delivers them if ``deliver``)."""
     app.notify(f"Sending {', '.join(f'Q{q}' for q in qids)}…")
 
     def report(fn, *args, **kwargs) -> None:
@@ -891,12 +957,19 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
 
     def run() -> None:
         try:
-            with Store(store.path) as own:  # sqlite connections stay in the thread that made them
-                done = work(own)
+            with trace.step("popup.send_thread"), Store(store.path) as own:  # sqlite connections stay in the thread that made them
+                done = work(own, not detached)
         except sqlite3.OperationalError:
             report(app.notify, BUSY, severity="warning")
             return
-        report(_after_submit, app, done, len(qids))
+        if detached and done:
+            try:
+                spawn_delivery([q.id for q in done], force=force)
+            except OSError:
+                log.warning("could not start the delivery; the worker will retry", exc_info=True)
+        report(_after_submit, app, done, len(qids), detached)
+
+    detached = DETACHED_SEND
 
     app.run_worker(run, thread=True, group="send")
 
@@ -1016,7 +1089,10 @@ class InboxApp(App):
 
         self.run_worker(run, thread=True, group="radar")
 
+    @trace.traced("popup.on_mount")
     def on_mount(self) -> None:
+        if ENABLE_BACKGROUND:
+            service.enable_background()  # tab labels, markers: never on the UI thread
         self._popup_lock = deeplink.hold_popup_lock()  # `inbox open` reports an open popup
         self.check_radar()
         if self.focus_pane is None:
@@ -1068,6 +1144,8 @@ class InboxApp(App):
         return True
 
     async def on_event(self, event: events.Event) -> None:
+        if isinstance(event, events.Key) and trace.enabled():
+            trace.record("popup.key", 0, key=event.key)
         # The general rule: a background event never changes what the next keypress does.
         # Right after a view change the operator did not cause, keys are dropped.
         if isinstance(event, events.Key) and time.monotonic() < self.grace_until:
@@ -1205,6 +1283,7 @@ class InboxApp(App):
                 "dismissed": "dismissed"}.get(q.status, q.status)
 
     @guarded
+    @trace.traced("popup.poll")
     def poll(self) -> None:
         """Arrivals become new list rows at the end (the cursor's target does not move);
         ended rows and ended question tabs become inert placeholders; nothing is added to an
@@ -1322,6 +1401,7 @@ class InboxApp(App):
     def on_group_list_view_open(self, event: GroupListView.Open) -> None:
         self.open_group(event.entry)
 
+    @trace.traced("popup.answered")
     @guarded
     def on_question_view_answered(self, event: QuestionView.Answered) -> None:
         if self.mode != "group" or ("q", event.qid) in self.gone or self.current != ("q", event.qid):
@@ -1330,8 +1410,8 @@ class InboxApp(App):
             d = event.detail or {}
             self._sent(self.entry, whole=True)
             _send(self, self.store, [event.qid],
-                  lambda s: [x for x in [service.answer(s, event.qid, d.get("text"), choices=d.get("choices"),
-                                                         notes=d.get("notes"))] if x])
+                  lambda s, deliver: [x for x in [service.answer(s, event.qid, d.get("text"), choices=d.get("choices"),
+                                                                  notes=d.get("notes"), deliver=deliver)] if x])
             return
         if not self.store.set_draft(event.qid, event.detail):
             self.notify(f"Q{event.qid} is no longer open", severity="warning")
@@ -1353,20 +1433,23 @@ class InboxApp(App):
     def on_review_view_edit(self, event: ReviewView.Edit) -> None:
         self.navigate(("q", event.qid))
 
+    @trace.traced("popup.submit")
     def on_review_view_submit(self, event: ReviewView.Submit) -> None:
         whole = set(event.qids) >= set(self.open_qids)
         entry = self.entry
-        _send(self, self.store, event.qids, lambda s: service.submit(s, event.qids))
+        _send(self, self.store, event.qids, lambda s, deliver: service.submit(s, event.qids, deliver=deliver))
         self._sent(entry, whole)
 
+    @trace.traced("popup.retry")
     def on_failed_view_retry(self, event: FailedView.Retry) -> None:
-        def retry(s: Store) -> list[Question]:
+        def retry(s: Store, deliver: bool) -> list[Question]:
             q = s.get(event.qid)
-            service.deliver(s, q, force=True)  # the operator's explicit retry / "Send now"
+            if deliver:
+                service.deliver(s, q, force=True)  # the operator's explicit retry / "Send now"
             return [s.get(event.qid)]
 
         entry = self.entry
-        _send(self, self.store, [event.qid], retry)
+        _send(self, self.store, [event.qid], retry, force=True)
         self._sent(entry, whole=True)
 
     @guarded
@@ -1375,12 +1458,28 @@ class InboxApp(App):
         self.closed[("failed", event.qid)] = "hidden"
         self.back_to_list()
 
+    @trace.traced("popup.focus_pane")
     def _focus_pane(self, q: Question | None) -> None:
         if q is None:
             return
-        err = herdr.focus_agent(q.pane_id) if q.pane_id else "no pane"
+        if not q.pane_id:
+            self.notify("could not focus: no pane", severity="warning")
+            return
+        pane = q.pane_id
+
+        def run() -> None:  # a herdr call: off the UI thread
+            err = herdr.focus_agent(pane)
+            try:
+                self.call_from_thread(self._focused, pane, err)
+            except (RuntimeError, concurrent.futures.CancelledError):
+                if self.is_running:
+                    raise
+
+        self.run_worker(run, thread=True, group="focus")
+
+    def _focused(self, pane: str, err: str | None) -> None:
         if err:
-            self.notify(f"could not focus {q.pane_id}: {err}", severity="warning")
+            self.notify(f"could not focus {pane}: {err}", severity="warning")
         else:
             self.exit()  # the question stays open; discuss it in the agent's chat
 
@@ -1404,6 +1503,12 @@ class InboxApp(App):
         if self.mode == "list":
             view = self._list_view()
             entry = view.cursor if view else None
+            if entry and entry[0] == "failed" and entry not in self.closed and _gone(self.store.get(entry[1])):
+                # an agent-gone row: hiding it loses nothing (check_answers still has it)
+                self.store.hide_failed(entry[1])
+                self.closed[entry] = "hidden"
+                view.render_rows()
+                return
             if not entry or entry[0] != "group" or entry in self.closed:
                 return
             qs = [q for q in self.store.group(entry[1]) if q.status == "open"]
@@ -1412,6 +1517,7 @@ class InboxApp(App):
             what = qs[0].ref if len(qs) == 1 else f"{qs[0].ref}–{qs[-1].ref} ({len(qs)} questions)"
 
             @guarded
+            @trace.traced("popup.dismiss_group")
             def done_group(confirmed: bool | None) -> None:
                 if confirmed:
                     closed = [q.ref for q in qs if service.close(self.store, q.id, "dismissed")]
@@ -1431,6 +1537,7 @@ class InboxApp(App):
             return
 
         @guarded
+        @trace.traced("popup.dismiss")
         def done(confirmed: bool | None) -> None:
             if confirmed and service.close(self.store, q.id, "dismissed"):
                 self.notify(f"{q.ref} dismissed")
@@ -1441,5 +1548,7 @@ class InboxApp(App):
 
     async def action_quit(self) -> None:
         # let an in-flight send finish before the popup (and its process) goes away
-        await self.workers.wait_for_complete()
+        with trace.step("popup.quit_wait"):
+            await self.workers.wait_for_complete()
+        trace.record("popup.exit", 0)
         self.exit()
