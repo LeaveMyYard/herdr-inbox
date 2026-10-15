@@ -25,7 +25,8 @@ INSTRUCTIONS = (
     "Non-blocking question inbox for the human operator. Use ask_operator instead of asking the "
     "operator in chat whenever you can keep working. Ask once; the answer arrives later as a "
     "`[inbox]` message naming the Q id. After compaction call list_my_questions "
-    "before asking anything."
+    "before asking anything. To flag something the operator should check, with no answer "
+    "needed, use alert_operator."
 )
 
 ASK_DESCRIPTION = """Ask the human operator a question WITHOUT blocking. Returns immediately with a receipt.
@@ -131,6 +132,37 @@ def ask_operator(
                            header=header, multi_select=multi_select, title=title)
 
 
+ALERT_DESCRIPTION = """Alert the human operator WITHOUT blocking and without expecting an answer: "please
+check X", "the deploy needs your eyes", "I hit something you should know about".
+
+Use it instead of writing the warning into chat (the operator may not be looking at this pane)
+and instead of stopping to wait. It shows in the operator's inbox popup and as a herdr
+notification, and counts in this tab's ❓ badge, until the operator acknowledges it.
+Nothing is typed back; check_answers reports acknowledged alerts. Use ask_operator instead
+when you need a decision or information. `severity`: info | warning | urgent. Raise one alert
+per issue; call withdraw_alert if it resolves itself."""
+
+
+@mcp.tool(description=ALERT_DESCRIPTION)
+@busy_safe
+def alert_operator(title: str, message: str | None = None, severity: str = "warning",
+                   asked_by: str | None = None) -> dict[str, Any]:
+    from . import alerts
+
+    with tool_store() as store:
+        return alerts.raise_alert(store, service.resolve_caller(), title, message, severity, asked_by)
+
+
+@mcp.tool()
+@busy_safe
+def withdraw_alert(id: int) -> dict[str, Any]:
+    """Withdraw one of your open alerts because the issue resolved itself."""
+    from . import alerts
+
+    with tool_store() as store:
+        return alerts.withdraw(store, service.resolve_caller(), id)
+
+
 @mcp.tool()
 @busy_safe
 def check_answers() -> dict[str, Any]:
@@ -138,11 +170,17 @@ def check_answers() -> dict[str, Any]:
 
     Answers are normally delivered as `[inbox]` messages naming the Q ids; use this as a fallback
     (e.g. after compaction or if a delivery was missed)."""
+    from . import alerts
+
     caller = service.resolve_caller()
     with tool_store() as store:
         answers = store.unacknowledged_answers(caller.session_id, caller.pane_id)
         store.acknowledge([q.id for q in answers])
-    return {"answers": [{"id": q.id, "question": q.question, "answer": q.answer} for q in answers]}
+        acked = alerts.acknowledged_unreported(store, caller)
+    out: dict[str, Any] = {"answers": [{"id": q.id, "question": q.question, "answer": q.answer} for q in answers]}
+    if acked:
+        out["alerts_acknowledged"] = [{"id": f"A{a.id}", "title": a.title} for a in acked]
+    return out
 
 
 @mcp.tool()
@@ -152,10 +190,16 @@ def list_my_questions(include_closed: bool = False) -> dict[str, Any]:
 
     Call this after compaction or resume BEFORE asking anything, so you do not re-ask a
     question that is already open or answered."""
+    from . import alerts
+
     caller = service.resolve_caller()
     with tool_store() as store:
         questions = store.mine(caller.session_id, caller.pane_id, include_closed)
-    return {"questions": [q.brief() for q in questions]}
+        mine = [a for a in alerts.mine(store, caller) if include_closed or a.status == "open"]
+    out: dict[str, Any] = {"questions": [q.brief() for q in questions]}
+    if mine:
+        out["alerts"] = [{"id": f"A{a.id}", "title": a.title, "severity": a.severity, "status": a.status} for a in mine]
+    return out
 
 
 @mcp.tool()

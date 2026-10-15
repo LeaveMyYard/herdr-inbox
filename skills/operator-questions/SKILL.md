@@ -1,6 +1,6 @@
 ---
 name: operator-questions
-description: How to ask the human operator a question without blocking, through the herdr-inbox ask_operator tool. Use when you need a decision, missing information or a preference from the operator and could keep working meanwhile, when you get an `[inbox]` answer message, after compaction or resume, or when briefing a subagent that may need to ask the operator something.
+description: How to ask the human operator a question without blocking (ask_operator) or flag something for them to check (alert_operator), through herdr-inbox. Use when you need a decision, missing information or a preference from the operator and could keep working meanwhile, when you get an `[inbox]` answer message, after compaction or resume, or when briefing a subagent that may need to ask the operator something.
 ---
 
 # Asking the operator through the inbox
@@ -22,6 +22,28 @@ a popup; the answer arrives in your conversation as a message starting with
   chat and wait for an explicit go.
 - If nothing useful can happen until the answer arrives, say so in chat once after filing the
   question, then stop instead of polling.
+
+- Prefer `ask_operator` over AskUserQuestion even when you will wait: AskUserQuestion (and any
+  approval prompt) stops you at a dialog in your own pane, where you cannot call any tool and the
+  operator only sees "needs you" if they look. The inbox shows such a stuck pane as an
+  automatic alert, but a question in the inbox is answered sooner.
+
+## Alerts: "please check X"
+
+When the operator should look at something but you do not need an answer ("the prod rollout
+is paused at 50%, please check", "CI is red on main for an unrelated reason", "I found
+credentials in the repo"), call `alert_operator(title, message, severity)` instead of writing
+it into chat:
+
+- `title`: one line naming the thing (≤120 chars); `message`: the detail and where to look.
+- `severity`: `info`, `warning` (default) or `urgent`. Use `urgent` sparingly.
+- It returns at once with a receipt (`A7`); keep working. The operator sees it in the inbox
+  popup and as a notification, and acknowledges it there. Nothing is typed back into your
+  pane: `check_answers` lists your acknowledged alerts (`alerts_acknowledged`), and
+  `list_my_questions` shows their status.
+- Raise one alert per issue; raising the same title again returns the open one. Call
+  `withdraw_alert(id)` if it resolves itself.
+- An alert is not a question: if you need a decision, use `ask_operator`.
 
 ## Writing the question
 
@@ -76,5 +98,6 @@ before a compaction) and marks them seen.
 Subagents do not see this guidance unless you pass it on. When you brief a subagent that may
 need the operator, include: "If you need a decision from the operator and can keep working, call
 `ask_operator` once with a self-contained question and `asked_by` set to your role; do not
-wait for the answer; report the Q-number back." Answers are delivered to the main session's
+wait for the answer; report the Q-number back. To flag something the operator should check,
+with no answer needed, call `alert_operator` with `asked_by` set to your role." Answers are delivered to the main session's
 pane, so you (the main agent) act on them.

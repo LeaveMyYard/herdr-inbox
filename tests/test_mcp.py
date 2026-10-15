@@ -20,7 +20,8 @@ async def call(client, name, args=None):
 async def test_tools_are_registered_with_guidance():
     async with Client(mcp) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
-    assert set(tools) == {"ask_operator", "check_answers", "list_my_questions", "withdraw_question"}
+    assert set(tools) == {"ask_operator", "check_answers", "list_my_questions", "withdraw_question",
+                          "alert_operator", "withdraw_alert"}
     desc = tools["ask_operator"].description
     for phrase in ("instead of asking in chat", "self-contained", "options", "names the question id (Q<n>)", "Do not repeat"):
         assert phrase in desc

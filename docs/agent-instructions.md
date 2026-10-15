@@ -17,6 +17,11 @@ server (`claude mcp add ...`), paste the block below into your `CLAUDE.md`.
 - After compaction or resume, call `list_my_questions` before asking anything new;
   `check_answers` returns answers you may have missed. If you resolve a question yourself,
   call `withdraw_question`.
+- Prefer `ask_operator` over AskUserQuestion: AskUserQuestion stops you at a prompt in your own
+  pane, which the operator may not be watching.
+- To flag something the operator should check or know (no answer needed), call
+  `alert_operator(title, message, severity)` instead of writing it into chat; `withdraw_alert`
+  if it resolves itself.
 - Blocking or destructive confirmations still go through the normal flow: ask in chat and wait.
 - When briefing a subagent, pass the rule on: `ask_operator` once, with `asked_by` set to its
   role, and keep working.

@@ -31,7 +31,6 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
-from rich.markup import escape
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -40,11 +39,20 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import deeplink, herdr, radar, remote, service, tabs, trace
+from . import alerts, deeplink, herdr, radar, remote, service, tabs, trace
 from .store import AGENT_GONE, CLAIM_STALE, PENDING, Question, Store
 from .store import now as store_now
 
 log = logging.getLogger("herdr_inbox")
+
+
+def escape(text: str) -> str:
+    """Text for Textual markup, shown verbatim. rich's escape() leaves `[E2E TEST]` (a tag
+    starting with an upper-case letter) alone, and Textual's parser then swallows it; so
+    every `[` is escaped, and a trailing backslash cannot escape the closing tag after it."""
+    text = str(text).replace("[", "\\[")
+    return text + "\u200b" if text.endswith("\\") else text
+
 
 POLL_SECONDS = 2.0
 # After a view change the operator did not cause, keys are dropped this long: whatever they
@@ -691,6 +699,80 @@ class FailedView(Vertical, can_focus=True):
         _close(self.app)
 
 
+SEVERITY_STYLE = {"urgent": "$inbox-warning", "warning": "$inbox-warning", "info": "$inbox-suggestion"}
+
+
+class AlertView(Vertical, can_focus=True):
+    """An alert: an agent's "please check X" (acknowledge it, or go to the agent), or an agent
+    waiting at an approval/question prompt (go there). Nothing is ever typed into the pane."""
+
+    class Ack(Message):
+        def __init__(self, aid) -> None:
+            super().__init__()
+            self.aid = aid
+
+    class Goto(Message):
+        def __init__(self, aid) -> None:
+            super().__init__()
+            self.aid = aid
+
+    BINDINGS = FailedView.BINDINGS
+
+    def __init__(self, alert, label: str | None = None):
+        super().__init__()
+        self.alert, self.label = alert, label  # label: a remote machine's, for its alerts
+        self.cursor = 0
+
+    def compose(self) -> ComposeResult:
+        a = self.alert
+        ref = f"{self.label}:{a.ref}" if self.label else a.ref
+        style = SEVERITY_STYLE.get(a.severity, "$inbox-warning")
+        mark = "⏸" if a.kind == "blocked" else "⚑"
+        yield Static(f"[b {style}]{mark} {escape(ref)} · {escape(a.severity)}[/]: [b]{escape(a.title)}[/b]", classes="question")
+        meta = " · ".join(x for x in (self.label, a.tab_label or a.pane_id, a.asked_by, _age(a.created_at)) if x)
+        yield Static(escape(meta), classes="meta")
+        if a.message:
+            yield Static(escape(a.message), classes="question")
+        yield Static(id="alert-rows")
+        yield Static("Enter to select · ↑/↓ to navigate · g go to agent · Esc to cancel", classes="hint")
+
+    def on_mount(self) -> None:
+        self.armed_at = time.monotonic() + ARM_SECONDS
+        self.render_rows()
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        return action not in ("select", "pick") or _armed(self)
+
+    @property
+    def labels(self) -> tuple[str, str]:
+        if self.alert.kind == "blocked":
+            return ("Go to the agent (it is waiting at a prompt there)", "Dismiss (it shows again if it waits again)")
+        return ("Acknowledge (the agent sees it in check_answers)", "Go to the agent")
+
+    def render_rows(self) -> None:
+        lines = []
+        for k, label in enumerate(self.labels):
+            here = k == self.cursor
+            text = f"[b $inbox-suggestion]{label}[/]" if here else f"[$foreground]{label}[/]"
+            lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
+        self.query_one("#alert-rows", Static).update("\n".join(lines))
+
+    def action_move(self, delta: int) -> None:
+        self.cursor = (self.cursor + delta) % 2
+        self.render_rows()
+
+    def action_pick(self, k: int) -> None:
+        self.cursor = k
+        self.action_select()
+
+    def action_select(self) -> None:
+        goto = (self.cursor == 0) == (self.alert.kind == "blocked")
+        self.post_message((self.Goto if goto else self.Ack)(self.alert.id))
+
+    def action_back(self) -> None:
+        _close(self.app)
+
+
 class ConfirmDismiss(ModalScreen[bool]):
     """One-key confirmation: only y dismisses; any other key keeps it."""
 
@@ -815,6 +897,8 @@ class GroupListView(Vertical, can_focus=True):
                 line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
             return f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
                 f"{escape(service.first_line(q.answer or '', 40))}[/dim]"
+        if entry[0] in ("alert", "ralert"):
+            return self._alert_row(cur, number, here, entry, closed)
         if entry[0] == "remote":
             return self._remote_row(cur, number, here, entry, closed)
         if entry[0] == "routbox":
@@ -845,6 +929,22 @@ class GroupListView(Vertical, can_focus=True):
         detail = " · ".join([where] + ([escape(first.asked_by)] if first.asked_by else []) + ([chips] if chips else []))
         return f"{line1}\n      [dim]{detail}[/dim]"
 
+    def _alert_row(self, cur: str, number: str, here: bool, entry: Entry, closed: str | None) -> str:
+        a, label = self.inbox._alert(entry)
+        ref = f"{label}:A{entry[1].split('|')[-1]}" if entry[0] == "ralert" else f"A{entry[1]}"
+        if closed or a is None or a.status != "open":
+            return f"{cur} {number} [dim]✓ {escape(ref)} · {escape(closed or (a.status if a else 'gone'))}[/dim]"
+        style = SEVERITY_STYLE.get(a.severity, "$inbox-warning")
+        mark = "⏸" if a.kind == "blocked" else "⚑"
+        head = f"{mark} {ref} · {a.severity} · {a.title}"
+        line1 = f"{cur} {number} " + (f"[b {style}]{escape(head)}[/]" if here else f"[{style}]{escape(head)}[/]")
+        detail = [x for x in (a.tab_label or a.pane_id, a.asked_by, _age(a.created_at)) if x]
+        if entry[0] == "ralert":
+            tail = "open it from herdr's machine view" if a.kind == "blocked" else "Enter to acknowledge"
+        else:
+            tail = "g goes there" if a.kind == "blocked" else "Enter to acknowledge · g goes there"
+        return f"{line1}\n      [dim]{escape(' · '.join(detail))} · {tail}[/dim]"
+
     def _remote_row(self, cur: str, number: str, here: bool, entry: Entry, closed: str | None) -> str:
         found = remote.group_by_key(self.inbox.store, entry[1])
         if closed or not found:
@@ -868,7 +968,7 @@ class GroupListView(Vertical, can_focus=True):
         if closed or row is None:
             return f"{cur} {number} [dim]✓ {escape(closed or 'sent')}[/dim]"
         label = escape(row.get("label") or row["machine_id"])
-        ref = f"{label}:Q{row['remote_id']}"
+        ref = f"{label}:{'A' if row['action'] == 'ack_alert' else 'Q'}{row['remote_id']}"
         if row["state"] == "queued" and row.get("sending_at"):
             head = f"⏳ {ref} {row['action']} · sending to {label} now"
             return f"{cur} {number} " + (f"[b $inbox-suggestion]{escape(head)}[/]" if here else f"[$foreground]{escape(head)}[/]")
@@ -1140,6 +1240,13 @@ class InboxApp(App):
     def _live(self) -> tuple[list[Question], list[Question]]:
         return self.store.list(), self.store.failed_deliveries()
 
+    def _alert_entries(self) -> list[Entry]:
+        try:
+            return ([("alert", a.id) for a in alerts.open_alerts(self.store)]
+                    + [("ralert", f"{m['id']}|{a['id']}") for m, a in remote.open_alerts(self.store)])
+        except sqlite3.Error:
+            return []
+
     def _remote_entries(self) -> list[Entry]:
         """Remote machines' open groups and queued/failed actions (the local mirror only)."""
         try:
@@ -1205,7 +1312,7 @@ class InboxApp(App):
         except sqlite3.OperationalError:
             open_qs, failed = [], []
             self.notify(BUSY, severity="warning")
-        self.entries = entry_order(open_qs, failed, self.focus_pane) + self._remote_entries()
+        self.entries = self._alert_entries() + entry_order(open_qs, failed, self.focus_pane) + self._remote_entries()
         target = None
         try:
             request = deeplink.consume_request()  # `inbox open --question …` (deeplink.py)
@@ -1242,7 +1349,7 @@ class InboxApp(App):
                 return cur is not None and cur in self.entries and cur not in self.closed
             if self.mode == "group":  # only on a live question tab (never on a placeholder)
                 return self.current is not None and self.current != SUBMIT and self.current not in self.gone
-            return action == "goto" and self.mode == "failed"
+            return action == "goto" and self.mode in ("failed", "alert")
         return True
 
     async def on_event(self, event: events.Event) -> None:
@@ -1294,6 +1401,16 @@ class InboxApp(App):
     def open_group(self, entry: Entry, start_qid: int | None = None) -> None:
         """Enter a group (the operator chose it, or it is the only one): its questions as tabs."""
         self.list_cursor = entry
+        if entry[0] in ("alert", "ralert"):
+            a, label = self._alert(entry)
+            if a is None or a.status != "open":
+                self.show_list(entry)
+                return
+            self.mode, self.entry = "alert", entry
+            self.tabs, self.current = [], None
+            self.render_chips()
+            self._mount(AlertView(a, label))
+            return
         if entry[0] in ("routbox", "rproblem"):
             self.notify("This is on a remote machine; d clears it here")
             return
@@ -1413,7 +1530,7 @@ class InboxApp(App):
         if self._unmounted or not self.screen_stack:
             return  # tearing down (a late timer tick): nothing to update
         open_qs, failed = self._live()
-        current = entry_order(open_qs, failed, None) + self._remote_entries()
+        current = self._alert_entries() + entry_order(open_qs, failed, None) + self._remote_entries()
         live = set(current)
         for e in self.entries:
             if e not in live and e not in self.closed:
@@ -1433,6 +1550,14 @@ class InboxApp(App):
             if self.entry in self.closed and not self.base.query(GoneView):
                 self.grace_until = time.monotonic() + GRACE_SECONDS
                 self._mount(GoneView(f"Q{self.entry[1]}", self.closed[self.entry]))
+        elif self.mode == "alert":
+            if self.entry in self.closed and not self.base.query(GoneView):
+                self.grace_until = time.monotonic() + GRACE_SECONDS
+                mid, _, aid = str(self.entry[1]).rpartition("|")
+                label = mid and (self.store.db.execute("SELECT label FROM remote_machines WHERE machine_id = ?",
+                                                       (mid,)).fetchone() or [mid])[0]
+                ref = f"{label}:A{aid}" if label else f"A{aid}"
+                self._mount(GoneView(ref, self.closed[self.entry]))
         elif self.mode == "group":
             self._poll_group({q.id for q in open_qs})
         elif self.mode == "remote" and not self.base.query(GoneView):
@@ -1445,6 +1570,10 @@ class InboxApp(App):
                 self._mount(GoneView(f"{m.get('label')}:Q{data['id']}", "closed on the remote machine"))
 
     def _entry_reason(self, entry: Entry) -> str:
+        if entry[0] in ("alert", "ralert"):
+            a = self._alert(entry)[0]
+            return {"acked": "acknowledged", "withdrawn": "withdrawn by the agent",
+                    "cleared": "no longer waiting"}.get(a.status if a else "", "closed")
         if entry[0] == "remote":
             return "answered or closed"
         if entry[0] == "routbox":
@@ -1514,7 +1643,7 @@ class InboxApp(App):
     async def action_back(self) -> None:
         """Esc: from a group or ⚠ entry back to the list (or, when the popup opened straight
         into the only group, close it); from the list, close the popup. Never sends."""
-        if self.mode in ("group", "failed", "remote") and not self.direct:
+        if self.mode in ("group", "failed", "remote", "alert") and not self.direct:
             self.show_list(self.list_cursor)
             return
         await self.action_quit()
@@ -1577,6 +1706,45 @@ class InboxApp(App):
         if not found:
             self.closed[self.entry] = f"answered · sending to {label}"
         self.back_to_list()
+
+    def _alert(self, entry: Entry):
+        """(alert, machine label or None) for an ("alert", id) or ("ralert", "mid|id") entry."""
+        if entry[0] == "alert":
+            return alerts.get(self.store, entry[1]), None
+        found = remote.alert_by_key(self.store, entry[1])
+        if not found:
+            return None, None
+        m, data = found
+        return remote.as_alert(data), m.get("label") or m["id"]
+
+    def _ack_entry(self, entry: Entry) -> None:
+        if entry[0] == "alert":
+            alerts.acknowledge(self.store, entry[1])
+        else:
+            found = remote.alert_by_key(self.store, entry[1])
+            if found:
+                try:
+                    with self.store.transaction():
+                        remote.enqueue_alert_ack(self.store, found[0]["id"], found[1])
+                except LookupError as exc:
+                    self.notify(str(exc), severity="warning")
+                    return
+        self.closed[entry] = "acknowledged"
+
+    @guarded
+    def on_alert_view_ack(self, event: AlertView.Ack) -> None:
+        if self.mode != "alert" or self.entry is None or self.entry in self.closed:
+            return
+        self._ack_entry(self.entry)
+        self.back_to_list()
+
+    def on_alert_view_goto(self, event: AlertView.Goto) -> None:
+        if self.entry and self.entry[0] == "ralert":
+            self.notify("That agent runs on a remote machine: open it from herdr's machine view")
+            return
+        a = alerts.get(self.store, event.aid)
+        if a is not None:
+            self._focus_pane(a)
 
     def _sent(self, entry: Entry | None, whole: bool) -> None:
         """After the operator's send: back to the list now (not when the send finishes). A
@@ -1644,7 +1812,14 @@ class InboxApp(App):
         else:
             self.exit()  # the question stays open; discuss it in the agent's chat
 
-    def _entry_question(self, entry: Entry) -> Question | None:
+    def _entry_question(self, entry: Entry):
+        if entry[0] == "alert":
+            return alerts.get(self.store, entry[1])
+        if entry[0] == "ralert":
+            return None
+        return self._entry_question_q(entry)
+
+    def _entry_question_q(self, entry: Entry) -> Question | None:
         if entry[0] == "failed":
             return self.store.get(entry[1])
         qs = self.store.group(entry[1])
@@ -1652,7 +1827,7 @@ class InboxApp(App):
 
     def action_goto(self) -> None:
         cur = self.entry if self.mode == "remote" else (self._list_view().cursor if self.mode == "list" and self._list_view() else None)
-        if cur and cur[0] in ("remote", "routbox"):
+        if cur and cur[0] in ("remote", "routbox", "ralert"):
             self.notify("That agent runs on a remote machine: open it from herdr's machine view")
             return
         if self.mode == "list":
@@ -1661,6 +1836,11 @@ class InboxApp(App):
                 self._focus_pane(self._entry_question(view.cursor))
         elif self.mode == "failed" and self.entry:
             self._focus_pane(self.store.get(self.entry[1]))
+        elif self.mode == "alert" and self.entry:
+            if self.entry[0] == "ralert":
+                self.notify("That agent runs on a remote machine: open it from herdr's machine view")
+            else:
+                self._focus_pane(alerts.get(self.store, self.entry[1]))
         elif self.current and self.current != SUBMIT:
             self._focus_pane(self.store.get(self.current[1]))
 
@@ -1668,6 +1848,10 @@ class InboxApp(App):
         if self.mode == "list":
             view = self._list_view()
             entry = view.cursor if view else None
+            if entry and entry[0] in ("alert", "ralert") and entry not in self.closed:
+                self._ack_entry(entry)  # an alert: d acknowledges it (nothing is lost)
+                view.render_rows()
+                return
             if entry and entry[0] == "routbox" and entry not in self.closed:
                 row = next((r for r in remote.outbox_rows(self.store) if r["request_id"] == entry[1]), None)
                 if not remote.clearable(self.store, entry[1]):

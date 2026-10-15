@@ -593,3 +593,76 @@ def test_l2_a_reachable_already_sent_expired_row_goes_to_the_status_query(store,
     remote.flush(store, M)
     assert [r["action"] for r in sent] == ["status"]  # never an apply
     assert remote_db.get(q).status == "open"
+
+
+def ralert(store, aid):
+    row = store.db.execute("SELECT * FROM remote_alerts WHERE alert_id = ?", (aid,)).fetchone()
+    return {**json.loads(row["data_json"]), "_db_id": row["db_id"], "_status": row["status"]}
+
+
+def test_a_remote_alert_is_mirrored_notified_once_and_acked_through_the_outbox(store, remote_db, fake_herdr):
+    from herdr_inbox import alerts
+
+    aid = alerts.raise_alert(remote_db, A, "[E2E TEST] check disk", "92%", "urgent")["id"]
+    fake_herdr.reset()
+    assert remote.pull(store, M) and remote.pull(store, M)
+    assert [n for n in notes(fake_herdr) if "A" in n] == [f"moneylust · A{aid} · urgent · tab-A"]
+    data = ralert(store, aid)
+    assert data["title"] == "[E2E TEST] check disk" and data["_status"] == "open"
+    rid = remote.enqueue_alert_ack(store, "m1", data)
+    remote.pull(store, M)  # the ack is still queued: the mirror keeps it acknowledged
+    assert remote.open_alerts(store) == []
+    remote.flush(store, M)
+    assert tuple(store.db.execute("SELECT state, result FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()) \
+        == ("done", "applied")
+    assert alerts.get(remote_db, aid).status == "acked"
+    store.db.execute("UPDATE remote_outbox SET state = 'queued' WHERE request_id = ?", (rid,))
+    remote.flush(store, M)  # a lost reply: the same request is a no-op there
+    assert store.db.execute("SELECT result FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()[0] == "already_applied"
+
+
+def test_a_withdrawn_remote_alert_leaves_the_popup_and_a_stale_ack_is_refused(store, remote_db, fake_herdr):
+    from herdr_inbox import alerts
+
+    aid = alerts.raise_alert(remote_db, A, "[E2E TEST] look")["id"]
+    remote.pull(store, M)
+    data = ralert(store, aid)
+    alerts.withdraw(remote_db, A, aid)
+    rid = remote.enqueue_alert_ack(store, "m1", data)
+    remote.flush(store, M)
+    assert tuple(store.db.execute("SELECT state, result FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()) \
+        == ("rejected", "withdrawn")
+    remote.pull(store, M)
+    assert remote.open_alerts(store) == []
+    with pytest.raises(LookupError):
+        remote.enqueue_alert_ack(store, "m1", {**data, "akey": "0" * 32})
+
+
+def test_hostile_alert_rows_are_dropped():
+    good = {"id": 1, "akey": "a" * 32, "status": "open", "title": "t‮x", "severity": "evil", "kind": "x"}
+    out = remote.clean_alerts([good, {"id": "1"}, {"id": 2, "akey": "zz", "status": "open"},
+                               {"id": 3, "akey": "b" * 32, "status": "boom"}])
+    assert len(out) == 1 and out[0]["severity"] == "warning" and out[0]["kind"] == "agent" and "‮" not in out[0]["title"]
+    assert remote.clean_alerts(None) is None  # an older remote sends none: the mirror is left alone
+
+
+async def test_popup_acknowledges_a_remote_alert(store, remote_db, fake_herdr):
+    from herdr_inbox import alerts
+
+    aid = alerts.raise_alert(remote_db, A, "[E2E TEST] remote alert")["id"]
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local 2?")
+    remote.pull(store, M)
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert f"⚑ moneylust:A{aid} · warning · [E2E TEST] remote alert" in app.query_one(GroupListView).body_text()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.mode == "alert"
+        await pilot.press("g")  # remote: never focuses a local pane
+        await pilot.press("1")
+        await pilot.pause()
+        assert app.mode == "list"
+    assert store.db.execute("SELECT action, state FROM remote_outbox").fetchone()[:] == ("ack_alert", "queued")
+    assert not fake_herdr.calls_of("agent", "focus") and not fake_herdr.calls_of("agent", "prompt")
