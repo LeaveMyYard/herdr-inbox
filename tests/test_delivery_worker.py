@@ -99,7 +99,9 @@ def test_an_old_servers_unverified_ack_is_requeued_and_delivered(store, fake_her
     worker's reconcile un-sees it AND puts it back for delivery (the live 11-minute gap)."""
     qid = service.ask(store, A, "Merge it?", options=["yes"])["id"]
     store.set_answer(qid, "yes")
-    t = now()
+    from datetime import timedelta
+
+    t = now(-timedelta(seconds=60))  # settled: older than the verify window
     store.db.execute("UPDATE questions SET delivered_at = ?, acknowledged_at = ? WHERE id = ?", (t, t, qid))
     monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
     worker.tick(store)
@@ -182,7 +184,7 @@ def test_herdr_startup_ensures_the_worker():
 def test_every_answer_or_send_ensures_the_worker(store, fake_herdr, monkeypatch, live_session):
     """M1: a worker that idled out must come back as soon as the operator answers."""
     started = []
-    monkeypatch.setattr(worker, "ensure", lambda: started.append(1) or True)
+    monkeypatch.setattr(worker, "ensure", lambda *a: started.append(1) or True)
     qid = pending_answer(store, monkeypatch)  # service.answer
     assert started
     started.clear()
@@ -206,7 +208,7 @@ def test_a_worker_that_idles_out_with_new_work_starts_a_successor(fake_herdr, mo
     monkeypatch.setattr(worker, "tick", tick)
     monkeypatch.setattr(worker, "_pending_now", lambda: 1)  # ...but an answer just arrived
     started = []
-    monkeypatch.setattr(worker, "ensure", lambda: started.append(1) or True)
+    monkeypatch.setattr(worker, "ensure", lambda *a: started.append(1) or True)
     assert worker.run() == 0
     assert started == [1]
 
@@ -275,14 +277,170 @@ def test_an_agent_at_a_prompt_gets_a_waiting_notification(store, fake_herdr, mon
     assert len(shows) == 1 and "is at a prompt" in shows[0][2] and "check_answers" not in shows[0][4]
 
 
-def test_the_worker_exits_when_the_installed_version_changes(fake_herdr, monkeypatch):
-    """Low: an older worker must not keep running the old policy after an update."""
+def test_the_worker_hands_over_when_the_disk_version_differs_from_its_own(fake_herdr, monkeypatch):
+    """Low (L1): compare the RUNNING code's version with the version on disk."""
     monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
     monkeypatch.setattr(worker, "TICK", 0.0)
-    versions = iter(["0.6.1", "0.6.1", "0.6.2"])
-    monkeypatch.setattr(worker, "installed_version", lambda: next(versions, "0.6.2"))
+    monkeypatch.setattr(worker, "running_version", lambda: "0.6.1")
+    disk = iter(["0.6.1", "0.6.2"])
+    monkeypatch.setattr(worker, "installed_version", lambda: next(disk, "0.6.2"))
     monkeypatch.setattr(worker, "tick", lambda store: 1)  # always something pending
     successors = []
-    monkeypatch.setattr(worker, "start_successor", lambda: successors.append(1))
+    monkeypatch.setattr(worker, "start_successor", lambda: successors.append(1) or True)
     assert worker.run() == 0
     assert successors == [1]
+
+
+def test_no_handover_loop_when_no_successor_can_start(fake_herdr, monkeypatch):
+    monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
+    monkeypatch.setattr(worker, "TICK", 0.0)
+    monkeypatch.setattr(worker, "running_version", lambda: "0.6.1")
+    monkeypatch.setattr(worker, "installed_version", lambda: "0.6.2")
+    ticks = {"n": 0}
+
+    def tick(store):
+        ticks["n"] += 1
+        if ticks["n"] >= 4:
+            raise KeyboardInterrupt  # stop the test loop: the worker kept running
+        return 1
+
+    monkeypatch.setattr(worker, "tick", tick)
+    monkeypatch.setattr(worker, "start_successor", lambda: False)  # e.g. no uv
+    with pytest.raises(KeyboardInterrupt):
+        worker.run()
+    assert ticks["n"] == 4
+
+
+# -- final pass of #15 -----------------------------------------------------------------------
+
+
+def _signature(store, qid, seconds_ago):
+    from datetime import timedelta
+
+    t = now(-timedelta(seconds=seconds_ago))
+    store.db.execute("UPDATE questions SET delivered_at = ?, acknowledged_at = ? WHERE id = ?", (t, t, qid))
+
+
+def test_h1_a_just_typed_old_server_delivery_is_not_requeued_before_it_settles(store, fake_herdr, monkeypatch, live_session):
+    """H1 race: the old server wrote delivered=acked a moment before Claude Code wrote the
+    transcript record; requeuing then would type it twice."""
+    qid = service.ask(store, A, "Late?", options=["yes"])["id"]
+    store.set_answer(qid, "yes")
+    _signature(store, qid, 0)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    worker.tick(store)  # not settled: left alone
+    assert prompts(fake_herdr) == [] and store.get(qid).acknowledged_at
+    with open(live_session, "a") as fh:  # ...the original lands
+        fh.write(json.dumps({"type": "user", "message": {"content": f"[inbox] Q{qid} answered — Late?: yes"}}) + "\n")
+    _signature(store, qid, 60)
+    worker.tick(store)
+    assert prompts(fake_herdr) == [] and store.get(qid).verified_at
+
+
+def test_h1_no_transcript_means_un_see_only_never_retype(store, fake_herdr, monkeypatch, live_session):
+    from herdr_inbox import transcript
+
+    qid = service.ask(store, A, "Blind?", options=["yes"])["id"]
+    store.set_answer(qid, "yes")
+    _signature(store, qid, 60)
+    monkeypatch.setattr(transcript, "find", lambda *a, **k: None)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    worker.tick(store)
+    q = store.get(qid)
+    assert prompts(fake_herdr) == [] and q.acknowledged_at is None and q.delivered_at
+
+
+def test_h1_a_retry_checks_the_transcript_before_typing_again(store, fake_herdr, monkeypatch, live_session):
+    """A NOT_VERIFIED answer whose record landed after the verify window: verified, not retyped."""
+    monkeypatch.setenv("FAKE_HERDR_LAND", "none")
+    qid = pending_answer(store, monkeypatch, status="idle")
+    assert store.get(qid).delivery_error == service.NOT_VERIFIED and len(prompts(fake_herdr)) == 1
+    with open(live_session, "a") as fh:  # the late record
+        fh.write(json.dumps({"type": "user", "message": {"content": f"[inbox] Q{qid} answered — x: yes"}}) + "\n")
+    worker.tick(store)
+    assert len(prompts(fake_herdr)) == 1 and store.get(qid).verified_at
+
+
+def test_m1_the_lock_is_per_herdr_server(fake_herdr, monkeypatch, tmp_path):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "a.sock"))
+    a = worker.hold_lock()
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "b.sock"))
+    b = worker.hold_lock()
+    try:
+        assert a is not None and b is not None  # one worker per server
+    finally:
+        a.close()
+        b.close()
+
+
+def test_m1_questions_record_their_herdr_server(store, fake_herdr, monkeypatch, tmp_path):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "a.sock"))
+    qid = service.ask(store, A, "Where?")["id"]
+    assert store.server_of(qid) == str(tmp_path / "a.sock")
+
+
+def test_m1_a_worker_leaves_other_servers_rows_alone(store, fake_herdr, monkeypatch, tmp_path, live_session):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "other.sock"))
+    qid = pending_answer(store, monkeypatch)
+    attempts = store.get(qid).delivery_attempts
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "mine.sock"))
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    fake_herdr.reset()
+    for _ in range(3):
+        worker.tick(store)
+    assert prompts(fake_herdr) == [] and store.get(qid).delivery_attempts == attempts
+    assert not fake_herdr.calls_of("agent", "get")  # not even looked up on the wrong server
+
+
+def test_m1_legacy_rows_need_a_matching_session(store, fake_herdr, monkeypatch, live_session):
+    """Rows asked before 0.6.1 carry no server: only a live session match may type them."""
+    qid = pending_answer(store, monkeypatch)
+    store.db.execute("UPDATE question_ext SET herdr_server = NULL WHERE id = ?", (qid,))
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "someone-else")  # that pane id, another conversation
+    worker.tick(store)
+    q = store.get(qid)
+    assert prompts(fake_herdr) == [] and q.delivery_attempts == 0  # no caps burnt
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    worker.tick(store)
+    assert store.get(qid).verified_at
+    qid2 = pending_answer(store, monkeypatch)
+    store.db.execute("UPDATE question_ext SET herdr_server = NULL WHERE id = ?", (qid2,))
+    store.db.execute("UPDATE questions SET session_id = NULL WHERE id = ?", (qid2,))
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    n = len(prompts(fake_herdr))
+    worker.tick(store)
+    assert len(prompts(fake_herdr)) == n  # never a pane-id-only match
+
+
+def test_m2_spawns_do_not_inherit_the_mcp_venv(fake_herdr, monkeypatch):
+    monkeypatch.delenv("HERDR_INBOX_NO_WORKER")
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/data/venv-0.6.1")
+    monkeypatch.setenv("VIRTUAL_ENV", "/data/venv-0.6.1")
+    spawned = []
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: spawned.append(k))
+    worker.ensure()
+    assert worker.start_successor() is True
+    for kwargs in spawned:
+        env = kwargs["env"]
+        assert "UV_PROJECT_ENVIRONMENT" not in env and "VIRTUAL_ENV" not in env
+
+
+def test_l3_the_focus_check_is_repeated_right_before_typing(store, fake_herdr, monkeypatch, live_session):
+    from herdr_inbox import herdr
+
+    qid = pending_answer(store, monkeypatch)
+    real = herdr.live_agent
+    seen = {"n": 0}
+
+    def live_agent(pane):
+        agent = real(pane)
+        seen["n"] += 1
+        if agent and seen["n"] > 1:
+            agent = {**agent, "focused": True}  # the operator stepped into the pane meanwhile
+        return agent
+
+    monkeypatch.setattr(herdr, "live_agent", live_agent)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    service.retry_deliveries(store, "w1:p1")
+    assert prompts(fake_herdr) == [] and "operator" in store.get(qid).delivery_error

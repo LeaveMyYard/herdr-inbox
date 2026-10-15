@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS question_ext (
     reset_count     INTEGER,
     pending_since   TEXT,
     busy_attempts   INTEGER,
-    notified_at     TEXT
+    notified_at     TEXT,
+    herdr_server    TEXT
 );
 -- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
 -- is verified by finding the typed answer in it.
@@ -104,7 +105,7 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -157,7 +158,8 @@ RESET_KEY = "0.5.1 unverified acknowledgements reset"
 RESET_WINDOW = timedelta(days=7)
 SIGNATURE_WINDOW = timedelta(hours=24)
 RECONCILE_BATCH = 200  # rows per open; the 7-day sweep is done only once a pass sees fewer
-REQUEUE_WINDOW = timedelta(hours=1)  # an old server's unlanded delivery this recent is sent again
+REQUEUE_WINDOW = timedelta(hours=1)
+REQUEUE_SETTLE = timedelta(seconds=20)  # > service.VERIFY_SECONDS: the record may still be on its way  # an old server's unlanded delivery this recent is sent again
 REQUEUED = "pending: requeued: an earlier delivery never reached the conversation; sending when the agent is idle"
 MAX_RESETS = 2
 # A delivery claim older than this belongs to a process that died mid-send.
@@ -552,20 +554,26 @@ class Store:
         - Always: rows with the signature of a pre-0.5.1 server, still running in sessions
           started before the update (``acknowledged_at = delivered_at``, set together on
           "send"), from the last 24 h.
-        Each is looked up in its session's transcript: found → marked verified; not found
-        (or no transcript) → un-seen, so check_answers returns it. A row is reset at most
-        MAX_RESETS times, so an old server can never make this loop (and un-seen rows are not
-        re-typed by anyone: they are already marked delivered).
+        A row is looked at only once its delivery is REQUEUE_SETTLE old (Claude Code writes
+        the transcript record a moment after the old server's DB write). Each is looked up in
+        its session's transcript: found → marked verified; not found → un-seen, so
+        check_answers returns it. Only when the transcript was actually read, the delivery
+        was an old server's "typed = seen" (``acknowledged_at = delivered_at``) and is less
+        than REQUEUE_WINDOW old, is it also put back for delivery (REQUEUED: at idle/done,
+        and deliver_batch checks the transcript once more before typing). Without a
+        transcript it is only un-seen, never retyped blind. A row is reset at most
+        MAX_RESETS times, so an old server can never make this loop.
         """
         one_off = not self.db.execute("SELECT 1 FROM meta WHERE key = ?", (RESET_KEY,)).fetchone()
         rows = self.db.execute(
             "SELECT q.id, q.session_id, (q.acknowledged_at = q.delivered_at AND q.delivered_at >= ?)"
             " FROM questions q LEFT JOIN question_ext e ON e.id = q.id"
             " WHERE q.delivered_at IS NOT NULL AND q.acknowledged_at IS NOT NULL AND e.verified_at IS NULL"
-            " AND COALESCE(e.reset_count, 0) < ?"
+            " AND COALESCE(e.reset_count, 0) < ? AND q.delivered_at <= ?"
             " AND ((? AND q.answered_at >= ?) OR (q.acknowledged_at = q.delivered_at AND q.delivered_at >= ?))"
             " ORDER BY q.id LIMIT ?",
-            (now(-REQUEUE_WINDOW), MAX_RESETS, int(one_off), now(-RESET_WINDOW), now(-SIGNATURE_WINDOW),
+            (now(-REQUEUE_WINDOW), MAX_RESETS, now(-REQUEUE_SETTLE), int(one_off), now(-RESET_WINDOW),
+             now(-SIGNATURE_WINDOW),
              RECONCILE_BATCH),
         ).fetchall()
         if not rows and not one_off:
@@ -576,17 +584,19 @@ class Store:
         for qid, session, _ in rows:
             by_session.setdefault(session, []).append(qid)
         found: set[int] = set()
+        read: set[int] = set()  # rows whose transcript was actually read
         for session, qids in by_session.items():
             path = transcript.find(session, self.session_transcript(session))
             if path is not None:
                 found |= transcript.landed_ids(path, qids)
+                read |= set(qids)
         with self.transaction():
             for qid, _, recent_signature in rows:
                 if qid in found:
                     self.db.execute(
                         "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
                         " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at", (qid, qid, now()))
-                elif recent_signature:
+                elif recent_signature and qid in read:
                     # an old server typed it and called it seen; it never landed: deliver it
                     # again (the worker waits for idle; claims keep old servers from doubling)
                     self.db.execute("UPDATE questions SET acknowledged_at = NULL, delivered_at = NULL,"
@@ -618,6 +628,15 @@ class Store:
             # sent where no transcript could be found: most likely landed, not 'not delivered'
             " AND NOT (delivered_at IS NOT NULL AND delivery_error IS NULL) ORDER BY id").fetchall()
         return [Question.from_row(r) for r in rows]
+
+    def set_server(self, qid: int, server: str | None) -> None:
+        """The herdr server (its socket) the question was asked on: only that server's
+        delivery worker types it."""
+        self.db.execute("UPDATE question_ext SET herdr_server = ? WHERE id = ?", (server, qid))
+
+    def server_of(self, qid: int) -> str | None:
+        row = self.db.execute("SELECT herdr_server FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return row[0] if row else None
 
     def notified(self, qid: int) -> bool:
         row = self.db.execute("SELECT notified_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
