@@ -23,6 +23,7 @@ BASELINE = {
     "applied_requests": {"request_id", "qid", "outcome", "reason", "at"},
     "alerts": {"id", "created_at", "kind", "severity", "title", "message", "pane_id", "tab_id", "tab_label",
                "session_id", "asked_by", "herdr_server", "status", "acked_at", "closed_at", "reported_at"},
+    "blocked_panes": {"herdr_server", "pane_id", "since"},
     "remote_alerts": {"machine_id", "db_id", "alert_id", "akey", "status", "data_json", "first_seen_at"},
     "remote_machines": {"machine_id", "label", "target", "db_id", "cursor_seq", "version", "uv", "herdr",
                         "plugin_root", "pulls", "failures", "last_ok_at", "last_error", "last_try_at", "backoff_until"},

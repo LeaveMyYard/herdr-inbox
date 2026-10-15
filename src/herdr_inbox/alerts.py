@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from . import herdr, service
 from .store import Store, now
@@ -145,8 +146,17 @@ def mine(store: Store, caller) -> list[Alert]:
 # -- automatic alerts for agents at a blocking prompt ---------------------------------------
 
 CLEAR_AFTER = 10.0  # a pane counts as unblocked after this long AND two ticks: no flapping
-_blocked_since: dict[str, float] = {}  # pane -> when its current prompt was first seen
-_unblocked: dict[str, tuple[float, int]] = {}  # pane -> (first non-blocked sighting, ticks since)
+# When each pane's current prompt was first seen lives in the table `blocked_panes`, so a
+# worker restart or hand-over does not restart the BLOCKED_AFTER clock. The hysteresis
+# memory below may reset with the process: that only delays a clear.
+_unblocked: dict[tuple[str, str], tuple[float, int]] = {}  # (server, pane) -> (first non-blocked sighting, ticks)
+
+
+def _age(iso: str) -> float:
+    try:
+        return (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds()
+    except ValueError:
+        return 0.0
 
 
 def scan_blocked(store: Store) -> int:
@@ -164,19 +174,25 @@ def scan_blocked(store: Store) -> int:
     present = {a["pane_id"] for a in agents}
     blocked = {a["pane_id"]: a for a in agents if a.get("agent_status") == "blocked"}
     t = time.monotonic()
-    for pane in list(_blocked_since):
-        if pane in blocked:
-            _unblocked.pop(pane, None)
-            continue
-        first, ticks = _unblocked.get(pane, (t, 0))
-        _unblocked[pane] = (first, ticks + 1)
-        if pane not in present or (ticks + 1 >= 2 and t - first >= CLEAR_AFTER):
-            del _blocked_since[pane]
-            _unblocked.pop(pane, None)
-    for pane in blocked:
-        _blocked_since.setdefault(pane, t)
-    waiting = set(_blocked_since)  # blocked now, or within the hysteresis
     server = herdr.server_id()
+    since = {r[0]: r[1] for r in store.db.execute(
+        "SELECT pane_id, since FROM blocked_panes WHERE herdr_server = ?", (server,)).fetchall()}
+    for pane in list(since):
+        if pane in blocked:
+            _unblocked.pop((server, pane), None)
+            continue
+        first, ticks = _unblocked.get((server, pane), (t, 0))
+        _unblocked[(server, pane)] = (first, ticks + 1)
+        if pane not in present or (ticks + 1 >= 2 and t - first >= CLEAR_AFTER):
+            store.db.execute("DELETE FROM blocked_panes WHERE herdr_server = ? AND pane_id = ?", (server, pane))
+            del since[pane]
+            _unblocked.pop((server, pane), None)
+    for pane in blocked:
+        if pane not in since:
+            since[pane] = now()
+            store.db.execute("INSERT OR IGNORE INTO blocked_panes (herdr_server, pane_id, since) VALUES (?, ?, ?)",
+                             (server, pane, since[pane]))
+    waiting = set(since)  # blocked now, or within the hysteresis
     scope = " AND COALESCE(herdr_server, ?) = ?"
     open_auto = {r[0]: r[1] for r in store.db.execute(
         "SELECT pane_id, id FROM alerts WHERE status = 'open' AND kind = 'blocked'" + scope, (server, server)).fetchall()}
@@ -193,7 +209,7 @@ def scan_blocked(store: Store) -> int:
         "SELECT pane_id FROM alerts WHERE kind = 'blocked' AND status = 'acked' AND closed_at IS NULL" + scope,
         (server, server))}
     for pane, agent in blocked.items():
-        if pane in open_auto or pane in dismissed or t - _blocked_since[pane] < BLOCKED_AFTER:
+        if pane in open_auto or pane in dismissed or _age(since[pane]) < BLOCKED_AFTER:
             continue
         tab_label = None
         if agent.get("tab_id"):

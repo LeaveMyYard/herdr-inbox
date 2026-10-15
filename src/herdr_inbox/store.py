@@ -133,6 +133,12 @@ CREATE TABLE IF NOT EXISTS alerts (
     reported_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS alerts_status ON alerts(status);
+CREATE TABLE IF NOT EXISTS blocked_panes (
+    herdr_server    TEXT NOT NULL,
+    pane_id         TEXT NOT NULL,
+    since           TEXT NOT NULL,
+    PRIMARY KEY (herdr_server, pane_id)
+);
 CREATE TABLE IF NOT EXISTS remote_alerts (
     machine_id      TEXT NOT NULL,
     db_id           TEXT NOT NULL,
