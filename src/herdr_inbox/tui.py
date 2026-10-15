@@ -1414,6 +1414,14 @@ class InboxApp(App):
                 self._mount(GoneView(f"Q{self.entry[1]}", self.closed[self.entry]))
         elif self.mode == "group":
             self._poll_group({q.id for q in open_qs})
+        elif self.mode == "remote" and not self.base.query(GoneView):
+            m, data = self.remote_open
+            found = remote.group_by_key(self.store, self.entry[1])
+            if not found or all(q["id"] != data["id"] for q in found[1]):
+                # answered, withdrawn or dismissed over there: an inert placeholder, like a
+                # closed local tab (Enter does nothing; Esc goes back to the list)
+                self.grace_until = time.monotonic() + GRACE_SECONDS
+                self._mount(GoneView(f"{m.get('label')}:Q{data['id']}", "closed on the remote machine"))
 
     def _entry_reason(self, entry: Entry) -> str:
         if entry[0] == "remote":

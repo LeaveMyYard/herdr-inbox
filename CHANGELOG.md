@@ -14,6 +14,9 @@
   - Deep links accept `--question moneylust:Q12`.
 - `inbox remote install|upgrade <machine> [--ref]` installs or upgrades both plugins on a remote
   over ssh.
+- **Note:** after this update the delivery worker pulls every machine `herdr machine list` shows as
+  enabled, every 5 s (machines in parallel, each call capped at 10 s). A machine without the inbox
+  installed just shows as "not installed" in the popup.
 
 ## 0.6.3
 

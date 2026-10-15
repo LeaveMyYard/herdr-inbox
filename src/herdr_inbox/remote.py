@@ -170,7 +170,8 @@ CAPS = {"question": 4000, "header": 60, "tab_label": 120, "pane_id": 64, "asked_
         "delivered_at": 40, "verified_at": 40, "acknowledged_at": 40, "qkey": 64}
 STATUSES = ("open", "answered", "withdrawn", "dismissed")
 _HEX = re.compile(r"[0-9a-f]{8,64}")
-_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]")  # + bidi controls
+_LINESEP = re.compile(r"[\u2028\u2029]")
 
 
 def settings() -> dict:
@@ -194,7 +195,7 @@ def _text(value, cap: int) -> str | None:
         return None
     if not isinstance(value, str):
         raise ValueError("not a string")
-    return _CTRL.sub("", value)[:cap]
+    return _CTRL.sub("", _LINESEP.sub(" ", value))[:cap]
 
 
 def _clean_option(o):
@@ -405,6 +406,10 @@ def enqueue(store, machine_id: str, data: dict, action: str, detail: dict | None
                            (machine_id, data["id"])).fetchone()
     if row is None:
         raise LookupError("that remote question is gone")
+    # the identity of the question the operator SAW (carried in data), never whatever the
+    # mirror holds under that number now (a reset can put a different question there)
+    if row[1] != data.get("qkey") or row[0] != data.get("_db_id"):
+        raise LookupError("that question changed — reopen it")
     expires = _now() + _td(hours=settings()["expiry_hours"])
     store.db.execute(
         "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, detail_json, created_at,"
@@ -488,14 +493,36 @@ def sync_all(store) -> None:
             logging.getLogger("herdr_inbox").warning("remote %s", machine.get("label"), exc_info=True)
 
 
-def loop(stop=None) -> None:
-    """The worker's remote thread: pull and flush every ``remote_sync_seconds``."""
+def _sync_one(machine: dict) -> None:
     from .store import Store
 
+    try:
+        with Store(timeout=5, maintenance=False) as store:  # its own connection: its own thread
+            if pull(store, machine):
+                flush(store, machine)
+    except Exception:  # noqa: BLE001 - one machine never stops the others
+        import logging
+
+        logging.getLogger("herdr_inbox").warning("remote %s", machine.get("label"), exc_info=True)
+
+
+def sync_all_parallel() -> None:
+    """Every enabled machine at once (one thread each, capped), so one hung machine (up to
+    10 s per call) never delays the others' pulls."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    found = enabled_machines()
+    if not found:
+        return
+    with ThreadPoolExecutor(max_workers=min(8, len(found)), thread_name_prefix="inbox-remote") as pool:
+        list(pool.map(_sync_one, found))
+
+
+def loop(stop=None) -> None:
+    """The worker's remote thread: pull and flush every ``remote_sync_seconds``."""
     while stop is None or not stop.is_set():
         try:
-            with Store(timeout=5, maintenance=False) as store:
-                sync_all(store)
+            sync_all_parallel()
         except Exception:  # noqa: BLE001
             pass
         _time.sleep(settings()["sync_seconds"])
@@ -525,6 +552,7 @@ def open_groups(store) -> list[tuple[str, dict, list[dict]]]:
         for r in store.db.execute("SELECT db_id, data_json FROM remote_questions WHERE machine_id = ? AND status = 'open'"
                                   " ORDER BY remote_id", (m["machine_id"],)).fetchall():
             data = json.loads(r[1])
+            data["_db_id"] = r[0]  # the identity travels with what the popup shows
             if data["id"] in busy:
                 continue
             groups.setdefault((r[0], data["group"]), []).append(data)
