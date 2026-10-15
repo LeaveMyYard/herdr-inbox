@@ -29,6 +29,7 @@ import sqlite3
 import sys
 import subprocess
 import time
+from datetime import datetime
 
 from rich.markup import escape
 from textual import events
@@ -39,7 +40,7 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
-from . import deeplink, herdr, radar, service, tabs, trace
+from . import deeplink, herdr, radar, remote, service, tabs, trace
 from .store import AGENT_GONE, CLAIM_STALE, PENDING, Question, Store
 from .store import now as store_now
 
@@ -814,6 +815,10 @@ class GroupListView(Vertical, can_focus=True):
                 line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
             return f"{cur} {number} {line1}\n      [dim]{escape(service.first_line(q.question, 60))} → " \
                 f"{escape(service.first_line(q.answer or '', 40))}[/dim]"
+        if entry[0] == "remote":
+            return self._remote_row(cur, number, here, entry, closed)
+        if entry[0] == "routbox":
+            return self._outbox_row(cur, number, here, entry, closed)
         qs = store.group(entry[1], include_closed=True)
         first = qs[0] if qs else None
         where = escape(tab_name(first, store))
@@ -837,6 +842,37 @@ class GroupListView(Vertical, can_focus=True):
             chips = ""
         detail = " · ".join([where] + ([escape(first.asked_by)] if first.asked_by else []) + ([chips] if chips else []))
         return f"{line1}\n      [dim]{detail}[/dim]"
+
+    def _remote_row(self, cur: str, number: str, here: bool, entry: Entry, closed: str | None) -> str:
+        found = remote.group_by_key(self.inbox.store, entry[1])
+        if closed or not found:
+            mid = str(entry[1]).split("|")[0]
+            row = self.inbox.store.db.execute("SELECT label FROM remote_machines WHERE machine_id = ?", (mid,)).fetchone()
+            return f"{cur} {number} [dim]✓ {escape(row[0] if row and row[0] else mid)} · {escape(closed or 'closed')}[/dim]"
+        m, qs = found
+        first, label = qs[0], escape(m.get("label") or m["machine_id"])
+        name = escape(first.get("title") or first.get("header") or service.first_line(first["question"], 80))
+        head = f"{label}:Q{first['id']} {name} · {len(qs)} question{'s' if len(qs) != 1 else ''}"
+        line1 = f"{cur} {number} " + (f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]")
+        line1 += f" [dim]· {_age(first.get('created_at') or '')}[/dim]" if first.get("created_at") else ""
+        detail = [label] + [escape(x) for x in (first.get("tab_label"), first.get("asked_by")) if x]
+        note = remote.offline_note(m)
+        if note:
+            detail.append(f"[$inbox-warning]{escape(note)}[/]")
+        return f"{line1}\n      [dim]{' · '.join(detail)}[/dim]"
+
+    def _outbox_row(self, cur: str, number: str, here: bool, entry: Entry, closed: str | None) -> str:
+        row = next((r for r in remote.outbox_rows(self.inbox.store) if r["request_id"] == entry[1]), None)
+        if closed or row is None:
+            return f"{cur} {number} [dim]✓ {escape(closed or 'sent')}[/dim]"
+        label = escape(row.get("label") or row["machine_id"])
+        ref = f"{label}:Q{row['remote_id']}"
+        if row["state"] == "queued":
+            until = datetime.fromisoformat(row["expires_at"]).astimezone().strftime("%H:%M")
+            head = f"⏳ {ref} {row['action']} queued · sending to {label} · expires {until}"
+            return f"{cur} {number} " + (f"[b $inbox-suggestion]{escape(head)}[/]" if here else f"[$foreground]{escape(head)}[/]")
+        head = f"⚠ {ref} {row['action']} {row['state']}: {row.get('result') or ''} · d clears"
+        return f"{cur} {number} " + (f"[b $inbox-warning]{escape(head)}[/]" if here else f"[$inbox-warning]{escape(head)}[/]")
 
     def render_rows(self) -> None:
         if not self.query("#list-title"):
@@ -1084,6 +1120,14 @@ class InboxApp(App):
     def _live(self) -> tuple[list[Question], list[Question]]:
         return self.store.list(), self.store.failed_deliveries()
 
+    def _remote_entries(self) -> list[Entry]:
+        """Remote machines' open groups and queued/failed actions (the local mirror only)."""
+        try:
+            return ([("remote", key) for key, _, _ in remote.open_groups(self.store)]
+                    + [("routbox", r["request_id"]) for r in remote.outbox_rows(self.store)])
+        except sqlite3.Error:
+            return []
+
     @property
     def live_entries(self) -> list[Entry]:
         return [e for e in self.entries if e not in self.closed]
@@ -1140,7 +1184,7 @@ class InboxApp(App):
         except sqlite3.OperationalError:
             open_qs, failed = [], []
             self.notify(BUSY, severity="warning")
-        self.entries = entry_order(open_qs, failed, self.focus_pane)
+        self.entries = entry_order(open_qs, failed, self.focus_pane) + self._remote_entries()
         target = None
         try:
             request = deeplink.consume_request()  # `inbox open --question …` (deeplink.py)
@@ -1229,6 +1273,24 @@ class InboxApp(App):
     def open_group(self, entry: Entry, start_qid: int | None = None) -> None:
         """Enter a group (the operator chose it, or it is the only one): its questions as tabs."""
         self.list_cursor = entry
+        if entry[0] == "routbox":
+            self.notify("Sent or queued for a remote machine; d clears a failed one")
+            return
+        if entry[0] == "remote":
+            found = remote.group_by_key(self.store, entry[1])
+            if not found:
+                self.show_list(entry)
+                return
+            m, qs = found
+            self.mode, self.entry, self.remote_open = "remote", entry, (m, qs[0])
+            self.tabs, self.current = [], None
+            self.render_chips()
+            box = self.base.query_one("#group-title", Static)
+            box.display = True
+            box.update(escape(f"{m.get('label')}:Q{qs[0]['id']} · "
+                              f"{qs[0].get('title') or service.first_line(qs[0]['question'], 80)}"))
+            self._mount(QuestionView(remote.as_question(qs[0])))
+            return
         if entry[0] == "failed":
             self.mode, self.entry = "failed", entry
             self.render_chips()
@@ -1330,12 +1392,13 @@ class InboxApp(App):
         if self._unmounted or not self.screen_stack:
             return  # tearing down (a late timer tick): nothing to update
         open_qs, failed = self._live()
-        live = set(entry_order(open_qs, failed, None))
+        current = entry_order(open_qs, failed, None) + self._remote_entries()
+        live = set(current)
         for e in self.entries:
             if e not in live and e not in self.closed:
                 self.closed[e] = self._entry_reason(e)
         known = set(self.entries)
-        new = [e for e in entry_order(open_qs, failed, None) if e not in known]
+        new = [e for e in current if e not in known]
         now = time.monotonic()
         self.arrived_at.update({e: now for e in new})
         self.entries += new
@@ -1353,6 +1416,10 @@ class InboxApp(App):
             self._poll_group({q.id for q in open_qs})
 
     def _entry_reason(self, entry: Entry) -> str:
+        if entry[0] == "remote":
+            return "answered or closed"
+        if entry[0] == "routbox":
+            return "sent"
         if entry[0] == "failed":
             return self._gone_reason("failed", entry[1])
         qs = self.store.group(entry[1], include_closed=True)
@@ -1392,6 +1459,8 @@ class InboxApp(App):
         self.show(target)
 
     def action_switch(self, delta: int) -> None:
+        if self.mode == "remote":
+            return  # one remote question at a time: no tabs
         if self.held:  # Tab/→ (the switch keys): release a deep link, nothing more
             if delta > 0 and time.monotonic() - self.held_at >= RELEASE_GRACE:
                 self.held = False
@@ -1414,7 +1483,7 @@ class InboxApp(App):
     async def action_back(self) -> None:
         """Esc: from a group or ⚠ entry back to the list (or, when the popup opened straight
         into the only group, close it); from the list, close the popup. Never sends."""
-        if self.mode in ("group", "failed") and not self.direct:
+        if self.mode in ("group", "failed", "remote") and not self.direct:
             self.show_list(self.list_cursor)
             return
         await self.action_quit()
@@ -1442,6 +1511,9 @@ class InboxApp(App):
     @trace.traced("popup.answered")
     @guarded
     def on_question_view_answered(self, event: QuestionView.Answered) -> None:
+        if self.mode == "remote":
+            self._answer_remote(event)
+            return
         if self.mode != "group" or ("q", event.qid) in self.gone or self.current != ("q", event.qid):
             return  # never act for a question that is not the one on screen
         if self.single:  # a lone question the operator opened: answer and send at once
@@ -1457,6 +1529,23 @@ class InboxApp(App):
             self.render_chips()
             return
         self.navigate(1)  # Claude Code moves to the next tab (the last one: Submit)
+
+    def _answer_remote(self, event: QuestionView.Answered) -> None:
+        """A remote question: queue the answer for the worker to send (local DB write only)."""
+        m, data = self.remote_open
+        if event.qid != data["id"] or event.detail is None:
+            return
+        try:
+            remote.enqueue(self.store, m["machine_id"], data, "answer", event.detail)
+        except (LookupError, sqlite3.Error) as exc:
+            self.notify(f"not queued: {exc}", severity="warning")
+            return
+        label = m.get("label") or m["machine_id"]
+        self.notify(f"{label}:Q{data['id']} answered · sending to {label}")
+        found = remote.group_by_key(self.store, self.entry[1])
+        if not found:
+            self.closed[self.entry] = f"answered · sending to {label}"
+        self.back_to_list()
 
     def _sent(self, entry: Entry | None, whole: bool) -> None:
         """After the operator's send: back to the list now (not when the send finishes). A
@@ -1531,6 +1620,10 @@ class InboxApp(App):
         return qs[0] if qs else None
 
     def action_goto(self) -> None:
+        cur = self.entry if self.mode == "remote" else (self._list_view().cursor if self.mode == "list" and self._list_view() else None)
+        if cur and cur[0] in ("remote", "routbox"):
+            self.notify("That agent runs on a remote machine: open it from herdr's machine view")
+            return
         if self.mode == "list":
             view = self._list_view()
             if view and view.cursor:
@@ -1544,6 +1637,31 @@ class InboxApp(App):
         if self.mode == "list":
             view = self._list_view()
             entry = view.cursor if view else None
+            if entry and entry[0] == "routbox" and entry not in self.closed:
+                remote.mark_seen(self.store, entry[1])  # a failed/rejected action: just clear it
+                self.closed[entry] = "cleared"
+                view.render_rows()
+                return
+            if entry and entry[0] == "remote" and entry not in self.closed:
+                found = remote.group_by_key(self.store, entry[1])
+                if not found:
+                    return
+                m, qs = found
+                label = m.get("label") or m["machine_id"]
+
+                @guarded
+                def done_remote(confirmed: bool | None) -> None:
+                    if confirmed:
+                        for data in qs:
+                            remote.enqueue(self.store, m["machine_id"], data, "dismiss")
+                        self.closed[entry] = f"dismissing on {label}"
+                        lv = self._list_view()
+                        if lv:
+                            lv.render_rows()
+
+                self.push_screen(ConfirmDismiss(f"{label}:Q{qs[0]['id']}", service.first_line(qs[0]["question"], 70)),
+                                 done_remote)
+                return
             if entry and entry[0] == "failed" and entry not in self.closed and _gone(self.store.get(entry[1])):
                 # an agent-gone row: hiding it loses nothing (check_answers still has it)
                 self.store.hide_failed(entry[1])

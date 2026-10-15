@@ -30,7 +30,7 @@ RADAR_MESSAGES = {
 }
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
     parser = argparse.ArgumentParser(prog="inbox", description="Non-blocking operator question inbox for herdr")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("mcp", help="run the MCP stdio server")
@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("job")
     p = sub.add_parser("worker", help="run the delivery worker (one per machine; retries every pending answer)")
     p.add_argument("--ensure", action="store_true", help="start it in the background unless it is running, then return")
+    sub.add_parser("export", help="(remote machines) questions as JSON; request on stdin")
+    sub.add_parser("apply", help="(remote machines) one operator action; request on stdin")
     p = sub.add_parser("remote", help="remote herdr machines (docs/REMOTE.md)")
     rsub = p.add_subparsers(dest="remote_cmd", required=True)
     for name, text in (("install", "install both plugins on a saved herdr machine over ssh"),
@@ -143,6 +145,14 @@ def main(argv: list[str] | None = None) -> int:
             worker.ensure()
             return 0
         return worker.run()
+    if args.cmd in ("export", "apply"):
+        import json as _json
+
+        from . import remote_api
+
+        code, out = remote_api.run_cli(args.cmd, sys.stdin.read() if stdin is None else stdin)
+        print(_json.dumps(out))
+        return code
     if args.cmd == "remote":
         from . import remote
 

@@ -297,6 +297,22 @@ How it works:
 - `--question` takes `Qn` or `n` and `--group` takes a number; anything else is a usage error
   (exit 2).
 
+## Remote machines
+
+Agents on a saved herdr SSH machine (`herdr machine list`) can ask you too.
+
+1. Install the inbox there once, from this machine:
+   ```sh
+   inbox remote install <machine>     # later: inbox remote upgrade <machine>
+   ```
+   This needs key-based ssh; it never prompts for a password.
+2. Restart the Claude sessions on that machine.
+
+Their questions then show up in this popup as `<machine>:Q12`. Answers are queued here and
+sent by the delivery worker, and the remote's own inbox types them into its agent. Settings
+in the inbox `config.toml`: `remote_sync_seconds = 5` and `remote_answer_expiry_hours = 12`.
+Details: [docs/REMOTE.md](docs/REMOTE.md).
+
 ## Updating
 
 ```sh

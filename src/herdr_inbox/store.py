@@ -84,6 +84,79 @@ CREATE TABLE IF NOT EXISTS tab_decor (
 );
 CREATE INDEX IF NOT EXISTS questions_status ON questions(status);
 CREATE INDEX IF NOT EXISTS questions_session ON questions(session_id);
+-- Remote machines (0.7, docs/REMOTE.md). On every machine: a change feed for `inbox export`
+-- (filled by triggers, pruned by the worker) and the outcomes of `inbox apply` requests.
+CREATE TABLE IF NOT EXISTS changes (
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+    qid             INTEGER NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS changes_q_ins AFTER INSERT ON questions BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_q_upd AFTER UPDATE ON questions BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_q_del AFTER DELETE ON questions BEGIN
+    INSERT INTO changes (qid) VALUES (OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_x_ins AFTER INSERT ON question_ext BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS changes_x_upd AFTER UPDATE ON question_ext BEGIN
+    INSERT INTO changes (qid) VALUES (NEW.id);
+END;
+CREATE TABLE IF NOT EXISTS applied_requests (
+    request_id      TEXT PRIMARY KEY,
+    qid             INTEGER,
+    outcome         TEXT NOT NULL,
+    reason          TEXT,
+    at              TEXT NOT NULL
+);
+-- On the operator's machine: the mirror of each remote machine and the actions queued for it.
+CREATE TABLE IF NOT EXISTS remote_machines (
+    machine_id      TEXT PRIMARY KEY,
+    label           TEXT,
+    target          TEXT,
+    db_id           TEXT,
+    cursor_seq      INTEGER,
+    version         TEXT,
+    uv              TEXT,
+    herdr           TEXT,
+    plugin_root     TEXT,
+    pulls           INTEGER NOT NULL DEFAULT 0,
+    failures        INTEGER NOT NULL DEFAULT 0,
+    last_ok_at      TEXT,
+    last_error      TEXT,
+    last_try_at     TEXT,
+    backoff_until   TEXT
+);
+CREATE TABLE IF NOT EXISTS remote_questions (
+    machine_id      TEXT NOT NULL,
+    db_id           TEXT NOT NULL,
+    remote_id       INTEGER NOT NULL,
+    qkey            TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    data_json       TEXT NOT NULL,
+    first_seen_at   TEXT NOT NULL,
+    notified_at     TEXT,
+    PRIMARY KEY (machine_id, remote_id)
+);
+CREATE TABLE IF NOT EXISTS remote_outbox (
+    request_id      TEXT PRIMARY KEY,
+    machine_id      TEXT NOT NULL,
+    db_id           TEXT NOT NULL,
+    remote_id       INTEGER NOT NULL,
+    qkey            TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    detail_json     TEXT,
+    created_at      TEXT NOT NULL,
+    expires_at      TEXT NOT NULL,
+    state           TEXT NOT NULL DEFAULT 'queued',
+    result          TEXT,
+    sent_at         TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_try_at     TEXT
+);
 """
 
 
