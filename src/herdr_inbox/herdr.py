@@ -156,6 +156,13 @@ def focus_agent(pane_id: str) -> str | None:
     return err
 
 
+def panel_focused(pane_id: str) -> bool:
+    """Claude Code's background-agents panel / a subagent view has the keyboard (its footer
+    reads "↑/↓ to select"): typed text does not reach the conversation then."""
+    out, _ = run_raw("pane", "read", pane_id, "--source", "visible", "--lines", "12")
+    return bool(out) and "↑/↓ to select" in out
+
+
 def notify(title: str, body: str) -> None:
     call("notification", "show", title, "--body", body, "--sound", "request")
 

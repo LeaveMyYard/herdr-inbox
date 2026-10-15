@@ -56,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--remove", action="store_true", help="take it out again (before uninstalling)")
     p = sub.add_parser("clean-venvs", help="remove old versions' MCP venvs, including ones from before 0.5.3")
     p.add_argument("--data", help="the plugin data dir (default: $CLAUDE_PLUGIN_DATA or ~/.claude/plugins/data/herdr-inbox-herdr-inbox)")
+    p = sub.add_parser("worker", help="run the delivery worker (one per machine; retries every pending answer)")
+    p.add_argument("--ensure", action="store_true", help="start it in the background unless it is running, then return")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
     p.add_argument("event", choices=["session-start", "subagent-start"])
     args = parser.parse_args(argv)
@@ -103,6 +105,13 @@ def main(argv: list[str] | None = None) -> int:
         if not removed:
             print(f"nothing to remove in {data}")
         return 0
+    if args.cmd == "worker":
+        from . import worker
+
+        if args.ensure:
+            worker.ensure()
+            return 0
+        return worker.run()
     if args.cmd == "open":
         from . import deeplink
 
@@ -133,6 +142,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.all and q.answer:
                 print(f"      -> {q.answer}")
         return 0
+    if args.cmd in ("answer", "redeliver"):
+        from . import worker
+
+        worker.ensure()  # it retries whatever this cannot deliver right away
     if args.cmd == "answer":
         q = service.answer(store, args.id, " ".join(args.text))
         if q is None:

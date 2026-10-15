@@ -14,6 +14,7 @@ def test_answer_is_prompted_into_the_asking_pane(store, fake_herdr):
     assert q.status == "answered" and q.delivered_at and q.delivery_error is None
     assert fake_herdr.calls() == [
         ["agent", "get", "w1:p1"],
+        ["pane", "read", "w1:p1", "--source", "visible", "--lines", "12"],  # 0.6.1: panel focus check
         ["agent", "prompt", "w1:p1", "[inbox] Q1 answered — Merge PR 42 now?: yes, squash it"],
         ["pane", "report-metadata", "w1:p1", "--source", "herdr-inbox", "--clear-token", "inbox_q"],
     ]
