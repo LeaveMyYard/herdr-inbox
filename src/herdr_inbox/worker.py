@@ -37,8 +37,21 @@ IDLE_EXIT = float(os.environ.get("HERDR_INBOX_WORKER_IDLE_EXIT", "600"))
 NOTIFY_AFTER = 300.0
 
 
-def _lock_path():
-    return db_path().parent / "worker.lock"
+def _lock_path(server: str | None = None):
+    """One worker per herdr server: the lock is keyed by its socket."""
+    import hashlib
+
+    key = hashlib.sha1((server or herdr.server_id()).encode()).hexdigest()[:12]
+    return db_path().parent / f"worker-{key}.lock"
+
+
+def _spawn_env(server: str | None = None) -> dict[str, str]:
+    """The spawning process's environment without its venv selection (an MCP server's
+    UV_PROJECT_ENVIRONMENT must never make uv resync that venv for the herdr checkout)."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("UV_") and k != "VIRTUAL_ENV"}
+    if server:
+        env["HERDR_SOCKET_PATH"] = server
+    return env
 
 
 def hold_lock():
@@ -54,9 +67,9 @@ def hold_lock():
     return fh
 
 
-def is_running() -> bool:
+def is_running(server: str | None = None) -> bool:
     try:
-        fh = open(_lock_path(), "a")
+        fh = open(_lock_path(server), "a")
     except OSError:
         return False
     try:
@@ -68,17 +81,18 @@ def is_running() -> bool:
         fh.close()
 
 
-def ensure() -> bool:
-    """Start the worker, detached, unless one is running. True if one was started.
-    HERDR_INBOX_NO_WORKER=1 turns this off (the test suite)."""
-    if os.environ.get("HERDR_INBOX_NO_WORKER") or is_running():
+def ensure(server: str | None = None) -> bool:
+    """Start the worker for ``server`` (default: this process's herdr server), detached,
+    unless one is running. True if one was started. HERDR_INBOX_NO_WORKER=1 turns this off
+    (the test suite)."""
+    if os.environ.get("HERDR_INBOX_NO_WORKER") or is_running(server):
         return False
     log_path = db_path().parent / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as err:
         subprocess.Popen([sys.executable, "-m", "herdr_inbox.cli", "worker"],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
-                         start_new_session=True, close_fds=True)
+                         start_new_session=True, close_fds=True, env=_spawn_env(server))
     return True
 
 
@@ -132,17 +146,40 @@ def tick(store: Store) -> int:
     store.reconcile()
     caps = {service.NO_AGENT: service.MAX_STALE_RETRIES, service.CHANGED: service.MAX_STALE_RETRIES,
             service.NOT_VERIFIED: service.MAX_UNVERIFIED_ATTEMPTS}
+    mine = herdr.server_id()
     by_pane: dict[str, list[Question]] = {}
     for q in store.undelivered_all(caps):
+        server = store.server_of(q.id)
+        if server not in (None, mine):
+            continue  # another herdr server's pane: its own worker, never this socket
         by_pane.setdefault(q.pane_id, []).append(q)
+    for pane, items in list(by_pane.items()):
+        legacy = [q for q in items if store.server_of(q.id) is None]
+        if not legacy:
+            continue
+        # asked before 0.6.1 (no server recorded): only if that pane here holds the asking
+        # conversation -- never on a pane-id-only match, and no retry caps burnt otherwise
+        agent = herdr.live_agent(pane)
+        ok = [q for q in legacy if q.session_id and agent and agent["session_id"] == q.session_id]
+        by_pane[pane] = [q for q in items if q not in legacy or q in ok]
     for items in by_pane.values():
         try:
             service.deliver_batch(store, items, retry=True)
         except Exception:  # noqa: BLE001 - one pane's trouble never stops the others
             log.exception("delivery to %s failed", items[0].pane_id)
-    left = store.stuck_answers()
+    left = [q for q in store.stuck_answers() if store.server_of(q.id) in (None, mine)]
     notify_stuck(store, left)
     return len(store.undelivered_all(caps))
+
+
+def running_version() -> str | None:
+    """The version of the code this process runs (its package metadata)."""
+    try:
+        from importlib.metadata import version
+
+        return version("herdr-inbox")
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def installed_version() -> str | None:
@@ -163,18 +200,20 @@ def installed_version() -> str | None:
         return None
 
 
-def start_successor() -> None:
-    """After an update: start the new code's worker (uv, from the checkout), else ensure()."""
+def start_successor() -> bool:
+    """After an update: start the new code's worker from the checkout (uv, its own .venv).
+    False if it cannot (no checkout, no uv): then this worker keeps running -- respawning
+    this same interpreter would only loop."""
     root = herdr.plugin_root()
-    if root and not os.environ.get("HERDR_INBOX_NO_WORKER"):
-        try:
-            subprocess.Popen(["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", root, "inbox", "worker"],
-                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             start_new_session=True, close_fds=True)
-            return
-        except OSError:
-            pass
-    ensure()
+    if not root:
+        return False
+    try:
+        subprocess.Popen(["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", root, "inbox", "worker"],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True, close_fds=True, env=_spawn_env())
+    except OSError:
+        return False
+    return True
 
 
 def _pending_now() -> int:
@@ -185,23 +224,25 @@ def _pending_now() -> int:
 
 
 def run() -> int:
-    lock = hold_lock()
-    if lock is None:
-        return 0  # another worker runs
+    box = {"lock": hold_lock()}
+    if box["lock"] is None:
+        return 0  # another worker runs (for this herdr server)
     try:
-        return _loop(lock)
+        return _loop(box)
     finally:
-        lock.close()
+        if box["lock"] is not None:
+            box["lock"].close()
 
 
-def _loop(lock) -> int:
+def _loop(box: dict) -> int:
     try:
         from . import venvs
 
         venvs.claim_current()  # spawned from an MCP venv: keep it from being cleaned up
     except BaseException:  # noqa: BLE001
         pass
-    mine = installed_version()
+    mine = running_version()
+    handover_failed = False
     idle_since = time.monotonic()
     while True:
         try:
@@ -210,14 +251,21 @@ def _loop(lock) -> int:
         except Exception:  # noqa: BLE001 - keep the worker alive
             log.exception("worker tick failed")
             pending = 1
-        if installed_version() != mine:  # updated under us: hand over to the new code
-            lock.close()
-            start_successor()
-            return 0
+        disk = installed_version()
+        if mine and disk and disk != mine and not handover_failed:  # updated: hand over
+            box["lock"].close()
+            box["lock"] = None
+            if start_successor():
+                return 0
+            handover_failed = True  # keep serving with this code; try no more
+            box["lock"] = hold_lock()
+            if box["lock"] is None:
+                return 0  # someone else took over meanwhile
         if pending:
             idle_since = time.monotonic()
         elif time.monotonic() - idle_since >= IDLE_EXIT:
-            lock.close()
+            box["lock"].close()
+            box["lock"] = None
             # an answer committed after this tick's query found the lock still held and
             # spawned nobody: look once more now that the lock is released
             try:

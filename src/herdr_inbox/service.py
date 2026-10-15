@@ -158,6 +158,7 @@ def ask_group(
                 multi_select=bool(item.get("multi_select")),
                 group_id=group_id,
             )
+            store.set_server(q.id, herdr.server_id())  # this server's delivery worker owns it
             group_id = q.group
             new.append(q)
             receipts.append({"id": q.id, "status": "open", "message": (
@@ -313,13 +314,19 @@ def deliver(store: Store, q: Question, retry: bool = False, force: bool = False)
     deliver_batch(store, [q], retry, force)
 
 
-def _ensure_worker() -> None:
+def _ensure_worker(server: str | None = None) -> None:
     try:
         from . import worker
 
-        worker.ensure()
+        worker.ensure(server)
     except Exception as exc:  # noqa: BLE001 - never fail a send over it
         log.warning("delivery worker: %s", exc)
+
+
+def _typed_before(store: Store, q: Question) -> bool:
+    err = q.delivery_error or ""
+    return (q.delivery_attempts > 0 or err.startswith(NOT_VERIFIED) or err == REQUEUED
+            or err == PENDING + BUSY_WAIT_IDLE or store.busy_attempts(q.id) > 0)
 
 
 def _busy_for(store: Store, qid: int) -> float:
@@ -335,6 +342,11 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
     (never a blocked agent: a dialog would swallow the text)."""
     if not retry:
         _ensure_worker()  # whatever this send leaves pending, the worker retries
+    mine = herdr.server_id()
+    foreign = [q for q in qs if store.server_of(q.id) not in (None, mine)]
+    for server in {store.server_of(q.id) for q in foreign}:
+        _ensure_worker(server)  # asked on another herdr server: its own worker delivers it
+    qs = [q for q in qs if q not in foreign]
     """Type answers into the asking conversations: one message per pane, only into the
     conversation that asked.
 
@@ -413,7 +425,25 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 store.set_pending(q.id, claims[q.id], PANEL)
             continue
         path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
+        if path is not None:
+            # typed before (unverified, requeued, busy miss)? it may have landed late: look
+            # once more before typing it again
+            again = [q for q in ours if _typed_before(store, q)]
+            landed = transcript.landed_ids(path, [q.id for q in again]) if again else set()
+            for q in ours:
+                if q.id in landed:
+                    record(q, None, verified=True)
+            ours = [q for q in ours if q.id not in landed]
+            if not ours:
+                continue
         for text, batch, ack in delivery_messages(ours):
+            if retry and not force:
+                # the operator may have stepped into the pane since the check above
+                now_agent = herdr.live_agent(pane)
+                if now_agent is None or now_agent["focused"] or now_agent["session_id"] != agent["session_id"]:
+                    for q in batch:
+                        store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
+                    continue
             offset = transcript.size(path)
             err = herdr.prompt_agent(pane, text)
             if err:
