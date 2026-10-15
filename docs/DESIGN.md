@@ -150,7 +150,13 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   it. Without a transcript the row is only un-seen, never retyped blind.
 - **Look before typing:** whenever the transcript is known, `deliver_batch` checks it
   before **every** typing attempt (0.6.3; before, only rows typed before). This covers a
-  late landing and a sender killed mid-verify whose stale claim is being taken over. A late record marks it
+  late landing and a sender killed mid-verify whose stale claim is being taken over.
+  The check matches each answer's **full expected text** (`transcript.landed_exact`): the
+  single message, its batch segment `Q<n> <first line>: <answer>` at a segment start, or
+  the long-answer reference. The id alone isn't enough, so an id written inside another
+  answer ("… · Q28 can wait") can't make a never-typed answer count as landed. Records
+  older than the answer are ignored too, since ids restart if `inbox.db` is recreated.
+  Reconcile uses the same check. A late record marks it
   verified instead of typing a second copy. The "operator in this pane" check is repeated
   right before each prompt. The row then becomes `pending: requeued`, delivered only at
   idle/done. Older rows are only un-seen, as before. `reset_count` (≤ 2) bounds any

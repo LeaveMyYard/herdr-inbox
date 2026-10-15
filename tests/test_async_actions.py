@@ -225,3 +225,30 @@ def test_a_failing_background_job_does_not_stop_later_ones(fake_herdr, backgroun
     service.later(boom)
     service.later(lambda: ran.append(1))
     assert service.drain(5) and ran == [1]
+
+
+# -- re-review of #19 ------------------------------------------------------------------------
+
+
+def test_an_id_mentioned_inside_another_answer_is_not_a_delivery(store, fake_herdr, live_session):
+    """Q28 written inside Q27's answer (' · Q28 …') must not make Q28 count as landed."""
+    for i in range(27):
+        service.ask(store, A, f"filler {i}?")
+    q28 = service.ask(store, A, "Lost?", options=["yes"])["id"]
+    assert q28 == 28
+    with open(live_session, "a") as fh:
+        fh.write(_json.dumps({"type": "user", "message": {"content":
+                 "[inbox] answered — Q26 filler 25?: ok · Q27 which region?: eu · Q28 can wait"}}) + "\n")
+    service.answer(store, q28, "yes")  # first delivery: the transcript check runs first
+    assert len(fake_herdr.calls_of("agent", "prompt")) == 1 and store.get(q28).verified_at
+
+
+def test_a_record_older_than_the_answer_does_not_count(store, fake_herdr, live_session):
+    """inbox.db recreated: ids restart, an old transcript record names the same Q id."""
+    with open(live_session, "a") as fh:
+        fh.write(_json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00.000Z",
+                              "message": {"content": "[inbox] Q1 answered — Merge?: yes"}}) + "\n")
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    assert qid == 1
+    service.answer(store, qid, "yes")
+    assert len(fake_herdr.calls_of("agent", "prompt")) == 1 and store.get(qid).verified_at
