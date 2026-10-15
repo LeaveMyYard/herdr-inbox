@@ -9,6 +9,8 @@
   lock busy, a call went from 4 s to 17 ms. Tab-label lookups and "go to agent" left the UI
   thread.
 - `INBOX_TRACE=<file>` logs step timings (herdr calls, popup handlers, tools, delivery).
+- The first `ask_operator` calls on a new session no longer take up to ~1 s. A reopened database
+  skips schema work (it is stamped), and tool calls leave the reconcile pass to the worker.
 - Answers whose agent is gone are marked once, notified once and no longer polled. The popup
   labels them "agent closed — answer kept for check_answers", and `d` hides them. Pending
   answers say they are already answered and waiting to be delivered. Hiding an answer only

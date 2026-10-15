@@ -76,7 +76,7 @@ TOOL_BUSY_TIMEOUT = 3.0  # per attempt; busy_safe retries, so a tool never hangs
 
 
 def tool_store() -> Store:
-    return Store(timeout=TOOL_BUSY_TIMEOUT)
+    return Store(timeout=TOOL_BUSY_TIMEOUT, maintenance=False)  # the worker reconciles
 
 
 def busy_safe(fn):
@@ -121,7 +121,9 @@ def ask_operator(
         return {"status": "error", "message": f"At most {service.MAX_QUESTIONS} questions per call."}
     if any(len(i.get("options") or []) > service.MAX_OPTIONS for i in items):
         return {"status": "error", "message": f"At most {service.MAX_OPTIONS} options; ask fewer or split the question."}
-    with trace.step("mcp.ask_operator"), tool_store() as store:
+    with trace.step("mcp.ask_operator"), trace.step("mcp.tool_store"):
+        store = tool_store()
+    with store, trace.step("mcp.ask_operator.body"):
         caller = service.resolve_caller()
         if questions:
             return service.ask_group(store, caller, items, context, asked_by, title=title)

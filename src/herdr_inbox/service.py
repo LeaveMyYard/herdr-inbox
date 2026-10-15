@@ -65,9 +65,12 @@ class Caller:
 def resolve_caller() -> Caller:
     """Who is asking. Resolved per call: /clear changes the session, panes move."""
     pane_id = os.environ.get("HERDR_PANE_ID") or None
-    if pane_id and proc.nested_claude():
+    with trace.step("caller.nested_claude"):
+        nested = bool(pane_id) and proc.nested_claude()
+    if nested:
         pane_id = None  # a claude run by the pane's agent is not the pane's agent
-    ident = herdr.pane_identity(pane_id) if pane_id else {}
+    with trace.step("caller.pane_identity"):
+        ident = herdr.pane_identity(pane_id) if pane_id else {}
     session_id = ident.get("session_id") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
     return Caller(
         pane_id=pane_id,
@@ -81,7 +84,7 @@ def resolve_caller() -> Caller:
 def _base_label(label: str | None, tab_id: str | None) -> str | None:
     if label is None:
         return None
-    with Store() as store:
+    with trace.step("caller.base_label_store"), Store(timeout=3, maintenance=False) as store:
         return tabs.base_label(label, tabs.marks_for(store, tab_id))
 
 
@@ -568,7 +571,7 @@ def update_markers(store: Store, pane_id: str | None) -> None:
         path = store.path
 
         def job() -> None:
-            with Store(path, timeout=5) as own:
+            with Store(path, timeout=5, maintenance=False) as own:
                 update_markers_now(own, pane_id)
 
         later(job)
