@@ -444,3 +444,26 @@ def test_l3_the_focus_check_is_repeated_right_before_typing(store, fake_herdr, m
     monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
     service.retry_deliveries(store, "w1:p1")
     assert prompts(fake_herdr) == [] and "operator" in store.get(qid).delivery_error
+
+
+# -- follow-up (review of #15, Low): pending counts only what this worker serves ------------
+
+
+def test_other_servers_rows_do_not_keep_a_worker_alive(store, fake_herdr, monkeypatch, tmp_path, live_session):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "other.sock"))
+    pending_answer(store, monkeypatch)  # pending, but on another herdr server
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "mine.sock"))
+    assert worker.tick(store) == 0
+    assert worker._pending_now() == 0
+
+
+def test_unmatched_legacy_rows_do_not_keep_a_worker_alive(store, fake_herdr, monkeypatch, live_session):
+    qid = pending_answer(store, monkeypatch)
+    store.db.execute("UPDATE question_ext SET herdr_server = NULL WHERE id = ?", (qid,))
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "someone-else")
+    assert worker.tick(store) == 0
+
+
+def test_own_pending_rows_still_count(store, fake_herdr, monkeypatch, live_session):
+    pending_answer(store, monkeypatch)  # blocked agent: stays pending, on this server
+    assert worker.tick(store) == 1 and worker._pending_now() == 1
