@@ -657,7 +657,7 @@ async def test_popup_acknowledges_a_remote_alert(store, remote_db, fake_herdr):
     async with app.run_test() as pilot:
         await pilot.pause()
         assert f"⚑ moneylust:A{aid} · warning · [E2E TEST] remote alert" in app.query_one(GroupListView).body_text()
-        await pilot.press("enter")
+        await pilot.press("up", "enter")
         await pilot.pause()
         assert app.mode == "alert"
         await pilot.press("g")  # remote: never focuses a local pane

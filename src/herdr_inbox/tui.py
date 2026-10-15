@@ -699,12 +699,18 @@ class FailedView(Vertical, can_focus=True):
         _close(self.app)
 
 
+ALERT_GO_GRACE = 0.5  # an alert view opened under the operator's typing never sends them to a prompt
 SEVERITY_STYLE = {"urgent": "$inbox-warning", "warning": "$inbox-warning", "info": "$inbox-suggestion"}
 
 
 class AlertView(Vertical, can_focus=True):
     """An alert: an agent's "please check X" (acknowledge it, or go to the agent), or an agent
-    waiting at an approval/question prompt (go there). Nothing is ever typed into the pane."""
+    waiting at an approval/question prompt (go there). Nothing is ever typed into the pane.
+
+    It opens with no row selected: Enter does nothing until ↑/↓ or a digit picks one, so a
+    habitual Enter never acknowledges an alert unread. Going to a BLOCKED agent's pane needs
+    `1` or `g`, never Enter, and not within ALERT_GO_GRACE of opening: the operator's next key
+    would land in that agent's approval prompt."""
 
     class Ack(Message):
         def __init__(self, aid) -> None:
@@ -721,7 +727,7 @@ class AlertView(Vertical, can_focus=True):
     def __init__(self, alert, label: str | None = None):
         super().__init__()
         self.alert, self.label = alert, label  # label: a remote machine's, for its alerts
-        self.cursor = 0
+        self.cursor: int | None = None
 
     def compose(self) -> ComposeResult:
         a = self.alert
@@ -738,6 +744,7 @@ class AlertView(Vertical, can_focus=True):
 
     def on_mount(self) -> None:
         self.armed_at = time.monotonic() + ARM_SECONDS
+        self.opened_at = time.monotonic()
         self.render_rows()
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
@@ -746,7 +753,8 @@ class AlertView(Vertical, can_focus=True):
     @property
     def labels(self) -> tuple[str, str]:
         if self.alert.kind == "blocked":
-            return ("Go to the agent (it is waiting at a prompt there)", "Dismiss (it shows again if it waits again)")
+            return ("Go to the agent: press 1 or g (it is waiting at a prompt there)",
+                    "Dismiss (it shows again at its next prompt)")
         return ("Acknowledge (the agent sees it in check_answers)", "Go to the agent")
 
     def render_rows(self) -> None:
@@ -757,16 +765,33 @@ class AlertView(Vertical, can_focus=True):
             lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
         self.query_one("#alert-rows", Static).update("\n".join(lines))
 
-    def action_move(self, delta: int) -> None:
-        self.cursor = (self.cursor + delta) % 2
+    def action_move(self, delta: int) -> None:  # no wrap; from rest: the first (or last) row
+        self.cursor = (0 if delta > 0 else 1) if self.cursor is None else max(0, min(1, self.cursor + delta))
         self.render_rows()
+
+    def go_allowed(self) -> bool:
+        """Going to a blocked agent: not within ALERT_GO_GRACE of opening this view."""
+        return time.monotonic() - self.opened_at >= ALERT_GO_GRACE
 
     def action_pick(self, k: int) -> None:
         self.cursor = k
-        self.action_select()
+        self.render_rows()
+        self._act(by_enter=False)
 
     def action_select(self) -> None:
-        goto = (self.cursor == 0) == (self.alert.kind == "blocked")
+        self._act(by_enter=True)
+
+    def _act(self, by_enter: bool) -> None:
+        if self.cursor is None:
+            return  # at rest: Enter does nothing
+        blocked = self.alert.kind == "blocked"
+        goto = (self.cursor == 0) == blocked
+        if goto and blocked:
+            if by_enter:
+                self.notify("Press 1 or g to go to that agent")
+                return
+            if not self.go_allowed():
+                return
         self.post_message((self.Goto if goto else self.Ack)(self.alert.id))
 
     def action_back(self) -> None:
@@ -1335,7 +1360,10 @@ class InboxApp(App):
             self.direct = True
             self.open_group(self.entries[0])
         else:
-            self.show_list(self.entries[0])
+            # alerts head the list, but the cursor starts where it did before 0.8: on the first
+            # question group (the focused pane's), else at rest -- a habitual Enter never acts
+            # on an alert (a blocked agent's prompt would get the operator's next key)
+            self.show_list(next((e for e in self.entries if e[0] not in ("alert", "ralert")), None))
         self._poll_timer = self.set_interval(POLL_SECONDS, self.poll)
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
@@ -1839,8 +1867,11 @@ class InboxApp(App):
         elif self.mode == "alert" and self.entry:
             if self.entry[0] == "ralert":
                 self.notify("That agent runs on a remote machine: open it from herdr's machine view")
-            else:
-                self._focus_pane(alerts.get(self.store, self.entry[1]))
+                return
+            view = self.base.query(AlertView)
+            if view and not view.first().go_allowed():
+                return  # just opened: this g was typed before the view appeared
+            self._focus_pane(alerts.get(self.store, self.entry[1]))
         elif self.current and self.current != SUBMIT:
             self._focus_pane(self.store.get(self.current[1]))
 

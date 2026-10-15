@@ -144,40 +144,54 @@ def mine(store: Store, caller) -> list[Alert]:
 
 # -- automatic alerts for agents at a blocking prompt ---------------------------------------
 
-_blocked_since: dict[str, float] = {}
+CLEAR_AFTER = 10.0  # a pane counts as unblocked after this long AND two ticks: no flapping
+_blocked_since: dict[str, float] = {}  # pane -> when its current prompt was first seen
+_unblocked: dict[str, tuple[float, int]] = {}  # pane -> (first non-blocked sighting, ticks since)
 
 
 def scan_blocked(store: Store) -> int:
     """One `herdr agent list`: agents `blocked` for BLOCKED_AFTER seconds get an alert;
     alerts of agents no longer blocked are cleared. Never types anything anywhere.
-    Returns how many agents herdr reports (the worker stays alive while there are any)."""
+    Returns how many agents herdr reports (the worker stays alive while there are any).
+
+    Hysteresis: a pane leaves its prompt only after CLEAR_AFTER seconds and two ticks of
+    another status (herdr's detection can flicker within one prompt); a pane whose agent
+    is gone from the list leaves at once."""
     res, _ = herdr.call("agent", "list")
     if res is None:
         return 0
     agents = [a for a in (res or {}).get("agents", []) if isinstance(a, dict) and a.get("pane_id")]
+    present = {a["pane_id"] for a in agents}
     blocked = {a["pane_id"]: a for a in agents if a.get("agent_status") == "blocked"}
     t = time.monotonic()
     for pane in list(_blocked_since):
-        if pane not in blocked:
+        if pane in blocked:
+            _unblocked.pop(pane, None)
+            continue
+        first, ticks = _unblocked.get(pane, (t, 0))
+        _unblocked[pane] = (first, ticks + 1)
+        if pane not in present or (ticks + 1 >= 2 and t - first >= CLEAR_AFTER):
             del _blocked_since[pane]
+            _unblocked.pop(pane, None)
     for pane in blocked:
         _blocked_since.setdefault(pane, t)
+    waiting = set(_blocked_since)  # blocked now, or within the hysteresis
     server = herdr.server_id()
+    scope = " AND COALESCE(herdr_server, ?) = ?"
     open_auto = {r[0]: r[1] for r in store.db.execute(
-        "SELECT pane_id, id FROM alerts WHERE status = 'open' AND kind = 'blocked'"
-        " AND COALESCE(herdr_server, ?) = ?", (server, server)).fetchall()}
+        "SELECT pane_id, id FROM alerts WHERE status = 'open' AND kind = 'blocked'" + scope, (server, server)).fetchall()}
     for pane, aid in open_auto.items():
-        if pane not in blocked:
+        if pane not in waiting:
             _close(store, aid, "cleared")
     # a dismissed (acked) blocked alert holds until that pane is seen not blocked: closed_at
     # marks the end of its episode, so the next prompt alerts again (survives worker restarts)
-    marks = ",".join("?" * len(blocked))
+    marks = ",".join("?" * len(waiting))
     store.db.execute("UPDATE alerts SET closed_at = ? WHERE kind = 'blocked' AND status = 'acked'"
-                     " AND closed_at IS NULL AND COALESCE(herdr_server, ?) = ?"
-                     + (f" AND pane_id NOT IN ({marks})" if blocked else ""),
-                     (now(), server, server, *blocked))
+                     " AND closed_at IS NULL" + scope + (f" AND pane_id NOT IN ({marks})" if waiting else ""),
+                     (now(), server, server, *sorted(waiting)))
     dismissed = {r[0] for r in store.db.execute(
-        "SELECT pane_id FROM alerts WHERE kind = 'blocked' AND status = 'acked' AND closed_at IS NULL")}
+        "SELECT pane_id FROM alerts WHERE kind = 'blocked' AND status = 'acked' AND closed_at IS NULL" + scope,
+        (server, server))}
     for pane, agent in blocked.items():
         if pane in open_auto or pane in dismissed or t - _blocked_since[pane] < BLOCKED_AFTER:
             continue
@@ -190,8 +204,8 @@ def scan_blocked(store: Store) -> int:
         where = tab_label or pane
         title = f"{where} is waiting for you"
         with store.transaction():
-            if store.db.execute("SELECT 1 FROM alerts WHERE status = 'open' AND kind = 'blocked' AND pane_id = ?",
-                                (pane,)).fetchone():
+            if store.db.execute("SELECT 1 FROM alerts WHERE status = 'open' AND kind = 'blocked' AND pane_id = ?"
+                                + scope, (pane, server, server)).fetchone():
                 continue
             cur = store.db.execute(
                 "INSERT INTO alerts (created_at, kind, severity, title, message, pane_id, tab_id, tab_label, session_id,"

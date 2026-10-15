@@ -8,7 +8,8 @@ all), so answers to long-lived sessions could sit undelivered with nobody retryi
 - exactly one worker runs (an exclusive flock on ``worker.lock`` next to the database);
   ``ensure()`` starts it detached when it is not running, from herdr's ``[[startup]]``, the
   popup, the CLI and every 0.6.1+ MCP server; it exits after WORKER_IDLE_EXIT seconds
-  with nothing pending (the next answer starts it again);
+  with nothing pending, no enabled remote and no agent in herdr (0.8: it watches agents'
+  blocked state, so with agents running it does not idle out);
 - every TICK it re-checks unverified acknowledgements (``Store.reconcile``: an old
   server's "typed = seen" is un-seen and, if recent, requeued) and runs the delivery
   policy (service.deliver_batch: idle/done, busy grace, blocked, panel focus, transcript

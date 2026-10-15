@@ -248,13 +248,15 @@ is `${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/inbox.db`; `HERDR_INBOX_DB` ov
 ### Alerts
 
 An alert (`A7`) is something the operator should check, with no answer expected. It heads the
-popup list (`⚑`, most severe first), raises a notification and counts in the ❓N badge until
-acknowledged (`Enter` then `1`, or `d` on the row). The agent learns of the acknowledgement
+popup list (`⚑`, most severe first; the cursor still starts on your question), raises a
+notification and counts in the ❓N badge until acknowledged (open it and press `1`, or `d` on
+the row). The agent learns of the acknowledgement
 through `check_answers`; nothing is typed into its pane.
 
 The delivery worker also raises an alert by itself (`⏸ <tab> is waiting for you`) for an agent
 herdr reports as `blocked` for 15 s — stuck at a permission, AskUserQuestion or plan prompt,
-where it cannot call any tool. `g` goes to it; the alert clears when the prompt is answered.
+where it cannot call any tool. `1` or `g` goes to it (never Enter); the alert clears when the
+prompt is answered.
 The inbox never types into that pane.
 
 A SessionStart hook teaches every Claude Code session to use them, so no `CLAUDE.md` edit is

@@ -463,17 +463,30 @@ call any tool, so it could not have asked. Two additions:
 - **Blocked agents** (`alerts.scan_blocked`, every worker tick): one `herdr agent list`. herdr
   documents `blocked` as "recognized an approval or question UI". A pane blocked for
   `BLOCKED_AFTER` (15 s, so a quickly answered permission prompt never alerts) gets a
-  `kind='blocked'` alert; it is `cleared` on the first tick that sees another status. The
-  worker stays alive while herdr reports any agent. Nothing is ever typed into such a pane;
+  `kind='blocked'` alert. It is `cleared` only after `CLEAR_AFTER` (10 s) and two ticks of
+  another status, so a flickering detection within one prompt neither clears nor re-notifies;
+  an agent gone from the list clears at once. Dedupe and dismissals are scoped by
+  `herdr_server` (pane ids repeat across servers). Nothing is ever typed into such a pane;
   `herdr agent prompt` refuses blocked agents anyway (`agent_blocked`).
+- **The worker no longer idles out in normal use.** It stays alive while herdr reports any
+  agent (it watches their blocked state), so with agents running it always runs: one per
+  herdr server. Its cost per tick: one `herdr agent list`, one `tab get` per newly blocked
+  pane, plus the existing delivery tick. `WORKER_IDLE_EXIT` now applies only to a herdr with
+  no agents and nothing pending.
 
 **Acknowledgement is not typed back** (decided default). Typing into an agent costs a turn and
 can land at a prompt; the agent does not need it to continue. `check_answers` returns
 acknowledged alerts once (`reported_at`), `list_my_questions` shows their status.
 
-**Popup.** Alerts head the list (local, then remote), most severe first. An alert row opens an
-`AlertView`: 1 = Acknowledge, 2 = Go to the agent (for a blocked alert: 1 = Go, 2 = Dismiss).
-`d` on an alert row acknowledges without a confirmation: nothing is lost. Closed alert rows
+**Popup.** Alerts head the list (local, then remote), most severe first, but the initial
+cursor stays where it was before 0.8: on the focused pane's question group, else at the inert
+rest position. A habitual "open, Enter, Enter" never acts on an alert (review M1: for a blocked
+agent it would have focused that pane and handed the operator's next key to its approval
+prompt). An alert row opens an `AlertView` with no row selected; Enter does nothing until ↑/↓
+or a digit picks one. Agent alert: 1 = Acknowledge, 2 = Go to the agent. Blocked alert:
+1 = Go (only `1` or `g`, never Enter, and not within `ALERT_GO_GRACE` = 0.5 s of the view
+opening), 2 = Dismiss. `d` on an alert row acknowledges without a confirmation: nothing is
+lost. Closed alert rows
 become inert placeholders like every other row.
 
 **Remote.** `inbox export` carries `alerts` (open ones and those closed in the last hour,
