@@ -22,3 +22,38 @@ async def test_poll_after_the_widgets_are_gone_is_a_no_op(store, fake_herdr):
         await pilot.pause()
         assert app.mode == "group"
     app.poll()  # the late tick: widgets already removed
+
+
+async def test_a_send_finishing_after_the_popup_exits_does_not_raise(store, fake_herdr, monkeypatch):
+    """Review of #16 (Low): a send in flight when the popup exits (e.g. "go to agent") must
+    not raise from its background thread when it reports back."""
+    from herdr_inbox import tui
+
+    qid = service.ask(store, A, "q?", options=["yes"])["id"]
+    service.ask(store, B, "other?")
+    app = InboxApp(store, focus_pane="w1:p1")
+    captured = []
+    monkeypatch.setattr(app, "run_worker", lambda fn, **kw: captured.append(fn))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tui._send(app, store, [qid], lambda s: [s.get(qid)])
+    assert captured
+
+    def gone(*a, **k):  # what Textual raises once the app has stopped (App.call_from_thread)
+        raise RuntimeError("App is not running")
+
+    monkeypatch.setattr(app, "call_from_thread", gone)
+    captured[-1]()  # the send thread (captured[0] is the radar check) reports back late
+    assert store.get(qid)  # the send's own work still happened
+
+
+async def test_poll_does_nothing_once_unmounting(store, fake_herdr, monkeypatch):
+    service.ask(store, A, "q?")
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        reads = []
+        monkeypatch.setattr(app, "_live", lambda: reads.append(1) or ([], []))
+        app._unmounted = True  # on_unmount has run; widgets may still be there
+        app.poll()
+        assert reads == []
