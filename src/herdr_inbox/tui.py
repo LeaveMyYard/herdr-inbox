@@ -29,7 +29,7 @@ import sqlite3
 import sys
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from rich.markup import escape
 from textual import events
@@ -819,6 +819,8 @@ class GroupListView(Vertical, can_focus=True):
             return self._remote_row(cur, number, here, entry, closed)
         if entry[0] == "routbox":
             return self._outbox_row(cur, number, here, entry, closed)
+        if entry[0] == "rproblem":
+            return self._problem_row(cur, number, here, entry, closed)
         qs = store.group(entry[1], include_closed=True)
         first = qs[0] if qs else None
         where = escape(tab_name(first, store))
@@ -867,12 +869,27 @@ class GroupListView(Vertical, can_focus=True):
             return f"{cur} {number} [dim]✓ {escape(closed or 'sent')}[/dim]"
         label = escape(row.get("label") or row["machine_id"])
         ref = f"{label}:Q{row['remote_id']}"
+        if row["state"] == "queued" and row["expires_at"] <= datetime.now(timezone.utc).isoformat(timespec="seconds"):
+            head = f"⚠ {ref} {row['action']} expired · not sent to {label} · d clears"  # until the sweep settles it
+            return f"{cur} {number} " + (f"[b $inbox-warning]{escape(head)}[/]" if here else f"[$inbox-warning]{escape(head)}[/]")
         if row["state"] == "queued":
             until = datetime.fromisoformat(row["expires_at"]).astimezone().strftime("%H:%M")
             head = f"⏳ {ref} {row['action']} queued · sending to {label} · expires {until}"
             return f"{cur} {number} " + (f"[b $inbox-suggestion]{escape(head)}[/]" if here else f"[$foreground]{escape(head)}[/]")
         head = f"⚠ {ref} {row['action']} {row['state']}: {row.get('result') or ''} · d clears"
         return f"{cur} {number} " + (f"[b $inbox-warning]{escape(head)}[/]" if here else f"[$inbox-warning]{escape(head)}[/]")
+
+    def _problem_row(self, cur: str, number: str, here: bool, entry: Entry, closed: str | None) -> str:
+        mid, _, rid = str(entry[1]).partition("|")
+        p = next((p for p in remote.problem_rows(self.inbox.store)
+                  if p["machine_id"] == mid and str(p["remote_id"]) == rid), None)
+        if closed or p is None:
+            return f"{cur} {number} [dim]✓ {escape(closed or 'cleared')}[/dim]"
+        head = f"⚠ {p['label']}:Q{p['remote_id']} answered · {p['why']}"
+        line1 = f"{cur} {number} " + (f"[b $inbox-warning]{escape(head)}[/]" if here else f"[$inbox-warning]{escape(head)}[/]")
+        q = p["data"]
+        return (f"{line1}\n      [dim]{escape(service.first_line(q.get('question') or '', 60))} → "
+                f"{escape(service.first_line(q.get('answer') or '', 40))} · d clears[/dim]")
 
     def render_rows(self) -> None:
         if not self.query("#list-title"):
@@ -1124,7 +1141,8 @@ class InboxApp(App):
         """Remote machines' open groups and queued/failed actions (the local mirror only)."""
         try:
             return ([("remote", key) for key, _, _ in remote.open_groups(self.store)]
-                    + [("routbox", r["request_id"]) for r in remote.outbox_rows(self.store)])
+                    + [("routbox", r["request_id"]) for r in remote.outbox_rows(self.store)]
+                    + [("rproblem", f"{p['machine_id']}|{p['remote_id']}") for p in remote.problem_rows(self.store)])
         except sqlite3.Error:
             return []
 
@@ -1273,8 +1291,8 @@ class InboxApp(App):
     def open_group(self, entry: Entry, start_qid: int | None = None) -> None:
         """Enter a group (the operator chose it, or it is the only one): its questions as tabs."""
         self.list_cursor = entry
-        if entry[0] == "routbox":
-            self.notify("Sent or queued for a remote machine; d clears a failed one")
+        if entry[0] in ("routbox", "rproblem"):
+            self.notify("This is on a remote machine; d clears it here")
             return
         if entry[0] == "remote":
             found = remote.group_by_key(self.store, entry[1])
@@ -1428,6 +1446,8 @@ class InboxApp(App):
             return "answered or closed"
         if entry[0] == "routbox":
             return "sent"
+        if entry[0] == "rproblem":
+            return "delivered or cleared"
         if entry[0] == "failed":
             return self._gone_reason("failed", entry[1])
         qs = self.store.group(entry[1], include_closed=True)
@@ -1646,7 +1666,20 @@ class InboxApp(App):
             view = self._list_view()
             entry = view.cursor if view else None
             if entry and entry[0] == "routbox" and entry not in self.closed:
-                remote.mark_seen(self.store, entry[1])  # a failed/rejected action: just clear it
+                row = next((r for r in remote.outbox_rows(self.store) if r["request_id"] == entry[1]), None)
+                expired = row and row["state"] == "queued" and \
+                    row["expires_at"] <= datetime.now(timezone.utc).isoformat(timespec="seconds")
+                if row and row["state"] == "queued" and not expired:
+                    return  # still being sent: nothing to clear
+                if expired:
+                    remote._settle(self.store, entry[1], "failed", "expired")
+                remote.mark_seen(self.store, entry[1])  # a failed/rejected/expired action: just clear it
+                self.closed[entry] = "cleared"
+                view.render_rows()
+                return
+            if entry and entry[0] == "rproblem" and entry not in self.closed:
+                mid, _, rid = str(entry[1]).partition("|")
+                remote.clear_problem(self.store, mid, int(rid))  # the remote keeps it for check_answers
                 self.closed[entry] = "cleared"
                 view.render_rows()
                 return

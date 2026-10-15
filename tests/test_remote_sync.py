@@ -363,3 +363,120 @@ async def test_a_remote_question_closed_there_becomes_an_inert_placeholder(store
         await pilot.press("enter")  # inert: nothing queued
         await pilot.pause()
     assert store.db.execute("SELECT COUNT(*) FROM remote_outbox").fetchone()[0] == 0
+
+
+# -- final pass of #21 ------------------------------------------------------------------------
+
+
+def test_m1_queued_actions_expire_even_when_the_machine_is_never_reached_again(store, remote_db, fake_herdr, monkeypatch):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00'")
+    monkeypatch.setenv("FAKE_SSH_DOWN", "1")
+    monkeypatch.setattr(remote, "enabled_machines", lambda ttl=60.0: [])  # even removed from herdr
+    fake_herdr.reset()
+    for _ in range(3):
+        remote.expire_sweep(store)
+    assert store.db.execute("SELECT state, result FROM remote_outbox").fetchone()[1] == "expired"
+    expired = [n for n in notes(fake_herdr) if "expired" in n]
+    assert len(expired) == 1  # once
+
+
+def test_l2_an_expiring_send_that_may_have_landed_is_worded_so(store, remote_db, fake_herdr, monkeypatch):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00', attempts = 1")
+    store.db.execute("UPDATE remote_machines SET last_error = 'No route to host'")  # unreachable now
+    fake_herdr.reset()
+    remote.expire_sweep(store)
+    body = fake_herdr.calls_of("notification", "show")[-1][4]
+    assert "may have reached" in body and "answer again" not in body
+
+
+async def test_m1_the_popup_shows_a_past_expiry_as_expired(store, remote_db, fake_herdr):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    remote.pull(store, M)
+    remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00'")
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert f"⚠ moneylust:Q{q} answer expired" in app.query_one(GroupListView).body_text()
+
+
+def test_l5_a_settled_row_is_notified_once_even_with_two_workers(store, remote_db, fake_herdr):
+    """Two local workers (one per herdr session) may both finish the same head row."""
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    rid = remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["no"]})
+    other = Store(store.path)
+    fake_herdr.reset()
+    assert remote._settle(store, rid, "rejected", "answered with yes", "moneylust:Q1: rejected", "x") is True
+    assert remote._settle(other, rid, "rejected", "answered with yes", "moneylust:Q1: rejected", "x") is False
+    assert len(fake_herdr.calls_of("notification", "show")) == 1
+
+
+def test_m2_an_answer_the_remote_cannot_deliver_shows_here_once(store, remote_db, fake_herdr):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    service.answer(remote_db, q, None, choices=["yes"], deliver=False)
+    remote_db.mark_agent_gone(q, "no live agent in pane w1:p1")
+    fake_herdr.reset()
+    remote.pull(store, M)
+    remote.pull(store, M)
+    gone = [n for n in notes(fake_herdr) if "gone" in n or "not delivered" in n]
+    assert len(gone) == 1 and f"moneylust:Q{q}" in gone[0]
+    assert [i["remote_id"] for i in remote.problem_rows(store)] == [q]
+
+
+async def test_m2_the_popup_lists_it_and_d_clears_it(store, remote_db, fake_herdr):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    remote.pull(store, M)
+    service.answer(remote_db, q, None, choices=["yes"], deliver=False)
+    remote_db.mark_agent_gone(q, "no live agent in pane w1:p1")
+    remote.pull(store, M)
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        body = app.query_one(GroupListView).body_text()
+        assert f"⚠ moneylust:Q{q} answered · agent closed — answer kept for check_answers" in body
+        await pilot.press("down", "d")
+        await pilot.pause()
+    assert remote.problem_rows(store) == []
+
+
+def test_l1_a_remote_apply_refreshes_the_tab_markers(store, fake_herdr, monkeypatch):
+    calls = []
+    monkeypatch.setattr(remote_api, "spawn_delivery", lambda ids, force=False: None)
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    q = store.get(qid)
+    monkeypatch.setattr(service, "update_markers", lambda s, pane: calls.append(pane))
+    r = {"request_id": "r9", "db_id": remote_api.db_id(store), "id": qid, "qkey": remote_api.qkey(store, q),
+         "action": "answer", "detail": {"choices": ["yes"]}}
+    assert remote_api.apply(store, r)["outcome"] == "applied"
+    assert calls == ["w1:p1"]
+
+
+def test_l4_the_remote_command_needs_no_posix_login_shell():
+    rec = {"uv": "/r/bin/uv", "herdr": "/r/bin/herdr", "plugin_root": "/r/root"}
+    assert remote.remote_command(rec, "export").startswith("env HERDR_BIN_PATH=/r/bin/herdr /r/bin/uv run ")
+
+
+def test_l3_a_row_of_another_remote_herdr_session_is_left_to_its_own_worker(store, fake_herdr, monkeypatch):
+    """apply -> inbox deliver on the remote: a question asked in another herdr session of that
+    machine is not typed (nor counted as 'no agent') here; that session's worker is started."""
+    from herdr_inbox import cli, worker
+
+    ensured = []
+    monkeypatch.setattr(worker, "ensure", lambda server=None: ensured.append(server) or True)
+    qid = service.ask(store, A, "Elsewhere?", options=["yes"])["id"]
+    store.set_server(qid, "/run/user/1000/herdr-other.sock")
+    service.answer(store, qid, None, choices=["yes"], deliver=False)
+    fake_herdr.reset()
+    assert cli.main(["deliver", str(qid)]) == 0
+    assert not fake_herdr.calls_of("agent", "get") and "/run/user/1000/herdr-other.sock" in ensured
+    assert store.get(qid).delivery_attempts == 0

@@ -143,6 +143,7 @@ def apply(store: Store, request: dict) -> dict:
         result = _record(store, request_id, qid, "applied")
     if after and after[0] == "deliver":
         spawn_delivery([qid], force=after[1])
+        service.update_markers(store, q.pane_id)  # the answered question leaves the tab's ❓N
     elif after and after[0] == "markers":
         service.update_markers(store, q.pane_id)
     return result

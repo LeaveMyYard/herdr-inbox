@@ -103,15 +103,19 @@ Both commands read their request as JSON on stdin and print one JSON object on s
   - `{"outcome": "applied"}`;
   - `{"outcome": "already_applied"}` (this same request, retried);
   - `{"outcome": "rejected", "reason": "answered with X" | "withdrawn" | "dismissed" | "reset" | "not that question" | "expired"}`.
-- **Answering** goes through the remote's normal `service.answer`, so its own worker then
-  delivers with every safety rule.
+- **Answering** goes through the remote's normal answer path, so its own worker then
+  delivers with every safety rule. The tab's `❓N` marker is refreshed right away.
+- **Another herdr session:** delivery is started as a detached `inbox deliver`. A
+  question asked in another herdr session of that machine is left to that session's own
+  worker (started for it), rather than counted against the default server as "no
+  agent".
 
 ## The ssh call (H3, M3, Lows)
 
 ```
 ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
     -o ControlMaster=auto -o ControlPath=<state>/ssh-%C -o ControlPersist=60 \
-    -- <target> '<uv> run --quiet --frozen --no-dev --project <plugin_root> inbox export|apply'
+    -- <target> 'env HERDR_BIN_PATH=<herdr> <uv> run --quiet --frozen --no-dev --project <plugin_root> inbox export|apply'
 ```
 
 - **The target** comes from herdr's saved profile. It is refused if it starts with `-`
@@ -152,15 +156,33 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
     `qkey` must match, and the question must be open in the mirror. Otherwise the row is
     rejected locally.
   - **Expiry (M2):** a queued action expires after `remote_answer_expiry_hours` (default
-    **12 h**). It then fails with a notification instead of sending a stale answer into a
-    conversation that has moved on.
+    **12 h**). It then fails with one notification instead of sending a stale answer into
+    a conversation that has moved on.
+    - Every remote tick runs an **expiry sweep** over all queued rows, whatever the
+      machine's state: offline, never reached, disabled or removed from herdr's list.
+    - The popup already shows an action past its time as expired.
+    - If an action was sent and its reply lost, the sweep says it "may have reached"
+      the machine, since it may already be applied. While the machine is reachable it
+      gets one more send to learn the outcome.
+  - **Notifications once:** rejections and expiries settle the row with a
+    compare-and-set on `queued`. So with two local workers (one per herdr session) only
+    one of them notifies.
   - **Results:** `applied` / `already_applied` mark the row done. `rejected` is shown on
     the mirror row ("moneylust rejected your answer: answered with X") and raises a
     notification.
   - **Errors:** ssh and transport errors retry with backoff (5, 10, 20 … up to 60 s).
   - **Version skew (Low):** an argparse exit 2, or an export-reported version too old for
     `apply`, is **permanent**: "upgrade moneylust (`inbox remote upgrade moneylust`)".
-    Sends are gated on the export's version.
+    In practice no action is sent to an older remote: actions go out only after a pull
+    succeeds, and a pull succeeds only if the export has the current format.
+
+## Answers the remote cannot deliver (final pass, M2)
+
+A mirrored answered question that is agent-gone or not delivered on its machine (for any
+reason other than pending) becomes a ⚠ row here:
+`⚠ moneylust:Q12 answered · agent closed — answer kept for check_answers`.
+It raises one local notification (`issue_notified_at`), and `d` clears it here. The remote
+keeps the answer for `check_answers`.
 
 ## The popup
 
