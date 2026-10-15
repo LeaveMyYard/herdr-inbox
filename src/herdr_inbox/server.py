@@ -5,6 +5,7 @@ mcp 2.x renamed FastMCP to ``MCPServer``; the decorator API is the same.
 
 from __future__ import annotations
 
+import atexit
 import functools
 import logging
 import os
@@ -17,7 +18,7 @@ from typing_extensions import NotRequired, TypedDict  # pydantic needs this Type
 
 from mcp.server.mcpserver import MCPServer
 
-from . import service
+from . import service, trace
 from .store import Store
 
 INSTRUCTIONS = (
@@ -75,7 +76,7 @@ TOOL_BUSY_TIMEOUT = 3.0  # per attempt; busy_safe retries, so a tool never hangs
 
 
 def tool_store() -> Store:
-    return Store(timeout=TOOL_BUSY_TIMEOUT)
+    return Store(timeout=TOOL_BUSY_TIMEOUT, maintenance=False)  # the worker reconciles
 
 
 def busy_safe(fn):
@@ -120,7 +121,9 @@ def ask_operator(
         return {"status": "error", "message": f"At most {service.MAX_QUESTIONS} questions per call."}
     if any(len(i.get("options") or []) > service.MAX_OPTIONS for i in items):
         return {"status": "error", "message": f"At most {service.MAX_OPTIONS} options; ask fewer or split the question."}
-    with tool_store() as store:
+    with trace.step("mcp.ask_operator"), trace.step("mcp.tool_store"):
+        store = tool_store()
+    with store, trace.step("mcp.ask_operator.body"):
         caller = service.resolve_caller()
         if questions:
             return service.ask_group(store, caller, items, context, asked_by, title=title)
@@ -185,10 +188,16 @@ def _ensure_worker() -> None:
         log.warning("delivery worker: %s", exc)
 
 
+def prepare() -> None:
+    service.enable_background()  # tab labels and notifications never hold up a tool call
+    atexit.register(service.drain, 1.0)  # what is queued at exit still runs (bounded)
+    _ensure_worker()
+
+
 def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
-    _ensure_worker()
+    prepare()
     from . import venvs
 
     venvs.start_cleanup()  # old unused venvs (venvs.py); the lock was taken in cli

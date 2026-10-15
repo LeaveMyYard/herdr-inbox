@@ -356,7 +356,8 @@ def test_h1_a_retry_checks_the_transcript_before_typing_again(store, fake_herdr,
     qid = pending_answer(store, monkeypatch, status="idle")
     assert store.get(qid).delivery_error == service.NOT_VERIFIED and len(prompts(fake_herdr)) == 1
     with open(live_session, "a") as fh:  # the late record
-        fh.write(json.dumps({"type": "user", "message": {"content": f"[inbox] Q{qid} answered — x: yes"}}) + "\n")
+        # the real message (0.6.3: the check matches the full text, not the id alone)
+        fh.write(json.dumps({"type": "user", "message": {"content": service.delivery_text([store.get(qid)])}}) + "\n")
     worker.tick(store)
     assert len(prompts(fake_herdr)) == 1 and store.get(qid).verified_at
 
@@ -402,6 +403,7 @@ def test_m1_legacy_rows_need_a_matching_session(store, fake_herdr, monkeypatch, 
     q = store.get(qid)
     assert prompts(fake_herdr) == [] and q.delivery_attempts == 0  # no caps burnt
     monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    store.db.execute("UPDATE question_ext SET legacy_checked_at = NULL WHERE id = ?", (qid,))  # backoff over
     worker.tick(store)
     assert store.get(qid).verified_at
     qid2 = pending_answer(store, monkeypatch)

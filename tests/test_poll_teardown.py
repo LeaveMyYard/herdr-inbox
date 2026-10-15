@@ -36,7 +36,7 @@ async def test_a_send_finishing_after_the_popup_exits_does_not_raise(store, fake
     monkeypatch.setattr(app, "run_worker", lambda fn, **kw: captured.append(fn))
     async with app.run_test() as pilot:
         await pilot.pause()
-        tui._send(app, store, [qid], lambda s: [s.get(qid)])
+        tui._send(app, store, [qid], lambda s, deliver: [s.get(qid)])
     assert captured
 
     def gone(*a, **k):  # what Textual raises once the app has stopped (App.call_from_thread)
@@ -75,7 +75,7 @@ async def test_an_error_inside_the_send_report_still_surfaces(store, fake_herdr,
 
     async with app.run_test() as pilot:
         await pilot.pause()
-        tui._send(app, store, [qid], lambda s: [s.get(qid)])
+        tui._send(app, store, [qid], lambda s, deliver: [s.get(qid)])
         monkeypatch.setattr(app, "call_from_thread", lambda fn, *a, **k: boom())
         with pytest.raises(ValueError):
             captured[-1]()  # the app is running: the error must not be hidden
@@ -96,7 +96,7 @@ async def test_a_runtime_error_while_the_app_still_runs_is_not_swallowed(store, 
 
     async with app.run_test() as pilot:
         await pilot.pause()
-        tui._send(app, store, [qid], lambda s: [s.get(qid)])
+        tui._send(app, store, [qid], lambda s, deliver: [s.get(qid)])
         monkeypatch.setattr(app, "call_from_thread", gone_but_not_really)
         with pytest.raises(RuntimeError):
             captured[-1]()

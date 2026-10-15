@@ -152,7 +152,7 @@ async def test_popup_says_why_and_offers_send_now(store, fake_herdr, monkeypatch
     async with app.run_test() as pilot:
         await pilot.pause()
         body = app.query_one(GroupListView).body_text()
-        assert f"⏳ Q{qid} agent busy — will send in" in body
+        assert f"⏳ Q{qid} answered · waiting to deliver: agent busy — will send in" in body
         await pilot.press("down", "enter")
         await pilot.pause()
         fv = app.query_one(FailedView)
