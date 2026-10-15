@@ -67,14 +67,14 @@ def test_working_agent_waits_the_grace_then_gets_it_anyway(store, fake_herdr, mo
 
 def test_busy_misses_have_their_own_cap_then_wait_for_idle(store, fake_herdr, monkeypatch, live_session):
     """Review of #13, M1: typing into a `working` agent that swallows it is tried
-    MAX_BUSY_ATTEMPTS times, then the answer waits for idle -- it is never parked as ⚠."""
+    MAX_BUSY_ATTEMPTS times (1 since 0.6.1), then the answer waits for idle -- never parked."""
     monkeypatch.setenv("FAKE_HERDR_LAND", "none")
     qid = answered_while(store, monkeypatch, "working")
     for _ in range(8):
         age_pending(store, qid, service.BUSY_GRACE + 1)
         service.retry_deliveries(store, "w1:p1")
     q = store.get(qid)
-    assert len(prompts(fake_herdr)) == service.MAX_BUSY_ATTEMPTS == 3
+    assert len(prompts(fake_herdr)) == service.MAX_BUSY_ATTEMPTS == 1
     assert q.delivery_error.startswith("pending: busy") and q.delivery_attempts == 0
     assert "when it is idle" in __import__("herdr_inbox.tui").tui.pending_text(q.delivery_error[len("pending: "):], 99)
 

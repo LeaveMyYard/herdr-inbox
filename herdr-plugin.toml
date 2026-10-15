@@ -1,6 +1,6 @@
 id = "leavemyyard.herdr-inbox"
 name = "herdr inbox"
-version = "0.6.0"
+version = "0.6.1"
 min_herdr_version = "0.9.0"
 description = "Non-blocking question inbox: agents file questions once through an MCP tool, you answer them from one popup, answers go back into the asking pane."
 platforms = ["linux", "macos"]
@@ -50,3 +50,8 @@ command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "in
 # Pane tokens do not survive a herdr restart; put the counts back.
 [[startup]]
 command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "sync-tokens"]
+
+# The delivery worker retries every pending answer, whatever version the asking sessions
+# run (it also starts on demand from the popup, the CLI and MCP servers).
+[[startup]]
+command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "worker", "--ensure"]

@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS question_ext (
     verified_at     TEXT,
     reset_count     INTEGER,
     pending_since   TEXT,
-    busy_attempts   INTEGER
+    busy_attempts   INTEGER,
+    notified_at     TEXT
 );
 -- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
 -- is verified by finding the typed answer in it.
@@ -103,7 +104,7 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -156,6 +157,8 @@ RESET_KEY = "0.5.1 unverified acknowledgements reset"
 RESET_WINDOW = timedelta(days=7)
 SIGNATURE_WINDOW = timedelta(hours=24)
 RECONCILE_BATCH = 200  # rows per open; the 7-day sweep is done only once a pass sees fewer
+REQUEUE_WINDOW = timedelta(hours=1)  # an old server's unlanded delivery this recent is sent again
+REQUEUED = "pending: requeued: an earlier delivery never reached the conversation; sending when the agent is idle"
 MAX_RESETS = 2
 # A delivery claim older than this belongs to a process that died mid-send.
 CLAIM_STALE = timedelta(seconds=60)
@@ -556,19 +559,21 @@ class Store:
         """
         one_off = not self.db.execute("SELECT 1 FROM meta WHERE key = ?", (RESET_KEY,)).fetchone()
         rows = self.db.execute(
-            "SELECT q.id, q.session_id FROM questions q LEFT JOIN question_ext e ON e.id = q.id"
+            "SELECT q.id, q.session_id, (q.acknowledged_at = q.delivered_at AND q.delivered_at >= ?)"
+            " FROM questions q LEFT JOIN question_ext e ON e.id = q.id"
             " WHERE q.delivered_at IS NOT NULL AND q.acknowledged_at IS NOT NULL AND e.verified_at IS NULL"
             " AND COALESCE(e.reset_count, 0) < ?"
             " AND ((? AND q.answered_at >= ?) OR (q.acknowledged_at = q.delivered_at AND q.delivered_at >= ?))"
             " ORDER BY q.id LIMIT ?",
-            (MAX_RESETS, int(one_off), now(-RESET_WINDOW), now(-SIGNATURE_WINDOW), RECONCILE_BATCH),
+            (now(-REQUEUE_WINDOW), MAX_RESETS, int(one_off), now(-RESET_WINDOW), now(-SIGNATURE_WINDOW),
+             RECONCILE_BATCH),
         ).fetchall()
         if not rows and not one_off:
             return
         from . import transcript  # stdlib only; kept local so the store has no import cycle
 
         by_session: dict[str | None, list[int]] = {}
-        for qid, session in rows:
+        for qid, session, _ in rows:
             by_session.setdefault(session, []).append(qid)
         found: set[int] = set()
         for session, qids in by_session.items():
@@ -576,11 +581,19 @@ class Store:
             if path is not None:
                 found |= transcript.landed_ids(path, qids)
         with self.transaction():
-            for qid, _ in rows:
+            for qid, _, recent_signature in rows:
                 if qid in found:
                     self.db.execute(
                         "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
                         " ON CONFLICT(id) DO UPDATE SET verified_at = excluded.verified_at", (qid, qid, now()))
+                elif recent_signature:
+                    # an old server typed it and called it seen; it never landed: deliver it
+                    # again (the worker waits for idle; claims keep old servers from doubling)
+                    self.db.execute("UPDATE questions SET acknowledged_at = NULL, delivered_at = NULL,"
+                                    " delivery_error = ? WHERE id = ?", (REQUEUED, qid))
+                    self.db.execute(
+                        "INSERT INTO question_ext (id, group_id, reset_count) VALUES (?, ?, 1)"
+                        " ON CONFLICT(id) DO UPDATE SET reset_count = COALESCE(reset_count, 0) + 1", (qid, qid))
                 else:
                     self.db.execute("UPDATE questions SET acknowledged_at = NULL WHERE id = ?", (qid,))
                     self.db.execute(
@@ -588,6 +601,35 @@ class Store:
                         " ON CONFLICT(id) DO UPDATE SET reset_count = COALESCE(reset_count, 0) + 1", (qid, qid))
             if one_off and len(rows) < RECONCILE_BATCH:
                 self.db.execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)", (RESET_KEY, now()))
+
+    def undelivered_all(self, caps: dict[str, int]) -> list[Question]:
+        """``undelivered`` for every pane (the delivery worker)."""
+        panes = [r[0] for r in self.db.execute(
+            f"SELECT DISTINCT pane_id FROM {VIEW} WHERE pane_id IS NOT NULL AND status = 'answered'"
+            " AND delivered_at IS NULL AND acknowledged_at IS NULL")]
+        return [q for pane in panes for q in self.undelivered(pane, caps)]
+
+    def stuck_answers(self) -> list[Question]:
+        """Answered, never delivered (or delivered unverified) and not seen: candidates for
+        the 'not delivered' notification."""
+        rows = self.db.execute(
+            f"SELECT * FROM {VIEW} WHERE status = 'answered' AND acknowledged_at IS NULL"
+            " AND verified_at IS NULL AND pane_id IS NOT NULL ORDER BY id").fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def notified(self, qid: int) -> bool:
+        row = self.db.execute("SELECT notified_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return bool(row and row[0])
+
+    def mark_notified(self, qids: list[int]) -> None:
+        for qid in qids:
+            self.db.execute(
+                "INSERT INTO question_ext (id, group_id, notified_at) VALUES (?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET notified_at = excluded.notified_at", (qid, qid, now()))
+
+    def reconcile(self) -> None:
+        """Re-check unverified acknowledgements now (the delivery worker, every tick)."""
+        self._reconcile_unverified()
 
     def undelivered(self, pane_id: str, caps: dict[str, int]) -> list[Question]:
         """Answers for ``pane_id`` whose delivery failed and that the agent has not seen.

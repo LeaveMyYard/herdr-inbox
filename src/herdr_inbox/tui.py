@@ -110,7 +110,11 @@ def pending_text(reason: str, busy_for: float | None) -> str:
     """Why a pending answer waits, and when it goes: ``busy: …`` waits service.BUSY_GRACE
     then is typed anyway; ``blocked: …`` waits for the prompt/dialog to go."""
     if reason == service.BUSY_WAIT_IDLE:
-        return "agent busy — will send when it is idle"
+        return "⚠ not delivered — agent busy; will retry when it is idle"
+    if reason.startswith("requeued:"):
+        return "⚠ not delivered earlier — will resend when the agent is idle"
+    if reason == service.PANEL:
+        return "waiting: the agent's task panel has focus (Esc there to close it)"
     if reason.startswith("busy:"):
         left = int(-(-(service.BUSY_GRACE - (busy_for or 0.0)) // 1))
         if left > 0:
@@ -750,8 +754,12 @@ class GroupListView(Vertical, can_focus=True):
             where = escape(tab_name(q, store))
             if closed:
                 return f"{cur} {number} [$inbox-warning]✕ Q{entry[1]} · {where} · {escape(closed)}[/]"
-            if _pending(q):  # waiting for the agent: information, not a warning
-                head = f"⏳ Q{q.id} {escape(_pending_line(q, store))} · {where}"
+            text = _pending_line(q, store) if _pending(q) else ""
+            if _pending(q) and text.startswith("⚠ "):  # pending, but it already failed once
+                head = f"⚠ Q{q.id} {escape(text[2:])} · {where}"
+                line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
+            elif _pending(q):  # waiting for the agent: information, not a warning
+                head = f"⏳ Q{q.id} {escape(text)} · {where}"
                 line1 = f"[b $inbox-suggestion]{head}[/]" if here else f"[$foreground]{head}[/]"
             else:
                 head = f"⚠ Q{q.id} not delivered · {where} · {escape(q.delivery_error or 'no attempt recorded')}"
@@ -984,6 +992,12 @@ class InboxApp(App):
                 if radar.missing():
                     self.call_from_thread(self.add_class, "radar-missing")
             except Exception:  # noqa: BLE001 - a hint is never worth an error
+                pass
+            try:
+                from . import worker
+
+                worker.ensure()  # the delivery worker retries what this popup answers
+            except Exception:  # noqa: BLE001
                 pass
 
         self.run_worker(run, thread=True, group="radar")

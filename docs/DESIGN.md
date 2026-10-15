@@ -117,6 +117,46 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
 
 ## Answer delivery
 
+**The delivery worker (0.6.1).**
+- **Why:** until 0.6.0 each asking session's own MCP server retried deliveries into its own
+  pane. A session started before an update keeps its old server, so answers to long-lived
+  sessions could go unretried. Live, 2026-10-15: Q49–Q52 were typed at 06:28:18 while the
+  agent's background-agents panel had focus. They never landed, and the session's
+  pre-0.5.1 server had already marked them seen. Reconcile un-saw them, but nothing retried
+  them until the agent called `check_answers` 11 minutes later.
+- **Now** (`worker.py`): one herdr-side worker, a singleton held by an exclusive flock on
+  `worker.lock` next to the database.
+  - It is started detached (`ensure()`) from herdr's `[[startup]]` (`inbox worker
+    --ensure`), the popup, `inbox answer` / `redeliver`, and every 0.6.1+ MCP server.
+  - Every `TICK` (5 s) it runs `Store.reconcile()` and then `deliver_batch(retry=True)`
+    for **all** panes. Claims serialize it with old servers' loops.
+  - Session MCP servers keep only ask/check/list/withdraw.
+  - It exits after 10 idle minutes, and the next answer starts it again.
+- **An old server's lost delivery is requeued:** reconcile now also sends such an answer
+  again. It applies when the row carries the pre-0.5.1 signature (`acknowledged_at =
+  delivered_at`), was delivered less than an hour ago (`REQUEUE_WINDOW`), and is missing
+  from the transcript. The row then becomes `pending: requeued`, delivered only at
+  idle/done. Older rows are only un-seen, as before. `reset_count` (≤ 2) bounds any
+  back-and-forth with an old server.
+- **One busy try:** an answer typed while busy that isn't seen (`MAX_BUSY_ATTEMPTS` = 1)
+  waits for the next idle/done. The popup shows it at once as `⚠ not delivered — agent
+  busy; will retry when it is idle`.
+- **Panel focus:** before typing, the worker reads the pane's visible bottom lines
+  (read-only). If Claude Code's footer says `↑/↓ to select` (the background-agents panel
+  or a subagent view has focus), it waits, even on Send now, and the popup says so.
+- **Notification:** an answer still unseen 5 min after it was answered, or out of idle
+  tries, raises one herdr notification per pane: "Q49–Q52 not delivered to <tab> — the
+  agent can fetch them with check_answers". It fires once per answer (`notified_at`).
+- **Probe 3** (2026-10-15, a disposable haiku session in a tab created and closed for the
+  test). The agent was waiting on 3 background subagents ("✻ Waiting for 3 background
+  agents to finish"); herdr said `working`.
+  - With the prompt focused, typed text landed at once.
+  - With the agents panel focused (↓, footer `↑/↓ to select`), typed text left no record
+    and the prompt box stayed empty: the text was swallowed.
+  - With a subagent's view selected, the text sat unsent in that view's input.
+  - After Esc back to the prompt, typing landed again.
+  - ← ("for agents") opens a "Background this session?" dialog.
+
 **Verified delivery (0.5.1).** A successful `herdr agent prompt` only means the
 keys were written to the pane. In live use (0.4.0) answers typed while the
 agent was mid-turn left no trace in its transcript, yet were recorded as
