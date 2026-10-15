@@ -162,11 +162,17 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
       machine's state: offline, never reached, disabled or removed from herdr's list.
     - The popup already shows an action past its time as expired.
     - If an action was sent and its reply lost, it is **never applied late**. Once the
-      machine is reachable, a read-only `{"action": "status"}` asks whether the remote
-      recorded that request id:
+      machine is reachable, `{"action": "status"}` asks whether the remote recorded that
+      request id:
       - recorded as applied → done, with the notification "reached moneylust after all";
       - recorded as rejected → shown as rejected;
-      - not recorded → expired, "not sent".
+      - not recorded → the remote writes a **tombstone** (`rejected: expired`) for that
+        id in the same locked transaction and answers `expired`. The original apply may
+        still be running there after our ssh was killed; whichever commits first wins,
+        and a late apply refuses.
+      - An older remote without `status` answers "bad request". That counts as "can't
+        tell": the row expires with "may have reached moneylust — check there", notified
+        once.
 
       While the machine stays unreachable, the sweep says the action "may have reached"
       it.

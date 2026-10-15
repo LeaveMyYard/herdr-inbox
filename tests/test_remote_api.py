@@ -115,11 +115,20 @@ def test_cli_export_and_apply_read_stdin_write_stdout(store, fake_herdr, capsys,
     assert cli.main(["apply"], stdin="{not json") == 1
 
 
-def test_status_is_read_only(store, fake_herdr, monkeypatch):
+def test_status_tombstones_an_unknown_request_so_a_late_apply_refuses(store, fake_herdr, monkeypatch):
+    """Re-review of #21: the original apply may still be running on the remote when the
+    post-expiry status query arrives. Whichever commits first wins."""
     monkeypatch.setattr(remote_api, "spawn_delivery", lambda ids, force=False: None)
     qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
-    assert remote_api.apply(store, {"request_id": "rs", "action": "status"}) == {"outcome": "unknown"}
-    assert store.db.execute("SELECT COUNT(*) FROM applied_requests").fetchone()[0] == 0
+    assert remote_api.apply(store, {"request_id": "rs", "action": "status"}) == {"outcome": "expired"}
+    late = remote_api.apply(store, req(store, qid, detail={"choices": ["yes"]}, request_id="rs"))
+    assert late == {"outcome": "rejected", "reason": "expired"}
     assert store.get(qid).status == "open"
-    remote_api.apply(store, req(store, qid, detail={"choices": ["yes"]}, request_id="rs"))
-    assert remote_api.apply(store, {"request_id": "rs", "action": "status"})["state"] == "applied"
+
+
+def test_status_reports_an_applied_request(store, fake_herdr, monkeypatch):
+    monkeypatch.setattr(remote_api, "spawn_delivery", lambda ids, force=False: None)
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    remote_api.apply(store, req(store, qid, detail={"choices": ["yes"]}, request_id="ra"))
+    assert remote_api.apply(store, {"request_id": "ra", "action": "status"}) == \
+        {"outcome": "recorded", "state": "applied", "reason": None}
