@@ -171,35 +171,24 @@ def withdraw_question(id: int, reason: str) -> dict[str, Any]:
     return {"id": id, "status": "withdrawn", "message": f"Q{id} withdrawn."}
 
 
-RETRY_SECONDS = 10.0  # also how soon an answer pending on a busy agent goes out once it is idle
 log = logging.getLogger("herdr_inbox")
 
 
-def start_retry_loop(interval: float = RETRY_SECONDS, stop: threading.Event | None = None) -> threading.Event:
-    """Retry failed answer deliveries into this server's pane, every ``interval`` seconds.
+def _ensure_worker() -> None:
+    """Deliveries are retried by the one herdr-side worker (worker.py), not by this session's
+    server: start it if it is not running. Never fatal."""
+    try:
+        from . import worker
 
-    The asking session's own MCP server is the one process that lives as long as the
-    conversation, so it owns the retry; ``deliver`` still checks the session matches.
-    """
-    stop = stop or threading.Event()
-    pane_id = os.environ.get("HERDR_PANE_ID")
-
-    def loop() -> None:
-        while pane_id and not stop.wait(interval):
-            try:
-                with tool_store() as store:
-                    service.retry_deliveries(store, pane_id)
-            except Exception:  # noqa: BLE001 - keep retrying, never kill the server
-                log.exception("delivery retry failed")
-
-    threading.Thread(target=loop, name="inbox-retry", daemon=True).start()
-    return stop
+        worker.ensure()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("delivery worker: %s", exc)
 
 
 def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
-    start_retry_loop()
+    _ensure_worker()
     from . import venvs
 
     venvs.start_cleanup()  # old unused venvs (venvs.py); the lock was taken in cli

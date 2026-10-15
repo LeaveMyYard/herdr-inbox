@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.1
+
+- **Fix: answers to long-lived sessions could go undelivered with nobody retrying.** Retries
+  used to live in the asking session's own MCP server, so a session started before an update
+  kept old (or no) retry logic.
+  - One herdr-side **delivery worker** (`inbox worker`, a singleton) now retries, verifies and
+    applies the busy/idle policy for every pane. It starts with herdr, from the popup, the CLI
+    and new MCP servers.
+  - An answer an old server typed and called seen, but which never landed, is sent again.
+- An answer typed while the agent is busy and not seen waits for the next idle moment. The
+  popup shows it at once as ⚠ "not delivered — agent busy".
+- The worker never types while Claude Code's background-agents panel has focus: text typed then
+  never reaches the conversation (tested on a throwaway session).
+- Answers still undelivered after 5 minutes, or out of tries, raise one herdr notification: the
+  agent can fetch them with `check_answers`.
+
 ## 0.6.0
 
 - **Deep links:** `inbox open --question Qn | --group G | --pane P | --session S` opens the popup

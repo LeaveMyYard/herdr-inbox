@@ -117,6 +117,77 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
 
 ## Answer delivery
 
+**The delivery worker (0.6.1).**
+- **Why:** until 0.6.0 each asking session's own MCP server retried deliveries into its own
+  pane. A session started before an update keeps its old server, so answers to long-lived
+  sessions could go unretried. Live, 2026-10-15: Q49–Q52 were typed at 06:28:18 while the
+  agent's background-agents panel had focus. They never landed, and the session's
+  pre-0.5.1 server had already marked them seen. Reconcile un-saw them, but nothing retried
+  them until the agent called `check_answers` 11 minutes later.
+- **Now** (`worker.py`): one herdr-side worker **per herdr server**, a singleton held by an
+  exclusive flock on `worker-<hash of the server's socket>.lock` next to the database.
+  - Each question records the server it was asked on (`question_ext.herdr_server`, from
+    `HERDR_SOCKET_PATH`). A worker handles only its own server's rows; a send for another
+    server's row starts that server's worker instead.
+  - Rows from before 0.6.1 carry no server. They are handled only when the pane's live
+    conversation is the asking session, never on a pane-id match alone, and burn no retry
+    caps otherwise.
+  - Spawns strip `UV_*` and `VIRTUAL_ENV`, so a worker started from an MCP server never
+    makes uv resync that MCP venv for the herdr checkout.
+  - It is started detached (`ensure()`) from herdr's `[[startup]]` (`inbox worker
+    --ensure`), the popup, `inbox answer` / `redeliver`, and every 0.6.1+ MCP server.
+  - Every `TICK` (5 s) it runs `Store.reconcile()` and then `deliver_batch(retry=True)`
+    for **all** panes. Claims serialize it with old servers' loops.
+  - Session MCP servers keep only ask/check/list/withdraw.
+  - It exits after 10 idle minutes, and the next answer starts it again.
+- **An old server's lost delivery is requeued:** reconcile now also sends such an answer
+  again. It applies when the row carries the pre-0.5.1 signature (`acknowledged_at =
+  delivered_at`) and was delivered between `REQUEUE_SETTLE` (20 s, more than the 15 s verify
+  window, since Claude Code writes the record a moment after the old server's DB write) and
+  an hour ago (`REQUEUE_WINDOW`). Its transcript must actually have been read and must lack
+  it. Without a transcript the row is only un-seen, never retyped blind.
+- **Look before retyping:** before typing a row that was typed before (unverified, requeued,
+  busy miss), `deliver_batch` checks the transcript once more. A late record marks it
+  verified instead of typing a second copy. The "operator in this pane" check is repeated
+  right before each prompt. The row then becomes `pending: requeued`, delivered only at
+  idle/done. Older rows are only un-seen, as before. `reset_count` (≤ 2) bounds any
+  back-and-forth with an old server.
+- **One busy try:** an answer typed while busy that isn't seen (`MAX_BUSY_ATTEMPTS` = 1)
+  waits for the next idle/done. The popup shows it at once as `⚠ not delivered — agent
+  busy; will retry when it is idle`.
+- **Panel focus:** before typing, the worker reads the pane's visible lines (read-only).
+  If Claude Code's **footer** reads `↑/↓ to select` (the background-agents panel or a
+  subagent view has focus), it waits, and the popup says so. The footer is the first
+  non-empty line below the input box's last `───` border, so the phrase in ordinary
+  output (a diff, this repo's docs) never counts. Send now overrides the wait; the
+  transcript check catches a real swallow.
+- **The worker is always there when needed:** every non-retry send (the popup's answer,
+  Submit, Send now/Retry, `inbox answer`) calls `worker.ensure()`. A worker that idles
+  out re-checks for pending answers after releasing its lock and starts a successor if
+  one arrived meanwhile. A worker that finds the installed version changed after a tick
+  hands over to the new code (`uv run --project <root> inbox worker`). "Changed" means
+  the checkout's `pyproject.toml` version differs from the running code's own package
+  version. If no successor can be started (no checkout, no uv), the worker keeps serving
+  rather than respawning itself in a loop. The plugin root is cached.
+- **Notification:** an answer still unseen 5 min after it was answered, or out of idle
+  tries, raises one herdr notification per pane, once per answer (`notified_at`):
+  - normally "Q49–Q52 not delivered to <tab>", which says the agent can fetch them
+    with check_answers;
+  - for an agent waiting at a prompt, "waiting: <tab> is at a prompt (Q…)", which
+    points at the pane.
+
+  An answer sent where no transcript could be found (unverifiable, most likely landed)
+  doesn't notify.
+- **Probe 3** (2026-10-15, a disposable haiku session in a tab created and closed for the
+  test). The agent was waiting on 3 background subagents ("✻ Waiting for 3 background
+  agents to finish"); herdr said `working`.
+  - With the prompt focused, typed text landed at once.
+  - With the agents panel focused (↓, footer `↑/↓ to select`), typed text left no record
+    and the prompt box stayed empty: the text was swallowed.
+  - With a subagent's view selected, the text sat unsent in that view's input.
+  - After Esc back to the prompt, typing landed again.
+  - ← ("for agents") opens a "Background this session?" dialog.
+
 **Verified delivery (0.5.1).** A successful `herdr agent prompt` only means the
 keys were written to the pane. In live use (0.4.0) answers typed while the
 agent was mid-turn left no trace in its transcript, yet were recorded as

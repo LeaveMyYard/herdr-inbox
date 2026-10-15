@@ -174,12 +174,14 @@ def test_migration_uses_the_verifier(tmp_path, fake_herdr, live_session):
 def test_old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop(store, fake_herdr, live_session):
     """M2 (review of #9): a 0.4/0.5.0 server still running types a pending answer into a busy
     pane and marks it seen; the next open of the DB notices and un-sees it, at most twice."""
+    from datetime import timedelta
+
     from herdr_inbox.store import now
 
     qid = ask(store)
     store.set_answer(qid, "yes")
     for round_ in range(1, 4):
-        _old_server_delivery(store, qid, now())
+        _old_server_delivery(store, qid, now(-timedelta(seconds=60)))  # settled (0.6.1: REQUEUE_SETTLE)
         reopened = Store(store.path)
         expected_seen = round_ > 2  # MAX_RESETS: the third re-ack by an old server stays
         assert (reopened.get(qid).acknowledged_at is not None) == expected_seen

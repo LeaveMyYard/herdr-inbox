@@ -133,8 +133,17 @@ offers **Retry delivery** and **Stop showing it here** (the agent can still fetc
 An answer arrives in the agent's conversation as
 `[inbox] Q12 answered — <question>: Postgres (note: keep the old schema)`, or for several
 `[inbox] answered — Q12 <q>: A · Q13 <q>: B`, only while that pane still holds the conversation
-that asked. If delivery fails (agent at a dialog, pane gone, conversation changed), the asking
-session's MCP server retries every 30 s, and the agent can always fetch the answer itself.
+that asked.
+
+If an answer can't be delivered right away, one background delivery worker retries every few
+seconds. This covers an agent at a dialog, an agent busy, Claude Code's background-agents panel
+having focus, or a typed answer that never showed up in the conversation. The worker serves every
+pane, whichever inbox version each session runs. It starts with herdr and on demand (`inbox
+worker --ensure`), and stops after 10 idle minutes.
+
+The popup shows why an answer is waiting. If an answer is still undelivered after 5 minutes, or
+runs out of tries, herdr shows a notification. The agent can always fetch it itself with
+`check_answers`.
 
 ## Tab marker and sidebar count
 
