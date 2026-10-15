@@ -332,12 +332,6 @@ def _ensure_worker(server: str | None = None) -> None:
         log.warning("delivery worker: %s", exc)
 
 
-def _typed_before(store: Store, q: Question) -> bool:
-    err = q.delivery_error or ""
-    return (q.delivery_attempts > 0 or err.startswith(NOT_VERIFIED) or err == REQUEUED
-            or err == PENDING + BUSY_WAIT_IDLE or store.busy_attempts(q.id) > 0)
-
-
 def _busy_for(store: Store, qid: int) -> float:
     """Seconds this answer has been pending (0 if it is not)."""
     since = store.get_pending_since(qid)
@@ -435,10 +429,9 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             continue
         path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
         if path is not None:
-            # typed before (unverified, requeued, busy miss)? it may have landed late: look
-            # once more before typing it again
-            again = [q for q in ours if _typed_before(store, q)]
-            landed = transcript.landed_ids(path, [q.id for q in again]) if again else set()
+            # already in the conversation? (a late landing, or a sender that typed and then
+            # died mid-verify, whose stale claim we just took over): look before EVERY typing
+            landed = transcript.landed_ids(path, [q.id for q in ours])
             for q in ours:
                 if q.id in landed:
                     record(q, None, verified=True)
@@ -515,7 +508,7 @@ def enable_background() -> None:
             try:
                 with trace.step("background.job"):
                     fn()
-            except Exception:  # noqa: BLE001 - cosmetic work never kills the process
+            except BaseException:  # noqa: BLE001 - one bad job never stops the queue
                 log.warning("background job failed", exc_info=True)
             finally:
                 q.task_done()

@@ -148,8 +148,9 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   window, since Claude Code writes the record a moment after the old server's DB write) and
   an hour ago (`REQUEUE_WINDOW`). Its transcript must actually have been read and must lack
   it. Without a transcript the row is only un-seen, never retyped blind.
-- **Look before retyping:** before typing a row that was typed before (unverified, requeued,
-  busy miss), `deliver_batch` checks the transcript once more. A late record marks it
+- **Look before typing:** whenever the transcript is known, `deliver_batch` checks it
+  before **every** typing attempt (0.6.3; before, only rows typed before). This covers a
+  late landing and a sender killed mid-verify whose stale claim is being taken over. A late record marks it
   verified instead of typing a second copy. The "operator in this pane" check is repeated
   right before each prompt. The row then becomes `pending: requeued`, delivered only at
   idle/done. Older rows are only un-seen, as before. `reset_count` (≤ 2) bounds any
@@ -389,7 +390,11 @@ change:
     thread, and markers after a dismiss go to the background queue.
 - **Agent side:** the MCP server calls `service.enable_background()`. Tab-label updates
   (a lock that can wait 10 s) and herdr notifications run on one background thread
-  after the tool has answered.
+  after the tool has answered. A failing job (even a `BaseException`) is logged and the
+  thread carries on. Jobs still queued when a short-lived server exits (`claude -p`) are
+  lost; they are cosmetic, and the next change or `sync-tokens` fixes the labels.
+- **No stranded answers:** the popup's record step ensures the delivery worker before
+  spawning the sender. A popup killed in between leaves the answer to the worker.
 - **herdr:** a send never stalled herdr for other panes. `herdr agent prompt` itself
   takes ~300 ms for one message, and only that call waits on it.
 - **`INBOX_TRACE=<file>`** (off by default) appends one JSON line per step to `<file>`:
@@ -401,7 +406,7 @@ change:
   `agent_gone_at` once. The worker never polls it again and sends one notification ("the
   agent in <tab> is gone — the answer is kept; a new session can fetch it with
   check_answers"). The answer stays unseen for `check_answers`.
-- Hidden rows are never retried either.
+- Hiding a row only takes it out of the popup: a hidden pending answer is still delivered.
 - Pre-0.6.1 rows with no server recorded are checked at most every 60 s, and called gone
   after 10 misses. Before, a gone pane's `agent get` failed on every 5 s tick.
 - In the popup:
