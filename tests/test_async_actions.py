@@ -252,3 +252,15 @@ def test_a_record_older_than_the_answer_does_not_count(store, fake_herdr, live_s
     assert qid == 1
     service.answer(store, qid, "yes")
     assert len(fake_herdr.calls_of("agent", "prompt")) == 1 and store.get(qid).verified_at
+
+
+def test_a_landed_multiline_answer_is_recognised_as_typed(store, fake_herdr, live_session):
+    """herdr.clean() turns tabs/newlines/U+2028 into spaces before typing: the landed record
+    carries that text, and it must count (else it is retyped up to the cap)."""
+    qid = service.ask(store, A, "Pick\tone?", options=["x"])["id"]
+    service.answer(store, qid, "a\tb\nc d  e", deliver=False)
+    typed = herdr.clean(service.delivery_text([store.get(qid)]))  # exactly what herdr types
+    with open(live_session, "a") as fh:  # it landed; the sender died before recording it
+        fh.write(_json.dumps({"type": "user", "message": {"content": typed}}) + "\n")
+    service.deliver(store, store.get(qid))
+    assert not fake_herdr.calls_of("agent", "prompt") and store.get(qid).verified_at

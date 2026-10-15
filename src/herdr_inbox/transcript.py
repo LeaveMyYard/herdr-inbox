@@ -146,6 +146,12 @@ def _after(ts: str | None, since: str | None) -> bool:
         return True
 
 
+def _squash(text: str) -> str:
+    """Runs of whitespace as one space, ends trimmed: compares what was typed with what
+    Claude Code recorded, whatever either side did to spacing."""
+    return " ".join(text.split())
+
+
 def landed_exact(path: Path, expected: dict[int, tuple[list[str], str | None]]) -> set[int]:
     """Which ids landed, judged by their FULL expected text, not the id alone: ``expected``
     maps an id to (the exact strings our message carries for it, the answer's time). A
@@ -166,11 +172,12 @@ def landed_exact(path: Path, expected: dict[int, tuple[list[str], str | None]]) 
         for text, ts in _records(raw.decode("utf-8", errors="replace")):
             stripped = _PASTE_WRAPPER.sub("", text, count=1)
             named = header_ids(stripped)
+            stripped = _squash(stripped)
             for qid, (segments, since) in expected.items():
                 if qid in found or qid not in named or not _after(ts, since):
                     continue
                 if any(stripped.startswith(seg) or ("— " + seg) in stripped or (" · " + seg) in stripped
-                       for seg in segments):
+                       for seg in map(_squash, segments)):
                     found.add(qid)
     return found
 
