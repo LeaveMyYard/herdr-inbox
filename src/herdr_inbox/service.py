@@ -280,8 +280,9 @@ def answer(
 
 def expected_segments(q: Question) -> list[str]:
     """The exact strings a delivery of ``q`` carries (single message, batch segment, or the
-    long-answer reference): what the transcript must show for ``q`` to count as landed."""
-    return [delivery_text([q]), answer_line(q), _reference(q)]
+    long-answer reference), as herdr types them (``herdr.clean``: tabs, newlines, U+2028
+    become spaces): what the transcript must show for ``q`` to count as landed."""
+    return [herdr.clean(s, limit=10**9) for s in (delivery_text([q]), answer_line(q), _reference(q))]
 
 
 def answer_line(q: Question) -> str:

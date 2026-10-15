@@ -156,6 +156,8 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   the long-answer reference. The id alone isn't enough, so an id written inside another
   answer ("… · Q28 can wait") can't make a never-typed answer count as landed. Records
   older than the answer are ignored too, since ids restart if `inbox.db` is recreated.
+  The expected strings are what herdr actually types (`herdr.clean`: tabs, newlines and
+  U+2028 become spaces), and both sides are compared with runs of whitespace collapsed.
   Reconcile uses the same check. A late record marks it
   verified instead of typing a second copy. The "operator in this pane" check is repeated
   right before each prompt. The row then becomes `pending: requeued`, delivered only at
