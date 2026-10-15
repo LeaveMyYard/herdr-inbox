@@ -493,7 +493,8 @@ the next key to its approval prompt (where the highlighted choice is usually "Ye
 - The `AlertView` has no numbered options and no Enter action: `d` acknowledges (dismisses a
   blocked alert, which holds until that prompt ends), `g` goes to the pane, Esc goes back.
 - **`g` to a waiting agent must be deliberate:** for an alert (list row or view) `g` acts only
-  `ALERT_GO_GRACE` (0.5 s) after the operator's last other key and the last view change; for a
+  `ALERT_GO_GRACE` (0.5 s) after the previous key of any kind (a g too: a held, auto-repeating or double-tapped g
+  never passes) and the last view change; for a
   question, the popup asks herdr for the pane's live status first and applies the same rule
   when it is `blocked` (covers an agent alert or question whose agent has since hit a prompt).
 - `d` on an alert row in the list acknowledges without a confirmation: nothing is lost. Closed alert rows

@@ -385,3 +385,40 @@ async def test_h1_the_only_question_still_opens_directly_with_an_alert_open(stor
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.mode == "group" and app.direct
+
+
+async def _g_presses(store, fake_herdr, monkeypatch, gaps):
+    """An alert view open (reached after a pause), then g presses `gaps` seconds apart."""
+    import asyncio
+
+    monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.5)
+    service.ask(store, B, "Q?")
+    service.ask(store, B, "Q2?")
+    alerts.raise_alert(store, A, "Check the deploy")
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("up", "enter")
+        await pilot.pause()
+        assert app.mode == "alert"
+        for gap in gaps:
+            await asyncio.sleep(gap)
+            await pilot.press("g")
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+    return [c[2] for c in fake_herdr.calls_of("agent", "focus")]
+
+
+async def test_a_held_g_never_passes_the_pause(store, fake_herdr, monkeypatch):
+    # the first g within the pause after Enter, then auto-repeat: 8 g at 80 ms
+    assert await _g_presses(store, fake_herdr, monkeypatch, [0.08] * 8) == []
+
+
+async def test_a_double_tapped_g_never_passes_the_pause(store, fake_herdr, monkeypatch):
+    # a g 200 ms after Enter, then a second tap 350 ms later (past the pause from Enter, not
+    # from the first g): both refused
+    assert await _g_presses(store, fake_herdr, monkeypatch, [0.2, 0.35]) == []
+
+
+async def test_a_deliberate_g_after_a_pause_still_goes(store, fake_herdr, monkeypatch):
+    assert await _g_presses(store, fake_herdr, monkeypatch, [0.1, 0.6]) == ["w1:p1"]

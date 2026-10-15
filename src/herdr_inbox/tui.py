@@ -1356,8 +1356,12 @@ class InboxApp(App):
     async def on_event(self, event: events.Event) -> None:
         if isinstance(event, events.Key) and trace.enabled():
             trace.record("popup.key", 0, key=event.key)
-        if isinstance(event, events.Key) and event.key != "g":
-            self.last_key_at = time.monotonic()  # `g` to a waiting agent needs a pause after this
+        # every key, g included (held or double-tapped g too); a key event reaches this
+        # handler more than once as it bubbles, so each event counts once
+        if isinstance(event, events.Key) and event is not getattr(self, "_last_key_event", None):
+            self._last_key_event = event
+            self.prev_key_at = getattr(self, "last_key_at", 0.0)  # `g` to a waiting agent needs a pause after it
+            self.last_key_at = time.monotonic()
         # The general rule: a background event never changes what the next keypress does.
         # Right after a view change the operator did not cause, keys are dropped.
         if isinstance(event, events.Key) and time.monotonic() < self.grace_until:
@@ -1369,12 +1373,15 @@ class InboxApp(App):
     # -- views ---------------------------------------------------------------------
 
     def go_graced(self) -> bool:
-        """`g` came ALERT_GO_GRACE after the operator's last other key and the last view
-        change: a deliberate g, not the tail of a typed sequence ("1 g", "1 Enter 1")."""
-        return time.monotonic() - getattr(self, "last_key_at", 0.0) >= ALERT_GO_GRACE
+        """This `g` came ALERT_GO_GRACE after the previous key of ANY kind (a g too: a held,
+        auto-repeating or double-tapped g never passes) and after the last view change: a
+        deliberate g, not the tail of a typed sequence ("1 g", "1 Enter 1")."""
+        now = time.monotonic()
+        return (now - getattr(self, "prev_key_at", 0.0) >= ALERT_GO_GRACE
+                and now - getattr(self, "view_at", 0.0) >= ALERT_GO_GRACE)
 
     def _mount(self, view) -> None:
-        self.last_key_at = time.monotonic()
+        self.view_at = time.monotonic()
         self.set_class(self.mode == "empty", "empty")
         body = self.base.query_one("#body")
         body.remove_children()
