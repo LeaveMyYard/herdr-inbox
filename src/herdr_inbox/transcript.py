@@ -153,12 +153,16 @@ def _squash(text: str) -> str:
 
 
 def landed_exact(path: Path, expected: dict[int, tuple[list[str], str | None]]) -> set[int]:
+    return set(landed_kinds(path, expected))
+
+
+def landed_kinds(path: Path, expected: dict[int, tuple[list[str], str | None]]) -> dict[int, set[int]]:
     """Which ids landed, judged by their FULL expected text, not the id alone: ``expected``
     maps an id to (the exact strings our message carries for it, the answer's time). A
     record counts for an id only if it names the id in our header positions, contains one
     of those strings at a segment start, and is not older than the answer (ids restart if
     the database is recreated)."""
-    found: set[int] = set()
+    found: dict[int, set[int]] = {}  # id -> indexes (into its expected strings) that matched
     try:
         with open(path, "rb") as fh:
             end = fh.seek(0, os.SEEK_END)
@@ -174,11 +178,11 @@ def landed_exact(path: Path, expected: dict[int, tuple[list[str], str | None]]) 
             named = header_ids(stripped)
             stripped = _squash(stripped)
             for qid, (segments, since) in expected.items():
-                if qid in found or qid not in named or not _after(ts, since):
+                if qid not in named or not _after(ts, since):
                     continue
-                if any(stripped.startswith(seg) or ("— " + seg) in stripped or (" · " + seg) in stripped
-                       for seg in map(_squash, segments)):
-                    found.add(qid)
+                for i, seg in enumerate(map(_squash, segments)):
+                    if stripped.startswith(seg) or ("— " + seg) in stripped or (" · " + seg) in stripped:
+                        found.setdefault(qid, set()).add(i)
     return found
 
 

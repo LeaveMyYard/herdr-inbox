@@ -34,7 +34,7 @@ async def test_popup_records_hands_delivery_off_and_closes_at_once(store, fake_h
     spawned = []
     monkeypatch.setattr(tui, "spawn_delivery", lambda qids, force=False: spawned.append((qids, force)))
     qid = service.ask(store, A, "Merge?", options=["yes", "no"])["id"]
-    app = InboxApp(store, focus_pane="w1:p1")
+    app = InboxApp(store, focus_pane="w1:p2")  # the asking pane is not the one it returns to
     async with app.run_test() as pilot:
         await pilot.pause()
         t = time.monotonic()
@@ -206,7 +206,7 @@ async def test_the_worker_is_ensured_before_the_sender_is_spawned(store, fake_he
     monkeypatch.setattr(worker, "ensure", lambda *a: order.append("ensure") or True)
     monkeypatch.setattr(tui, "spawn_delivery", lambda qids, force=False: order.append("spawn"))
     service.ask(store, A, "Merge?", options=["yes", "no"])
-    app = InboxApp(store, focus_pane="w1:p1")
+    app = InboxApp(store, focus_pane="w1:p2")  # the asking pane is not the one it returns to
     async with app.run_test() as pilot:
         await pilot.pause()
         await app.workers.wait_for_complete()
@@ -264,3 +264,122 @@ def test_a_landed_multiline_answer_is_recognised_as_typed(store, fake_herdr, liv
         fh.write(_json.dumps({"type": "user", "message": {"content": typed}}) + "\n")
     service.deliver(store, store.get(qid))
     assert not fake_herdr.calls_of("agent", "prompt") and store.get(qid).verified_at
+
+
+# -- final pass of #19 -----------------------------------------------------------------------
+
+
+def test_h1_a_landed_long_answer_reference_stays_unseen(store, fake_herdr, live_session):
+    """Only the pointer to check_answers landed: verified, but NOT acknowledged."""
+    qid = service.ask(store, A, "Long?", options=["x"])["id"]
+    service.answer(store, qid, "y" * 4050, deliver=False)
+    ref = herdr.clean(service._reference(store.get(qid)))
+    with open(live_session, "a") as fh:
+        fh.write(_json.dumps({"type": "user", "message": {"content": ref}}) + "\n")
+    service.deliver(store, store.get(qid))
+    q = store.get(qid)
+    assert not fake_herdr.calls_of("agent", "prompt") and q.verified_at and q.acknowledged_at is None
+    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
+
+
+def test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in(store, fake_herdr, live_session, monkeypatch):
+    from herdr_inbox import cli
+
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    service.answer(store, qid, "yes", deliver=False)
+    monkeypatch.setenv("FAKE_HERDR_FOCUSED", "1")
+    assert cli.main(["deliver", str(qid)]) == 0
+    assert not fake_herdr.calls_of("agent", "prompt") and "operator" in store.get(qid).delivery_error
+    assert cli.main(["deliver", str(qid), "--force"]) == 0  # Send now overrides
+    assert store.get(qid).verified_at
+
+
+async def test_m1_the_return_pane_is_typed_while_the_popup_still_holds_the_keyboard(store, fake_herdr, live_session, monkeypatch):
+    """The answer to the agent the popup returns to is typed before the popup closes (the
+    keyboard is still the popup's); only its verification is handed off."""
+    monkeypatch.setattr(tui, "DETACHED_SEND", True)
+    monkeypatch.setenv("FAKE_HERDR_FOCUSED", "1")  # the operator came from that pane
+    verify, deliver = [], []
+    monkeypatch.setattr(tui, "spawn_verify", lambda job: verify.append(job))
+    monkeypatch.setattr(tui, "spawn_delivery", lambda qids, force=False: deliver.append(qids))
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        typed_while_open = len(fake_herdr.calls_of("agent", "prompt"))
+    assert typed_while_open == 1 and deliver == []
+    assert verify and verify[0]["rows"][0]["id"] == qid
+
+
+def test_m1_inbox_verify_records_the_outcome_with_the_claim(store, fake_herdr, live_session):
+    from herdr_inbox import cli
+
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    service.answer(store, qid, "yes", deliver=False)
+    claim = store.claim_delivery(qid)
+    offset = transcript_size = live_session.stat().st_size
+    with open(live_session, "a") as fh:
+        fh.write(_json.dumps({"type": "user", "message": {"content": service.delivery_text([store.get(qid)])}}) + "\n")
+    job = {"path": str(live_session), "offset": offset, "ack": True, "rows": [{"id": qid, "claim": claim}]}
+    assert cli.main(["verify", _json.dumps(job)]) == 0
+    q = store.get(qid)
+    assert q.verified_at and q.acknowledged_at and q.delivered_at
+
+
+async def test_l1_the_popup_drains_background_jobs_before_exit(store, fake_herdr, monkeypatch):
+    drained = []
+    monkeypatch.setattr(service, "drain", lambda timeout: drained.append(timeout) or True)
+    service.ask(store, A, "q?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "q2?")
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+    assert drained and max(drained) <= 1.0
+
+
+def test_l1_the_mcp_server_drains_on_exit(monkeypatch):
+    from herdr_inbox import server
+
+    registered = []
+    monkeypatch.setattr(server.atexit, "register", lambda fn, *a: registered.append((fn, a)))
+    monkeypatch.setattr(service, "_bg_queue", None)
+    monkeypatch.setattr(server, "_ensure_worker", lambda: None)
+    server.prepare()
+    try:
+        assert any(fn is service.drain and a and a[0] <= 1.0 for fn, a in registered)
+    finally:
+        service.drain(5)
+        monkeypatch.setattr(service, "_bg_queue", None)
+
+
+def test_l2_mark_agent_gone_on_a_never_attempted_row(store, fake_herdr):
+    qid = service.ask(store, A, "Never sent?", options=["yes"])["id"]
+    store.set_answer(qid, "yes")
+    assert store.get(qid).delivery_error is None
+    store.mark_agent_gone(qid, "no live agent in pane w1:p1")
+    assert store.get(qid).delivery_error.startswith("agent gone:")
+
+
+async def test_l3_send_now_says_when_the_answer_is_already_being_delivered(store, fake_herdr, monkeypatch):
+    monkeypatch.setattr(tui, "DETACHED_SEND", True)
+    spawned, notes = [], []
+    monkeypatch.setattr(tui, "spawn_delivery", lambda qids, force=False: spawned.append(qids))
+    qid = service.ask(store, A, "Late?", options=["yes"])["id"]
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Other?")
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
+    service.answer(store, qid, "yes")
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert store.claim_delivery(qid)  # another process is sending it right now
+        app.notify = lambda message, **kw: notes.append(message)
+        await pilot.press("1")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+    assert spawned == [] and any("already being delivered" in n for n in notes)

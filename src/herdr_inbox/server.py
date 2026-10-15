@@ -5,6 +5,7 @@ mcp 2.x renamed FastMCP to ``MCPServer``; the decorator API is the same.
 
 from __future__ import annotations
 
+import atexit
 import functools
 import logging
 import os
@@ -185,11 +186,16 @@ def _ensure_worker() -> None:
         log.warning("delivery worker: %s", exc)
 
 
+def prepare() -> None:
+    service.enable_background()  # tab labels and notifications never hold up a tool call
+    atexit.register(service.drain, 1.0)  # what is queued at exit still runs (bounded)
+    _ensure_worker()
+
+
 def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
-    service.enable_background()  # tab labels and notifications never hold up a tool call
-    _ensure_worker()
+    prepare()
     from . import venvs
 
     venvs.start_cleanup()  # old unused venvs (venvs.py); the lock was taken in cli

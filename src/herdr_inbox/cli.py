@@ -62,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("deliver", help="deliver answered questions now (the popup's detached sender)")
     p.add_argument("ids", nargs="+", type=lambda s: int(s.lstrip("Qq")))
     p.add_argument("--force", action="store_true", help="the operator's Send now: skip the busy grace and focus wait")
+    p = sub.add_parser("verify", help="(internal) check a typed message landed and record it under its claims")
+    p.add_argument("job")
     p = sub.add_parser("worker", help="run the delivery worker (one per machine; retries every pending answer)")
     p.add_argument("--ensure", action="store_true", help="start it in the background unless it is running, then return")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
@@ -115,8 +117,17 @@ def main(argv: list[str] | None = None) -> int:
         with Store() as store:
             qs = [q for q in (store.get(i) for i in args.ids)
                   if q and q.status == "answered" and not q.delivered_at and not q.acknowledged_at]
+            service._ensure_worker()
             if qs:
-                service.deliver_batch(store, qs, force=args.force)
+                # after the popup closed: keep out of the pane the operator is in (the worker's
+                # rule) unless this is Send now
+                service.deliver_batch(store, qs, retry=not args.force, force=args.force)
+        return 0
+    if args.cmd == "verify":
+        import json as _json
+
+        with Store() as store:
+            service.verify_job(store, _json.loads(args.job))
         return 0
     if args.cmd == "worker":
         from . import worker

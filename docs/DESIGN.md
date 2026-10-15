@@ -153,7 +153,8 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   late landing and a sender killed mid-verify whose stale claim is being taken over.
   The check matches each answer's **full expected text** (`transcript.landed_exact`): the
   single message, its batch segment `Q<n> <first line>: <answer>` at a segment start, or
-  the long-answer reference. The id alone isn't enough, so an id written inside another
+  the long-answer reference. If only the reference landed, the row is verified but **not**
+  acknowledged, since the agent was only told to call check_answers. The id alone isn't enough, so an id written inside another
   answer ("… · Q28 can wait") can't make a never-typed answer count as landed. Records
   older than the answer are ignored too, since ids restart if `inbox.db` is recreated.
   The expected strings are what herdr actually types (`herdr.clean`: tabs, newlines and
@@ -391,6 +392,15 @@ change:
 
 - **Popup:** it records the answer in a thread (one DB write) and hands delivery to a
   detached `inbox deliver <ids> [--force]`, which outlives the popup; claims serialize it.
+  That sender keeps the worker's rule and never types into the pane the operator is in;
+  only `--force` (Send now) skips it.
+  - The exception is the pane the popup returns to: the operator came from it and will
+    type there next. Its answers are typed in the popup's thread before it closes, while
+    the popup still holds the keyboard (~0.3–0.6 s: `herdr agent prompt` ≈ 300 ms). Only
+    the transcript check is handed off, to a detached `inbox verify` that records the
+    outcome under the same claims.
+  - Send now on an answer another process is delivering says "already being delivered".
+  - Queued background jobs are drained (≤ 1 s) when the popup or an MCP server exits.
   The popup then closes or returns to the list at once, and Esc waits only for that record
   step. Before, the popup waited for the whole delivery, including the 15 s verify window.
   - Herdr calls leave the UI thread: tab-label lookups refresh in a background thread
