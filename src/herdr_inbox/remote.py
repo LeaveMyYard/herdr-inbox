@@ -292,7 +292,8 @@ def remote_command(rec: dict, sub: str) -> str:
     for key in ("uv", "herdr", "plugin_root"):
         if not SAFE_PATH.fullmatch(rec.get(key) or ""):
             raise ValueError(f"bad {key}")
-    return (f"HERDR_BIN_PATH={rec['herdr']} {rec['uv']} run --quiet --frozen --no-dev "
+    # `env` (a POSIX utility), not `VAR=value cmd`: csh/tcsh login shells reject that syntax
+    return (f"env HERDR_BIN_PATH={rec['herdr']} {rec['uv']} run --quiet --frozen --no-dev "
             f"--project {rec['plugin_root']} inbox {sub}")
 
 
@@ -388,7 +389,50 @@ def pull(store, machine: dict) -> bool:
             (data["db_id"], data["seq"], data["version"], _iso(_now()), _iso(_now()), mid))
     for kind, title, body in new:
         _notify(title, service_first_line(body))
+    notify_problems(store, rec["machine_id"], label)
     return True
+
+
+def _problem(data: dict) -> str | None:
+    """Why a mirrored ANSWERED question is stuck on its machine, or None."""
+    if data.get("status") != "answered" or data.get("acknowledged_at") or data.get("verified_at"):
+        return None
+    if data.get("agent_gone"):
+        return "agent closed — answer kept for check_answers"
+    err = data.get("delivery_error") or ""
+    if err and not err.startswith(("pending:", "sending:")):
+        return f"not delivered: {err}"
+    return None
+
+
+def problem_rows(store) -> list[dict]:
+    """Mirrored answers the remote applied but cannot deliver, not yet cleared here."""
+    out = []
+    for r in store.db.execute("SELECT q.machine_id, q.remote_id, q.data_json, m.label FROM remote_questions q"
+                              " LEFT JOIN remote_machines m USING (machine_id)"
+                              " WHERE q.status = 'answered' AND q.cleared_at IS NULL ORDER BY q.remote_id").fetchall():
+        data = json.loads(r[2])
+        why = _problem(data)
+        if why:
+            out.append({"machine_id": r[0], "remote_id": r[1], "label": r[3] or r[0], "why": why, "data": data})
+    return out
+
+
+def notify_problems(store, machine_id: str, label: str) -> None:
+    """One local notification per stuck remote answer (a CAS on issue_notified_at)."""
+    for p in problem_rows(store):
+        if p["machine_id"] != machine_id:
+            continue
+        won = store.db.execute("UPDATE remote_questions SET issue_notified_at = ? WHERE machine_id = ? AND remote_id = ?"
+                               " AND issue_notified_at IS NULL", (_iso(_now()), machine_id, p["remote_id"])).rowcount
+        if won:
+            _notify(f"{label}:Q{p['remote_id']} not delivered · {p['why'].removeprefix('not delivered: ')[:80]}",
+                    service_first_line(p["data"].get("question") or ""))
+
+
+def clear_problem(store, machine_id: str, remote_id: int) -> None:
+    store.db.execute("UPDATE remote_questions SET cleared_at = ? WHERE machine_id = ? AND remote_id = ?",
+                     (_iso(_now()), machine_id, remote_id))
 
 
 def service_first_line(text: str) -> str:
@@ -437,27 +481,27 @@ def flush(store, machine: dict) -> None:
         if row["next_try_at"] and row["next_try_at"] > _iso(_now()):
             continue
         rid, ref = row["request_id"], f"{label}:Q{row['remote_id']}"
-        if row["expires_at"] <= _iso(_now()):
-            _finish(store, rid, "failed", "expired")
-            _notify(f"{ref}: your queued answer expired", f"{label} was not reachable in time; answer again if still needed")
+        if row["expires_at"] <= _iso(_now()) and not row["attempts"]:
+            _expire(store, row, label)
             continue
+        # expired after a send whose reply was lost: send once more to learn the outcome
         mirror = store.db.execute("SELECT db_id, qkey, status FROM remote_questions WHERE machine_id = ? AND remote_id = ?",
                                   (rec["machine_id"], row["remote_id"])).fetchone()
         wanted = {"answer": ("open",), "dismiss": ("open",), "deliver": ("answered",), "hide": STATUSES}[row["action"]]
         if mirror is None or mirror[0] != row["db_id"] or mirror[1] != row["qkey"] or mirror[2] not in wanted:
             reason = "not that question any more" if mirror is None or mirror[1] != row["qkey"] else mirror[2]
-            _finish(store, rid, "rejected", reason)
-            _notify(f"{ref}: {row['action']} not sent", f"rejected: {reason}")
+            _settle(store, rid, "rejected", reason, f"{ref}: {row['action']} not sent", f"rejected: {reason}")
             continue
         request = {"request_id": rid, "db_id": row["db_id"], "id": row["remote_id"], "qkey": row["qkey"],
                    "action": row["action"], "detail": json.loads(row["detail_json"]) if row["detail_json"] else None}
         try:
             result = call({**rec}, "apply", request)
         except ValueError as exc:
-            _finish(store, rid, "failed", str(exc))
+            _settle(store, rid, "failed", str(exc), f"{ref}: {row['action']} not sent", str(exc))
             continue
         if result.returncode == 2:
-            _finish(store, rid, "failed", f"upgrade {label} (inbox remote upgrade {label})")
+            msg = f"upgrade {label} (inbox remote upgrade {label})"
+            _settle(store, rid, "failed", msg, f"{ref}: {row['action']} not sent", msg)
             continue
         try:
             reply = json.loads(result.stdout or "")
@@ -465,11 +509,12 @@ def flush(store, machine: dict) -> None:
         except (ValueError, AttributeError):
             outcome = None
         if outcome in ("applied", "already_applied"):
-            _finish(store, rid, "done", outcome)
+            _settle(store, rid, "done", outcome)
         elif outcome == "rejected":
             reason = _text(str(reply.get("reason") or "rejected"), 200)
-            _finish(store, rid, "rejected", reason)
-            _notify(f"{ref}: {label} rejected your {row['action']}", reason)
+            _settle(store, rid, "rejected", reason, f"{ref}: {label} rejected your {row['action']}", reason)
+        elif row["expires_at"] <= _iso(_now()):  # the extra try after expiry did not get an answer either
+            _expire(store, row, label)
         else:  # transport error / lost reply: retry with the SAME request id
             delay = min(60, 5 * 2 ** min(row["attempts"], 4))
             store.db.execute("UPDATE remote_outbox SET attempts = attempts + 1, next_try_at = ?, result = ?"
@@ -477,9 +522,43 @@ def flush(store, machine: dict) -> None:
                              (_iso(_now() + _td(seconds=delay)), (result.stderr or "")[-200:], rid))
 
 
-def _finish(store, request_id: str, state: str, result: str) -> None:
-    store.db.execute("UPDATE remote_outbox SET state = ?, result = ?, sent_at = ? WHERE request_id = ?",
-                     (state, result, _iso(_now()), request_id))
+def _finish(store, request_id: str, state: str, result: str) -> bool:
+    return _settle(store, request_id, state, result)
+
+
+def _settle(store, request_id: str, state: str, result: str, title: str | None = None, body: str = "") -> bool:
+    """Move a queued row to its final state, once: a compare-and-set on 'queued', so when two
+    local workers (one per herdr session) finish the same row only one notifies."""
+    done = store.db.execute("UPDATE remote_outbox SET state = ?, result = ?, sent_at = ? WHERE request_id = ?"
+                            " AND state = 'queued'", (state, result, _iso(_now()), request_id)).rowcount == 1
+    if done and title:
+        _notify(title, body)
+    return done
+
+
+def _expire(store, row, label: str) -> None:
+    ref = f"{label}:Q{row['remote_id']}"
+    if row["attempts"]:  # a send went out and its reply was lost: it may well be applied
+        body = f"it may have reached {label} before the connection dropped; check there"
+    else:
+        body = f"{label} was not reachable in time; answer again if still needed"
+    _settle(store, row["request_id"], "failed", "expired", f"{ref}: your queued {row['action']} expired", body)
+
+
+def expire_sweep(store) -> None:
+    """Expire queued actions past their time for EVERY machine -- offline, never reached,
+    disabled or removed from herdr's list -- so none waits forever unseen. Rows that were
+    sent at least once (a lost reply) still get their last try from flush when reachable."""
+    rows = store.db.execute(
+        "SELECT o.*, m.label FROM remote_outbox o LEFT JOIN remote_machines m USING (machine_id)"
+        " WHERE o.state = 'queued' AND o.expires_at <= ?", (_iso(_now()),)).fetchall()
+    for row in rows:
+        reachable = row["label"] is not None and store.db.execute(
+            "SELECT 1 FROM remote_machines WHERE machine_id = ? AND last_error IS NULL AND last_ok_at IS NOT NULL",
+            (row["machine_id"],)).fetchone()
+        if row["attempts"] and reachable:
+            continue  # flush gives it one more send to learn the outcome
+        _expire(store, row, row["label"] or row["machine_id"])
 
 
 def sync_all(store) -> None:
@@ -508,9 +587,16 @@ def _sync_one(machine: dict) -> None:
 
 def sync_all_parallel() -> None:
     """Every enabled machine at once (one thread each, capped), so one hung machine (up to
-    10 s per call) never delays the others' pulls."""
+    10 s per call) never delays the others' pulls; then the expiry sweep over all machines."""
     from concurrent.futures import ThreadPoolExecutor
 
+    from .store import Store
+
+    try:
+        with Store(timeout=5, maintenance=False) as store:
+            expire_sweep(store)
+    except Exception:  # noqa: BLE001
+        pass
     found = enabled_machines()
     if not found:
         return

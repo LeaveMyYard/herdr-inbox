@@ -139,6 +139,8 @@ CREATE TABLE IF NOT EXISTS remote_questions (
     data_json       TEXT NOT NULL,
     first_seen_at   TEXT NOT NULL,
     notified_at     TEXT,
+    issue_notified_at TEXT,
+    cleared_at      TEXT,
     PRIMARY KEY (machine_id, remote_id)
 );
 CREATE TABLE IF NOT EXISTS remote_outbox (
