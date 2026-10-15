@@ -113,3 +113,13 @@ def test_cli_export_and_apply_read_stdin_write_stdout(store, fake_herdr, capsys,
     assert cli.main(["apply"], stdin=json.dumps(req(store, qid, detail={"choices": ["yes"]}))) == 0
     assert json.loads(capsys.readouterr().out) == {"outcome": "applied"}
     assert cli.main(["apply"], stdin="{not json") == 1
+
+
+def test_status_is_read_only(store, fake_herdr, monkeypatch):
+    monkeypatch.setattr(remote_api, "spawn_delivery", lambda ids, force=False: None)
+    qid = service.ask(store, A, "Merge?", options=["yes"])["id"]
+    assert remote_api.apply(store, {"request_id": "rs", "action": "status"}) == {"outcome": "unknown"}
+    assert store.db.execute("SELECT COUNT(*) FROM applied_requests").fetchone()[0] == 0
+    assert store.get(qid).status == "open"
+    remote_api.apply(store, req(store, qid, detail={"choices": ["yes"]}, request_id="rs"))
+    assert remote_api.apply(store, {"request_id": "rs", "action": "status"})["state"] == "applied"

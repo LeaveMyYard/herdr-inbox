@@ -161,9 +161,18 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
     - Every remote tick runs an **expiry sweep** over all queued rows, whatever the
       machine's state: offline, never reached, disabled or removed from herdr's list.
     - The popup already shows an action past its time as expired.
-    - If an action was sent and its reply lost, the sweep says it "may have reached"
-      the machine, since it may already be applied. While the machine is reachable it
-      gets one more send to learn the outcome.
+    - If an action was sent and its reply lost, it is **never applied late**. Once the
+      machine is reachable, a read-only `{"action": "status"}` asks whether the remote
+      recorded that request id:
+      - recorded as applied → done, with the notification "reached moneylust after all";
+      - recorded as rejected → shown as rejected;
+      - not recorded → expired, "not sent".
+
+      While the machine stays unreachable, the sweep says the action "may have reached"
+      it.
+    - While a call is in flight, the row carries `sending_at`. The sweep and `d` leave it
+      alone (stale after the 10 s call cap plus 20 s), so nobody is told "expired" for an
+      answer that is landing right now. The popup shows it as "sending … now".
   - **Notifications once:** rejections and expiries settle the row with a
     compare-and-set on `queued`. So with two local workers (one per herdr session) only
     one of them notifies.
