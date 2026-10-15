@@ -84,12 +84,12 @@ def test_a_focused_task_panel_is_not_typed_into(store, fake_herdr, monkeypatch, 
     """Probe 2026-10-15: with Claude Code's background-agents panel focused (footer '↑/↓ to
     select'), typed text never reaches the conversation."""
     monkeypatch.setattr(service, "BUSY_GRACE", 0.0)
-    monkeypatch.setenv("FAKE_HERDR_SCREEN", "❯\n ↑/↓ to select · ctrl+x ctrl+k to stop all agents\n ◯ main")
+    monkeypatch.setenv("FAKE_HERDR_SCREEN", SCREEN_PANEL_FOCUSED)
     qid = pending_answer(store, monkeypatch, status="working")
     worker.tick(store)
     assert prompts(fake_herdr) == []
     assert "panel" in store.get(qid).delivery_error
-    monkeypatch.setenv("FAKE_HERDR_SCREEN", "❯\n ⏵⏵ auto mode on · ← for agents · ↓ to manage")
+    monkeypatch.setenv("FAKE_HERDR_SCREEN", SCREEN_NORMAL_WITH_PHRASE_IN_BODY)
     worker.tick(store)
     assert store.get(qid).verified_at
 
@@ -122,8 +122,9 @@ def test_old_requeue_window_does_not_retype_old_answers(store, fake_herdr, monke
 
 
 def test_stuck_answers_raise_one_notification(store, fake_herdr, monkeypatch, live_session):
-    a = pending_answer(store, monkeypatch)
-    b = pending_answer(store, monkeypatch)
+    monkeypatch.setattr(service, "BUSY_GRACE", 1e9)  # busy all along: pending, never typed
+    a = pending_answer(store, monkeypatch, status="working")
+    b = pending_answer(store, monkeypatch, status="working")
     store.db.execute("UPDATE questions SET answered_at = ? WHERE id IN (?, ?)",
                      ("2026-10-15T00:00:00+00:00", a, b))
     worker.tick(store)
@@ -173,3 +174,115 @@ def test_herdr_startup_ensures_the_worker():
 
     m = tomllib.loads((Path(__file__).resolve().parents[1] / "herdr-plugin.toml").read_text())
     assert any(s["command"][-2:] == ["worker", "--ensure"] for s in m["startup"])
+
+
+# -- review of #15 ---------------------------------------------------------------------------
+
+
+def test_every_answer_or_send_ensures_the_worker(store, fake_herdr, monkeypatch, live_session):
+    """M1: a worker that idled out must come back as soon as the operator answers."""
+    started = []
+    monkeypatch.setattr(worker, "ensure", lambda: started.append(1) or True)
+    qid = pending_answer(store, monkeypatch)  # service.answer
+    assert started
+    started.clear()
+    service.deliver(store, store.get(qid), force=True)  # the popup's Send now / Retry
+    assert started
+    started.clear()
+    service.retry_deliveries(store, "w1:p1")  # the worker's own retries do not re-spawn
+    assert not started
+
+
+def test_a_worker_that_idles_out_with_new_work_starts_a_successor(fake_herdr, monkeypatch):
+    """M1 race: an answer committed while the worker decides to exit is not orphaned."""
+    monkeypatch.setattr(worker, "IDLE_EXIT", 0.0)
+    monkeypatch.setattr(worker, "TICK", 0.0)
+    calls = {"n": 0}
+
+    def tick(store):
+        calls["n"] += 1
+        return 0  # nothing pending at decision time
+
+    monkeypatch.setattr(worker, "tick", tick)
+    monkeypatch.setattr(worker, "_pending_now", lambda: 1)  # ...but an answer just arrived
+    started = []
+    monkeypatch.setattr(worker, "ensure", lambda: started.append(1) or True)
+    assert worker.run() == 0
+    assert started == [1]
+
+
+SCREEN_NORMAL_WITH_PHRASE_IN_BODY = """\
+● The panel footer reads "↑/↓ to select" when it has focus.
+✻ Waiting for 3 background agents to finish
+──────────────────────────────────────────────
+❯
+──────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · ↓ to manage
+  ● main
+  ◯ general-purpose Compute (1)"""
+
+SCREEN_PANEL_FOCUSED = """\
+✻ Waiting for 3 background agents to finish
+──────────────────────────────────────────────
+❯
+──────────────────────────────────────────────
+  ↑/↓ to select · ctrl+x ctrl+k to stop all agents
+❯ ● main
+  ◯ general-purpose Compute (1)"""
+
+
+def test_panel_detection_reads_only_the_footer(fake_herdr, monkeypatch):
+    """M2: the phrase in ordinary output (this repo's own docs!) is not a focused panel."""
+    from herdr_inbox import herdr
+
+    monkeypatch.setenv("FAKE_HERDR_SCREEN", SCREEN_NORMAL_WITH_PHRASE_IN_BODY)
+    assert not herdr.panel_focused("w1:p1")
+    monkeypatch.setenv("FAKE_HERDR_SCREEN", SCREEN_PANEL_FOCUSED)
+    assert herdr.panel_focused("w1:p1")
+    monkeypatch.setenv("FAKE_HERDR_SCREEN", "↑/↓ to select")  # no input box: not Claude's footer
+    assert not herdr.panel_focused("w1:p1")
+
+
+def test_send_now_overrides_the_panel_wait(store, fake_herdr, monkeypatch, live_session):
+    monkeypatch.setenv("FAKE_HERDR_SCREEN", SCREEN_PANEL_FOCUSED)
+    qid = pending_answer(store, monkeypatch, status="idle")
+    assert prompts(fake_herdr) == [] and "panel" in store.get(qid).delivery_error
+    service.deliver(store, store.get(qid), force=True)
+    assert len(prompts(fake_herdr)) == 1 and store.get(qid).verified_at  # verification is the net
+
+
+def test_unverifiable_sends_are_not_reported_as_not_delivered(store, fake_herdr, monkeypatch):
+    """Low: no transcript -> sent, unseen by design; it most likely landed."""
+    from herdr_inbox import transcript
+
+    monkeypatch.setattr(transcript, "find", lambda *a, **k: None)
+    qid = service.ask(store, A, "No transcript?", options=["yes"])["id"]
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    service.answer(store, qid, "yes")  # no live_session: nothing to verify against
+    store.db.execute("UPDATE questions SET answered_at = ? WHERE id = ?", ("2026-10-15T00:00:00+00:00", qid))
+    q = store.get(qid)
+    assert q.delivered_at and q.verified_at is None and q.acknowledged_at is None  # the no-transcript path
+    worker.tick(store)
+    assert not [c for c in fake_herdr.calls_of("notification", "show") if "not delivered" in c[2]]
+
+
+def test_an_agent_at_a_prompt_gets_a_waiting_notification(store, fake_herdr, monkeypatch, live_session):
+    """Low: blocked answers are not lost; point the operator at the pane, not check_answers."""
+    qid = pending_answer(store, monkeypatch, status="blocked")
+    store.db.execute("UPDATE questions SET answered_at = ? WHERE id = ?", ("2026-10-15T00:00:00+00:00", qid))
+    worker.tick(store)
+    shows = [c for c in fake_herdr.calls_of("notification", "show") if c[2].startswith("waiting:")]
+    assert len(shows) == 1 and "is at a prompt" in shows[0][2] and "check_answers" not in shows[0][4]
+
+
+def test_the_worker_exits_when_the_installed_version_changes(fake_herdr, monkeypatch):
+    """Low: an older worker must not keep running the old policy after an update."""
+    monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
+    monkeypatch.setattr(worker, "TICK", 0.0)
+    versions = iter(["0.6.1", "0.6.1", "0.6.2"])
+    monkeypatch.setattr(worker, "installed_version", lambda: next(versions, "0.6.2"))
+    monkeypatch.setattr(worker, "tick", lambda store: 1)  # always something pending
+    successors = []
+    monkeypatch.setattr(worker, "start_successor", lambda: successors.append(1))
+    assert worker.run() == 0
+    assert successors == [1]

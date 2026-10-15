@@ -102,17 +102,27 @@ def _age(iso: str | None) -> float:
     return (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds()
 
 
+def _blocked(q: Question) -> bool:
+    return (q.delivery_error or "").startswith("pending: blocked:") and "panel" not in q.delivery_error
+
+
 def notify_stuck(store: Store, rows: list[Question]) -> None:
-    """One notification per pane for answers stuck NOTIFY_AFTER seconds or out of tries."""
-    stuck: dict[str, list[Question]] = {}
+    """One notification per pane (and kind) for answers stuck NOTIFY_AFTER seconds or out of
+    tries. An agent waiting at a prompt is pointed at; the rest can use check_answers."""
+    stuck: dict[tuple[str, bool], list[Question]] = {}
     for q in rows:
         out_of_tries = (q.delivery_error == service.NOT_VERIFIED
                         and q.delivery_attempts >= service.MAX_UNVERIFIED_ATTEMPTS)
         if (out_of_tries or _age(q.answered_at) >= NOTIFY_AFTER) and not store.notified(q.id):
-            stuck.setdefault(q.pane_id or "-", []).append(q)
-    for items in stuck.values():
-        herdr.notify(f"{_ids([q.id for q in items])} not delivered to {_where(items[0])}",
-                     "The agent can fetch them with check_answers; or retry from the inbox.")
+            stuck.setdefault((q.pane_id or "-", _blocked(q)), []).append(q)
+    for (_, blocked), items in stuck.items():
+        ids, where = _ids([q.id for q in items]), _where(items[0])
+        if blocked:
+            herdr.notify(f"waiting: {where} is at a prompt ({ids})",
+                         "Answer the prompt in that pane; the inbox delivers right after.")
+        else:
+            herdr.notify(f"{ids} not delivered to {where}",
+                         "The agent can fetch them with check_answers; or retry from the inbox.")
         store.mark_notified([q.id for q in items])
 
 
@@ -135,29 +145,85 @@ def tick(store: Store) -> int:
     return len(store.undelivered_all(caps))
 
 
+def installed_version() -> str | None:
+    """The version on disk now (pyproject.toml of this checkout, else the package metadata)."""
+    root = herdr.plugin_root()
+    if root:
+        try:
+            for line in open(os.path.join(root, "pyproject.toml"), encoding="utf-8"):
+                if line.startswith("version = "):
+                    return line.split('"')[1]
+        except (OSError, IndexError):
+            pass
+    try:
+        from importlib.metadata import version
+
+        return version("herdr-inbox")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def start_successor() -> None:
+    """After an update: start the new code's worker (uv, from the checkout), else ensure()."""
+    root = herdr.plugin_root()
+    if root and not os.environ.get("HERDR_INBOX_NO_WORKER"):
+        try:
+            subprocess.Popen(["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", root, "inbox", "worker"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True, close_fds=True)
+            return
+        except OSError:
+            pass
+    ensure()
+
+
+def _pending_now() -> int:
+    caps = {service.NO_AGENT: service.MAX_STALE_RETRIES, service.CHANGED: service.MAX_STALE_RETRIES,
+            service.NOT_VERIFIED: service.MAX_UNVERIFIED_ATTEMPTS}
+    with Store(timeout=5) as store:
+        return len(store.undelivered_all(caps))
+
+
 def run() -> int:
     lock = hold_lock()
     if lock is None:
         return 0  # another worker runs
+    try:
+        return _loop(lock)
+    finally:
+        lock.close()
+
+
+def _loop(lock) -> int:
     try:
         from . import venvs
 
         venvs.claim_current()  # spawned from an MCP venv: keep it from being cleaned up
     except BaseException:  # noqa: BLE001
         pass
+    mine = installed_version()
     idle_since = time.monotonic()
-    try:
-        while True:
+    while True:
+        try:
+            with Store(timeout=5) as store:
+                pending = tick(store)
+        except Exception:  # noqa: BLE001 - keep the worker alive
+            log.exception("worker tick failed")
+            pending = 1
+        if installed_version() != mine:  # updated under us: hand over to the new code
+            lock.close()
+            start_successor()
+            return 0
+        if pending:
+            idle_since = time.monotonic()
+        elif time.monotonic() - idle_since >= IDLE_EXIT:
+            lock.close()
+            # an answer committed after this tick's query found the lock still held and
+            # spawned nobody: look once more now that the lock is released
             try:
-                with Store(timeout=5) as store:
-                    pending = tick(store)
-            except Exception:  # noqa: BLE001 - keep the worker alive
-                log.exception("worker tick failed")
-                pending = 1
-            if pending:
-                idle_since = time.monotonic()
-            elif time.monotonic() - idle_since >= IDLE_EXIT:
-                return 0
-            time.sleep(TICK)
-    finally:
-        lock.close()
+                if _pending_now():
+                    ensure()
+            except Exception:  # noqa: BLE001
+                pass
+            return 0
+        time.sleep(TICK)
