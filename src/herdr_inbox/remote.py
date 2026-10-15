@@ -576,9 +576,11 @@ def _resolve_expired(store, rec: dict, row: dict, label: str) -> None:
     elif reply.get("outcome") == "recorded":
         reason = _text(str(reply.get("reason") or "rejected"), 200)
         _settle(store, rid, "rejected", reason, f"{ref}: {label} rejected your {row['action']}", reason)
-    elif reply.get("outcome") == "unknown":
+    elif reply.get("outcome") == "expired":  # not applied, and now it never can be (tombstoned)
         _settle(store, rid, "failed", "expired", f"{ref}: your queued {row['action']} expired",
                 f"{label} never applied it (not sent); answer again if still needed")
+    elif reply.get("outcome") == "rejected":  # an older remote without `status`: can't tell
+        _expire(store, row, label)
     # no reply (still unreachable): left as is; the sweep or the next tick decides
 
 

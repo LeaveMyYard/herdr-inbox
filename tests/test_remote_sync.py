@@ -532,3 +532,19 @@ def test_a_row_being_sent_is_left_alone_by_the_sweep_and_d(store, remote_db, fak
     store.db.execute("UPDATE remote_outbox SET sending_at = '2000-01-01T00:00:00+00:00'")  # a stale marker
     remote.expire_sweep(store)
     assert store.db.execute("SELECT state FROM remote_outbox").fetchone()[0] == "failed"
+
+
+def test_an_older_remote_that_cannot_answer_status_expires_as_may_have_reached(store, remote_db, fake_herdr, monkeypatch):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    store.db.execute("UPDATE remote_outbox SET attempts = 1, expires_at = '2000-01-01T00:00:00+00:00'")
+    old = remote_api.apply
+    monkeypatch.setattr(remote, "call", lambda rec, sub, request: __import__("subprocess").CompletedProcess(
+        [], 0, json.dumps({"outcome": "rejected", "reason": "bad request"}), ""))
+    fake_herdr.reset()
+    remote.flush(store, M)
+    remote.flush(store, M)
+    assert store.db.execute("SELECT state, result FROM remote_outbox").fetchone()[:] == ("failed", "expired")
+    shows = fake_herdr.calls_of("notification", "show")
+    assert len(shows) == 1 and "may have reached moneylust" in shows[0][4]
