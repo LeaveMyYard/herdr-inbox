@@ -21,6 +21,7 @@ it appears.
 
 from __future__ import annotations
 
+import concurrent.futures
 import functools
 import os
 import sqlite3
@@ -876,14 +877,26 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work) -> None:
     tab-label lock), and the popup must never freeze on it."""
     app.notify(f"Sending {', '.join(f'Q{q}' for q in qids)}…")
 
+    def report(fn, *args, **kwargs) -> None:
+        # The popup may be gone by now ("go to agent", Esc): the send itself is done and
+        # recorded. Only "the app has stopped" is swallowed -- any other error, or one while
+        # the app still runs, surfaces.
+        if not app.is_running:
+            return
+        try:
+            app.call_from_thread(fn, *args, **kwargs)
+        except (RuntimeError, concurrent.futures.CancelledError):
+            if app.is_running:
+                raise
+
     def run() -> None:
         try:
             with Store(store.path) as own:  # sqlite connections stay in the thread that made them
                 done = work(own)
         except sqlite3.OperationalError:
-            app.call_from_thread(app.notify, BUSY, severity="warning")
+            report(app.notify, BUSY, severity="warning")
             return
-        app.call_from_thread(_after_submit, app, done, len(qids))
+        report(_after_submit, app, done, len(qids))
 
     app.run_worker(run, thread=True, group="send")
 
@@ -943,6 +956,7 @@ class InboxApp(App):
         self.list_cursor: Entry | None = None
         self.direct = False  # opened straight into the only group: Esc closes the popup
         self.held = False  # deep-linked: Enter/digits wait for a navigation key (deeplink.py)
+        self._unmounted = False  # set by on_unmount: a late poll tick does nothing
         # the open group
         self.entry: Entry | None = None
         self.tabs: list[tuple[str, int]] = []
@@ -1197,8 +1211,8 @@ class InboxApp(App):
         open group; no view is rebuilt unless the one on screen itself ended."""
         if len(self.screen_stack) > 1:  # a confirmation is open
             return
-        if not self.screen_stack or not self.query("#group-title"):
-            return  # tearing down (a late timer tick): the widgets are gone, nothing to update
+        if self._unmounted or not self.screen_stack:
+            return  # tearing down (a late timer tick): nothing to update
         open_qs, failed = self._live()
         live = set(entry_order(open_qs, failed, None))
         for e in self.entries:
@@ -1290,6 +1304,7 @@ class InboxApp(App):
         await self.action_quit()
 
     def on_unmount(self) -> None:
+        self._unmounted = True
         timer = getattr(self, "_poll_timer", None)
         if timer is not None:
             timer.stop()  # no poll may land on a screen being torn down
