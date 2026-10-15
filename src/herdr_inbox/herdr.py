@@ -6,6 +6,7 @@ caller gets ``None`` (or ``False`` plus an error string for delivery).
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -156,6 +157,22 @@ def focus_agent(pane_id: str) -> str | None:
     return err
 
 
+def panel_focused(pane_id: str) -> bool:
+    """Claude Code's background-agents panel / a subagent view has the keyboard: typed text
+    does not reach the conversation then (probe 2026-10-15). Read from the FOOTER only --
+    the first non-empty line below the input box's last ─── border -- so the phrase in
+    ordinary output (a diff, a README) never counts."""
+    out, _ = run_raw("pane", "read", pane_id, "--source", "visible", "--lines", "20")
+    if not out:
+        return False
+    lines = out.splitlines()
+    borders = [i for i, line in enumerate(lines) if line.strip() and set(line.strip()) == {"─"}]
+    if not borders:
+        return False  # no input box on screen: not Claude Code's footer
+    footer = next((line.strip() for line in lines[borders[-1] + 1:] if line.strip()), "")
+    return footer.startswith("↑/↓ to select")
+
+
 def notify(title: str, body: str) -> None:
     call("notification", "show", title, "--body", body, "--sound", "request")
 
@@ -176,6 +193,15 @@ def list_pane_ids() -> list[str] | None:
 INBOX_PLUGIN_ID = "leavemyyard.herdr-inbox"
 
 
+def server_id() -> str:
+    """Which herdr server this process talks to (its socket): one delivery worker each."""
+    if os.environ.get("HERDR_SOCKET_PATH"):
+        return os.environ["HERDR_SOCKET_PATH"]
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "herdr", "herdr.sock")
+
+
+@functools.cache
 def plugin_root() -> str | None:
     """This inbox's own checkout (where herdr-plugin.toml is), never the caller's: `inbox
     open` may run from another plugin's action, whose HERDR_PLUGIN_ROOT/ID are its own."""

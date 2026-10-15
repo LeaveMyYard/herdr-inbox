@@ -78,6 +78,9 @@ elif cmd == "agent prompt":
         with open(os.path.join(folder, session + ".jsonl"), "a") as fh:
             fh.write(json.dumps(record) + "\n")
     result = {{"type": "agent_prompted"}}
+elif cmd == "pane read":
+    print(os.environ.get("FAKE_HERDR_SCREEN", ""))  # the pane's visible text (plain)
+    sys.exit(0)
 elif cmd == "pane list":
     result = {{"panes": [{{"pane_id": p, "tab_id": t}} for p, t in PANE_TAB.items()], "type": "pane_list"}}
 else:
@@ -112,6 +115,7 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     monkeypatch.setenv("HERDR_INBOX_DB", str(tmp_path / "inbox.db"))
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))  # transcripts the fake writes
+    monkeypatch.setenv("HERDR_INBOX_NO_WORKER", "1")  # never spawn a real delivery worker
     # herdr's own config.toml (radar.py): never the real one
     monkeypatch.setenv("HERDR_INBOX_HERDR_CONFIG", str(tmp_path / "herdr-config" / "config.toml"))
     # plugin config dir: tab prefix off unless a test turns it on (tests/test_tabs.py)
@@ -125,7 +129,8 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     tabs._config_dir.cache_clear()
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
-                "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR"):
+                "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
+                "FAKE_HERDR_SCREEN"):
         monkeypatch.delenv(var, raising=False)
     return fake
 

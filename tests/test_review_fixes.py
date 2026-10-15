@@ -84,15 +84,24 @@ def test_retry_skips_seen_and_other_panes(store, fake_herdr, monkeypatch):
     assert fake_herdr.calls_of("agent", "prompt") == []
 
 
-def test_server_retry_loop_runs_in_background(store, fake_herdr, monkeypatch):
-    from herdr_inbox import server
+def test_delivery_worker_retries_in_the_background(store, fake_herdr, monkeypatch):
+    """0.6.1: the herdr-side delivery worker (worker.py) owns retries, not the MCP server."""
+    from herdr_inbox import worker
 
     qid = service.ask(store, caller(), "Merge it?")["id"]
     monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")
     service.answer(store, qid, "yes")
     monkeypatch.delenv("FAKE_HERDR_FAIL")
     stop = threading.Event()
-    server.start_retry_loop(interval=0.05, stop=stop)
+
+    def loop():
+        from herdr_inbox.store import Store
+
+        with Store(store.path) as own:  # its own connection, as the worker process has
+            while not stop.wait(0.05):
+                worker.tick(own)
+
+    threading.Thread(target=loop, daemon=True).start()
     try:
         deadline = time.time() + 5
         while store.get(qid).delivered_at is None and time.time() < deadline:
