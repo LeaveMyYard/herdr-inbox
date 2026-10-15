@@ -15,8 +15,8 @@
 - `inbox remote install|upgrade <machine> [--ref]` installs or upgrades both plugins on a remote
   over ssh.
 - **Note:** after this update the delivery worker pulls every machine `herdr machine list` shows as
-  enabled, every 5 s (machines in parallel, each call capped at 10 s). A machine without the inbox
-  installed just shows as "not installed" in the popup.
+  enabled, every 5 s (machines in parallel, each call capped at 10 s). For a machine without the inbox
+  installed, the pull fails quietly and backs off (5 s up to 60 s).
 
 ## 0.6.3
 
