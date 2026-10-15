@@ -313,6 +313,15 @@ def deliver(store: Store, q: Question, retry: bool = False, force: bool = False)
     deliver_batch(store, [q], retry, force)
 
 
+def _ensure_worker() -> None:
+    try:
+        from . import worker
+
+        worker.ensure()
+    except Exception as exc:  # noqa: BLE001 - never fail a send over it
+        log.warning("delivery worker: %s", exc)
+
+
 def _busy_for(store: Store, qid: int) -> float:
     """Seconds this answer has been pending (0 if it is not)."""
     since = store.get_pending_since(qid)
@@ -324,6 +333,8 @@ def _busy_for(store: Store, qid: int) -> float:
 def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: bool = False) -> None:
     """``force``: the operator's "Send now" -- skip the busy grace and the focused-pane wait
     (never a blocked agent: a dialog would swallow the text)."""
+    if not retry:
+        _ensure_worker()  # whatever this send leaves pending, the worker retries
     """Type answers into the asking conversations: one message per pane, only into the
     conversation that asked.
 
@@ -395,7 +406,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             for q in ours:
                 store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
             continue
-        if herdr.panel_focused(pane):
+        if not force and herdr.panel_focused(pane):
             # Claude Code's background-agents panel (or a subagent view) has focus: typed
             # text never reaches the conversation (probe 2026-10-15). Wait, even for Send now.
             for q in ours:

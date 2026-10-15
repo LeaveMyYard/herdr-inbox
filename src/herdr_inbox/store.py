@@ -614,7 +614,9 @@ class Store:
         the 'not delivered' notification."""
         rows = self.db.execute(
             f"SELECT * FROM {VIEW} WHERE status = 'answered' AND acknowledged_at IS NULL"
-            " AND verified_at IS NULL AND pane_id IS NOT NULL ORDER BY id").fetchall()
+            " AND verified_at IS NULL AND pane_id IS NOT NULL"
+            # sent where no transcript could be found: most likely landed, not 'not delivered'
+            " AND NOT (delivered_at IS NOT NULL AND delivery_error IS NULL) ORDER BY id").fetchall()
         return [Question.from_row(r) for r in rows]
 
     def notified(self, qid: int) -> bool:

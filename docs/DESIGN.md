@@ -141,12 +141,26 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
 - **One busy try:** an answer typed while busy that isn't seen (`MAX_BUSY_ATTEMPTS` = 1)
   waits for the next idle/done. The popup shows it at once as `⚠ not delivered — agent
   busy; will retry when it is idle`.
-- **Panel focus:** before typing, the worker reads the pane's visible bottom lines
-  (read-only). If Claude Code's footer says `↑/↓ to select` (the background-agents panel
-  or a subagent view has focus), it waits, even on Send now, and the popup says so.
+- **Panel focus:** before typing, the worker reads the pane's visible lines (read-only).
+  If Claude Code's **footer** reads `↑/↓ to select` (the background-agents panel or a
+  subagent view has focus), it waits, and the popup says so. The footer is the first
+  non-empty line below the input box's last `───` border, so the phrase in ordinary
+  output (a diff, this repo's docs) never counts. Send now overrides the wait; the
+  transcript check catches a real swallow.
+- **The worker is always there when needed:** every non-retry send (the popup's answer,
+  Submit, Send now/Retry, `inbox answer`) calls `worker.ensure()`. A worker that idles
+  out re-checks for pending answers after releasing its lock and starts a successor if
+  one arrived meanwhile. A worker that finds the installed version changed after a tick
+  hands over to the new code (`uv run --project <root> inbox worker`).
 - **Notification:** an answer still unseen 5 min after it was answered, or out of idle
-  tries, raises one herdr notification per pane: "Q49–Q52 not delivered to <tab> — the
-  agent can fetch them with check_answers". It fires once per answer (`notified_at`).
+  tries, raises one herdr notification per pane, once per answer (`notified_at`):
+  - normally "Q49–Q52 not delivered to <tab>", which says the agent can fetch them
+    with check_answers;
+  - for an agent waiting at a prompt, "waiting: <tab> is at a prompt (Q…)", which
+    points at the pane.
+
+  An answer sent where no transcript could be found (unverifiable, most likely landed)
+  doesn't notify.
 - **Probe 3** (2026-10-15, a disposable haiku session in a tab created and closed for the
   test). The agent was waiting on 3 background subagents ("✻ Waiting for 3 background
   agents to finish"); herdr said `working`.
