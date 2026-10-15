@@ -265,3 +265,14 @@ async def test_deep_link_to_a_remote_question(store, remote_db, fake_herdr, monk
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.mode == "remote" and app.query_one(QuestionView).q.question == "Remote?"
+
+
+def test_the_ssh_control_socket_path_stays_short(monkeypatch, tmp_path):
+    """moneylust e2e: a ControlPath next to a deep checkout's DB was over the unix limit."""
+    monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+    monkeypatch.setattr(remote.os.path, "isdir", lambda p: True)
+    opts = remote.control_options()
+    path = next(o for o in opts if o.startswith("ControlPath="))[len("ControlPath="):]
+    assert len(path) - 2 + 40 <= 100
+    monkeypatch.setenv("XDG_RUNTIME_DIR", "/" + "x" * 120)
+    assert remote.control_options() == ["-o", "ControlMaster=no"]

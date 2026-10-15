@@ -291,13 +291,23 @@ def remote_command(rec: dict, sub: str) -> str:
             f"--project {rec['plugin_root']} inbox {sub}")
 
 
+def control_options() -> list[str]:
+    """ssh connection sharing, with a socket path short enough for the 104/108-byte unix
+    limit (``%C`` is a 40-char hash): under $XDG_RUNTIME_DIR, else ~/.ssh; off if even that
+    is too long (found on a deep checkout path in the moneylust e2e)."""
+    base = os.environ.get("XDG_RUNTIME_DIR") or os.path.join(os.path.expanduser("~"), ".ssh")
+    path = os.path.join(base, "hinbox-%C")
+    if len(path) - 2 + 40 > 100 or not os.path.isdir(base):
+        return ["-o", "ControlMaster=no"]
+    return ["-o", "ControlMaster=auto", "-o", f"ControlPath={path}", "-o", "ControlPersist=60"]
+
+
 def call(rec: dict, sub: str, request: dict) -> subprocess.CompletedProcess:
     if not valid_target(rec.get("target") or ""):
         raise ValueError("refusing that ssh target")
     from .store import db_path
 
-    argv = [os.environ.get("INBOX_SSH") or "ssh", *SSH_OPTIONS, "-o", "ControlMaster=auto",
-            "-o", f"ControlPath={db_path().parent}/ssh-%C", "-o", "ControlPersist=60",
+    argv = [os.environ.get("INBOX_SSH") or "ssh", *SSH_OPTIONS, *control_options(),
             "--", rec["target"], remote_command(rec, sub)]
     try:
         return subprocess.run(argv, input=json.dumps(request), capture_output=True, text=True, timeout=CALL_TIMEOUT)
