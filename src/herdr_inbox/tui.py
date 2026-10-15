@@ -40,7 +40,8 @@ from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, Static
 
 from . import deeplink, herdr, radar, service, tabs, trace
-from .store import AGENT_GONE, PENDING, Question, Store
+from .store import AGENT_GONE, CLAIM_STALE, PENDING, Question, Store
+from .store import now as store_now
 
 log = logging.getLogger("herdr_inbox")
 
@@ -918,6 +919,23 @@ def spawn_delivery(qids: list[int], force: bool = False) -> None:
                          start_new_session=True, close_fds=True, env=worker._spawn_env())
 
 
+def spawn_verify(job: dict) -> None:
+    """Start ``inbox verify <job>`` detached: the transcript check for answers this popup typed."""
+    import json as _json
+
+    from . import worker
+
+    args = [sys.executable, "-m", "herdr_inbox.cli", "verify", _json.dumps(job)]
+    log_path = worker.db_path().parent / "worker.log"
+    with open(log_path, "a") as err:
+        subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
+                         start_new_session=True, close_fds=True, env=worker._spawn_env())
+
+
+class AlreadySending(Exception):
+    """Send now on an answer another process is delivering right now."""
+
+
 @trace.traced("popup.after_submit")
 def _after_submit(app: "InboxApp", done: list[Question], wanted: int, detached: bool = False) -> None:
     failed = [] if detached else [q for q in done if not q.delivered_at]
@@ -959,15 +977,26 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work, force: bool = Fa
         try:
             with trace.step("popup.send_thread"), Store(store.path) as own:  # sqlite connections stay in the thread that made them
                 done = work(own, not detached)
+                if detached and done:
+                    service._ensure_worker()  # first: if this process dies before the spawn, the worker adopts it
+                    # the pane the popup returns to (the operator's): type NOW, while the popup
+                    # still holds the keyboard -- after it closes the operator may be typing
+                    # there. Only the transcript check is handed off (inbox verify).
+                    here = [q for q in done if q.pane_id and q.pane_id == app.focus_pane]
+                    if here:
+                        service.deliver_batch(own, here, force=force, verify_later=spawn_verify)
+                    elsewhere = [q.id for q in done if q not in here]
+                    if elsewhere:
+                        try:
+                            spawn_delivery(elsewhere, force=force)
+                        except OSError:
+                            log.warning("could not start the delivery; the worker will retry", exc_info=True)
+        except AlreadySending as busy:
+            report(app.notify, f"Q{busy.args[0]} is already being delivered", severity="warning")
+            return
         except sqlite3.OperationalError:
             report(app.notify, BUSY, severity="warning")
             return
-        if detached and done:
-            service._ensure_worker()  # first: if this process dies before the spawn, the worker adopts it
-            try:
-                spawn_delivery([q.id for q in done], force=force)
-            except OSError:
-                log.warning("could not start the delivery; the worker will retry", exc_info=True)
         report(_after_submit, app, done, len(qids), detached)
 
     detached = DETACHED_SEND
@@ -1385,6 +1414,7 @@ class InboxApp(App):
 
     def on_unmount(self) -> None:
         self._unmounted = True
+        service.drain(1.0)  # tab labels/markers queued by this popup's last actions (bounded)
         timer = getattr(self, "_poll_timer", None)
         if timer is not None:
             timer.stop()  # no poll may land on a screen being torn down
@@ -1445,6 +1475,9 @@ class InboxApp(App):
     def on_failed_view_retry(self, event: FailedView.Retry) -> None:
         def retry(s: Store, deliver: bool) -> list[Question]:
             q = s.get(event.qid)
+            err = (q.delivery_error or "") if q else ""
+            if err.startswith("sending:") and err > f"sending:{store_now(-CLAIM_STALE)}":
+                raise AlreadySending(event.qid)  # its sender is at it right now
             if deliver:
                 service.deliver(s, q, force=True)  # the operator's explicit retry / "Send now"
             return [s.get(event.qid)]

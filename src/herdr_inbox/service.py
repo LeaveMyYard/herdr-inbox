@@ -278,6 +278,9 @@ def answer(
     return done[0] if done else None
 
 
+REFERENCE_INDEX = 2  # in expected_segments: the long-answer reference (not the answer itself)
+
+
 def expected_segments(q: Question) -> list[str]:
     """The exact strings a delivery of ``q`` carries (single message, batch segment, or the
     long-answer reference), as herdr types them (``herdr.clean``: tabs, newlines, U+2028
@@ -347,7 +350,8 @@ def _busy_for(store: Store, qid: int) -> float:
     return (datetime.now(timezone.utc) - datetime.fromisoformat(since)).total_seconds()
 
 
-def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: bool = False) -> None:
+def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: bool = False,
+                  verify_later=None) -> None:
     """``force``: the operator's "Send now" -- skip the busy grace and the focused-pane wait
     (never a blocked agent: a dialog would swallow the text)."""
     if not retry:
@@ -438,10 +442,12 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
         if path is not None:
             # already in the conversation? (a late landing, or a sender that typed and then
             # died mid-verify, whose stale claim we just took over): look before EVERY typing
-            landed = transcript.landed_exact(path, {q.id: (expected_segments(q), q.answered_at) for q in ours})
+            landed = transcript.landed_kinds(path, {q.id: (expected_segments(q), q.answered_at) for q in ours})
             for q in ours:
                 if q.id in landed:
-                    record(q, None, verified=True)
+                    # only the long-answer reference landed: the agent has a pointer to
+                    # check_answers, not the answer -- verified, but it stays unseen
+                    record(q, None, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}), verified=True)
             ours = [q for q in ours if q.id not in landed]
             if not ours:
                 continue
@@ -468,6 +474,12 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 # check_answers still returns it. Not retried (that could double it).
                 for q in batch:
                     record(q, None, acknowledge=False)
+                continue
+            if verify_later is not None:
+                # typed now (the popup still holds the keyboard); the up-to-15 s transcript
+                # check runs in a detached `inbox verify`, which records under our claims
+                verify_later({"path": str(path), "offset": offset, "ack": ack, "busy": busy,
+                              "rows": [{"id": q.id, "claim": claims[q.id]} for q in batch]})
                 continue
             with trace.step("deliver.verify_wait"):
                 landed_now = transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS)
@@ -608,3 +620,19 @@ def sync_tokens(store: Store, remove_prefixes: bool = False) -> None:
             want = tabs.desired_label(tabs.base_label(tab["label"], tabs.marks_for(store, tab_id)), count, mark)
             if want != tab["label"] or tabs.marks_for(store, tab_id) - {tabs.DEFAULT_PREFIX}:
                 tabs.apply(store, tab_id, count, mark)  # re-reads before renaming
+
+
+def verify_job(store: Store, job: dict) -> None:
+    """``inbox verify``: wait for a typed message in the transcript and record the outcome
+    under the claims the typing process took (see deliver_batch's ``verify_later``)."""
+    from pathlib import Path
+
+    ids = [r["id"] for r in job["rows"]]
+    landed = transcript.wait_landed(Path(job["path"]), int(job["offset"]), ids, VERIFY_SECONDS)
+    for r in job["rows"]:
+        if landed:
+            store.record_delivery(r["id"], None, acknowledge=bool(job.get("ack", True)), claim=r["claim"], verified=True)
+        elif job.get("busy"):
+            store.record_busy_miss(r["id"], r["claim"], BUSY_WAIT_IDLE)
+        else:
+            store.record_delivery(r["id"], NOT_VERIFIED, claim=r["claim"])

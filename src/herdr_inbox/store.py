@@ -644,7 +644,7 @@ class Store:
             self.db.execute("UPDATE question_ext SET agent_gone_at = COALESCE(agent_gone_at, ?) WHERE id = ?",
                             (now(), qid))
             self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivered_at IS NULL"
-                            " AND delivery_error NOT LIKE 'sending:%'", (f"{AGENT_GONE}{reason}", qid))
+                            " AND COALESCE(delivery_error, '') NOT LIKE 'sending:%'", (f"{AGENT_GONE}{reason}", qid))
 
     def agent_gone(self, qid: int) -> bool:
         row = self.db.execute("SELECT agent_gone_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
