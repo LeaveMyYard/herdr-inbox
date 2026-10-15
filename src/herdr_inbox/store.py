@@ -189,6 +189,16 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
 EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT",
                      "agent_gone_at": "TEXT", "legacy_misses": "INTEGER", "legacy_checked_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
+# Columns added to a table after it first shipped, per table: Store._migrate adds whichever an
+# existing database lacks (tests/test_schema_migrations.py fails if a CREATE TABLE gains a
+# column that is neither in its first-shipped set nor here).
+TABLE_ADDED_COLUMNS = {
+    "questions": ADDED_COLUMNS,
+    "question_ext": EXT_ADDED_COLUMNS,
+    "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
+    "remote_outbox": {"sending_at": "TEXT"},
+}
+
 
 MAX_TITLE = 60
 
@@ -347,7 +357,7 @@ def _schema_stamp(migration_source: str | None = None) -> int:
             migration_source = inspect.getsource(Store._migrate)
         except (OSError, TypeError):
             migration_source = f"revision {MIGRATION_REVISION}"
-    text = (SCHEMA + VIEW_SQL + repr(sorted(EXT_ADDED_COLUMNS.items())) + repr(sorted(ADDED_COLUMNS.items()))
+    text = (SCHEMA + VIEW_SQL + repr(sorted((t, sorted(c.items())) for t, c in TABLE_ADDED_COLUMNS.items()))
             + migration_source)
     return zlib.crc32(text.encode()) & 0x7FFFFFFF
 
@@ -381,10 +391,13 @@ class Store:
                 return
             for statement in _statements(SCHEMA):
                 self.db.execute(statement)
-            ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
-            for name, decl in EXT_ADDED_COLUMNS.items():
-                if name not in ext_columns:
-                    self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
+            for table, added in TABLE_ADDED_COLUMNS.items():
+                if table == "questions":
+                    continue  # after the views, below (as before)
+                have = {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}
+                for name, decl in added.items():
+                    if name not in have:
+                        self.db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
             for old in OLD_VIEWS:
                 self.db.execute(f"DROP VIEW IF EXISTS {old}")
             for statement in _statements(VIEW_SQL):

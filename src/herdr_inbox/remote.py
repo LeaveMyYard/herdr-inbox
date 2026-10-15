@@ -227,6 +227,8 @@ def clean_row(row) -> dict | None:
         out["options"] = [_clean_option(o) for o in opts]
         for key in ("multi_select", "hidden", "agent_gone"):
             out[key] = bool(row.get(key))
+        attempts = row.get("delivery_attempts")
+        out["delivery_attempts"] = attempts if isinstance(attempts, int) and 0 <= attempts < 10_000 else 0
         return out
     except ValueError:
         return None
@@ -399,8 +401,13 @@ def _problem(data: dict) -> str | None:
         return None
     if data.get("agent_gone"):
         return "agent closed — answer kept for check_answers"
+    # only TERMINAL states: the remote worker still retries anything else (a herdr hiccup,
+    # 'no agent' before its cap -- which then turns agent-gone --, an unverified try below
+    # its cap), and a notification can't be taken back
+    from .service import MAX_UNVERIFIED_ATTEMPTS, NOT_VERIFIED
+
     err = data.get("delivery_error") or ""
-    if err and not err.startswith(("pending:", "sending:")):
+    if err.startswith(NOT_VERIFIED) and data.get("delivery_attempts", 0) >= MAX_UNVERIFIED_ATTEMPTS:
         return f"not delivered: {err}"
     return None
 
@@ -647,8 +654,10 @@ def sync_all_parallel() -> None:
     try:
         with Store(timeout=5, maintenance=False) as store:
             expire_sweep(store)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:  # noqa: BLE001 - never stops the pulls, but never silent either
+        import logging
+
+        logging.getLogger("herdr_inbox").warning("remote expiry sweep failed", exc_info=True)
     found = enabled_machines()
     if not found:
         return
