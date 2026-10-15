@@ -6,16 +6,18 @@
   `alert_operator(title, message?, severity=info|warning|urgent, asked_by?)` returns at once
   with a receipt (`A7`). The alert raises one herdr notification, counts in the pane's ❓N badge
   and `$inbox_q` (so in the radar sidebar too), and heads the popup list (`⚑ A7 · urgent · …`,
-  most severe first) until the operator acknowledges it: `Enter` then `1`, or `d` on the row;
-  `g` goes to the agent. Nothing is typed back into the agent's pane: `check_answers` reports
+  most severe first) until the operator acknowledges it: open it and press `1`, or `d` on the
+  row; `g` goes to the agent. The popup's initial cursor still starts on the focused pane's
+  question, and an alert opens with no row selected, so a habitual Enter never acts on one. Nothing is typed back into the agent's pane: `check_answers` reports
   acknowledged alerts once (`alerts_acknowledged`) and `list_my_questions` lists them. The
   agent can `withdraw_alert(id)`. The same title raised twice returns the open one.
 - **Agents stuck at a prompt become alerts.** An agent herdr reports as `blocked` (it shows an
   approval, AskUserQuestion or plan prompt — herdr's "needs you") cannot call any tool, so it
   never asked. The delivery worker now checks `herdr agent list` every tick: an agent blocked
   for 15 s gets an automatic alert "`<tab>` is waiting for you" (`⏸`, one notification), and
-  the alert clears itself when the status changes. `g` goes to the pane. The inbox never types
-  into such a pane.
+  the alert clears itself once the status has changed for 10 s (two ticks), so a flickering
+  detection does not re-notify. `1` or `g` goes to the pane (never Enter, and not in the first
+  0.5 s). The inbox never types into such a pane.
 - The delivery worker now stays alive while herdr reports any agent (it watches their blocked
   state); before, it exited after 10 idle minutes.
 - Remote machines: alerts travel in `inbox export` (open ones, plus those closed in the last
