@@ -417,8 +417,11 @@ change:
   background tab-label job, opened a `Store` that re-ran the schema script and the reconcile
   pass. Those are write transactions, so several connections in one process, plus the
   freshly spawned worker, waited on SQLite's busy handler for up to ~1 s.
-  - The database is now stamped (`PRAGMA user_version` = a hash of the schema), so a
-    reopen does no schema work.
+  - The database is now stamped (`PRAGMA user_version` = a hash of the schema and of
+    `Store._migrate`'s source), so a reopen does no schema work. The migration runs under
+    `BEGIN IMMEDIATE`, checks the stamp again once it holds the lock, and stamps in the
+    same transaction. Several servers opening an old database together (an upgrade with
+    many agent panes) serialize, and only the first one migrates.
   - Tool calls and background jobs open with `maintenance=False` and skip reconcile; the
     worker reconciles every tick.
   - Bench, `ask_operator` ms, before → after:
