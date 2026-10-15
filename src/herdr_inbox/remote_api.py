@@ -18,7 +18,7 @@ from .store import Question, Store, VIEW, now
 
 EXPORT_VERSION = 1
 RECENT = timedelta(days=7)
-ACTIONS = ("answer", "dismiss", "hide", "deliver")
+ACTIONS = ("answer", "dismiss", "hide", "deliver", "ack_alert")
 
 
 def db_id(store: Store) -> str:
@@ -77,11 +77,27 @@ def export(store: Store, request: dict) -> dict:
         qs = [q for q in got.values() if q is not None]
         gone = [i for i, q in got.items() if q is None]
     out = {"version": __version__, "format": EXPORT_VERSION, "db_id": dbid, "seq": seq, "full": full,
-           "questions": [_row(store, q, dbid) for q in qs]}
+           "questions": [_row(store, q, dbid) for q in qs], "alerts": _alerts(store, dbid)}
     if full:
         out["ids"] = [q.id for q in qs]
     else:
         out["gone"] = gone  # changed and no longer there (deleted)
+    return out
+
+
+def _alerts(store: Store, dbid: str) -> list[dict]:
+    """Open alerts, plus those closed in the last hour (so the mirror sees them close). Small:
+    sent whole on every pull."""
+    from . import alerts
+
+    rows = store.db.execute("SELECT * FROM alerts WHERE status = 'open' OR COALESCE(acked_at, closed_at) >= ?"
+                            " ORDER BY id LIMIT 200", (now(-timedelta(hours=1)),)).fetchall()
+    out = []
+    for r in rows:
+        a = alerts.Alert(**dict(r))
+        out.append({"id": a.id, "akey": alerts.akey(store, a, dbid), "kind": a.kind, "severity": a.severity,
+                    "title": a.title, "message": a.message, "tab_label": a.tab_label, "pane_id": a.pane_id,
+                    "asked_by": a.asked_by, "status": a.status, "created_at": a.created_at})
     return out
 
 
@@ -94,6 +110,30 @@ def _record(store: Store, request_id: str, qid, outcome: str, reason: str | None
     store.db.execute("INSERT INTO applied_requests (request_id, qid, outcome, reason, at) VALUES (?, ?, ?, ?, ?)",
                      (request_id, qid, outcome, reason, now()))
     return {"outcome": outcome, "reason": reason} if reason else {"outcome": outcome}
+
+
+def _ack_alert(store: Store, request_id: str, request: dict) -> dict:
+    """The operator acknowledged a remote alert: same request_id idempotence as answers."""
+    from . import alerts
+
+    qid = request.get("id")
+    with store.transaction():
+        done = store.db.execute("SELECT outcome, reason FROM applied_requests WHERE request_id = ?",
+                                (request_id,)).fetchone()
+        if done:
+            return {"outcome": "already_applied"} if done[0] == "applied" else \
+                {"outcome": done[0], "reason": done[1]}
+        if request.get("db_id") != db_id(store):
+            return _record(store, request_id, qid, "rejected", "reset")
+        a = alerts.get(store, qid) if isinstance(qid, int) else None
+        if a is None or request.get("qkey") != alerts.akey(store, a, db_id(store)):
+            return _record(store, request_id, qid, "rejected", "not that alert")
+        if a.status != "open":
+            return _record(store, request_id, qid, "rejected", a.status)
+        store.db.execute("UPDATE alerts SET status = 'acked', acked_at = ? WHERE id = ?", (now(), qid))
+        result = _record(store, request_id, qid, "applied")
+    service.update_markers(store, a.pane_id)
+    return result
 
 
 def apply(store: Store, request: dict) -> dict:
@@ -112,6 +152,8 @@ def apply(store: Store, request: dict) -> dict:
             return {"outcome": "expired"}
     if not isinstance(request_id, str) or not 1 <= len(request_id) <= 64 or action not in ACTIONS:
         return {"outcome": "rejected", "reason": "bad request"}
+    if action == "ack_alert":
+        return _ack_alert(store, request_id, request)
     after = None
     with store.transaction():  # the record and the action commit together
         done = store.db.execute("SELECT outcome, reason FROM applied_requests WHERE request_id = ?",

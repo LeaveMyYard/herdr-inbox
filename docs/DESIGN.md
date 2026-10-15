@@ -448,6 +448,66 @@ change:
     answer them again;
   - hidden rows are not listed.
 
+## Alerts (0.8.0)
+
+The operator saw tabs at herdr's "needs you" with no question in the inbox. Cause: the agent
+sat at a blocking prompt (permission dialog, AskUserQuestion, plan approval) where it cannot
+call any tool, so it could not have asked. Two additions:
+
+- **`alert_operator(title, message?, severity, asked_by?)`**: a "please check X" with no answer
+  expected. Table `alerts` (side table; `questions` keeps its columns): `kind` `agent` |
+  `blocked`, `severity` `info` | `warning` | `urgent`, `status` `open` | `acked` | `withdrawn` |
+  `cleared`. Open alerts count in `Store.open_counts` (badge, `$inbox_q`, radar). Ids show as
+  `A<n>`. One notification on raise. An open alert with the same title from the same session
+  is returned instead of a second one.
+- **Blocked agents** (`alerts.scan_blocked`, every worker tick): one `herdr agent list`. herdr
+  documents `blocked` as "recognized an approval or question UI". A pane blocked for
+  `BLOCKED_AFTER` (15 s, so a quickly answered permission prompt never alerts) gets a
+  `kind='blocked'` alert. When each pane's prompt was first seen lives in `blocked_panes`
+  (per herdr server), so a worker restart or hand-over does not restart the 15 s clock. It is
+  `cleared` only after `CLEAR_AFTER` (10 s) and two ticks of
+  another status, so a flickering detection within one prompt neither clears nor re-notifies;
+  an agent gone from the list clears at once. Dedupe and dismissals are scoped by
+  `herdr_server` (pane ids repeat across servers). Nothing is ever typed into such a pane;
+  `herdr agent prompt` refuses blocked agents anyway (`agent_blocked`).
+- **The worker no longer idles out in normal use.** It stays alive while herdr reports any
+  agent (it watches their blocked state), so with agents running it always runs: one per
+  herdr server. Its cost per tick: one `herdr agent list`, one `tab get` per newly blocked
+  pane, plus the existing delivery tick. `WORKER_IDLE_EXIT` now applies only to a herdr with
+  no agents and nothing pending.
+
+**Acknowledgement is not typed back** (decided default). Typing into an agent costs a turn and
+can land at a prompt; the agent does not need it to continue. `check_answers` returns
+acknowledged alerts once (`reported_at`), `list_my_questions` shows their status.
+
+**Popup: alerts never change what a habitual key does to a question** (reviews M1, H1). An
+operator types "1 Enter 1 Enter", "1 g", "Enter Enter" without looking; with an alert in the
+way, those keys could acknowledge it unread or, for a blocked agent, focus its pane and hand
+the next key to its approval prompt (where the highlighted choice is usually "Yes"). So:
+
+- Alerts are listed first (local, then remote, most severe first) but **unnumbered**: digits
+  address question rows only, numbered exactly as before 0.8; alerts are reached with ↑/↓.
+- The initial cursor is on the focused pane's question group, else at rest. The only question
+  still opens directly; after answering, the popup closes when no question is left (open
+  alerts keep it open only after an alert action).
+- The `AlertView` has no numbered options and no Enter action: `d` acknowledges (dismisses a
+  blocked alert, which holds until that prompt ends), `g` goes to the pane, Esc goes back.
+- **`g` to a waiting agent must be deliberate:** for an alert (list row or view) `g` acts only
+  `ALERT_GO_GRACE` (0.5 s) after the previous key of any kind (a g too: a held, auto-repeating or double-tapped g
+  never passes) and the last view change; for a
+  question, the popup asks herdr for the pane's live status first and applies the same rule
+  when it is `blocked` (covers an agent alert or question whose agent has since hit a prompt).
+- `d` on an alert row in the list acknowledges without a confirmation: nothing is lost. Closed alert rows
+become inert placeholders like every other row.
+
+**Remote.** `inbox export` carries `alerts` (open ones and those closed in the last hour,
+≤200, whole on every pull; the change-feed cursor is for questions only). The mirror table
+`remote_alerts` is replaced per pull, except that an alert with a queued `ack_alert` stays
+acknowledged. Acknowledging enqueues `ack_alert` in `remote_outbox` with the alert's `akey`
+(`sha256(db_id|alert|id|created_at|title)`); `inbox apply` checks `db_id` and `akey`, records the
+`request_id` in the same transaction, and rejects a closed alert with its status. Alert ids and
+question ids are separate namespaces: the outbox FIFO keys on `(is_alert, id)`.
+
 ## herdr surface
 
 - **Notification** on each new question:

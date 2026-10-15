@@ -8,7 +8,8 @@ all), so answers to long-lived sessions could sit undelivered with nobody retryi
 - exactly one worker runs (an exclusive flock on ``worker.lock`` next to the database);
   ``ensure()`` starts it detached when it is not running, from herdr's ``[[startup]]``, the
   popup, the CLI and every 0.6.1+ MCP server; it exits after WORKER_IDLE_EXIT seconds
-  with nothing pending (the next answer starts it again);
+  with nothing pending, no enabled remote and no agent in herdr (0.8: it watches agents'
+  blocked state, so with agents running it does not idle out);
 - every TICK it re-checks unverified acknowledgements (``Store.reconcile``: an old
   server's "typed = seen" is un-seen and, if recent, requeued) and runs the delivery
   policy (service.deliver_batch: idle/done, busy grace, blocked, panel focus, transcript
@@ -33,6 +34,7 @@ from .store import AGENT_GONE, Question, Store, db_path
 log = logging.getLogger("herdr_inbox")
 
 TICK = float(os.environ.get("HERDR_INBOX_WORKER_TICK", "5"))
+watching = 0  # agents herdr reported on the last tick: their blocked state is watched (alerts)
 IDLE_EXIT = float(os.environ.get("HERDR_INBOX_WORKER_IDLE_EXIT", "600"))
 NOTIFY_AFTER = 300.0
 LEGACY_RECHECK = timedelta(seconds=60)
@@ -194,7 +196,15 @@ def mark_gone(store: Store) -> None:
 def tick(store: Store) -> int:
     """One round: reconcile, deliver what this worker serves, notify the stuck. Returns how
     many of ITS answers are still pending (other servers' rows never keep it alive)."""
+    global watching
     store.reconcile()
+    try:
+        from . import alerts
+
+        watching = alerts.scan_blocked(store)  # agents stuck at an approval/question prompt (never typed into)
+    except Exception:  # noqa: BLE001
+        watching = 0
+        log.warning("blocked-agent scan failed", exc_info=True)
     store.db.execute("DELETE FROM changes WHERE seq <= (SELECT MAX(seq) FROM changes) - 10000")
     mine = herdr.server_id()
     for items in served(store).values():
@@ -313,7 +323,9 @@ def _loop(box: dict) -> int:
             box["lock"] = hold_lock()
             if box["lock"] is None:
                 return 0  # someone else took over meanwhile
-        if pending or remotes:  # an enabled remote machine keeps the worker (and its pulls) alive
+        # an enabled remote machine keeps the worker (and its pulls) alive; so does any agent,
+        # whose blocked state it watches (an agent at a prompt cannot ask for help itself)
+        if pending or remotes or watching:
             idle_since = time.monotonic()
         elif time.monotonic() - idle_since >= IDLE_EXIT:
             box["lock"].close()
