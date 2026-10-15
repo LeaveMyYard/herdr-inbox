@@ -705,8 +705,9 @@ class Store:
             " AND acknowledged_at IS NULL"
             # failed attempts, or never attempted (the answering process died) after a grace period
             " AND (delivery_error IS NOT NULL OR answered_at < ?)"
-            # hidden by the operator, or its agent is gone: left for check_answers, not retried
-            " AND hidden_at IS NULL AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL)"
+            # its agent is gone: left for check_answers, not retried (hiding a row only takes
+            # it out of the popup -- a hidden pending answer is still delivered)
+            " AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL)"
             f" AND NOT ({clauses}) ORDER BY id",
             (pane_id, now(-NEVER_ATTEMPTED_GRACE), *args),
         ).fetchall()

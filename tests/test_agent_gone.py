@@ -47,9 +47,11 @@ def test_gone_notification_says_the_answer_is_kept(store, fake_herdr, monkeypatc
     assert len(shows) == 1 and f"Q{qid}" in shows[0][2] and "check_answers" in shows[0][4]
 
 
-def test_hidden_rows_are_not_polled(store, fake_herdr, monkeypatch):
+def test_hidden_gone_rows_are_not_polled(store, fake_herdr, monkeypatch):
+    """Gone rows stop; a hidden PENDING row is still delivered (test_async_actions)."""
     qid = gone_answer(store, monkeypatch)
     store.hide_failed(qid)
+    store.mark_agent_gone(qid, "no live agent in pane w1:p1")
     fake_herdr.reset()
     for _ in range(3):
         worker.tick(store)

@@ -963,6 +963,7 @@ def _send(app: "InboxApp", store: Store, qids: list[int], work, force: bool = Fa
             report(app.notify, BUSY, severity="warning")
             return
         if detached and done:
+            service._ensure_worker()  # first: if this process dies before the spawn, the worker adopts it
             try:
                 spawn_delivery([q.id for q in done], force=force)
             except OSError:

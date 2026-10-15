@@ -11,8 +11,10 @@
 - `INBOX_TRACE=<file>` logs step timings (herdr calls, popup handlers, tools, delivery).
 - Answers whose agent is gone are marked once, notified once and no longer polled. The popup
   labels them "agent closed — answer kept for check_answers", and `d` hides them. Pending
-  answers say they are already answered and waiting to be delivered. Hidden answers are
-  never retried.
+  answers say they are already answered and waiting to be delivered. Hiding an answer only
+  takes it out of the popup; its delivery continues.
+- Before every typing attempt, delivery checks the transcript (when known) for the answer, so a
+  sender killed mid-verify can't cause a second copy.
 
 ## 0.6.2
 
