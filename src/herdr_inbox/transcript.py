@@ -47,12 +47,24 @@ _PASTE_WRAPPER = re.compile(r"^\s*(?:<pasted_content[^>]*>\s*)?")
 
 
 def _texts(line: str):
+    for text, _ in _records(line):
+        yield text
+
+
+def _records(line: str):
+    """(text, timestamp or None) of the prompt-carrying records on one line."""
     try:
         record = json.loads(line)
     except (json.JSONDecodeError, ValueError):
         return
     if not isinstance(record, dict):
         return
+    ts = record.get("timestamp") if isinstance(record.get("timestamp"), str) else None
+    for text in _record_texts(record):
+        yield text, ts
+
+
+def _record_texts(record: dict):
     kind = record.get("type")
     if kind == "user":
         content = (record.get("message") or {}).get("content")
@@ -118,6 +130,47 @@ def landed_ids(path: Path, candidates: list[int]) -> set[int]:
         for text in _texts(raw.decode("utf-8", errors="replace")):
             for qid in candidates:
                 if qid not in found and contains(text, [qid]):
+                    found.add(qid)
+    return found
+
+
+def _after(ts: str | None, since: str | None) -> bool:
+    """The record is not older than ``since`` (lenient: unknown times count as newer)."""
+    if not ts or not since:
+        return True
+    try:
+        from datetime import datetime
+
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")) >= datetime.fromisoformat(since)
+    except ValueError:
+        return True
+
+
+def landed_exact(path: Path, expected: dict[int, tuple[list[str], str | None]]) -> set[int]:
+    """Which ids landed, judged by their FULL expected text, not the id alone: ``expected``
+    maps an id to (the exact strings our message carries for it, the answer's time). A
+    record counts for an id only if it names the id in our header positions, contains one
+    of those strings at a segment start, and is not older than the answer (ids restart if
+    the database is recreated)."""
+    found: set[int] = set()
+    try:
+        with open(path, "rb") as fh:
+            end = fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, end - MAX_READ))
+            data = fh.read()
+    except OSError:
+        return found
+    for raw in data.split(b"\n"):
+        if b"[inbox]" not in raw:
+            continue
+        for text, ts in _records(raw.decode("utf-8", errors="replace")):
+            stripped = _PASTE_WRAPPER.sub("", text, count=1)
+            named = header_ids(stripped)
+            for qid, (segments, since) in expected.items():
+                if qid in found or qid not in named or not _after(ts, since):
+                    continue
+                if any(stripped.startswith(seg) or ("— " + seg) in stripped or (" · " + seg) in stripped
+                       for seg in segments):
                     found.add(qid)
     return found
 

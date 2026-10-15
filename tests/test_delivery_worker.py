@@ -356,7 +356,8 @@ def test_h1_a_retry_checks_the_transcript_before_typing_again(store, fake_herdr,
     qid = pending_answer(store, monkeypatch, status="idle")
     assert store.get(qid).delivery_error == service.NOT_VERIFIED and len(prompts(fake_herdr)) == 1
     with open(live_session, "a") as fh:  # the late record
-        fh.write(json.dumps({"type": "user", "message": {"content": f"[inbox] Q{qid} answered — x: yes"}}) + "\n")
+        # the real message (0.6.3: the check matches the full text, not the id alone)
+        fh.write(json.dumps({"type": "user", "message": {"content": service.delivery_text([store.get(qid)])}}) + "\n")
     worker.tick(store)
     assert len(prompts(fake_herdr)) == 1 and store.get(qid).verified_at
 

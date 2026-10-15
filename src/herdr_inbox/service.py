@@ -278,6 +278,12 @@ def answer(
     return done[0] if done else None
 
 
+def expected_segments(q: Question) -> list[str]:
+    """The exact strings a delivery of ``q`` carries (single message, batch segment, or the
+    long-answer reference): what the transcript must show for ``q`` to count as landed."""
+    return [delivery_text([q]), answer_line(q), _reference(q)]
+
+
 def answer_line(q: Question) -> str:
     return f"{q.ref} {first_line(q.question, 80)}: {q.answer}"
 
@@ -431,7 +437,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
         if path is not None:
             # already in the conversation? (a late landing, or a sender that typed and then
             # died mid-verify, whose stale claim we just took over): look before EVERY typing
-            landed = transcript.landed_ids(path, [q.id for q in ours])
+            landed = transcript.landed_exact(path, {q.id: (expected_segments(q), q.answered_at) for q in ours})
             for q in ours:
                 if q.id in landed:
                     record(q, None, verified=True)

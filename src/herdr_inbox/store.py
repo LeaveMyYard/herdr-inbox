@@ -593,7 +593,10 @@ class Store:
         for session, qids in by_session.items():
             path = transcript.find(session, self.session_transcript(session))
             if path is not None:
-                found |= transcript.landed_ids(path, qids)
+                from .service import expected_segments  # local: service imports the store
+
+                qs = [q for q in (self.get(i) for i in qids) if q is not None]
+                found |= transcript.landed_exact(path, {q.id: (expected_segments(q), q.answered_at) for q in qs})
                 read |= set(qids)
         with self.transaction():
             for qid, _, recent_signature in rows:
