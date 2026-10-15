@@ -140,36 +140,45 @@ def notify_stuck(store: Store, rows: list[Question]) -> None:
         store.mark_notified([q.id for q in items])
 
 
-def tick(store: Store) -> int:
-    """One round: reconcile, deliver what is pending in every pane, notify the stuck.
-    Returns how many answers are still pending."""
-    store.reconcile()
-    caps = {service.NO_AGENT: service.MAX_STALE_RETRIES, service.CHANGED: service.MAX_STALE_RETRIES,
-            service.NOT_VERIFIED: service.MAX_UNVERIFIED_ATTEMPTS}
+CAPS = {service.NO_AGENT: service.MAX_STALE_RETRIES, service.CHANGED: service.MAX_STALE_RETRIES,
+        service.NOT_VERIFIED: service.MAX_UNVERIFIED_ATTEMPTS}
+
+
+def served(store: Store) -> dict[str, list[Question]]:
+    """The pending answers THIS worker delivers, by pane: its own herdr server's rows, plus
+    rows asked before 0.6.1 (no server recorded) whose pane here holds the asking
+    conversation -- never on a pane-id-only match. Other servers' rows are theirs."""
     mine = herdr.server_id()
     by_pane: dict[str, list[Question]] = {}
-    for q in store.undelivered_all(caps):
-        server = store.server_of(q.id)
-        if server not in (None, mine):
+    for q in store.undelivered_all(CAPS):
+        if store.server_of(q.id) not in (None, mine):
             continue  # another herdr server's pane: its own worker, never this socket
         by_pane.setdefault(q.pane_id, []).append(q)
     for pane, items in list(by_pane.items()):
         legacy = [q for q in items if store.server_of(q.id) is None]
         if not legacy:
             continue
-        # asked before 0.6.1 (no server recorded): only if that pane here holds the asking
-        # conversation -- never on a pane-id-only match, and no retry caps burnt otherwise
         agent = herdr.live_agent(pane)
         ok = [q for q in legacy if q.session_id and agent and agent["session_id"] == q.session_id]
         by_pane[pane] = [q for q in items if q not in legacy or q in ok]
-    for items in by_pane.values():
+        if not by_pane[pane]:
+            del by_pane[pane]
+    return by_pane
+
+
+def tick(store: Store) -> int:
+    """One round: reconcile, deliver what this worker serves, notify the stuck. Returns how
+    many of ITS answers are still pending (other servers' rows never keep it alive)."""
+    store.reconcile()
+    mine = herdr.server_id()
+    for items in served(store).values():
         try:
             service.deliver_batch(store, items, retry=True)
         except Exception:  # noqa: BLE001 - one pane's trouble never stops the others
             log.exception("delivery to %s failed", items[0].pane_id)
     left = [q for q in store.stuck_answers() if store.server_of(q.id) in (None, mine)]
     notify_stuck(store, left)
-    return len(store.undelivered_all(caps))
+    return sum(len(items) for items in served(store).values())
 
 
 def running_version() -> str | None:
@@ -217,10 +226,8 @@ def start_successor() -> bool:
 
 
 def _pending_now() -> int:
-    caps = {service.NO_AGENT: service.MAX_STALE_RETRIES, service.CHANGED: service.MAX_STALE_RETRIES,
-            service.NOT_VERIFIED: service.MAX_UNVERIFIED_ATTEMPTS}
     with Store(timeout=5) as store:
-        return len(store.undelivered_all(caps))
+        return sum(len(items) for items in served(store).values())
 
 
 def run() -> int:

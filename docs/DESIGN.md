@@ -139,7 +139,9 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   - Every `TICK` (5 s) it runs `Store.reconcile()` and then `deliver_batch(retry=True)`
     for **all** panes. Claims serialize it with old servers' loops.
   - Session MCP servers keep only ask/check/list/withdraw.
-  - It exits after 10 idle minutes, and the next answer starts it again.
+  - It exits after 10 idle minutes, and the next answer starts it again. "Idle" counts
+    only the answers it serves: other servers' rows and unmatched pre-0.6.1 rows never keep
+    it alive.
 - **An old server's lost delivery is requeued:** reconcile now also sends such an answer
   again. It applies when the row carries the pre-0.5.1 signature (`acknowledged_at =
   delivered_at`) and was delivered between `REQUEUE_SETTLE` (20 s, more than the 15 s verify
