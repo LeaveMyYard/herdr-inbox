@@ -1,7 +1,7 @@
 {
   "name": "herdr-inbox",
   "displayName": "herdr inbox",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "Non-blocking operator questions for agents in herdr: ask_operator MCP tool plus session instructions",
   "author": {
     "name": "LeaveMyYard"
@@ -28,7 +28,7 @@
         "mcp"
       ],
       "env": {
-        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv-0.6.3"
+        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv-0.7.0"
       }
     }
   }

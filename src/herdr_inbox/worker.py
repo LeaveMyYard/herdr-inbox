@@ -195,6 +195,7 @@ def tick(store: Store) -> int:
     """One round: reconcile, deliver what this worker serves, notify the stuck. Returns how
     many of ITS answers are still pending (other servers' rows never keep it alive)."""
     store.reconcile()
+    store.db.execute("DELETE FROM changes WHERE seq <= (SELECT MAX(seq) FROM changes) - 10000")
     mine = herdr.server_id()
     for items in served(store).values():
         try:
@@ -267,6 +268,14 @@ def run() -> int:
             box["lock"].close()
 
 
+def start_remote_thread() -> None:
+    import threading
+
+    from . import remote
+
+    threading.Thread(target=remote.loop, name="inbox-remote", daemon=True).start()
+
+
 def _loop(box: dict) -> int:
     try:
         from . import venvs
@@ -277,7 +286,17 @@ def _loop(box: dict) -> int:
     mine = running_version()
     handover_failed = False
     idle_since = time.monotonic()
+    remote_started = False
     while True:
+        try:
+            from . import remote
+
+            remotes = bool(remote.enabled_machines())
+        except Exception:  # noqa: BLE001
+            remotes = False
+        if remotes and not remote_started:
+            start_remote_thread()  # pulls/flushes remote machines (docs/REMOTE.md)
+            remote_started = True
         try:
             with Store(timeout=5) as store:
                 pending = tick(store)
@@ -294,7 +313,7 @@ def _loop(box: dict) -> int:
             box["lock"] = hold_lock()
             if box["lock"] is None:
                 return 0  # someone else took over meanwhile
-        if pending:
+        if pending or remotes:  # an enabled remote machine keeps the worker (and its pulls) alive
             idle_since = time.monotonic()
         elif time.monotonic() - idle_since >= IDLE_EXIT:
             box["lock"].close()
