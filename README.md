@@ -121,7 +121,7 @@ offers **Retry delivery** and **Stop showing it here** (the agent can still fetc
 | `n` / `x` | Add a note to the option / clear the draft |
 | `Tab` `→` / `Shift-Tab` `←` | Next / previous tab inside a group |
 | `g` | Go to the asking agent's pane |
-| `d` | Dismiss the group or question (`y` confirms); on an alert row, acknowledge it |
+| `d` | Dismiss the group or question (`y` confirms); on an alert, acknowledge it |
 | `Esc` | Back to the list; on the list, close without sending |
 
 ## Delivery
@@ -248,15 +248,15 @@ is `${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/inbox.db`; `HERDR_INBOX_DB` ov
 ### Alerts
 
 An alert (`A7`) is something the operator should check, with no answer expected. It heads the
-popup list (`⚑`, most severe first; the cursor still starts on your question), raises a
-notification and counts in the ❓N badge until acknowledged (open it and press `1`, or `d` on
-the row). The agent learns of the acknowledgement
+popup list (`⚑`, most severe first, unnumbered: digits and Enter keep acting on your
+questions exactly as before), raises a notification and counts in the ❓N badge until
+acknowledged with `d` (↑/↓ to reach it). The agent learns of the acknowledgement
 through `check_answers`; nothing is typed into its pane.
 
 The delivery worker also raises an alert by itself (`⏸ <tab> is waiting for you`) for an agent
 herdr reports as `blocked` for 15 s — stuck at a permission, AskUserQuestion or plan prompt,
-where it cannot call any tool. `1` or `g` goes to it (never Enter); the alert clears when the
-prompt is answered.
+where it cannot call any tool. A deliberate `g` (a pause after your last key) goes to it,
+never Enter or a digit; the alert clears when the prompt is answered.
 The inbox never types into that pane.
 
 A SessionStart hook teaches every Claude Code session to use them, so no `CLAUDE.md` edit is

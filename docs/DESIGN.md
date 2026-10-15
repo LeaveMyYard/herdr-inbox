@@ -463,7 +463,9 @@ call any tool, so it could not have asked. Two additions:
 - **Blocked agents** (`alerts.scan_blocked`, every worker tick): one `herdr agent list`. herdr
   documents `blocked` as "recognized an approval or question UI". A pane blocked for
   `BLOCKED_AFTER` (15 s, so a quickly answered permission prompt never alerts) gets a
-  `kind='blocked'` alert. It is `cleared` only after `CLEAR_AFTER` (10 s) and two ticks of
+  `kind='blocked'` alert. When each pane's prompt was first seen lives in `blocked_panes`
+  (per herdr server), so a worker restart or hand-over does not restart the 15 s clock. It is
+  `cleared` only after `CLEAR_AFTER` (10 s) and two ticks of
   another status, so a flickering detection within one prompt neither clears nor re-notifies;
   an agent gone from the list clears at once. Dedupe and dismissals are scoped by
   `herdr_server` (pane ids repeat across servers). Nothing is ever typed into such a pane;
@@ -478,15 +480,23 @@ call any tool, so it could not have asked. Two additions:
 can land at a prompt; the agent does not need it to continue. `check_answers` returns
 acknowledged alerts once (`reported_at`), `list_my_questions` shows their status.
 
-**Popup.** Alerts head the list (local, then remote), most severe first, but the initial
-cursor stays where it was before 0.8: on the focused pane's question group, else at the inert
-rest position. A habitual "open, Enter, Enter" never acts on an alert (review M1: for a blocked
-agent it would have focused that pane and handed the operator's next key to its approval
-prompt). An alert row opens an `AlertView` with no row selected; Enter does nothing until ↑/↓
-or a digit picks one. Agent alert: 1 = Acknowledge, 2 = Go to the agent. Blocked alert:
-1 = Go (only `1` or `g`, never Enter, and not within `ALERT_GO_GRACE` = 0.5 s of the view
-opening), 2 = Dismiss. `d` on an alert row acknowledges without a confirmation: nothing is
-lost. Closed alert rows
+**Popup: alerts never change what a habitual key does to a question** (reviews M1, H1). An
+operator types "1 Enter 1 Enter", "1 g", "Enter Enter" without looking; with an alert in the
+way, those keys could acknowledge it unread or, for a blocked agent, focus its pane and hand
+the next key to its approval prompt (where the highlighted choice is usually "Yes"). So:
+
+- Alerts are listed first (local, then remote, most severe first) but **unnumbered**: digits
+  address question rows only, numbered exactly as before 0.8; alerts are reached with ↑/↓.
+- The initial cursor is on the focused pane's question group, else at rest. The only question
+  still opens directly; after answering, the popup closes when no question is left (open
+  alerts keep it open only after an alert action).
+- The `AlertView` has no numbered options and no Enter action: `d` acknowledges (dismisses a
+  blocked alert, which holds until that prompt ends), `g` goes to the pane, Esc goes back.
+- **`g` to a waiting agent must be deliberate:** for an alert (list row or view) `g` acts only
+  `ALERT_GO_GRACE` (0.5 s) after the operator's last other key and the last view change; for a
+  question, the popup asks herdr for the pane's live status first and applies the same rule
+  when it is `blocked` (covers an agent alert or question whose agent has since hit a prompt).
+- `d` on an alert row in the list acknowledges without a confirmation: nothing is lost. Closed alert rows
 become inert placeholders like every other row.
 
 **Remote.** `inbox export` carries `alerts` (open ones and those closed in the last hour,

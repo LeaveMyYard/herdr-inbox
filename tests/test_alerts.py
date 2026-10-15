@@ -70,7 +70,7 @@ async def test_mcp_tools(store, fake_herdr):
         assert r["status"] == "withdrawn"
 
 
-async def test_popup_shows_alerts_first_and_enter_then_1_acknowledges(store, fake_herdr):
+async def test_popup_shows_alerts_first_unnumbered_and_d_acknowledges(store, fake_herdr):
     service.ask(store, B, "A question?")
     service.ask(store, B, "Another?")
     aid = alerts.raise_alert(store, A, "Disk almost full", "92% on /data", "urgent")["id"]
@@ -78,14 +78,16 @@ async def test_popup_shows_alerts_first_and_enter_then_1_acknowledges(store, fak
     async with app.run_test() as pilot:
         await pilot.pause()
         body = app.query_one(GroupListView).body_text()
-        assert body.startswith(f"  1. ⚑ A{aid} · urgent · Disk almost full")  # listed first, cursor not on it
+        # listed first, unnumbered, cursor not on it; the questions keep 1, 2
+        assert body.startswith(f"     ⚑ A{aid} · urgent · Disk almost full")
+        assert "❯ 1. A question?" in body and "  2. Another?" in body
         await pilot.press("up", "enter")
         await pilot.pause()
         assert app.mode == "alert" and "92% on /data" in str(app.query_one(AlertView).query(".question")[1].render())
-        await pilot.press("enter")  # at rest: nothing
+        await pilot.press("enter", "1", "2")  # no Enter action, no numbered options
         await pilot.pause()
         assert app.mode == "alert" and alerts.get(store, aid).status == "open"
-        await pilot.press("1")
+        await pilot.press("d")
         await pilot.pause()
         assert app.mode == "list"
     assert alerts.get(store, aid).status == "acked"
@@ -278,24 +280,108 @@ async def test_m1_enter_enter_never_acknowledges_an_agent_alert(store, fake_herd
     assert [a.status for a in alerts.open_alerts(store)] == ["open"]
 
 
-async def test_m1_a_blocked_alert_view_goes_only_on_1_or_g_after_the_grace(store, fake_herdr, monkeypatch):
+async def test_m1_a_blocked_alert_view_goes_only_on_a_deliberate_g(store, fake_herdr, monkeypatch):
     store.db.execute("INSERT INTO alerts (created_at, kind, severity, title, pane_id, tab_label, status)"
                      " VALUES (?, 'blocked', 'warning', 'tab-A is waiting for you', 'w1:p1', 'tab-A', 'open')",
                      (alerts.now(),))
     service.ask(store, B, "Q?")
+    service.ask(store, B, "Q2?")
     monkeypatch.setattr(tui, "ALERT_GO_GRACE", 3600.0)
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("up", "enter")
+        await pilot.press("up", "g")  # list g on the alert row, right after a move: refused
+        await pilot.press("enter")
         await pilot.pause()
         assert app.mode == "alert"
-        await pilot.press("enter", "down", "up", "enter", "1", "g")  # rest, Enter on Go, then 1/g in the grace
+        await pilot.press("enter", "1", "g")  # nothing on Enter or a digit; g without a pause: refused
         await pilot.pause()
         await app.workers.wait_for_complete()
         assert not fake_herdr.calls_of("agent", "focus") and not fake_herdr.calls_of("pane", "focus")
         monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.0)
-        await pilot.press("1")
+        await pilot.press("g")
         await pilot.pause()
         await app.workers.wait_for_complete()
     assert fake_herdr.calls_of("agent", "focus") or fake_herdr.calls_of("pane", "focus")
+
+
+async def _sequence(store, fake_herdr, keys, with_alert):
+    """The reviewer's habitual sequences at a human pace (0.6 s apart), with the real grace."""
+    import asyncio
+
+    service.ask(store, B, "Merge it?", options=["yes", "no"])
+    if with_alert:
+        store.db.execute("INSERT INTO alerts (created_at, kind, severity, title, pane_id, tab_label, status)"
+                         " VALUES (?, 'blocked', 'warning', 'tab-A is waiting for you', 'w1:p1', 'tab-A', 'open')",
+                         (alerts.now(),))
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        for key in keys:
+            await asyncio.sleep(0.6)
+            await pilot.press(key)
+            await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+    q = store.get(1)
+    return (q.status, q.answer), [c[2] for c in fake_herdr.calls_of("agent", "focus")]
+
+
+@pytest.mark.parametrize("keys", [("1", "enter", "1"), ("1", "g"), ("1", "enter", "1", "enter")])
+async def test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7(tmp_path, fake_herdr, monkeypatch, keys):
+    from herdr_inbox.store import Store
+
+    monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.5)
+    results = []
+    for with_alert in (False, True):
+        fake_herdr.reset()
+        with Store(tmp_path / f"{with_alert}.db") as store:
+            results.append(await _sequence(store, fake_herdr, keys, with_alert))
+    assert results[0] == results[1]  # the same answer and the same focus, alert or not
+    assert "w1:p1" not in results[1][1]  # never the blocked agent's pane
+
+
+async def test_m1_an_agent_alerts_pane_turned_blocked_needs_a_deliberate_g(store, fake_herdr, monkeypatch):
+    """An agent alert (and a question) whose agent now waits at a prompt: a g typed right
+    after another key goes nowhere; a g after a pause does."""
+    import asyncio
+
+    monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.5)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "blocked")
+    service.ask(store, A, "Q from the blocked agent?")
+    service.ask(store, B, "Other?")
+    alerts.raise_alert(store, A, "Check the deploy")
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test() as pilot:
+        await asyncio.sleep(0.6)
+        await pilot.press("1", "g")  # a question of the blocked pane: refused (live status)
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.press("up", "enter", "g")  # the agent alert: refused (no pause)
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        assert app.mode == "alert" and not fake_herdr.calls_of("agent", "focus")
+        await asyncio.sleep(0.6)
+        await pilot.press("g")
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+    assert [c[2] for c in fake_herdr.calls_of("agent", "focus")] == ["w1:p1"]
+
+
+def test_l1_the_blocked_clock_survives_a_worker_restart(store, fake_herdr, monkeypatch):
+    monkeypatch.setattr(alerts, "BLOCKED_AFTER", 15.0)
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", blocked())
+    worker.tick(store)
+    store.db.execute("UPDATE blocked_panes SET since = ?", (alerts.now(-__import__("datetime").timedelta(seconds=20)),))
+    alerts._unblocked.clear()  # a new worker process
+    worker.tick(store)
+    assert len(alerts.open_alerts(store)) == 1
+
+
+async def test_h1_the_only_question_still_opens_directly_with_an_alert_open(store, fake_herdr):
+    service.ask(store, B, "Only one?", options=["yes", "no"])
+    alerts.raise_alert(store, A, "Check it")
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.mode == "group" and app.direct

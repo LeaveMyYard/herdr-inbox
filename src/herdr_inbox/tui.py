@@ -704,30 +704,27 @@ SEVERITY_STYLE = {"urgent": "$inbox-warning", "warning": "$inbox-warning", "info
 
 
 class AlertView(Vertical, can_focus=True):
-    """An alert: an agent's "please check X" (acknowledge it, or go to the agent), or an agent
-    waiting at an approval/question prompt (go there). Nothing is ever typed into the pane.
+    """An alert: an agent's "please check X", or an agent waiting at an approval/question
+    prompt. Nothing is ever typed into the pane.
 
-    It opens with no row selected: Enter does nothing until ↑/↓ or a digit picks one, so a
-    habitual Enter never acknowledges an alert unread. Going to a BLOCKED agent's pane needs
-    `1` or `g`, never Enter, and not within ALERT_GO_GRACE of opening: the operator's next key
-    would land in that agent's approval prompt."""
+    No numbered options and no Enter action (review H1: a digit or Enter is what the operator
+    types to answer a question, and here it could acknowledge an alert unread or send them
+    into a blocked agent's approval prompt). `d` acknowledges / dismisses; `g` goes to the
+    pane, only ALERT_GO_GRACE after the operator's last other key (InboxApp.action_goto)."""
 
     class Ack(Message):
         def __init__(self, aid) -> None:
             super().__init__()
             self.aid = aid
 
-    class Goto(Message):
-        def __init__(self, aid) -> None:
-            super().__init__()
-            self.aid = aid
-
-    BINDINGS = FailedView.BINDINGS
+    BINDINGS = [
+        Binding("d", "ack", show=False),
+        Binding("escape", "back", show=False),
+    ]
 
     def __init__(self, alert, label: str | None = None):
         super().__init__()
         self.alert, self.label = alert, label  # label: a remote machine's, for its alerts
-        self.cursor: int | None = None
 
     def compose(self) -> ComposeResult:
         a = self.alert
@@ -739,60 +736,25 @@ class AlertView(Vertical, can_focus=True):
         yield Static(escape(meta), classes="meta")
         if a.message:
             yield Static(escape(a.message), classes="question")
-        yield Static(id="alert-rows")
-        yield Static("Enter to select · ↑/↓ to navigate · g go to agent · Esc to cancel", classes="hint")
+        if a.kind == "blocked":
+            what = "the agent is waiting at a prompt in its pane; answer it there"
+            keys = "g go to the agent · d dismiss (it shows again at its next prompt) · Esc back"
+        else:
+            what = "no answer expected; the agent sees your acknowledgement in check_answers"
+            keys = "d acknowledge · g go to the agent · Esc back"
+        if self.label:
+            keys = keys.replace("g go to the agent · ", "").replace(" · g go to the agent", "")
+        yield Static(f"[dim]{escape(what)}[/dim]", classes="meta")
+        yield Static(keys, classes="hint")
 
     def on_mount(self) -> None:
         self.armed_at = time.monotonic() + ARM_SECONDS
-        self.opened_at = time.monotonic()
-        self.render_rows()
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        return action not in ("select", "pick") or _armed(self)
+        return action != "ack" or _armed(self)
 
-    @property
-    def labels(self) -> tuple[str, str]:
-        if self.alert.kind == "blocked":
-            return ("Go to the agent: press 1 or g (it is waiting at a prompt there)",
-                    "Dismiss (it shows again at its next prompt)")
-        return ("Acknowledge (the agent sees it in check_answers)", "Go to the agent")
-
-    def render_rows(self) -> None:
-        lines = []
-        for k, label in enumerate(self.labels):
-            here = k == self.cursor
-            text = f"[b $inbox-suggestion]{label}[/]" if here else f"[$foreground]{label}[/]"
-            lines.append(f"{_cursor(here)} [$text-muted]{k + 1}.[/] {text}")
-        self.query_one("#alert-rows", Static).update("\n".join(lines))
-
-    def action_move(self, delta: int) -> None:  # no wrap; from rest: the first (or last) row
-        self.cursor = (0 if delta > 0 else 1) if self.cursor is None else max(0, min(1, self.cursor + delta))
-        self.render_rows()
-
-    def go_allowed(self) -> bool:
-        """Going to a blocked agent: not within ALERT_GO_GRACE of opening this view."""
-        return time.monotonic() - self.opened_at >= ALERT_GO_GRACE
-
-    def action_pick(self, k: int) -> None:
-        self.cursor = k
-        self.render_rows()
-        self._act(by_enter=False)
-
-    def action_select(self) -> None:
-        self._act(by_enter=True)
-
-    def _act(self, by_enter: bool) -> None:
-        if self.cursor is None:
-            return  # at rest: Enter does nothing
-        blocked = self.alert.kind == "blocked"
-        goto = (self.cursor == 0) == blocked
-        if goto and blocked:
-            if by_enter:
-                self.notify("Press 1 or g to go to that agent")
-                return
-            if not self.go_allowed():
-                return
-        self.post_message((self.Goto if goto else self.Ack)(self.alert.id))
+    def action_ack(self) -> None:
+        self.post_message(self.Ack(self.alert.id))
 
     def action_back(self) -> None:
         _close(self.app)
@@ -837,6 +799,10 @@ CC_COLORS = {
     "light": {"inbox-suggestion": "#5769f7", "inbox-success": "#2c7a39", "inbox-warning": "#966c1e"},
 }
 SUBMIT = ("submit", 0)
+
+
+def is_alert(entry: Entry) -> bool:
+    return entry[0] in ("alert", "ralert")
 
 
 def entry_order(questions: list[Question], failed: list[Question], focus_pane: str | None) -> list[Entry]:
@@ -897,9 +863,10 @@ class GroupListView(Vertical, can_focus=True):
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         return action not in ("select", "jump") or _armed(self)
 
-    def row_text(self, n: int, entry: Entry) -> str:
+    def row_text(self, n: int | None, entry: Entry) -> str:
         here = entry == self.cursor
-        cur, number = _cursor(here), f"[$text-muted]{n}.[/]"
+        # alerts are unnumbered (n None): digits address question rows only, numbered as before 0.8
+        cur, number = _cursor(here), (f"[$text-muted]{n}.[/]" if n is not None else "  ")
         closed = self.inbox.closed.get(entry)
         store = self.inbox.store
         if entry[0] == "failed":
@@ -965,9 +932,9 @@ class GroupListView(Vertical, can_focus=True):
         line1 = f"{cur} {number} " + (f"[b {style}]{escape(head)}[/]" if here else f"[{style}]{escape(head)}[/]")
         detail = [x for x in (a.tab_label or a.pane_id, a.asked_by, _age(a.created_at)) if x]
         if entry[0] == "ralert":
-            tail = "open it from herdr's machine view" if a.kind == "blocked" else "Enter to acknowledge"
+            tail = "open it from herdr's machine view" if a.kind == "blocked" else "d acknowledges"
         else:
-            tail = "g goes there" if a.kind == "blocked" else "Enter to acknowledge · g goes there"
+            tail = "g goes there · d dismisses" if a.kind == "blocked" else "d acknowledges · g goes there"
         return f"{line1}\n      [dim]{escape(' · '.join(detail))} · {tail}[/dim]"
 
     def _remote_row(self, cur: str, number: str, here: bool, entry: Entry, closed: str | None) -> str:
@@ -1040,8 +1007,11 @@ class GroupListView(Vertical, can_focus=True):
             rows += new
         for extra in rows[len(entries):]:
             extra.remove()
-        for n, (widget, entry) in enumerate(zip(rows, entries), 1):
-            widget.update(self.row_text(n, entry))
+        n = 0
+        for widget, entry in zip(rows, entries):
+            numbered = not is_alert(entry)
+            n += numbered
+            widget.update(self.row_text(n if numbered else None, entry))
             if entry == self.cursor:
                 self.call_after_refresh(widget.scroll_visible, animate=False)
         self.query_one("#list-empty", Static).display = not entries
@@ -1072,8 +1042,9 @@ class GroupListView(Vertical, can_focus=True):
         self._moved()
 
     def action_jump(self, n: int) -> None:
-        if 1 <= n <= len(self.inbox.entries) and not self.fresh(self.inbox.entries[n - 1]):
-            self.cursor = self.inbox.entries[n - 1]
+        numbered = [e for e in self.inbox.entries if not is_alert(e)]  # alerts: arrows only
+        if 1 <= n <= len(numbered) and not self.fresh(numbered[n - 1]):
+            self.cursor = numbered[n - 1]
             self._moved()
 
     def action_select(self) -> None:
@@ -1356,9 +1327,11 @@ class InboxApp(App):
             self.open_group(target[0], start_qid=target[1])
         elif not self.entries:
             self.show_empty()
-        elif len(self.entries) == 1 and self.entries[0][0] == "group":
+        elif len(questions := [e for e in self.entries if not is_alert(e)]) == 1 and questions[0][0] == "group":
+            # the only question opens directly, as before 0.8, even with alerts open: an alert
+            # never changes what the operator's habitual keys do to their questions (review H1)
             self.direct = True
-            self.open_group(self.entries[0])
+            self.open_group(questions[0])
         else:
             # alerts head the list, but the cursor starts where it did before 0.8: on the first
             # question group (the focused pane's), else at rest -- a habitual Enter never acts
@@ -1383,6 +1356,8 @@ class InboxApp(App):
     async def on_event(self, event: events.Event) -> None:
         if isinstance(event, events.Key) and trace.enabled():
             trace.record("popup.key", 0, key=event.key)
+        if isinstance(event, events.Key) and event.key != "g":
+            self.last_key_at = time.monotonic()  # `g` to a waiting agent needs a pause after this
         # The general rule: a background event never changes what the next keypress does.
         # Right after a view change the operator did not cause, keys are dropped.
         if isinstance(event, events.Key) and time.monotonic() < self.grace_until:
@@ -1393,7 +1368,13 @@ class InboxApp(App):
 
     # -- views ---------------------------------------------------------------------
 
+    def go_graced(self) -> bool:
+        """`g` came ALERT_GO_GRACE after the operator's last other key and the last view
+        change: a deliberate g, not the tail of a typed sequence ("1 g", "1 Enter 1")."""
+        return time.monotonic() - getattr(self, "last_key_at", 0.0) >= ALERT_GO_GRACE
+
     def _mount(self, view) -> None:
+        self.last_key_at = time.monotonic()
         self.set_class(self.mode == "empty", "empty")
         body = self.base.query_one("#body")
         body.remove_children()
@@ -1659,11 +1640,14 @@ class InboxApp(App):
         else:
             self.navigate(delta)
 
-    def back_to_list(self) -> None:
+    def back_to_list(self, from_alert: bool = False) -> None:
         """After the operator's send, hide or cancel: the list, with the cursor still on the
-        entry just handled (an inert placeholder if it ended); close if nothing is left."""
+        entry just handled (an inert placeholder if it ended); close if nothing is left.
+        Open alerts keep the popup open only after an alert action: after a question, the
+        popup closes as before 0.8 when no question is left."""
         self.direct = False
-        if not self.live_entries:
+        left = self.live_entries if from_alert else [e for e in self.live_entries if not is_alert(e)]
+        if not left:
             self.call_next(self.action_quit)
             return
         self.show_list(self.list_cursor)
@@ -1764,15 +1748,7 @@ class InboxApp(App):
         if self.mode != "alert" or self.entry is None or self.entry in self.closed:
             return
         self._ack_entry(self.entry)
-        self.back_to_list()
-
-    def on_alert_view_goto(self, event: AlertView.Goto) -> None:
-        if self.entry and self.entry[0] == "ralert":
-            self.notify("That agent runs on a remote machine: open it from herdr's machine view")
-            return
-        a = alerts.get(self.store, event.aid)
-        if a is not None:
-            self._focus_pane(a)
+        self.back_to_list(from_alert=True)
 
     def _sent(self, entry: Entry | None, whole: bool) -> None:
         """After the operator's send: back to the list now (not when the send finishes). A
@@ -1816,15 +1792,28 @@ class InboxApp(App):
         self.back_to_list()
 
     @trace.traced("popup.focus_pane")
-    def _focus_pane(self, q: Question | None) -> None:
+    def _focus_pane(self, q: Question | None, alert: bool = False) -> None:
+        """Go to the pane of ``q`` (a question or an alert). Going to a pane whose agent waits
+        at a prompt -- every alert, and any pane herdr reports `blocked` right now -- needs
+        a deliberate `g` (go_graced): otherwise the operator's next key lands in its prompt."""
         if q is None:
             return
         if not q.pane_id:
             self.notify("could not focus: no pane", severity="warning")
             return
-        pane = q.pane_id
+        pane, graced = q.pane_id, self.go_graced()
+        if alert and not graced:
+            self.notify("Pause, then press g to go to that agent")
+            return
 
         def run() -> None:  # a herdr call: off the UI thread
+            if not graced and ((herdr.live_agent(pane) or {}).get("status") == "blocked"):
+                try:
+                    self.call_from_thread(self.notify, "That agent is waiting at a prompt: pause, then press g")
+                except (RuntimeError, concurrent.futures.CancelledError):
+                    if self.is_running:
+                        raise
+                return
             err = herdr.focus_agent(pane)
             try:
                 self.call_from_thread(self._focused, pane, err)
@@ -1861,17 +1850,11 @@ class InboxApp(App):
         if self.mode == "list":
             view = self._list_view()
             if view and view.cursor:
-                self._focus_pane(self._entry_question(view.cursor))
+                self._focus_pane(self._entry_question(view.cursor), alert=view.cursor[0] == "alert")
         elif self.mode == "failed" and self.entry:
             self._focus_pane(self.store.get(self.entry[1]))
         elif self.mode == "alert" and self.entry:
-            if self.entry[0] == "ralert":
-                self.notify("That agent runs on a remote machine: open it from herdr's machine view")
-                return
-            view = self.base.query(AlertView)
-            if view and not view.first().go_allowed():
-                return  # just opened: this g was typed before the view appeared
-            self._focus_pane(alerts.get(self.store, self.entry[1]))
+            self._focus_pane(alerts.get(self.store, self.entry[1]), alert=True)
         elif self.current and self.current != SUBMIT:
             self._focus_pane(self.store.get(self.current[1]))
 

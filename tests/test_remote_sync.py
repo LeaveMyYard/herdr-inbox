@@ -661,7 +661,7 @@ async def test_popup_acknowledges_a_remote_alert(store, remote_db, fake_herdr):
         await pilot.pause()
         assert app.mode == "alert"
         await pilot.press("g")  # remote: never focuses a local pane
-        await pilot.press("1")
+        await pilot.press("d")
         await pilot.pause()
         assert app.mode == "list"
     assert store.db.execute("SELECT action, state FROM remote_outbox").fetchone()[:] == ("ack_alert", "queued")
