@@ -365,6 +365,52 @@ command, so `deeplink.py` hands the target over through the state dir:
   `inbox open` only on an explicit operator action. Nothing changes for a popup
   without a request.
 
+## Responsiveness (0.6.3)
+
+Operator report: "sometimes sending inbox messages blocks all inputs and everything just
+lags". This was measured on an isolated herdr (own HOME/XDG/socket/DB under `.scratch`), with
+a stand-in agent reported idle, so sends really type. Before = main @ d56f785, after = this
+change:
+
+| | before | after |
+|---|---|---|
+| popup: Enter on a lone question → popup closed (send lands at once) | 386 ms | 82 ms |
+| same, the answer never lands (15 s transcript check) | **15 373 ms** | 82 ms |
+| `ask_operator` round trip (stdio MCP server), p50 / max | 23 / 121 ms | 17 / 56 ms |
+| `ask_operator` while another process holds the tab-label lock | **4 030 ms** | 17 ms |
+| herdr API latency for another pane during a send, p95 | 2.0–2.2 ms | 1.9–2.3 ms |
+
+- **Popup:** it records the answer in a thread (one DB write) and hands delivery to a
+  detached `inbox deliver <ids> [--force]`, which outlives the popup; claims serialize it.
+  The popup then closes or returns to the list at once, and Esc waits only for that record
+  step. Before, the popup waited for the whole delivery, including the 15 s verify window.
+  - Herdr calls leave the UI thread: tab-label lookups refresh in a background thread
+    (the popup shows the last known label meanwhile), "go to agent" focuses from a
+    thread, and markers after a dismiss go to the background queue.
+- **Agent side:** the MCP server calls `service.enable_background()`. Tab-label updates
+  (a lock that can wait 10 s) and herdr notifications run on one background thread
+  after the tool has answered.
+- **herdr:** a send never stalled herdr for other panes. `herdr agent prompt` itself
+  takes ~300 ms for one message, and only that call waits on it.
+- **`INBOX_TRACE=<file>`** (off by default) appends one JSON line per step to `<file>`:
+  every herdr call, the popup's handlers, `ask_operator`, delivery phases and lock waits,
+  each with its milliseconds and thread. Use it to investigate any future lag.
+
+**Answers that can't be delivered (0.6.3).**
+- A row whose "no agent" / "conversation changed" retries ran out is marked
+  `agent_gone_at` once. The worker never polls it again and sends one notification ("the
+  agent in <tab> is gone — the answer is kept; a new session can fetch it with
+  check_answers"). The answer stays unseen for `check_answers`.
+- Hidden rows are never retried either.
+- Pre-0.6.1 rows with no server recorded are checked at most every 60 s, and called gone
+  after 10 misses. Before, a gone pane's `agent get` failed on every 5 s tick.
+- In the popup:
+  - a gone row reads `⚠ Q77 agent closed — answer kept for check_answers`, and `d` hides
+    it at once (no confirmation: nothing is lost);
+  - pending rows read `⏳ Q75 answered · waiting to deliver: …`, so nobody tries to
+    answer them again;
+  - hidden rows are not listed.
+
 ## herdr surface
 
 - **Notification** on each new question:

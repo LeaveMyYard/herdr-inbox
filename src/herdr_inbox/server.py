@@ -17,7 +17,7 @@ from typing_extensions import NotRequired, TypedDict  # pydantic needs this Type
 
 from mcp.server.mcpserver import MCPServer
 
-from . import service
+from . import service, trace
 from .store import Store
 
 INSTRUCTIONS = (
@@ -120,7 +120,7 @@ def ask_operator(
         return {"status": "error", "message": f"At most {service.MAX_QUESTIONS} questions per call."}
     if any(len(i.get("options") or []) > service.MAX_OPTIONS for i in items):
         return {"status": "error", "message": f"At most {service.MAX_OPTIONS} options; ask fewer or split the question."}
-    with tool_store() as store:
+    with trace.step("mcp.ask_operator"), tool_store() as store:
         caller = service.resolve_caller()
         if questions:
             return service.ask_group(store, caller, items, context, asked_by, title=title)
@@ -188,6 +188,7 @@ def _ensure_worker() -> None:
 def run() -> None:
     # stdout is the MCP channel; logs go to stderr.
     logging.basicConfig(level=logging.WARNING, format="herdr-inbox: %(message)s")
+    service.enable_background()  # tab labels and notifications never hold up a tool call
     _ensure_worker()
     from . import venvs
 

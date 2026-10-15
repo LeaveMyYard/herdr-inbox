@@ -402,6 +402,7 @@ def test_m1_legacy_rows_need_a_matching_session(store, fake_herdr, monkeypatch, 
     q = store.get(qid)
     assert prompts(fake_herdr) == [] and q.delivery_attempts == 0  # no caps burnt
     monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    store.db.execute("UPDATE question_ext SET legacy_checked_at = NULL WHERE id = ?", (qid,))  # backoff over
     worker.tick(store)
     assert store.get(qid).verified_at
     qid2 = pending_answer(store, monkeypatch)

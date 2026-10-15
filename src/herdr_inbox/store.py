@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS question_ext (
     pending_since   TEXT,
     busy_attempts   INTEGER,
     notified_at     TEXT,
-    herdr_server    TEXT
+    herdr_server    TEXT,
+    agent_gone_at   TEXT,
+    legacy_misses   INTEGER,
+    legacy_checked_at TEXT
 );
 -- Transcript path per Claude session, recorded by the SessionStart hook (0.5.1): delivery
 -- is verified by finding the typed answer in it.
@@ -105,7 +108,8 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
     FROM questions q LEFT JOIN question_ext e ON e.id = q.id
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
-EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT",
+                     "agent_gone_at": "TEXT", "legacy_misses": "INTEGER", "legacy_checked_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
 
 
 MAX_TITLE = 60
@@ -159,6 +163,7 @@ RESET_WINDOW = timedelta(days=7)
 SIGNATURE_WINDOW = timedelta(hours=24)
 RECONCILE_BATCH = 200  # rows per open; the 7-day sweep is done only once a pass sees fewer
 REQUEUE_WINDOW = timedelta(hours=1)
+AGENT_GONE = "agent gone: "
 REQUEUE_SETTLE = timedelta(seconds=20)  # > service.VERIFY_SECONDS: the record may still be on its way  # an old server's unlanded delivery this recent is sent again
 REQUEUED = "pending: requeued: an earlier delivery never reached the conversation; sending when the agent is idle"
 MAX_RESETS = 2
@@ -629,6 +634,40 @@ class Store:
             " AND NOT (delivered_at IS NOT NULL AND delivery_error IS NULL) ORDER BY id").fetchall()
         return [Question.from_row(r) for r in rows]
 
+    def mark_agent_gone(self, qid: int, reason: str) -> None:
+        """The asking agent is gone (pane closed, conversation replaced): stop retrying; the
+        answer stays unseen for check_answers (and the compact/resume hook)."""
+        with self.transaction():
+            self.db.execute("UPDATE question_ext SET agent_gone_at = COALESCE(agent_gone_at, ?) WHERE id = ?",
+                            (now(), qid))
+            self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivered_at IS NULL"
+                            " AND delivery_error NOT LIKE 'sending:%'", (f"{AGENT_GONE}{reason}", qid))
+
+    def agent_gone(self, qid: int) -> bool:
+        row = self.db.execute("SELECT agent_gone_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return bool(row and row[0])
+
+    def gone_candidates(self, prefixes: tuple[str, ...], cap: int) -> list[Question]:
+        """Undelivered answers whose 'no agent' / 'conversation changed' retries ran out."""
+        clauses = " OR ".join("delivery_error LIKE ?" for _ in prefixes)
+        rows = self.db.execute(
+            f"SELECT * FROM {VIEW} WHERE status = 'answered' AND delivered_at IS NULL AND acknowledged_at IS NULL"
+            f" AND ({clauses}) AND delivery_attempts >= ?"
+            " AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL) ORDER BY id",
+            (*(p + "%" for p in prefixes), cap)).fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def legacy_check_due(self, qid: int, every: timedelta) -> bool:
+        row = self.db.execute("SELECT legacy_checked_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return not (row and row[0] and row[0] > now(-every))
+
+    def legacy_miss(self, qid: int) -> int:
+        """Count one more 'that pane does not hold the asking conversation here'."""
+        self.db.execute("UPDATE question_ext SET legacy_misses = COALESCE(legacy_misses, 0) + 1,"
+                        " legacy_checked_at = ? WHERE id = ?", (now(), qid))
+        row = self.db.execute("SELECT legacy_misses FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return row[0] if row else 0
+
     def set_server(self, qid: int, server: str | None) -> None:
         """The herdr server (its socket) the question was asked on: only that server's
         delivery worker types it."""
@@ -666,6 +705,8 @@ class Store:
             " AND acknowledged_at IS NULL"
             # failed attempts, or never attempted (the answering process died) after a grace period
             " AND (delivery_error IS NOT NULL OR answered_at < ?)"
+            # hidden by the operator, or its agent is gone: left for check_answers, not retried
+            " AND hidden_at IS NULL AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL)"
             f" AND NOT ({clauses}) ORDER BY id",
             (pane_id, now(-NEVER_ATTEMPTED_GRACE), *args),
         ).fetchall()

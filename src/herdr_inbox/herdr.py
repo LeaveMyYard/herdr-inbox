@@ -14,6 +14,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from . import trace
+
 log = logging.getLogger("herdr_inbox.herdr")
 
 TIMEOUT = 3.0
@@ -44,7 +46,8 @@ def run_raw(*args: str, timeout: float | None = None) -> tuple[str | None, str |
     """Run ``herdr <args>``; return (stdout, None) or (None, error)."""
     argv = [_bin(), *(clean(a) for a in args)]  # every argument, one choke point
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout or TIMEOUT)
+        with trace.step("herdr " + " ".join(args[:2])):
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout or TIMEOUT)
     except (OSError, subprocess.SubprocessError) as exc:
         log.warning("herdr %s failed: %s", args[:2], exc)
         return None, str(exc)

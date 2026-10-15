@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.3
+
+- **Fix: the popup and agents no longer wait for deliveries, tab labels or herdr.** The popup
+  records an answer and hands delivery to a detached `inbox deliver`, then closes at once. On
+  an isolated herdr, closing went from up to 15.4 s (an answer that does not land) to 82 ms.
+  `ask_operator` runs tab-label updates and notifications in the background: with the label
+  lock busy, a call went from 4 s to 17 ms. Tab-label lookups and "go to agent" left the UI
+  thread.
+- `INBOX_TRACE=<file>` logs step timings (herdr calls, popup handlers, tools, delivery).
+- Answers whose agent is gone are marked once, notified once and no longer polled. The popup
+  labels them "agent closed — answer kept for check_answers", and `d` hides them. Pending
+  answers say they are already answered and waiting to be delivered. Hidden answers are
+  never retried.
+
 ## 0.6.2
 
 - `inbox open … --no-hold` opens a deep-linked popup like a normal one: 0.4 s arming, then Enter
