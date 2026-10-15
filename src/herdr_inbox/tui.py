@@ -1026,8 +1026,9 @@ class InboxApp(App):
         if target and target[0] in self.entries:
             # Another plugin opened us, maybe under the operator's typing: nothing sends
             # until a deliberate Tab/→ (see RELEASE_GRACE). Esc goes to the list.
-            self.held, self.held_at = True, time.monotonic()
-            self.add_class("held")
+            self.held, self.held_at = request.get("hold") is not False, time.monotonic()
+            if self.held:  # `inbox open --no-hold`: the caller says an operator key opened it
+                self.add_class("held")
             self.open_group(target[0], start_qid=target[1])
         elif not self.entries:
             self.show_empty()

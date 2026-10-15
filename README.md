@@ -272,7 +272,11 @@ uv run --quiet --frozen --no-dev --project "$root" inbox open --question Q12   #
 a timer. A popup takes all keyboard input, so one that appears under the operator's typing would
 swallow their keys.
 
-As a second guard, a deep-linked popup sends nothing until the operator presses Tab or →, at
+A caller whose open always comes from an explicit operator key or click (herdr-panorama's `a`,
+say) can pass `--no-hold`. The popup then opens like a normal one: its views arm for 0.4 s, then
+Enter works. Pass `--no-hold` only in that case.
+
+Without it, as a second guard, a deep-linked popup sends nothing until the operator presses Tab or →, at
 least half a second after it appeared. ↑/↓ don't count, since they are what shell history under
 the popup would send. Until then it shows "Opened from another plugin — press Tab or → to start
 answering", and Enter and digits do nothing.
