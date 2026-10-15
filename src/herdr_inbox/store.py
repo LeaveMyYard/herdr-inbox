@@ -157,7 +157,8 @@ CREATE TABLE IF NOT EXISTS remote_outbox (
     result          TEXT,
     sent_at         TEXT,
     attempts        INTEGER NOT NULL DEFAULT 0,
-    next_try_at     TEXT
+    next_try_at     TEXT,
+    sending_at      TEXT
 );
 """
 

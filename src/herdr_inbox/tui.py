@@ -869,6 +869,9 @@ class GroupListView(Vertical, can_focus=True):
             return f"{cur} {number} [dim]✓ {escape(closed or 'sent')}[/dim]"
         label = escape(row.get("label") or row["machine_id"])
         ref = f"{label}:Q{row['remote_id']}"
+        if row["state"] == "queued" and row.get("sending_at"):
+            head = f"⏳ {ref} {row['action']} · sending to {label} now"
+            return f"{cur} {number} " + (f"[b $inbox-suggestion]{escape(head)}[/]" if here else f"[$foreground]{escape(head)}[/]")
         if row["state"] == "queued" and row["expires_at"] <= datetime.now(timezone.utc).isoformat(timespec="seconds"):
             head = f"⚠ {ref} {row['action']} expired · not sent to {label} · d clears"  # until the sweep settles it
             return f"{cur} {number} " + (f"[b $inbox-warning]{escape(head)}[/]" if here else f"[$inbox-warning]{escape(head)}[/]")
@@ -1667,10 +1670,9 @@ class InboxApp(App):
             entry = view.cursor if view else None
             if entry and entry[0] == "routbox" and entry not in self.closed:
                 row = next((r for r in remote.outbox_rows(self.store) if r["request_id"] == entry[1]), None)
-                expired = row and row["state"] == "queued" and \
-                    row["expires_at"] <= datetime.now(timezone.utc).isoformat(timespec="seconds")
-                if row and row["state"] == "queued" and not expired:
-                    return  # still being sent: nothing to clear
+                if not remote.clearable(self.store, entry[1]):
+                    return  # still queued, or being sent right now: nothing to clear
+                expired = row and row["state"] == "queued"
                 if expired:
                     remote._settle(self.store, entry[1], "failed", "expired")
                 remote.mark_seen(self.store, entry[1])  # a failed/rejected/expired action: just clear it

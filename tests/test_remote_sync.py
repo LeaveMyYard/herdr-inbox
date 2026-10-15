@@ -35,6 +35,8 @@ if "plugin list --json" in cmd:
     print('{{"result": {{"plugins": [{{"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "/remote/root"}}]}}}}')
     sys.exit(0)
 sub = cmd.rsplit(" ", 1)[-1]
+if os.environ.get("FAKE_SSH_APPLY_DOWN") and sub == "apply":
+    sys.stderr.write("Connection reset by peer\\n"); sys.exit(255)
 if os.environ.get("FAKE_REMOTE_OLD") and sub in ("export", "apply"):
     sys.stderr.write("inbox: error: argument cmd: invalid choice\\n"); sys.exit(2)
 env = dict(os.environ, HERDR_INBOX_DB={str(db)!r}, HERDR_INBOX_NO_WORKER="1")
@@ -480,3 +482,53 @@ def test_l3_a_row_of_another_remote_herdr_session_is_left_to_its_own_worker(stor
     assert cli.main(["deliver", str(qid)]) == 0
     assert not fake_herdr.calls_of("agent", "get") and "/run/user/1000/herdr-other.sock" in ensured
     assert store.get(qid).delivery_attempts == 0
+
+
+# -- re-review: expiry never applies late; the sending window --------------------------------
+
+
+def test_after_expiry_only_a_status_query_goes_out_never_a_late_apply(store, remote_db, fake_herdr, monkeypatch):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    rid = remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    monkeypatch.setenv("FAKE_SSH_APPLY_DOWN", "1")
+    remote.flush(store, M)  # transport error: attempts 1, still queued
+    assert store.db.execute("SELECT state, attempts FROM remote_outbox").fetchone()[:] == ("queued", 1)
+    store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00', next_try_at = NULL")
+    monkeypatch.delenv("FAKE_SSH_APPLY_DOWN")
+    fake_herdr.reset()
+    remote.flush(store, M)  # reachable again, past expiry
+    assert remote_db.get(q).status == "open"  # never applied >12 h late
+    assert tuple(store.db.execute("SELECT state, result FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()) == \
+        ("failed", "expired")
+    assert any("not sent" in c[4] or "expired" in c[2] for c in fake_herdr.calls_of("notification", "show"))
+
+
+def test_after_expiry_a_send_that_did_land_is_reported_as_reached(store, remote_db, fake_herdr, monkeypatch):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    data = shown(store, q)
+    rid = remote.enqueue(store, "m1", data, "answer", {"choices": ["yes"]})
+    monkeypatch.setattr(remote_api, "spawn_delivery", lambda ids, force=False: None)
+    row = store.db.execute("SELECT * FROM remote_outbox").fetchone()
+    remote_api.apply(remote_db, {"request_id": rid, "db_id": row["db_id"], "id": q, "qkey": row["qkey"],
+                                 "action": "answer", "detail": {"choices": ["yes"]}})  # applied, reply lost
+    store.db.execute("UPDATE remote_outbox SET attempts = 1, expires_at = '2000-01-01T00:00:00+00:00'")
+    fake_herdr.reset()
+    remote.flush(store, M)
+    assert store.db.execute("SELECT state FROM remote_outbox").fetchone()[0] == "done"
+    assert any("after all" in c[2] for c in fake_herdr.calls_of("notification", "show"))
+
+
+def test_a_row_being_sent_is_left_alone_by_the_sweep_and_d(store, remote_db, fake_herdr):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    rid = remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00', sending_at = ?",
+                     (remote._iso(remote._now()),))
+    remote.expire_sweep(store)
+    assert store.db.execute("SELECT state FROM remote_outbox").fetchone()[0] == "queued"
+    assert remote.clearable(store, rid) is False  # `d` in the popup
+    store.db.execute("UPDATE remote_outbox SET sending_at = '2000-01-01T00:00:00+00:00'")  # a stale marker
+    remote.expire_sweep(store)
+    assert store.db.execute("SELECT state FROM remote_outbox").fetchone()[0] == "failed"

@@ -99,6 +99,11 @@ def _record(store: Store, request_id: str, qid, outcome: str, reason: str | None
 def apply(store: Store, request: dict) -> dict:
     """One operator action on one question, idempotent by ``request_id``."""
     request_id, action = request.get("request_id"), request.get("action")
+    if action == "status" and isinstance(request_id, str):
+        # read-only: did this request ever apply? (asked after an expiry, instead of a late send)
+        done = store.db.execute("SELECT outcome, reason FROM applied_requests WHERE request_id = ?",
+                                (request_id,)).fetchone()
+        return {"outcome": "recorded", "state": done[0], "reason": done[1]} if done else {"outcome": "unknown"}
     if not isinstance(request_id, str) or not 1 <= len(request_id) <= 64 or action not in ACTIONS:
         return {"outcome": "rejected", "reason": "bad request"}
     after = None

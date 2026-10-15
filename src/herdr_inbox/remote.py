@@ -481,10 +481,12 @@ def flush(store, machine: dict) -> None:
         if row["next_try_at"] and row["next_try_at"] > _iso(_now()):
             continue
         rid, ref = row["request_id"], f"{label}:Q{row['remote_id']}"
-        if row["expires_at"] <= _iso(_now()) and not row["attempts"]:
-            _expire(store, row, label)
+        if row["expires_at"] <= _iso(_now()):
+            if not row["attempts"]:
+                _expire(store, row, label)
+            else:  # a send went out and its reply was lost: ASK, never apply late
+                _resolve_expired(store, rec, row, label)
             continue
-        # expired after a send whose reply was lost: send once more to learn the outcome
         mirror = store.db.execute("SELECT db_id, qkey, status FROM remote_questions WHERE machine_id = ? AND remote_id = ?",
                                   (rec["machine_id"], row["remote_id"])).fetchone()
         wanted = {"answer": ("open",), "dismiss": ("open",), "deliver": ("answered",), "hide": STATUSES}[row["action"]]
@@ -495,7 +497,7 @@ def flush(store, machine: dict) -> None:
         request = {"request_id": rid, "db_id": row["db_id"], "id": row["remote_id"], "qkey": row["qkey"],
                    "action": row["action"], "detail": json.loads(row["detail_json"]) if row["detail_json"] else None}
         try:
-            result = call({**rec}, "apply", request)
+            result = _sending(store, rid, lambda: call({**rec}, "apply", request))
         except ValueError as exc:
             _settle(store, rid, "failed", str(exc), f"{ref}: {row['action']} not sent", str(exc))
             continue
@@ -513,8 +515,6 @@ def flush(store, machine: dict) -> None:
         elif outcome == "rejected":
             reason = _text(str(reply.get("reason") or "rejected"), 200)
             _settle(store, rid, "rejected", reason, f"{ref}: {label} rejected your {row['action']}", reason)
-        elif row["expires_at"] <= _iso(_now()):  # the extra try after expiry did not get an answer either
-            _expire(store, row, label)
         else:  # transport error / lost reply: retry with the SAME request id
             delay = min(60, 5 * 2 ** min(row["attempts"], 4))
             store.db.execute("UPDATE remote_outbox SET attempts = attempts + 1, next_try_at = ?, result = ?"
@@ -545,6 +545,54 @@ def _expire(store, row, label: str) -> None:
     _settle(store, row["request_id"], "failed", "expired", f"{ref}: your queued {row['action']} expired", body)
 
 
+SENDING_STALE = _td(seconds=CALL_TIMEOUT + 20)
+
+
+def _sending(store, request_id: str, fn):
+    """Mark the row as being sent while ``fn`` (the ssh call) runs: the sweep and `d` leave
+    it alone, so nobody is told "expired" for an answer that is landing right now."""
+    store.db.execute("UPDATE remote_outbox SET sending_at = ? WHERE request_id = ?", (_iso(_now()), request_id))
+    try:
+        return fn()
+    finally:
+        store.db.execute("UPDATE remote_outbox SET sending_at = NULL WHERE request_id = ?", (request_id,))
+
+
+def _in_flight(row) -> bool:
+    return bool(row["sending_at"]) and row["sending_at"] > _iso(_now() - SENDING_STALE)
+
+
+def _resolve_expired(store, rec: dict, row: dict, label: str) -> None:
+    """After expiry, only a read-only status query: was this request ever applied there?"""
+    ref, rid = f"{label}:Q{row['remote_id']}", row["request_id"]
+    result = _sending(store, rid, lambda: call({**rec}, "apply", {"request_id": rid, "action": "status"}))
+    try:
+        reply = json.loads(result.stdout or "")
+    except ValueError:
+        reply = {}
+    if reply.get("outcome") == "recorded" and reply.get("state") == "applied":
+        _settle(store, rid, "done", "applied before it expired",
+                f"{ref}: your {row['action']} reached {label} after all", "it was applied before the expiry")
+    elif reply.get("outcome") == "recorded":
+        reason = _text(str(reply.get("reason") or "rejected"), 200)
+        _settle(store, rid, "rejected", reason, f"{ref}: {label} rejected your {row['action']}", reason)
+    elif reply.get("outcome") == "unknown":
+        _settle(store, rid, "failed", "expired", f"{ref}: your queued {row['action']} expired",
+                f"{label} never applied it (not sent); answer again if still needed")
+    # no reply (still unreachable): left as is; the sweep or the next tick decides
+
+
+def clearable(store, request_id: str) -> bool:
+    """`d` in the popup: failed/rejected rows, and queued ones past expiry that are not being
+    sent right now."""
+    row = store.db.execute("SELECT * FROM remote_outbox WHERE request_id = ?", (request_id,)).fetchone()
+    if row is None:
+        return False
+    if row["state"] in ("rejected", "failed"):
+        return True
+    return row["state"] == "queued" and row["expires_at"] <= _iso(_now()) and not _in_flight(row)
+
+
 def expire_sweep(store) -> None:
     """Expire queued actions past their time for EVERY machine -- offline, never reached,
     disabled or removed from herdr's list -- so none waits forever unseen. Rows that were
@@ -553,6 +601,8 @@ def expire_sweep(store) -> None:
         "SELECT o.*, m.label FROM remote_outbox o LEFT JOIN remote_machines m USING (machine_id)"
         " WHERE o.state = 'queued' AND o.expires_at <= ?", (_iso(_now()),)).fetchall()
     for row in rows:
+        if _in_flight(row):
+            continue  # being sent right now: its outcome decides
         reachable = row["label"] is not None and store.db.execute(
             "SELECT 1 FROM remote_machines WHERE machine_id = ? AND last_error IS NULL AND last_ok_at IS NOT NULL",
             (row["machine_id"],)).fetchone()
