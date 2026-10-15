@@ -548,3 +548,48 @@ def test_an_older_remote_that_cannot_answer_status_expires_as_may_have_reached(s
     assert store.db.execute("SELECT state, result FROM remote_outbox").fetchone()[:] == ("failed", "expired")
     shows = fake_herdr.calls_of("notification", "show")
     assert len(shows) == 1 and "may have reached moneylust" in shows[0][4]
+
+
+# -- final pass 2 -----------------------------------------------------------------------------
+
+
+def test_l1_only_terminal_remote_failures_show_or_notify(store, remote_db, fake_herdr):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    service.answer(remote_db, q, None, choices=["yes"], deliver=False)
+    remote_db.db.execute("UPDATE questions SET delivery_error = ?, delivery_attempts = 1 WHERE id = ?",
+                         (service.NOT_VERIFIED, q))  # the remote worker will retry this
+    fake_herdr.reset()
+    remote.pull(store, M)
+    assert remote.problem_rows(store) == [] and not fake_herdr.calls_of("notification", "show")
+    remote_db.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ?", (f"{service.NO_AGENT} w1:p1", q))
+    remote.pull(store, M)
+    assert remote.problem_rows(store) == []  # it becomes agent-gone at its cap, then it shows
+    remote_db.db.execute("UPDATE questions SET delivery_error = ?, delivery_attempts = ? WHERE id = ?",
+                         (service.NOT_VERIFIED, service.MAX_UNVERIFIED_ATTEMPTS, q))
+    remote.pull(store, M)
+    assert [p["remote_id"] for p in remote.problem_rows(store)] == [q]
+    assert len(fake_herdr.calls_of("notification", "show")) == 1
+
+
+def test_l2_the_sync_loop_runs_the_expiry_sweep(fake_herdr, monkeypatch):
+    swept = []
+    monkeypatch.setattr(remote, "expire_sweep", lambda store: swept.append(1))
+    monkeypatch.setattr(remote, "enabled_machines", lambda ttl=60.0: [])
+    remote.sync_all_parallel()
+    assert swept == [1]
+
+
+def test_l2_a_reachable_already_sent_expired_row_goes_to_the_status_query(store, remote_db, fake_herdr, monkeypatch):
+    q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
+    remote.pull(store, M)
+    remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
+    store.db.execute("UPDATE remote_outbox SET attempts = 1, expires_at = '2000-01-01T00:00:00+00:00'")
+    remote.expire_sweep(store)  # reachable and sent before: the sweep leaves it to flush
+    assert store.db.execute("SELECT state FROM remote_outbox").fetchone()[0] == "queued"
+    sent = []
+    real = remote.call
+    monkeypatch.setattr(remote, "call", lambda rec, sub, request: sent.append(request) or real(rec, sub, request))
+    remote.flush(store, M)
+    assert [r["action"] for r in sent] == ["status"]  # never an apply
+    assert remote_db.get(q).status == "open"

@@ -196,7 +196,9 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
 A mirrored answered question that is agent-gone or not delivered on its machine (for any
 reason other than pending) becomes a ⚠ row here:
 `⚠ moneylust:Q12 answered · agent closed — answer kept for check_answers`.
-It raises one local notification (`issue_notified_at`), and `d` clears it here. The remote
+Only **terminal** states count: agent-gone, or "not verified" at its retry cap. Anything the
+remote worker still retries doesn't, because a notification can't be taken back. It raises
+one local notification (`issue_notified_at`), and `d` clears it here. The remote
 keeps the answer for `check_answers`.
 
 ## The popup

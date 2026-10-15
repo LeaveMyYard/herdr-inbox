@@ -49,7 +49,7 @@ def _row(store: Store, q: Question, dbid: str) -> dict:
         "asked_by": q.asked_by, "title": q.group_title, "created_at": q.created_at,
         "answered_at": q.answered_at, "answer": q.answer, "delivery_error": q.delivery_error,
         "delivered_at": q.delivered_at, "verified_at": q.verified_at,
-        "acknowledged_at": q.acknowledged_at, **_ext(store, q.id),
+        "acknowledged_at": q.acknowledged_at, "delivery_attempts": q.delivery_attempts, **_ext(store, q.id),
     }
 
 
