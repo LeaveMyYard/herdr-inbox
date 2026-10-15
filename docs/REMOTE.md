@@ -1,5 +1,8 @@
 # Remote machines (design, 0.7.0)
 
+> 0.8.0: alerts travel too: `export` carries an `alerts` list and `apply` takes `ack_alert`
+> (see DESIGN.md, "Alerts").
+
 **Status:** built in 0.7.0 (#21): `remote_api.py` is the remote side, `remote.py` this
 machine's side, and the popup and the worker are wired in. The design was revised after the
 design review on #21 (H1–H3, M1–M4, Lows), and the operator answered Q82–Q85 on 2026-10-15;
