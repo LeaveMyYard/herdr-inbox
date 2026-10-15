@@ -241,16 +241,39 @@ class Question:
         return out
 
 
-def _schema_stamp() -> int:
-    """A stamp of this code's schema (tables, added columns, views): a database carrying it
-    needs no schema work on open. Any change to the schema changes the stamp."""
+MIGRATION_REVISION = 1  # used only if the migration's source cannot be read (no .py on disk)
+
+
+def _statements(script: str) -> list[str]:
+    """Split a SQL script into statements (so they can run inside one transaction:
+    executescript would commit it)."""
+    out, buf = [], ""
+    for line in script.splitlines(keepends=True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            if buf.strip():
+                out.append(buf.strip())
+            buf = ""
+    if buf.strip():
+        out.append(buf.strip())
+    return out
+
+
+def _schema_stamp(migration_source: str | None = None) -> int:
+    """A stamp of this code's schema AND of the code that migrates to it (tables, added
+    columns, views, Store._migrate's source): a database carrying it needs no schema work on
+    open. Changing either changes the stamp."""
+    import inspect
     import zlib
 
-    text = SCHEMA + VIEW_SQL + repr(sorted(EXT_ADDED_COLUMNS.items())) + repr(sorted(ADDED_COLUMNS.items()))
+    if migration_source is None:
+        try:
+            migration_source = inspect.getsource(Store._migrate)
+        except (OSError, TypeError):
+            migration_source = f"revision {MIGRATION_REVISION}"
+    text = (SCHEMA + VIEW_SQL + repr(sorted(EXT_ADDED_COLUMNS.items())) + repr(sorted(ADDED_COLUMNS.items()))
+            + migration_source)
     return zlib.crc32(text.encode()) & 0x7FFFFFFF
-
-
-SCHEMA_STAMP = _schema_stamp()
 
 
 class Store:
@@ -271,20 +294,34 @@ class Store:
                 self._reconcile_unverified()
 
     def _migrate(self) -> None:
-        self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.executescript(SCHEMA)
-        ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
-        for name, decl in EXT_ADDED_COLUMNS.items():
-            if name not in ext_columns:
-                self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
-        for old in OLD_VIEWS:
-            self.db.execute(f"DROP VIEW IF EXISTS {old}")
-        self.db.executescript(VIEW_SQL)
-        columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
-        for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
-            if name not in columns:
-                self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
-        self.db.execute(f"PRAGMA user_version = {SCHEMA_STAMP}")
+        """Bring the schema up to this code's, once, under the write lock: several servers
+        opening an old database together (an upgrade with many agent panes) serialize here,
+        and every one after the first finds the stamp already set and does nothing."""
+        self.db.execute("PRAGMA journal_mode=WAL")  # cannot change inside a transaction
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            if self.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_STAMP:
+                self.db.execute("COMMIT")  # someone else migrated while we waited
+                return
+            for statement in _statements(SCHEMA):
+                self.db.execute(statement)
+            ext_columns = {r[1] for r in self.db.execute("PRAGMA table_info(question_ext)")}
+            for name, decl in EXT_ADDED_COLUMNS.items():
+                if name not in ext_columns:
+                    self.db.execute(f"ALTER TABLE question_ext ADD COLUMN {name} {decl}")
+            for old in OLD_VIEWS:
+                self.db.execute(f"DROP VIEW IF EXISTS {old}")
+            for statement in _statements(VIEW_SQL):
+                self.db.execute(statement)
+            columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
+            for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
+                if name not in columns:
+                    self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+            self.db.execute(f"PRAGMA user_version = {SCHEMA_STAMP}")
+            self.db.execute("COMMIT")
+        except BaseException:
+            self.db.execute("ROLLBACK")
+            raise
 
     def close(self) -> None:
         self.db.close()
@@ -754,3 +791,6 @@ class Store:
             args,
         ).fetchall()
         return [Question.from_row(r) for r in rows]
+
+
+SCHEMA_STAMP = _schema_stamp()  # after Store: it covers Store._migrate's source

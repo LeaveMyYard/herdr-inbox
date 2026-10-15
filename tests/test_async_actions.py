@@ -438,3 +438,32 @@ async def test_waiting_for_the_operator_to_leave_the_pane_says_so(store, fake_he
     service.retry_deliveries(store, "w1:p1")
     assert tui.pending_text(store.get(qid).delivery_error[len("pending: "):], 0) == \
         "waiting for you to leave that pane (it is focused)"
+
+
+# -- schema stamp: concurrent migration, stamp covers the migration code ---------------------
+
+
+def test_seven_processes_migrating_an_unstamped_db_at_once(fake_herdr, tmp_path):
+    """The upgrade: ~7 agent panes' servers open a 0.6.2 (unstamped) database together."""
+    from herdr_inbox.store import SCHEMA_STAMP, Store
+
+    db = tmp_path / "old.db"
+    s = Store(db)
+    s.db.execute("PRAGMA user_version = 0")  # as 0.6.2 left it
+    s.db.execute("ALTER TABLE question_ext DROP COLUMN agent_gone_at")  # a column added since
+    s.close()
+    code = "import sys; from herdr_inbox.store import Store; Store(sys.argv[1]).close(); print('ok')"
+    procs = [subprocess.Popen([sys.executable, "-c", code, str(db)], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True) for _ in range(7)]
+    results = [p.communicate(timeout=60) for p in procs]
+    assert [p.returncode for p in procs] == [0] * 7, [r[1][-400:] for r in results]
+    s = Store(db)
+    assert s.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_STAMP
+    assert "agent_gone_at" in {r[1] for r in s.db.execute("PRAGMA table_info(question_ext)")}
+
+
+def test_the_stamp_changes_when_the_migration_code_changes():
+    from herdr_inbox import store
+
+    assert store._schema_stamp() == store.SCHEMA_STAMP
+    assert store._schema_stamp(migration_source="def _migrate(self): pass  # changed") != store.SCHEMA_STAMP
