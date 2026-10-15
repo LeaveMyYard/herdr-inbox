@@ -52,6 +52,12 @@ def mirror(store):
     return {r["remote_id"]: dict(r) for r in store.db.execute("SELECT * FROM remote_questions").fetchall()}
 
 
+def shown(store, q):
+    """The question as the popup shows it: its data plus the identity it was mirrored under."""
+    row = mirror(store)[q]
+    return {**json.loads(row["data_json"]), "_db_id": row["db_id"]}
+
+
 def notes(fake_herdr):
     return [c[2] for c in fake_herdr.calls_of("notification", "show")]
 
@@ -73,7 +79,7 @@ def test_pull_mirrors_and_notifies_once(store, remote_db, fake_herdr):
 def test_answer_goes_through_the_outbox_idempotently(store, remote_db, fake_herdr, monkeypatch):
     q = service.ask(remote_db, A, "Merge?", options=["yes", "no"])["id"]
     remote.pull(store, M)
-    data = json.loads(mirror(store)[q]["data_json"])
+    data = shown(store, q)
     rid = remote.enqueue(store, "m1", data, "answer", {"choices": ["yes"]})
     remote.flush(store, M)
     row = store.db.execute("SELECT state, result FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()
@@ -89,7 +95,7 @@ def test_answer_goes_through_the_outbox_idempotently(store, remote_db, fake_herd
 def test_someone_else_answered_first_is_a_shown_rejection(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Merge?", options=["yes", "no"])["id"]
     remote.pull(store, M)
-    data = json.loads(mirror(store)[q]["data_json"])
+    data = shown(store, q)
     rid = remote.enqueue(store, "m1", data, "answer", {"choices": ["no"]})
     service.answer(remote_db, q, None, choices=["yes"], deliver=False)  # answered on the remote meanwhile
     remote.flush(store, M)  # the mirror still says open: sent, and the remote rejects it
@@ -101,7 +107,7 @@ def test_someone_else_answered_first_is_a_shown_rejection(store, remote_db, fake
 def test_a_recreated_remote_inbox_wipes_the_mirror_and_fails_queued_answers(store, remote_db, fake_herdr, tmp_path):
     q = service.ask(remote_db, A, "Old?", options=["yes"])["id"]
     remote.pull(store, M)
-    rid = remote.enqueue(store, "m1", json.loads(mirror(store)[q]["data_json"]), "answer", {"choices": ["yes"]})
+    rid = remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
     remote_db.db.execute("UPDATE meta SET value = ? WHERE key = 'db_id'", ("f" * 32,))  # a new database
     remote.pull(store, M)
     assert store.db.execute("SELECT state, result FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()[1] == "reset"
@@ -131,7 +137,7 @@ def test_an_old_remote_is_a_permanent_upgrade_error(store, remote_db, fake_herdr
 def test_expired_and_stale_actions_are_not_sent(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
     remote.pull(store, M)
-    data = json.loads(mirror(store)[q]["data_json"])
+    data = shown(store, q)
     rid = remote.enqueue(store, "m1", data, "answer", {"choices": ["yes"]})
     store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00' WHERE request_id = ?", (rid,))
     remote.flush(store, M)
@@ -142,7 +148,7 @@ def test_expired_and_stale_actions_are_not_sent(store, remote_db, fake_herdr):
 def test_actions_go_fifo_per_question(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
     remote.pull(store, M)
-    data = json.loads(mirror(store)[q]["data_json"])
+    data = shown(store, q)
     first = remote.enqueue(store, "m1", data, "answer", {"choices": ["yes"]})
     second = remote.enqueue(store, "m1", data, "hide")
     remote.flush(store, M)  # one per question per flush, oldest first
@@ -228,7 +234,7 @@ async def test_popup_shows_an_offline_machine_and_a_rejection(store, remote_db, 
     q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
     service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
     remote.pull(store, M)
-    rid = remote.enqueue(store, "m1", json.loads(mirror(store)[q]["data_json"]), "hide")
+    rid = remote.enqueue(store, "m1", shown(store, q), "hide")
     store.db.execute("UPDATE remote_outbox SET state = 'rejected', result = 'answered with no'")
     store.db.execute("UPDATE remote_machines SET last_error = 'No route to host'")
     app = InboxApp(store, focus_pane="w1:p2")
@@ -288,3 +294,72 @@ def test_a_question_deleted_on_the_remote_leaves_the_mirror_on_the_next_pull(sto
         remote_db.db.execute("DELETE FROM questions WHERE id = ?", (q,))
     remote.pull(store, M)
     assert q not in mirror(store)
+
+
+# -- build review of #21 ---------------------------------------------------------------------
+
+
+def test_m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement(store, remote_db, fake_herdr):
+    """The reviewer's repro: Q12 'Delete old data?' is open in the popup; the remote inbox is
+    reset and a new Q12 'Deploy to prod?' replaces it in the mirror; Enter must not queue the
+    answer under the new question's identity."""
+    q = service.ask(remote_db, A, "Delete old data?", options=["yes"])["id"]
+    remote.pull(store, M)
+    (key, m, qs), = remote.open_groups(store)
+    shown = qs[0]  # what the popup shows
+    store.db.execute("UPDATE remote_questions SET db_id = ?, qkey = ?, data_json = ? WHERE remote_id = ?",
+                     ("e" * 32, "b" * 32, json.dumps({**shown, "qkey": "b" * 32, "question": "Deploy to prod?"}), q))
+    with pytest.raises(LookupError, match="that question changed"):
+        remote.enqueue(store, "m1", shown, "answer", {"choices": ["yes"]})
+    assert store.db.execute("SELECT COUNT(*) FROM remote_outbox").fetchone()[0] == 0
+
+
+def test_bidi_overrides_and_line_separators_are_stripped():
+    good = {"id": 1, "group": 1, "qkey": "a" * 32, "status": "open",
+            "question": "pay ‮evil‬ ok next end", "options": [{"label": "⁦yes⁩"}]}
+    data = remote.validate_export(json.dumps({"format": 1, "db_id": "b" * 32, "seq": 1, "full": True, "ids": [1],
+                                              "questions": [good]}))
+    row = data["questions"][0]
+    assert row["question"] == "pay evil ok next end" and row["options"][0]["label"] == "yes"
+
+
+def test_one_hung_machine_does_not_delay_the_others(fake_herdr, monkeypatch):
+    import threading
+    import time as _t
+
+    slow = {**M, "id": "slow", "label": "slow", "target": "slow"}
+    fast = {**M, "id": "fast", "label": "fast", "target": "fast"}
+    monkeypatch.setattr(remote, "enabled_machines", lambda ttl=60.0: [slow, fast])
+    started = {}
+
+    def pull(store, machine):
+        started[machine["id"]] = _t.monotonic()
+        if machine["id"] == "slow":
+            _t.sleep(1.0)
+        return False
+
+    monkeypatch.setattr(remote, "pull", pull)
+    t0 = _t.monotonic()
+    remote.sync_all_parallel()
+    assert started["fast"] - t0 < 0.5  # not queued behind the slow one
+
+
+async def test_a_remote_question_closed_there_becomes_an_inert_placeholder(store, remote_db, fake_herdr):
+    q = service.ask(remote_db, A, "Ship?", options=["yes"])["id"]
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    remote.pull(store, M)
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert app.mode == "remote"
+        service.close(remote_db, q, "withdrawn")
+        remote.pull(store, M)
+        app.poll()
+        await pilot.pause()
+        from herdr_inbox.tui import GoneView
+        assert app.query(GoneView) and not app.query(QuestionView)
+        await pilot.press("enter")  # inert: nothing queued
+        await pilot.pause()
+    assert store.db.execute("SELECT COUNT(*) FROM remote_outbox").fetchone()[0] == 0
