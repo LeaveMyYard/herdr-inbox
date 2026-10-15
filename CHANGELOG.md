@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.2
+
+- `inbox open … --no-hold` opens a deep-linked popup like a normal one: 0.4 s arming, then Enter
+  works, with no Tab/→ hold. The caller decides, and passes it only when an explicit operator
+  key or click opened the inbox (herdr-panorama's `a`, say). Without the flag the popup stays
+  held as before.
+
 ## 0.6.1
 
 - **Fix: answers to long-lived sessions could go undelivered with nobody retrying.** Retries

@@ -42,13 +42,17 @@ def valid(kind: str, value: str) -> bool:
     return kind in KINDS and bool(VALID[kind].fullmatch(str(value)))
 
 
-def write_request(kind: str, value: str) -> str:
-    """Write the request; returns its nonce (passed to the popup as INBOX_OPEN_NONCE)."""
+def write_request(kind: str, value: str, hold: bool = True) -> str:
+    """Write the request; returns its nonce (passed to the popup as INBOX_OPEN_NONCE).
+    ``hold=False`` (``inbox open --no-hold``, the caller's choice, only for an explicit
+    operator key/click): the popup opens like a normal one, not held until Tab/→."""
     if not valid(kind, value):
         raise ValueError(f"{kind} {value!r}")
     path = request_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {"kind": kind, "value": str(value), "created_at": time.time(), "nonce": uuid.uuid4().hex}
+    if not hold:
+        data["hold"] = False
     tmp = path.with_name(f".open-request-{os.getpid()}-{data['nonce'][:8]}")
     tmp.write_text(json.dumps(data))
     os.replace(tmp, path)
@@ -87,7 +91,10 @@ def consume_request() -> dict | None:
     age = time.time() - float(data.get("created_at") or 0)
     if not 0 <= age <= REQUEST_TTL:
         return None
-    return {"kind": data["kind"], "value": str(data.get("value", ""))}
+    request = {"kind": data["kind"], "value": str(data.get("value", ""))}
+    if data.get("hold") is False:  # only an explicit false lifts the hold
+        request["hold"] = False
+    return request
 
 
 def _oldest_group(qs: list[Question]) -> tuple[tuple[str, int], None] | None:

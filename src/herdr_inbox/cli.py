@@ -41,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     target.add_argument("--group", metavar="G", help="open on this group")
     target.add_argument("--pane", metavar="PANE_ID", help="open on this pane's oldest open group")
     target.add_argument("--session", metavar="SID", help="open on this Claude session's oldest open group")
+    p.add_argument("--no-hold", action="store_true",
+                   help="open like a normal popup (0.4 s arming, then Enter works) instead of held until Tab/→; "
+                        "pass it only when an explicit operator key or click opened the inbox")
     p = sub.add_parser("list", help="print questions")
     p.add_argument("--all", action="store_true", help="include answered and closed questions")
     p = sub.add_parser("answer", help="answer a question and deliver it")
@@ -125,7 +128,8 @@ def main(argv: list[str] | None = None) -> int:
                 if deeplink.popup_is_running():
                     print("the inbox popup is already open; close it and run this again", file=sys.stderr)
                     return 3
-                env[deeplink.NONCE_ENV] = deeplink.write_request(kind, value.lstrip("Qq") if kind == "question" else value)
+                env[deeplink.NONCE_ENV] = deeplink.write_request(
+                    kind, value.lstrip("Qq") if kind == "question" else value, hold=not args.no_hold)
         err = herdr.open_popup(env)
         if err:
             print(f"could not open the inbox popup: {err}", file=sys.stderr)

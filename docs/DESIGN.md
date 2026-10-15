@@ -352,7 +352,13 @@ command, so `deeplink.py` hands the target over through the state dir:
   arrivals, and only once `RELEASE_GRACE` = 0.5 s has passed since the popup
   appeared. ↑/↓/j/k don't release it, because a shell's history (↑, Enter)
   under a popup that just appeared would. The releasing key does nothing else.
-  A hint line says so. After that the views arm as usual. The view is opened as a choice (`direct` is
+  A hint line says so. After that the views arm as usual.
+- **`--no-hold` (0.6.2, the caller decides):** `inbox open … --no-hold` writes
+  `"hold": false` into the request. Only an explicit `false` lifts the hold, so
+  a request without it (or with garbage there) stays held. Such a popup opens
+  like a normal one (`ARM_SECONDS`, then Enter works). Callers pass it only when
+  an explicit operator key or click opened the inbox. There is no config and no
+  caller list: the operator chose the plain flag. The view is opened as a choice (`direct` is
   false), so Esc returns to the list. The README requires callers to run
   `inbox open` only on an explicit operator action. Nothing changes for a popup
   without a request.

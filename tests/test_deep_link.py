@@ -260,3 +260,47 @@ async def test_a_deep_linked_view_waits_for_a_deliberate_key(store, fake_herdr, 
         await app.workers.wait_for_complete()
         await pilot.pause()
     assert store.get(qid).status == "answered"
+
+
+# -- --no-hold (operator 2026-10-15: the caller decides) -----------------------------------
+
+
+async def opened(store, no_hold):
+    qid = service.ask(store, A, f"solo {no_hold}?", options=["yes", "no"])["id"]
+    os.environ["INBOX_OPEN_NONCE"] = deeplink.write_request("question", str(qid), hold=not no_hold)
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        held, hint = app.held, app.has_class("held")
+        await pilot.press("enter")  # arming is zeroed in tests: Enter answers unless held
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+    return held, hint, store.get(qid).status
+
+
+async def test_without_no_hold_the_popup_stays_held(store, fake_herdr):
+    assert await opened(store, no_hold=False) == (True, True, "open")
+
+
+async def test_no_hold_opens_like_a_normal_popup(store, fake_herdr):
+    assert await opened(store, no_hold=True) == (False, False, "answered")
+
+
+async def test_no_hold_still_arms(store, fake_herdr, monkeypatch):
+    from herdr_inbox import tui
+
+    monkeypatch.setattr(tui, "ARM_SECONDS", 0.4)
+    qid = service.ask(store, A, "armed?", options=["yes", "no"])["id"]
+    os.environ["INBOX_OPEN_NONCE"] = deeplink.write_request("question", str(qid), hold=False)
+    app = InboxApp(store, focus_pane="w1:p2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")  # inside the 0.4 s arming: ignored
+        assert store.get(qid).status == "open" and not app.held
+
+
+@pytest.mark.parametrize("flag,hold", [([], True), (["--no-hold"], False)])
+def test_open_command_no_hold_flag(fake_herdr, flag, hold):
+    assert cli.main(["open", "--question", "Q1", *flag]) == 0
+    data = json.loads(deeplink.request_path().read_text())
+    assert data.get("hold", True) is hold
