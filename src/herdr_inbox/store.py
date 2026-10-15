@@ -112,6 +112,37 @@ CREATE TABLE IF NOT EXISTS applied_requests (
     reason          TEXT,
     at              TEXT NOT NULL
 );
+-- Alerts (0.8): an agent's "please check X" with no answer expected, and automatic ones for
+-- agents stuck at an approval/question prompt (herdr agent status `blocked`).
+CREATE TABLE IF NOT EXISTS alerts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at      TEXT NOT NULL,
+    kind            TEXT NOT NULL,
+    severity        TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    message         TEXT,
+    pane_id         TEXT,
+    tab_id          TEXT,
+    tab_label       TEXT,
+    session_id      TEXT,
+    asked_by        TEXT,
+    herdr_server    TEXT,
+    status          TEXT NOT NULL DEFAULT 'open',
+    acked_at        TEXT,
+    closed_at       TEXT,
+    reported_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS alerts_status ON alerts(status);
+CREATE TABLE IF NOT EXISTS remote_alerts (
+    machine_id      TEXT NOT NULL,
+    db_id           TEXT NOT NULL,
+    alert_id        INTEGER NOT NULL,
+    akey            TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    data_json       TEXT NOT NULL,
+    first_seen_at   TEXT NOT NULL,
+    PRIMARY KEY (machine_id, alert_id)
+);
 -- On the operator's machine: the mirror of each remote machine and the actions queued for it.
 CREATE TABLE IF NOT EXISTS remote_machines (
     machine_id      TEXT PRIMARY KEY,
@@ -469,8 +500,12 @@ class Store:
         return [Question.from_row(r) for r in rows]
 
     def open_counts(self) -> dict[str, int]:
+        """Open questions plus open alerts per pane (the ❓N badge and $inbox_q)."""
         rows = self.db.execute(
-            "SELECT pane_id, COUNT(*) FROM questions WHERE status = 'open' AND pane_id IS NOT NULL GROUP BY pane_id"
+            "SELECT pane_id, COUNT(*) FROM ("
+            " SELECT pane_id FROM questions WHERE status = 'open' AND pane_id IS NOT NULL"
+            " UNION ALL SELECT pane_id FROM alerts WHERE status = 'open' AND pane_id IS NOT NULL"
+            ") GROUP BY pane_id"
         ).fetchall()
         return {r[0]: r[1] for r in rows}
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.0
+
+- **Alerts: "please check X" without a question.** A new MCP tool
+  `alert_operator(title, message?, severity=info|warning|urgent, asked_by?)` returns at once
+  with a receipt (`A7`). The alert raises one herdr notification, counts in the pane's ❓N badge
+  and `$inbox_q` (so in the radar sidebar too), and heads the popup list (`⚑ A7 · urgent · …`,
+  most severe first) until the operator acknowledges it: `Enter` then `1`, or `d` on the row;
+  `g` goes to the agent. Nothing is typed back into the agent's pane: `check_answers` reports
+  acknowledged alerts once (`alerts_acknowledged`) and `list_my_questions` lists them. The
+  agent can `withdraw_alert(id)`. The same title raised twice returns the open one.
+- **Agents stuck at a prompt become alerts.** An agent herdr reports as `blocked` (it shows an
+  approval, AskUserQuestion or plan prompt — herdr's "needs you") cannot call any tool, so it
+  never asked. The delivery worker now checks `herdr agent list` every tick: an agent blocked
+  for 15 s gets an automatic alert "`<tab>` is waiting for you" (`⏸`, one notification), and
+  the alert clears itself when the status changes. `g` goes to the pane. The inbox never types
+  into such a pane.
+- The delivery worker now stays alive while herdr reports any agent (it watches their blocked
+  state); before, it exited after 10 idle minutes.
+- Remote machines: alerts travel in `inbox export` (open ones, plus those closed in the last
+  hour) and show here as `moneylust:A3`; acknowledging one goes through `inbox apply`
+  (`ack_alert`) with a request id, like answers. An older remote sends no alerts and is left
+  alone.
+- The SessionStart rules and the operator-questions skill tell agents to use `alert_operator`
+  for "please check X" and to prefer `ask_operator` over AskUserQuestion.
+- **Fix: `[E2E TEST]`-style brackets vanished from the popup.** `rich.markup.escape` leaves a
+  tag that starts with an upper-case letter alone and Textual's markup then swallowed it, so a
+  question titled `[E2E TEST] …` showed without its prefix. Every `[` is escaped now.
+
 ## 0.7.0
 
 - **Remote herdr machines** (docs/REMOTE.md).

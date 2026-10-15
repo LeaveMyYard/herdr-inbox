@@ -33,6 +33,7 @@ from .store import AGENT_GONE, Question, Store, db_path
 log = logging.getLogger("herdr_inbox")
 
 TICK = float(os.environ.get("HERDR_INBOX_WORKER_TICK", "5"))
+watching = 0  # agents herdr reported on the last tick: their blocked state is watched (alerts)
 IDLE_EXIT = float(os.environ.get("HERDR_INBOX_WORKER_IDLE_EXIT", "600"))
 NOTIFY_AFTER = 300.0
 LEGACY_RECHECK = timedelta(seconds=60)
@@ -194,7 +195,15 @@ def mark_gone(store: Store) -> None:
 def tick(store: Store) -> int:
     """One round: reconcile, deliver what this worker serves, notify the stuck. Returns how
     many of ITS answers are still pending (other servers' rows never keep it alive)."""
+    global watching
     store.reconcile()
+    try:
+        from . import alerts
+
+        watching = alerts.scan_blocked(store)  # agents stuck at an approval/question prompt (never typed into)
+    except Exception:  # noqa: BLE001
+        watching = 0
+        log.warning("blocked-agent scan failed", exc_info=True)
     store.db.execute("DELETE FROM changes WHERE seq <= (SELECT MAX(seq) FROM changes) - 10000")
     mine = herdr.server_id()
     for items in served(store).values():
@@ -313,7 +322,9 @@ def _loop(box: dict) -> int:
             box["lock"] = hold_lock()
             if box["lock"] is None:
                 return 0  # someone else took over meanwhile
-        if pending or remotes:  # an enabled remote machine keeps the worker (and its pulls) alive
+        # an enabled remote machine keeps the worker (and its pulls) alive; so does any agent,
+        # whose blocked state it watches (an agent at a prompt cannot ask for help itself)
+        if pending or remotes or watching:
             idle_since = time.monotonic()
         elif time.monotonic() - idle_since >= IDLE_EXIT:
             box["lock"].close()

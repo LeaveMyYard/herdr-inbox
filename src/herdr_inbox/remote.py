@@ -256,7 +256,27 @@ def validate_export(raw: str) -> dict:
         raise ValueError("bad gone list")
     return {"db_id": data["db_id"], "seq": data["seq"], "full": bool(data.get("full")),
             "version": _text(str(data.get("version", "?")), 20), "ids": ids or [], "gone": gone[:MAX_QUESTIONS],
-            "questions": rows}
+            "questions": rows, "alerts": clean_alerts(data.get("alerts"))}
+
+
+def clean_alerts(raw) -> list[dict] | None:
+    """A remote's alerts (0.8+; None from an older remote): whole list on every pull."""
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        raise ValueError("bad alerts")
+    out = []
+    for a in raw[:MAX_QUESTIONS]:
+        if not isinstance(a, dict) or not isinstance(a.get("id"), int) or not isinstance(a.get("akey"), str) \
+                or not _HEX.fullmatch(a["akey"]) or a.get("status") not in ("open", "acked", "withdrawn", "cleared"):
+            continue
+        out.append({"id": a["id"], "akey": a["akey"], "status": a["status"],
+                    "kind": "blocked" if a.get("kind") == "blocked" else "agent",
+                    "severity": a.get("severity") if a.get("severity") in ("info", "warning", "urgent") else "warning",
+                    "title": _text(a.get("title"), 200) or "(no title)", "message": _text(a.get("message"), 2000),
+                    "tab_label": _text(a.get("tab_label"), 120), "pane_id": _text(a.get("pane_id"), 80),
+                    "asked_by": _text(a.get("asked_by"), 120), "created_at": _text(a.get("created_at"), 40)})
+    return out
 
 
 def _record(store, machine: dict) -> dict:
@@ -363,6 +383,7 @@ def pull(store, machine: dict) -> bool:
         mid = rec["machine_id"]
         if rec.get("db_id") and rec["db_id"] != data["db_id"]:  # the remote inbox was recreated
             store.db.execute("DELETE FROM remote_questions WHERE machine_id = ?", (mid,))
+            store.db.execute("DELETE FROM remote_alerts WHERE machine_id = ?", (mid,))
             failed = store.db.execute("UPDATE remote_outbox SET state = 'failed', result = 'reset'"
                                       " WHERE machine_id = ? AND state = 'queued'", (mid,)).rowcount
             if failed:
@@ -385,6 +406,20 @@ def pull(store, machine: dict) -> bool:
             for (rid,) in store.db.execute("SELECT remote_id FROM remote_questions WHERE machine_id = ?", (mid,)).fetchall():
                 if rid not in keep:
                     store.db.execute("DELETE FROM remote_questions WHERE machine_id = ? AND remote_id = ?", (mid, rid))
+        if data["alerts"] is not None:
+            known = {r[0] for r in store.db.execute("SELECT alert_id FROM remote_alerts WHERE machine_id = ?", (mid,))}
+            acking = {r[0] for r in store.db.execute("SELECT remote_id FROM remote_outbox WHERE machine_id = ?"
+                                                     " AND action = 'ack_alert' AND state = 'queued'", (mid,))}
+            store.db.execute("DELETE FROM remote_alerts WHERE machine_id = ?", (mid,))
+            for a in data["alerts"]:
+                store.db.execute("INSERT INTO remote_alerts (machine_id, db_id, alert_id, akey, status, data_json,"
+                                 " first_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                 (mid, data["db_id"], a["id"], a["akey"],
+                                  "acked" if a["id"] in acking and a["status"] == "open" else a["status"],
+                                  json.dumps(a), _iso(_now())))
+                if a["id"] not in known and a["status"] == "open":
+                    new.append(("alert", f"{label} · A{a['id']} · {a['severity']} · {a.get('tab_label') or ''}",
+                                a["title"]))
         store.db.execute(
             "UPDATE remote_machines SET db_id = ?, cursor_seq = ?, version = ?, pulls = pulls + 1, last_ok_at = ?,"
             " last_error = NULL, last_try_at = ?, backoff_until = NULL, failures = 0 WHERE machine_id = ?",
@@ -470,6 +505,43 @@ def enqueue(store, machine_id: str, data: dict, action: str, detail: dict | None
     return request_id
 
 
+def enqueue_alert_ack(store, machine_id: str, data: dict) -> str:
+    """Queue the operator's acknowledgement of a mirrored alert (``data`` as shown)."""
+    row = store.db.execute("SELECT db_id, akey FROM remote_alerts WHERE machine_id = ? AND alert_id = ?",
+                           (machine_id, data["id"])).fetchone()
+    if row is None or row[1] != data.get("akey") or row[0] != data.get("_db_id"):
+        raise LookupError("that alert changed or is gone — reopen the inbox")
+    request_id = _uuid.uuid4().hex
+    store.db.execute(
+        "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, detail_json, created_at,"
+        " expires_at) VALUES (?, ?, ?, ?, ?, 'ack_alert', NULL, ?, ?)",
+        (request_id, machine_id, row[0], data["id"], row[1], _iso(_now()),
+         _iso(_now() + _td(hours=settings()["expiry_hours"]))))
+    # shown as acknowledged at once; the next pull confirms (or brings it back if refused)
+    store.db.execute("UPDATE remote_alerts SET status = 'acked' WHERE machine_id = ? AND alert_id = ?",
+                     (machine_id, data["id"]))
+    return request_id
+
+
+def open_alerts(store) -> list[tuple[dict, dict]]:
+    """(machine record, alert data) for every open mirrored alert (the local mirror only)."""
+    out = []
+    for m in store.db.execute("SELECT * FROM remote_machines ORDER BY label").fetchall():
+        m = {**dict(m), "id": m["machine_id"]}
+        for r in store.db.execute("SELECT db_id, data_json FROM remote_alerts WHERE machine_id = ? AND status = 'open'"
+                                  " ORDER BY alert_id", (m["id"],)).fetchall():
+            out.append((m, {**json.loads(r[1]), "_db_id": r[0]}))
+    return out
+
+
+def alert_by_key(store, key: str) -> tuple[dict, dict] | None:
+    mid, _, aid = key.partition("|")
+    for m, a in open_alerts(store):
+        if m["id"] == mid and str(a["id"]) == aid:
+            return m, a
+    return None
+
+
 def flush(store, machine: dict) -> None:
     """Send queued actions for ``machine``: FIFO per question, re-validated against the
     mirror first, expired ones failed, each idempotent by its request id."""
@@ -480,23 +552,30 @@ def flush(store, machine: dict) -> None:
     heads, seen = [], set()
     for row in store.db.execute("SELECT * FROM remote_outbox WHERE machine_id = ? AND state = 'queued'"
                                 " ORDER BY created_at, rowid", (rec["machine_id"],)).fetchall():
-        if row["remote_id"] in seen:
+        target = (row["action"] == "ack_alert", row["remote_id"])  # alert ids are their own namespace
+        if target in seen:
             continue  # FIFO per question: only its oldest queued action goes now
-        seen.add(row["remote_id"])
+        seen.add(target)
         heads.append(dict(row))
     for row in heads:
         if row["next_try_at"] and row["next_try_at"] > _iso(_now()):
             continue
-        rid, ref = row["request_id"], f"{label}:Q{row['remote_id']}"
+        rid = row["request_id"]
+        ref = f"{label}:{'A' if row['action'] == 'ack_alert' else 'Q'}{row['remote_id']}"
         if row["expires_at"] <= _iso(_now()):
             if not row["attempts"]:
                 _expire(store, row, label)
             else:  # a send went out and its reply was lost: ASK, never apply late
                 _resolve_expired(store, rec, row, label)
             continue
-        mirror = store.db.execute("SELECT db_id, qkey, status FROM remote_questions WHERE machine_id = ? AND remote_id = ?",
-                                  (rec["machine_id"], row["remote_id"])).fetchone()
-        wanted = {"answer": ("open",), "dismiss": ("open",), "deliver": ("answered",), "hide": STATUSES}[row["action"]]
+        if row["action"] == "ack_alert":  # the mirror already shows it acknowledged; the remote decides
+            mirror = store.db.execute("SELECT db_id, akey, 'any' FROM remote_alerts WHERE machine_id = ? AND alert_id = ?",
+                                      (rec["machine_id"], row["remote_id"])).fetchone()
+        else:
+            mirror = store.db.execute("SELECT db_id, qkey, status FROM remote_questions WHERE machine_id = ? AND remote_id = ?",
+                                      (rec["machine_id"], row["remote_id"])).fetchone()
+        wanted = {"answer": ("open",), "dismiss": ("open",), "deliver": ("answered",), "hide": STATUSES,
+                  "ack_alert": ("any",)}[row["action"]]
         if mirror is None or mirror[0] != row["db_id"] or mirror[1] != row["qkey"] or mirror[2] not in wanted:
             reason = "not that question any more" if mirror is None or mirror[1] != row["qkey"] else mirror[2]
             _settle(store, rid, "rejected", reason, f"{ref}: {row['action']} not sent", f"rejected: {reason}")
@@ -544,7 +623,7 @@ def _settle(store, request_id: str, state: str, result: str, title: str | None =
 
 
 def _expire(store, row, label: str) -> None:
-    ref = f"{label}:Q{row['remote_id']}"
+    ref = f"{label}:{'A' if row['action'] == 'ack_alert' else 'Q'}{row['remote_id']}"
     if row["attempts"]:  # a send went out and its reply was lost: it may well be applied
         body = f"it may have reached {label} before the connection dropped; check there"
     else:
@@ -754,3 +833,14 @@ def as_question(data: dict):
                     delivery_error=data.get("delivery_error"), acknowledged_at=data.get("acknowledged_at"),
                     repeat_count=0, header=data.get("header"), multi_select=bool(data.get("multi_select")),
                     group_id=data.get("group"), group_title=data.get("title"))
+
+
+def as_alert(data: dict):
+    """A mirrored alert as an alerts.Alert (for the popup)."""
+    from .alerts import Alert
+
+    return Alert(id=data["id"], created_at=data.get("created_at") or "", kind=data.get("kind") or "agent",
+                 severity=data.get("severity") or "warning", title=data.get("title") or "", message=data.get("message"),
+                 pane_id=data.get("pane_id"), tab_id=None, tab_label=data.get("tab_label"), session_id=None,
+                 asked_by=data.get("asked_by"), herdr_server=None, status=data.get("status") or "open",
+                 acked_at=None, closed_at=None, reported_at=None)

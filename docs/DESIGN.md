@@ -448,6 +448,42 @@ change:
     answer them again;
   - hidden rows are not listed.
 
+## Alerts (0.8.0)
+
+The operator saw tabs at herdr's "needs you" with no question in the inbox. Cause: the agent
+sat at a blocking prompt (permission dialog, AskUserQuestion, plan approval) where it cannot
+call any tool, so it could not have asked. Two additions:
+
+- **`alert_operator(title, message?, severity, asked_by?)`**: a "please check X" with no answer
+  expected. Table `alerts` (side table; `questions` keeps its columns): `kind` `agent` |
+  `blocked`, `severity` `info` | `warning` | `urgent`, `status` `open` | `acked` | `withdrawn` |
+  `cleared`. Open alerts count in `Store.open_counts` (badge, `$inbox_q`, radar). Ids show as
+  `A<n>`. One notification on raise. An open alert with the same title from the same session
+  is returned instead of a second one.
+- **Blocked agents** (`alerts.scan_blocked`, every worker tick): one `herdr agent list`. herdr
+  documents `blocked` as "recognized an approval or question UI". A pane blocked for
+  `BLOCKED_AFTER` (15 s, so a quickly answered permission prompt never alerts) gets a
+  `kind='blocked'` alert; it is `cleared` on the first tick that sees another status. The
+  worker stays alive while herdr reports any agent. Nothing is ever typed into such a pane;
+  `herdr agent prompt` refuses blocked agents anyway (`agent_blocked`).
+
+**Acknowledgement is not typed back** (decided default). Typing into an agent costs a turn and
+can land at a prompt; the agent does not need it to continue. `check_answers` returns
+acknowledged alerts once (`reported_at`), `list_my_questions` shows their status.
+
+**Popup.** Alerts head the list (local, then remote), most severe first. An alert row opens an
+`AlertView`: 1 = Acknowledge, 2 = Go to the agent (for a blocked alert: 1 = Go, 2 = Dismiss).
+`d` on an alert row acknowledges without a confirmation: nothing is lost. Closed alert rows
+become inert placeholders like every other row.
+
+**Remote.** `inbox export` carries `alerts` (open ones and those closed in the last hour,
+≤200, whole on every pull; the change-feed cursor is for questions only). The mirror table
+`remote_alerts` is replaced per pull, except that an alert with a queued `ack_alert` stays
+acknowledged. Acknowledging enqueues `ack_alert` in `remote_outbox` with the alert's `akey`
+(`sha256(db_id|alert|id|created_at|title)`); `inbox apply` checks `db_id` and `akey`, records the
+`request_id` in the same transaction, and rejects a closed alert with its status. Alert ids and
+question ids are separate namespaces: the outbox FIFO keys on `(is_alert, id)`.
+
 ## herdr surface
 
 - **Notification** on each new question:
