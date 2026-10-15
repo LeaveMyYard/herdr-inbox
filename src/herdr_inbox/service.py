@@ -336,6 +336,24 @@ def deliver(store: Store, q: Question, retry: bool = False, force: bool = False)
     deliver_batch(store, [q], retry, force)
 
 
+def spawn_cli(args: list[str]) -> None:
+    """Start ``inbox <args>`` detached (own session, outlives the caller), without the
+    caller's venv selection, logging to worker.log; an OSError is logged, not raised."""
+    import subprocess
+    import sys
+
+    from . import worker
+
+    log_path = worker.db_path().parent / "worker.log"
+    try:
+        with open(log_path, "a") as err:
+            subprocess.Popen([sys.executable, "-m", "herdr_inbox.cli", *args], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=err, start_new_session=True, close_fds=True,
+                             env=worker._spawn_env())
+    except OSError:
+        log.warning("could not start `inbox %s`", " ".join(args[:1]), exc_info=True)
+
+
 def _ensure_worker(server: str | None = None) -> None:
     try:
         from . import worker

@@ -1,7 +1,9 @@
 # Remote machines (design, 0.7.0)
 
-**Status:** design, revised after the design review on #21 (H1–H3, M1–M4, Lows). The
-operator answered Q82–Q85 on 2026-10-15; see the end of this file.
+**Status:** built in 0.7.0 (#21): `remote_api.py` is the remote side, `remote.py` this
+machine's side, and the popup and the worker are wired in. The design was revised after the
+design review on #21 (H1–H3, M1–M4, Lows), and the operator answered Q82–Q85 on 2026-10-15;
+see the end of this file.
 
 ## Problem
 
@@ -61,10 +63,9 @@ New side tables, so the `questions` table keeps its 0.1.x column set (a standing
 ```
 remote_machines(machine_id PK, label, target, db_id, cursor_seq, version, uv, herdr,
                 plugin_root, last_ok_at, last_error, last_try_at, backoff_until)
-remote_questions(machine_id, db_id, remote_id, qkey, group_id, status, question, header,
-                 options_json, multi_select, tab_label, pane_id, asked_by, title,
-                 created_at, answered_at, answer, delivery_state, delivery_error,
-                 seq, PRIMARY KEY (machine_id, remote_id))
+remote_questions(machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at,
+                 notified_at, PRIMARY KEY (machine_id, remote_id))
+                 -- data_json: the validated, capped exported question
 remote_outbox(request_id PK, machine_id, db_id, remote_id, qkey, action, detail_json,
               created_at, expires_at, state, result, sent_at, attempts)
 ```

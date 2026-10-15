@@ -85,7 +85,7 @@ def test_a_target_that_looks_like_an_ssh_option_is_refused(fake_ssh):
 
 
 def test_an_existing_marketplace_is_fine(fake_ssh, monkeypatch):
-    monkeypatch.setenv("FAKE_SSH_ALREADY", "1")
+    """Claude Code says 'already on disk' / 'already installed' with exit 0 (moneylust)."""
     assert cli.main(["remote", "install", "moneylust"]) == 0
 
 
@@ -116,3 +116,23 @@ def test_machines_reads_herdrs_saved_profiles(fake_herdr, monkeypatch, tmp_path)
     fake.chmod(0o755)
     monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
     assert [m["label"] for m in remote.machines()] == ["moneylust", "evil"]  # enabled only
+
+
+def test_a_ref_starting_with_a_dash_is_refused(fake_ssh):
+    assert cli.main(["remote", "install", "moneylust", "--ref=-x"]) == 2
+    assert not calls(fake_ssh)
+
+
+def test_the_probe_runs_under_bin_sh(fake_ssh):
+    """ssh runs commands through the login shell (maybe fish): the probe is wrapped."""
+    cli.main(["remote", "install", "moneylust"])
+    assert calls(fake_ssh)[0][-1].startswith("exec /bin/sh -c ")
+
+
+def test_only_a_known_already_installed_message_counts_as_success(fake_ssh, monkeypatch):
+    monkeypatch.setenv("FAKE_SSH_FAIL", "claude plugin install")
+    script = Path(os.environ["INBOX_SSH"])
+    text = script.read_text()
+    assert "boom" in text
+    script.write_text(text.replace("boom", "error: plugin already broken"))
+    assert cli.main(["remote", "install", "moneylust"]) == 1
