@@ -73,11 +73,15 @@ def export(store: Store, request: dict) -> dict:
     else:
         ids = [r[0] for r in store.db.execute(
             "SELECT DISTINCT qid FROM changes WHERE seq > ? ORDER BY qid", (cursor["seq"],))]
-        qs = [q for q in (store.get(i) for i in ids) if q is not None]
+        got = {i: store.get(i) for i in ids}
+        qs = [q for q in got.values() if q is not None]
+        gone = [i for i, q in got.items() if q is None]
     out = {"version": __version__, "format": EXPORT_VERSION, "db_id": dbid, "seq": seq, "full": full,
            "questions": [_row(store, q, dbid) for q in qs]}
     if full:
         out["ids"] = [q.id for q in qs]
+    else:
+        out["gone"] = gone  # changed and no longer there (deleted)
     return out
 
 

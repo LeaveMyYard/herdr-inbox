@@ -248,8 +248,12 @@ def validate_export(raw: str) -> dict:
     ids = data.get("ids")
     if data.get("full") and not (isinstance(ids, list) and all(isinstance(i, int) for i in ids)):
         raise ValueError("full snapshot without ids")
+    gone = data.get("gone") or []
+    if not (isinstance(gone, list) and all(isinstance(i, int) for i in gone)):
+        raise ValueError("bad gone list")
     return {"db_id": data["db_id"], "seq": data["seq"], "full": bool(data.get("full")),
-            "version": _text(str(data.get("version", "?")), 20), "ids": ids or [], "questions": rows}
+            "version": _text(str(data.get("version", "?")), 20), "ids": ids or [], "gone": gone[:MAX_QUESTIONS],
+            "questions": rows}
 
 
 def _record(store, machine: dict) -> dict:
@@ -370,6 +374,8 @@ def pull(store, machine: dict) -> bool:
             if not seen and row["status"] == "open":
                 new.append(("question", f"{label} · Q{row['id']} · {row.get('tab_label') or row.get('pane_id') or ''}",
                             row["question"]))
+        for rid in data["gone"]:
+            store.db.execute("DELETE FROM remote_questions WHERE machine_id = ? AND remote_id = ?", (mid, rid))
         if data["full"]:
             keep = set(data["ids"]) | {r["id"] for r in data["questions"]}
             for (rid,) in store.db.execute("SELECT remote_id FROM remote_questions WHERE machine_id = ?", (mid,)).fetchall():

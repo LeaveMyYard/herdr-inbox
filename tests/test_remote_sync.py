@@ -276,3 +276,15 @@ def test_the_ssh_control_socket_path_stays_short(monkeypatch, tmp_path):
     assert len(path) - 2 + 40 <= 100
     monkeypatch.setenv("XDG_RUNTIME_DIR", "/" + "x" * 120)
     assert remote.control_options() == ["-o", "ControlMaster=no"]
+
+
+def test_a_question_deleted_on_the_remote_leaves_the_mirror_on_the_next_pull(store, remote_db, fake_herdr):
+    """moneylust e2e: an incremental pull skipped deleted rows; the mirror kept them 'open'
+    until the next full snapshot."""
+    q = service.ask(remote_db, A, "Gone soon?")["id"]
+    remote.pull(store, M)
+    with remote_db.transaction():
+        remote_db.db.execute("DELETE FROM question_ext WHERE id = ?", (q,))
+        remote_db.db.execute("DELETE FROM questions WHERE id = ?", (q,))
+    remote.pull(store, M)
+    assert q not in mirror(store)
