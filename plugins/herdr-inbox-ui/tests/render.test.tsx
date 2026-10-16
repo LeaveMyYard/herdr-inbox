@@ -78,21 +78,27 @@ test('other tools keep the engine row', async ($, on) => {
   await ui.unmount()
 })
 
-test('answer block: single, batch and paste-wrapped answers', async $ => {
+const line = (id: string, question: string) => new RegExp(`^✓ Operator answered ${id} — ${question.replace(/[?]/g, '\\?')}$`)
+
+test('answer block: single, batch and paste-wrapped answers, no [inbox] shown', async $ => {
   for (const surface of SURFACES) {
     const single = await $.ui.mount({ plugin: P, surface, ...msg('[inbox] Q12 answered — Which DB?: Postgres') })
-    expect(await single.find({ type: 'Text', text: /Answer from the operator/ })).toBeDefined()
-    expect(await single.find({ type: 'Text', text: /Q12 Which DB\? {2}→ {2}Postgres/ })).toBeDefined()
+    expect(await single.find({ type: 'Text', text: line('Q12', 'Which DB?') })).toBeDefined()
+    expect(await single.find({ type: 'Text', text: /^Postgres$/ })).toBeDefined()
+    expect(await single.find({ type: 'Text', text: /\[inbox\]/ })).toBeUndefined()
     await single.unmount()
 
     const batch = await $.ui.mount({ plugin: P, surface, ...msg('[inbox] answered — Q1 Which DB?: Postgres · Q2 Ship today?: yes, after CI') })
-    expect(await batch.find({ type: 'Text', text: /Q1 Which DB\? {2}→ {2}Postgres$/ })).toBeDefined()
-    expect(await batch.find({ type: 'Text', text: /Q2 Ship today\? {2}→ {2}yes, after CI/ })).toBeDefined()
+    expect(await batch.find({ type: 'Text', text: line('Q1', 'Which DB?') })).toBeDefined()
+    expect(await batch.find({ type: 'Text', text: /^Postgres$/ })).toBeDefined()
+    expect(await batch.find({ type: 'Text', text: line('Q2', 'Ship today?') })).toBeDefined()
+    expect(await batch.find({ type: 'Text', text: /^yes, after CI$/ })).toBeDefined()
     await batch.unmount()
 
     const pasted = await $.ui.mount({ plugin: P, surface,
-      ...msg('\n\n<pasted_content id="1">\n[inbox] Q9 answered — Long one: a very long answer\n</pasted_content>') })
-    expect(await pasted.find({ type: 'Text', text: /Q9 Long one {2}→ {2}a very long answer$/ })).toBeDefined()
+      ...msg('\n\n<pasted_content id="1">\n[inbox] Q9 answered — Long one: a very long answer\n</pasted_content id="1">\n') })
+    expect(await pasted.find({ type: 'Text', text: line('Q9', 'Long one') })).toBeDefined()
+    expect(await pasted.find({ type: 'Text', text: /^a very long answer$/ })).toBeDefined()
     await pasted.unmount()
   }
 })
@@ -151,7 +157,7 @@ test('a message that merely quotes an [inbox] line renders normally and does not
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: P, surface, ...msg(quoted) })
     expect(await ui.find({ type: 'Text', text: 'ENGINE' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Answer from the operator/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /Operator answered/ })).toBeUndefined()
     await ui.unmount()
   }
   await $.prompt.submit({ text: quoted, wait: false, origin: { kind: 'composer' } })
@@ -168,7 +174,7 @@ test('a stray control character does not lose the card', async $ => {
     expect(await ask.find({ type: 'Text', text: /asked by builder/ })).toBeDefined()
     await ask.unmount()
     const answer = await $.ui.mount({ plugin: P, surface, ...msg('[inbox] Q4 answered — Which DB?: Post\u001bgres') })
-    expect(await answer.find({ type: 'Text', text: /Q4 Which DB\? {2}→ {2}Postgres/ })).toBeDefined()
+    expect(await answer.find({ type: 'Text', text: /^Postgres$/ })).toBeDefined()
     await answer.unmount()
   }
 })

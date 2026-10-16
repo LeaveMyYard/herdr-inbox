@@ -1,4 +1,4 @@
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 // herdr-inbox's MCP tools: `mcp__plugin_herdr-inbox_herdr-inbox__ask_operator` when installed
 // as the plugin, `mcp__herdr-inbox__ask_operator` when the server is registered by hand.
@@ -18,10 +18,11 @@ const label = (o: Option) => str(typeof o === 'string' ? o : o?.label)
 /** The `[inbox]` answers a message carries, in herdr-inbox's own delivery format
  *  (service.delivery_text): `[inbox] Q7 answered — q: a` or `[inbox] answered — Q7 q: a · Q8 q: b`.
  *  Read only at the start, like transcript.header_ids: a message that merely quotes an `[inbox]`
- *  line is not one. A big paste is recorded as `<pasted_content …>[inbox] …</pasted_content>`. */
+ *  line is not one. A big paste arrives as `<pasted_content id=…>\n[inbox] …\n</pasted_content id=…>`
+ *  (the closing tag carries the id too, 2.1.301). */
 export function parseAnswers(raw: string): Answer[] {
   if (!raw.includes('[inbox]')) return []
-  const text = clean(raw.replace(/^\s*(?:<pasted_content[^>]*>\s*)?/, '').replace(/\s*<\/pasted_content>\s*$/, ''))
+  const text = clean(raw.replace(/^\s*(?:<pasted_content[^>]*>\s*)?/, '').replace(/\s*<\/pasted_content[^>]*>\s*$/, ''))
   const split = (seg: string, id: string): Answer => {
     const at = seg.indexOf(': ')
     return at < 0 ? { id, question: '', answer: seg.trim() } : { id, question: seg.slice(0, at).trim(), answer: seg.slice(at + 2).trim() }
@@ -34,6 +35,17 @@ export function parseAnswers(raw: string): Answer[] {
     const m = /^\s*(Q\d+) ([\s\S]*)$/.exec(seg)
     return m ? [split(m[2]!, m[1]!)] : []
   })
+}
+
+// asyncRewake (an idle session): Claude Code wakes it with a task notification whose summary is
+// this and whose body is `Stop hook blocking error from command "…": [inbox] …` (2.1.301).
+const REWAKE_SUMMARY = 'Stop hook feedback'
+const rewakes: Answer[][] = []
+const rewakeRows = new Map<string, Answer[]>()
+
+export function rewakeAnswers(text: string): Answer[] {
+  const m = /Stop hook blocking error from command "[^"]*": ([\s\S]*?)\s*<\/system-reminder>/.exec(text)
+  return m ? parseAnswers(m[1]!) : []
 }
 
 export const register: Register = on => {
@@ -90,24 +102,60 @@ export const register: Register = on => {
     return next({ ...e, props: { ...e.props, isExpanded: true } })
   })
 
+  // A typed or pasted answer (UserMessage, origin composer), and an idle session's asyncRewake
+  // wake: its row reads only "Stop hook feedback" (origin task-notification); the answer is in
+  // the prompt prompt.submit saw just before, so each such row takes the next one queued there.
   on('ui.render', { component: 'UserMessage' }, ($, e, next) => {
     if (e.props.isExpanded || !DRAWN.has(e.surface)) return next(e)
-    const answers = parseAnswers(e.props.text)
+    let answers = parseAnswers(e.props.text)
+    if (answers.length === 0 && e.props.origin.kind === 'task-notification' && e.props.text === REWAKE_SUMMARY
+        && e.requestId !== 'placeholder') {
+      if (!rewakeRows.has(e.requestId)) rewakeRows.set(e.requestId, rewakes.shift() ?? [])
+      answers = rewakeRows.get(e.requestId) ?? []
+    }
     if (answers.length === 0) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     return (
-      <Box borderStyle="round" borderColor="green" paddingX={1} flexDirection="column">
-        <Text bold color="green">✓ Answer from the operator</Text>
+      <Box flexDirection="column">
         {answers.map(a => (
-          <Text key={a.id}><Text bold color="green">{a.id}</Text>{a.question ? <Text dimColor> {a.question}</Text> : ''}{'  →  '}{a.answer}</Text>
+          <Box key={a.id} flexDirection="column">
+            <Text><Text color="green">✓ Operator answered {a.id}</Text>{a.question ? <Text dimColor> — {a.question}</Text> : ''}</Text>
+            <Box paddingLeft={2}><Text>{a.answer}</Text></Box>
+          </Box>
         ))}
       </Box>
     )
   })
 
   on('prompt.submit', ($, e, next) => {
-    const ids = parseAnswers(e.text).map(a => a.id)
-    if (ids.length > 0) $.ui.toast(`Operator answered ${ids.join(', ')}`)
+    if (e.origin.kind === 'task-notification' && e.text.includes(`<summary>${REWAKE_SUMMARY}</summary>`)) {
+      const answers = rewakeAnswers(e.text)
+      rewakes.push(answers)  // one entry per wake row, inbox or not, so rows and answers stay paired
+      announce($, answers)
+    } else {
+      announce($, parseAnswers(e.text))
+    }
     return next(e)
   })
+
+  // A busy session gets answers as hook additionalContext. PostToolBatch's is drawn nowhere: a
+  // dim transcript line (ui.log, never sent to the model) shows it. Stop's is drawn by the
+  // engine itself ("Stop hook feedback: [inbox] …", no render site), so only the toast.
+  on('classic.PostToolBatch', async ($, e, next) => {
+    const r = await next(e)
+    const answers = (r.additionalContext ?? []).flatMap(parseAnswers)
+    for (const a of answers) $.ui.log(`✓ Operator answered ${a.id}${a.question ? ` — ${a.question}` : ''}: ${a.answer}`)
+    announce($, answers)
+    return r
+  })
+
+  on('classic.Stop', async ($, e, next) => {
+    const r = await next(e)
+    announce($, (r.additionalContext ?? []).flatMap(parseAnswers))
+    return r
+  })
+}
+
+function announce($: EngineInterface, answers: Answer[]) {
+  if (answers.length > 0) $.ui.toast(`Operator answered ${answers.map(a => a.id).join(', ')}`)
 }
