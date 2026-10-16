@@ -10,21 +10,25 @@ type Option = string | { label?: string; description?: string }
 type Item = { question?: string; header?: string; options?: Option[]; multi_select?: boolean }
 type Answer = { id: string; question: string; answer: string }
 
-const str = (v: unknown) => (typeof v === 'string' ? v : '')
-const label = (o: Option) => (typeof o === 'string' ? o : str(o?.label))
+// Control characters (an escape, a NUL) would get the tree refused and the card lost: drop them.
+const clean = (s: string) => s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '')
+const str = (v: unknown) => (typeof v === 'string' ? clean(v) : '')
+const label = (o: Option) => str(typeof o === 'string' ? o : o?.label)
 
 /** The `[inbox]` answers a message carries, in herdr-inbox's own delivery format
  *  (service.delivery_text): `[inbox] Q7 answered — q: a` or `[inbox] answered — Q7 q: a · Q8 q: b`.
- *  A big paste is recorded inside `<pasted_content …>`; the tags are dropped first. */
+ *  Read only at the start, like transcript.header_ids: a message that merely quotes an `[inbox]`
+ *  line is not one. A big paste is recorded as `<pasted_content …>[inbox] …</pasted_content>`. */
 export function parseAnswers(raw: string): Answer[] {
-  const text = raw.replace(/<\/?pasted_content[^>]*>/g, ' ')
+  if (!raw.includes('[inbox]')) return []
+  const text = clean(raw.replace(/^\s*(?:<pasted_content[^>]*>\s*)?/, '').replace(/\s*<\/pasted_content>\s*$/, ''))
   const split = (seg: string, id: string): Answer => {
     const at = seg.indexOf(': ')
     return at < 0 ? { id, question: '', answer: seg.trim() } : { id, question: seg.slice(0, at).trim(), answer: seg.slice(at + 2).trim() }
   }
-  const single = /\[inbox\] (Q\d+) answered — ([\s\S]*)/.exec(text)
+  const single = /^\[inbox\] (Q\d+) answered — ([\s\S]*)/.exec(text)
   if (single) return [split(single[2]!, single[1]!)]
-  const batch = /\[inbox\] answered — ([\s\S]*)/.exec(text)
+  const batch = /^\[inbox\] answered — ([\s\S]*)/.exec(text)
   if (!batch) return []
   return batch[1]!.split(/ · (?=Q\d+ )/).flatMap(seg => {
     const m = /^\s*(Q\d+) ([\s\S]*)$/.exec(seg)
@@ -75,7 +79,7 @@ export const register: Register = on => {
       withdraw_alert: `withdrew alert A${String(input.id ?? '?')}`,
     }
     if (!compact[name]) return next(e)
-    return <Text dimColor>✉ inbox: {compact[name]}</Text>
+    return <Text dimColor>✉ inbox: {clean(compact[name])}</Text>
   })
 
   // The engine folds a run of MCP calls into one line ("Called herdr-inbox 3 times"); unfold a
