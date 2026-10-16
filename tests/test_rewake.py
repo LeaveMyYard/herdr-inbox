@@ -123,8 +123,8 @@ def test_nothing_for_a_subagent_or_outside_herdr(store, monkeypatch, tpath):
 
 
 def test_the_worker_leaves_an_idle_watched_session_to_its_watcher(store, monkeypatch, tpath, fake_herdr):
-    run_hook("post-tool-batch", {"session_id": "sess-A", "transcript_path": str(tpath)})  # the hook is live
     qid = pending_answer(store, monkeypatch)
+    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('sess-A', ?)", (st.now(),))  # its stamp
     store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
     started, release = threading.Event(), threading.Event()
 
@@ -193,7 +193,7 @@ def test_a_live_watcher_whose_session_hook_is_stale_does_not_hold_typing_back(st
 
     qid = pending_answer(store, monkeypatch)
     store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
-    store.db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES ('sess-A', ?)",
+    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('sess-A', ?)",
                      (st.now(-service.HOOK_LIVE - st.timedelta(minutes=1)),))
     lock = open(rewake._dir() / "sess-A.lock", "a")
     fcntl.flock(lock, fcntl.LOCK_EX)
@@ -205,14 +205,49 @@ def test_a_live_watcher_whose_session_hook_is_stale_does_not_hold_typing_back(st
         lock.close()
 
 
-def test_the_waiting_watcher_keeps_its_session_hook_live(store, monkeypatch, tpath):
+def test_the_waiting_watcher_stamps_its_own_column_never_the_tool_hooks(store, monkeypatch, tpath):
+    """#30 M1: the watcher's liveness is not evidence that PostToolBatch/Stop fire."""
     seen = []
-    clock = Clock(lambda n: seen.append(store.db.execute(
-        "SELECT hook_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone()) or n == 2
+    clock = Clock(lambda n: seen.append(tuple(store.db.execute(
+        "SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone() or ())) or n == 2
         and rewake._claim_ownership("sess-A"))
     assert watch(tpath, clock) is None
-    assert seen[0] and seen[0][0]
+    assert seen[0][0] is None and seen[0][1]
 
+
+def test_m1_a_live_watcher_with_silent_tool_hooks_does_not_hold_a_working_session(store, monkeypatch, tpath, fake_herdr):
+    """#30 M1: a watcher is alive (lock + its stamp) but PostToolBatch/Stop never fire (e.g.
+    plugin updated mid-session): a WORKING session's answer gets 0.8's busy typing."""
+    import fcntl
+
+    qid = pending_answer(store, monkeypatch)
+    store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
+    store.db.execute("UPDATE question_ext SET pending_since = ? WHERE id = ?", (st.now(-st.timedelta(minutes=5)), qid))
+    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('sess-A', ?)", (st.now(),))
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    lock = open(rewake._dir() / "sess-A.lock", "a")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        worker.tick(store)
+    finally:
+        lock.close()
+    assert fake_herdr.calls_of("agent", "prompt")
+
+
+def test_l2_the_matcher_survives_a_reworded_wake_wrapper(tpath):
+    """#30 L2: found by our own header, not Claude Code's label wording."""
+    reworded = ("<task-notification>\n<summary>Background hook output</summary>\n</task-notification>\n"
+                "<system-reminder>\nA background hook (Stop) said:\n[inbox] Q1 answered \u2014 "
+                "[E2E TEST] which colour for the rewake test?: amber\n\n</system-reminder>")
+    tpath.write_text(json.dumps({"type": "user", "timestamp": st.now(), "origin": {"kind": "task-notification"},
+                                 "message": {"role": "user", "content": reworded}}) + "\n")
+    segs = ["[inbox] Q1 answered \u2014 [E2E TEST] which colour for the rewake test?: amber"]
+    assert transcript.landed_kinds(tpath, {1: (segs, None)}) == {1: {0}}
+    # a mention inside the text (not a header) still does not count
+    tpath.write_text(json.dumps({"type": "user", "timestamp": st.now(), "message": {"role": "user",
+                     "content": "<task-notification>see [inbox] Q9 elsewhere</task-notification>"}}) + "\n")
+    assert transcript.landed_ids(tpath, [1]) == set()
 
 def test_m1_a_watch_left_behind_by_clear_ends_without_any_answer(store, monkeypatch, tpath, fake_herdr):
     """#30 M1 (reviewer's repro): the pane now holds sess-NEW; the old watcher has nothing

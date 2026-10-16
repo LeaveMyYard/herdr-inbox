@@ -542,9 +542,9 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
 
 def _watched(store: Store, session_id: str | None) -> bool:
     """An idle session is left to its asyncRewake watcher only while the watcher is provably
-    alive (it holds the session lock) AND the session's hook is live (the watcher stamps
-    hook_seen_at while it waits): the same liveness gate as the busy rule (#26 L3)."""
-    if not store.hook_live(session_id, HOOK_LIVE):
+    alive: it holds the session lock AND it stamped its own ``watch_seen_at`` recently. The
+    WORKING gate reads ``hook_seen_at`` (PostToolBatch/Stop firings) instead (#30 M1)."""
+    if not store.watch_live(session_id, HOOK_LIVE):
         return False
     from . import rewake
 

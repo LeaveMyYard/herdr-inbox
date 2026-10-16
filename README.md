@@ -137,7 +137,9 @@ that asked.
 
 **How it gets there depends on the agent.**
 - **An idle Claude Code session** (0.10.0) is woken with the answer without any typing. A
-  background hook waits for answers after each turn and starts a new turn with the answer.
+  background hook waits for answers after each turn and starts a new turn with the answer. It
+  wakes the agent even while you are looking at its pane, without touching what you type. Each
+  idle session keeps one small background process (about 12 MB of its own memory).
 - **A Claude Code session that is working** gets the answer without any typing. The inbox's own
   hooks hand it over as context at its next tool batch, or when its turn ends; then the turn
   continues with the answer.

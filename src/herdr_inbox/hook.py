@@ -94,7 +94,7 @@ def _remember_transcript(payload: dict) -> None:
 LIVENESS_EVERY = 60  # seconds between the delivery hook's liveness writes per session
 
 
-def _touch(session_id: str) -> None:
+def _touch(session_id: str, column: str = "hook_seen_at") -> None:
     """The delivery hook fired: stamp ``sessions.hook_seen_at``, at most once a minute (the
     worker leaves a WORKING session to its hooks only while this is recent)."""
     import sqlite3
@@ -110,7 +110,8 @@ def _touch(session_id: str) -> None:
     try:  # the common case is a read-only look: the stamp is under a minute old
         ro = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
         try:
-            row = ro.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+            assert column in ("hook_seen_at", "watch_seen_at")
+            row = ro.execute(f"SELECT {column} FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
         finally:
             ro.close()
         if row and row[0] and row[0] >= cutoff:
@@ -118,8 +119,8 @@ def _touch(session_id: str) -> None:
         db = sqlite3.connect(str(path), timeout=PENDING_TIMEOUT)
         try:
             with db:
-                db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES (?, ?) ON CONFLICT(session_id)"
-                           " DO UPDATE SET hook_seen_at = excluded.hook_seen_at",
+                db.execute(f"INSERT INTO sessions (session_id, {column}) VALUES (?, ?) ON CONFLICT(session_id)"
+                           f" DO UPDATE SET {column} = excluded.{column}",
                            (session_id, stamp.isoformat(timespec="seconds")))
         finally:
             db.close()
@@ -157,7 +158,7 @@ def _has_candidates(session_id: str) -> bool:
         return False
 
 
-def deliver(payload: dict) -> str | None:
+def deliver(payload: dict, liveness: bool = True) -> str | None:
     """This session's waiting answers as the hook's additionalContext, or None.
 
     Same text as typing (``[inbox] Q7 answered — …``), one message per firing. Each row is
@@ -166,7 +167,8 @@ def deliver(payload: dict) -> str | None:
     session = payload.get("session_id")
     if not session or payload.get("agent_id"):
         return None  # a subagent's or teammate's hook: the answer belongs to the session that asked
-    _touch(session)
+    if liveness:  # the PostToolBatch/Stop hooks only; the rewake watcher stamps its own column
+        _touch(session)
     if not _has_candidates(session):
         return None
     from . import herdr, service, transcript

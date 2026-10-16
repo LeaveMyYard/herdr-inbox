@@ -12,9 +12,12 @@
     conversation. It checks that every 45 s even with nothing pending, so `/clear` and
     `/resume` leave no watcher behind. It never wakes a working or blocked agent, or a pane
     that herdr names no session for.
-  - While alive it holds a per-session lock, and the delivery worker leaves an idle session to
-    it only while the lock is held and the session's hook is live. Otherwise the worker types,
-    as before.
+  - While alive it holds a per-session lock and stamps its own `watch_seen_at`. The delivery
+    worker leaves an idle session to it only while both hold. Otherwise the worker types, as
+    before. The working rule still reads only the PostToolBatch/Stop stamp, so a live watcher
+    never holds a working session's answers.
+  - Cost: one small background process per idle session (about 12 MB private memory), with a
+    read-only database look every 2 s.
 - The transcript matcher reads the woken `task-notification` record (captured on Claude Code
   2.1.301).
 - Typing now remains only for other agents, pre-update sessions, sessions whose hooks stopped
