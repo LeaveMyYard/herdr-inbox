@@ -81,12 +81,6 @@ def session_start_context(payload: dict) -> str:
     return text
 
 
-def _hook_version() -> str:
-    from . import __version__
-
-    return __version__ if __version__ != "0" else "0.9+"  # "0": imported from src, not installed
-
-
 def _remember_transcript(payload: dict) -> None:
     """Record where this session's transcript is: deliveries are verified against it. (Not
     that it can take hook deliveries: only the delivery hook firing says so, see _touch.)"""
@@ -94,7 +88,7 @@ def _remember_transcript(payload: dict) -> None:
         from .store import Store
 
         with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
-            store.record_session(payload["session_id"], payload["transcript_path"], hook_delivery=_hook_version())
+            store.record_session(payload["session_id"], payload["transcript_path"])
 
 
 LIVENESS_EVERY = 60  # seconds between the delivery hook's liveness writes per session
@@ -113,12 +107,16 @@ def _touch(session_id: str) -> None:
         return
     stamp = datetime.now(timezone.utc)
     cutoff = (stamp - timedelta(seconds=LIVENESS_EVERY)).isoformat(timespec="seconds")
-    try:
+    try:  # the common case is a read-only look: the stamp is under a minute old
+        ro = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
+        try:
+            row = ro.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        finally:
+            ro.close()
+        if row and row[0] and row[0] >= cutoff:
+            return  # fresh enough: no write, no writable connection
         db = sqlite3.connect(str(path), timeout=PENDING_TIMEOUT)
         try:
-            row = db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
-            if row and row[0] and row[0] >= cutoff:
-                return  # fresh enough: no write
             with db:
                 db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES (?, ?) ON CONFLICT(session_id)"
                            " DO UPDATE SET hook_seen_at = excluded.hook_seen_at",
@@ -175,7 +173,7 @@ def deliver(payload: dict) -> str | None:
     from .store import Store
 
     with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
-        store.record_session(session, payload.get("transcript_path"), hook_delivery=_hook_version())
+        store.record_session(session, payload.get("transcript_path"))
         qs = store.hook_candidates(session, service.MAX_HOOK_MISSES)
         claims = {q.id: c for q in qs if (c := store.claim_delivery(q.id))}
         qs = [q for q in qs if q.id in claims]

@@ -20,6 +20,9 @@
 - **Consent:** Claude Code marks hook-delivered answers as automated notifications, not user
   input. Agents act on them, but may not take one as your go-ahead for something risky. Keep
   asking for those in chat (README, "Delivery").
+- The delivery hook's once-a-minute liveness check now reads through a read-only connection,
+  and opens a writable one only when the stamp is stale. `sessions.hook_delivery` is no longer
+  written; the column stays, unused.
 - **Restart Claude Code sessions** to pick up the new hook.
 
 ## 0.9.0
