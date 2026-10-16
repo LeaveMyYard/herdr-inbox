@@ -360,8 +360,10 @@ The model sees it as `<system-reminder>PostToolBatch hook additional context: [i
   answer must reach the session that asked.
 
 **The hook** (`hook.deliver`, stdlib only like the other hooks, always exit 0):
-0. Liveness: stamp `sessions.hook_seen_at`, at most once a minute (a read, and a write only
-   when the stamp is older than 60 s).
+0. Liveness: stamp `sessions.hook_seen_at`, at most once a minute. The check is a read-only
+   connection; a writable one opens only when the stamp is over 60 s old (0.10.0).
+   (`sessions.hook_delivery`, a capability flag from 0.9.0's first head, is neither read nor
+   written any more; the column stays because columns are never dropped.)
 1. Fast path, read-only with a 0.2 s timeout: any answered, undelivered, unacknowledged
    question of this `session_id` that is not at the miss cap and whose agent is not gone (the
    same filter as `hook_candidates`)? Usually not: exit. Nothing else is written per batch.
@@ -408,6 +410,98 @@ acting and check the transcript first, so a race between them stays once-only.
 - `check_answers` acknowledges whatever it returns; the hook skips acknowledged rows.
 - The only path to a second delivery is the 45 s verification reset. It happens only when
   the transcript does not show the first one, the same rule as typing.
+
+## Waking idle Claude sessions without typing (0.10.0)
+
+0.9.0 covered working sessions. This covers idle ones: a Claude Code session at rest gets
+its answer without a keystroke, through an **asyncRewake** hook. A command hook marked
+`asyncRewake: true` runs in the background; when it exits 2, Claude Code shows its output
+to the session as a system reminder and **starts a turn**, even when the session is idle.
+After this, typing remains only for other agents (Codex etc.), Claude sessions started
+before the update, sessions whose hooks stopped firing, and "Send now".
+
+**The watcher** (`rewake.py`; `Stop` hook `rewake-watch`, `asyncRewake: true`, timeout
+43200 s):
+- Every turn end arms one watcher for its session. It polls the database read-only every 2 s
+  for an answer of this session that is neither delivered nor seen.
+- It acts only while herdr reports the pane's agent `idle` or `done` *with this session*.
+  It looks at the pane every 45 s even with nothing pending, so a watch that a `/clear` or
+  `/resume` left behind ends within a minute (review #30 M1). If herdr names no session for
+  the pane, it never wakes; after 3 minutes of that the watch ends (M1b).
+  - `working`: the 0.9.0 PostToolBatch/Stop hooks carry the answer.
+  - `blocked`: never disturbed.
+  - The pane now holds another conversation: the watch ends.
+- To deliver, it takes the same path as `hook.deliver`: CAS claim, transcript check for a
+  late landing, record hook-sent. Then it prints the `[inbox] …` text and exits with a
+  private code (3), which the `hooks.json` wrapper maps to 2. Nothing else can exit 2: the
+  interpreter's own errors are 1, and the wrapper turns everything but 3 into 0.
+- **One per session, never leaked:**
+  - Each new watcher writes its token to `rewake/<session>.owner`; an older one that sees
+    another token exits within a second.
+  - It also exits when its Claude process is gone (the nearest `claude` above it, checked
+    each poll), and just under the hook timeout (about 12 h).
+  - While alive it holds `rewake/<session>.lock` (flock).
+  - Live on moneylust: exactly one watcher across several turns, and none after `/exit`.
+
+**Cost per idle session (review #30 L3).** One sleeping `python3 -I` process (plus its `sh`
+wrapper) for as long as the session is idle, up to about 12 h. Measured: 26 MB RSS, of which
+about 12 MB is private (the rest is shared libraries). It does a read-only SQLite look every
+2 s, one herdr call every 45 s, and at most one write a minute. With ten idle agents that is
+about 120 MB private memory and five database looks a second, all read-only.
+
+**Waking the pane the operator is looking at (review #30 L1, intended).** Unlike typing, the
+watcher does not wait while the operator has the pane focused. A wake is keystroke-free, so
+nothing merges into what the operator is composing. They see the agent take the answer and
+start a turn, which is what they asked for by answering.
+
+**The worker's idle rule.** An idle session is left to its watcher (pending, "idle: the
+session's own hook wakes it with the answer") only while both hold. These are the watcher's
+own evidence, kept apart from the working gate (review #30 M1):
+- the watcher is provably alive: it holds the lock;
+- its own stamp `sessions.watch_seen_at` is less than `HOOK_LIVE` old; the waiting watcher
+  writes it at most once a minute.
+
+The WORKING gate reads only `hook_seen_at`, which only PostToolBatch/Stop firings write, so a
+live watcher never keeps a working session on hook delivery when those hooks have gone
+silent. The watcher's own deliveries do not stamp `hook_seen_at` either.
+
+This is the same liveness gate as the busy rule. Otherwise, after a plugin update the old
+root's hooks no longer start and no watcher holds the lock; or past the watcher's max age;
+or with answers the hooks missed twice: the worker types as before.
+
+**Once only.** The watcher, the PostToolBatch/Stop hooks, typing and `check_answers` all go
+through the same claim and transcript checks, and a hook-sent row is verified (or re-pended
+after 45 s) by the worker exactly as in 0.9.0.
+
+**The transcript.** The woken text lands as a `user` record with
+`origin.kind = "task-notification"`. Its content wraps our text (captured on Claude Code
+2.1.301):
+
+```
+<task-notification>
+<summary>Stop hook feedback</summary>
+</task-notification>
+<system-reminder>
+Stop hook blocking error from command "Stop": [inbox] Q1 answered — …: amber
+
+</system-reminder>
+```
+
+The matcher finds our own `[inbox] ` header anywhere inside a task-notification record and
+takes it up to the end of its paragraph (review #30 L2). It does not rely on Claude Code's
+label wording, so a reworded wrapper still verifies; `header_ids` and the segment checks work
+unchanged. The "blocking error" label is Claude Code's wording
+for any asyncRewake output. It is cosmetic: no error is shown to the operator.
+
+**Consent caveat.** Claude Code tells the model that a woken message is an automated system
+notification, **not user input**, and that it must not be treated as the user's approval or
+consent. In plain words: an answer delivered this way reaches the agent, and the agent acts
+on it as information. Live: it asked which word to write, got "zebra" this way, and wrote it.
+But an agent may refuse to treat it as the operator's **go-ahead** for something risky
+("deploy to prod? → yes"). That matches the existing rule: blocking or destructive
+confirmations are asked in chat, not through the inbox. Hook `additionalContext` (0.9.0) is
+also a system reminder, so the same holds for answers delivered to busy sessions. Typed
+answers (other agents, "Send now") still arrive as user messages.
 
 ## Deep links: opening the popup on a target (0.6.0)
 

@@ -64,8 +64,9 @@ CREATE TABLE IF NOT EXISTS question_ext (
 CREATE TABLE IF NOT EXISTS sessions (
     session_id      TEXT PRIMARY KEY,
     transcript_path TEXT,
-    hook_delivery   TEXT,
-    hook_seen_at    TEXT
+    hook_delivery   TEXT,  -- written by 0.9.0 pre-release heads only; unused (columns are never dropped)
+    hook_seen_at    TEXT,  -- the PostToolBatch/Stop delivery hooks fired (the WORKING gate)
+    watch_seen_at   TEXT   -- the asyncRewake watcher is waiting (the IDLE gate, with its lock)
 );
 -- One-off migrations and other flags.
 CREATE TABLE IF NOT EXISTS meta (
@@ -237,7 +238,7 @@ TABLE_ADDED_COLUMNS = {
     "question_ext": EXT_ADDED_COLUMNS,
     "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
     "remote_outbox": {"sending_at": "TEXT"},
-    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT"},
+    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT", "watch_seen_at": "TEXT"},
 }
 
 
@@ -724,16 +725,23 @@ class Store:
         row = self.db.execute("SELECT pending_since FROM question_ext WHERE id = ?", (qid,)).fetchone()
         return row[0] if row else None
 
-    def record_session(self, session_id: str, transcript_path: str | None, hook_delivery: str | None = None) -> None:
-        """Where the session's transcript is; with ``hook_delivery`` (the plugin version), that
-        the session runs the inbox's delivery hooks (0.9.0+)."""
-        if session_id and (transcript_path or hook_delivery):
+    def record_session(self, session_id: str, transcript_path: str | None) -> None:
+        """Where the session's transcript is (kept on conflict: hook_seen_at lives here too).
+        ``sessions.hook_delivery`` is no longer read or written: liveness is ``hook_seen_at``."""
+        if session_id and transcript_path:
             self.db.execute(
-                "INSERT INTO sessions (session_id, transcript_path, hook_delivery) VALUES (?, ?, ?)"
-                " ON CONFLICT(session_id) DO UPDATE SET"
-                " transcript_path = COALESCE(excluded.transcript_path, transcript_path),"
-                " hook_delivery = COALESCE(excluded.hook_delivery, hook_delivery)",
-                (session_id, transcript_path, hook_delivery))
+                "INSERT INTO sessions (session_id, transcript_path) VALUES (?, ?)"
+                " ON CONFLICT(session_id) DO UPDATE SET transcript_path = excluded.transcript_path",
+                (session_id, transcript_path))
+
+    def watch_live(self, session_id: str | None, within: timedelta) -> bool:
+        """The session's asyncRewake watcher stamped ``watch_seen_at`` within ``within``.
+        Kept apart from ``hook_seen_at`` (#30 M1): a live watcher says nothing about the
+        PostToolBatch/Stop hooks firing, so it never holds a WORKING session's answers."""
+        if not session_id:
+            return False
+        row = self.db.execute("SELECT watch_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return bool(row and row[0] and row[0] >= now(-within))
 
     def hook_live(self, session_id: str | None, within: timedelta) -> bool:
         """Did this session's delivery hook fire within ``within``? Liveness, not capability

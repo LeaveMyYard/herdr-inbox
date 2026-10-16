@@ -69,6 +69,19 @@
               "stop"
             ],
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "sh",
+            "args": [
+              "-c",
+              "python3 -I \"$1\" \"$2\" 2>/dev/null; [ $? -eq 3 ] && exit 2; exit 0",
+              "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "rewake-watch"
+            ],
+            "asyncRewake": true,
+            "timeout": 43200
           }
         ]
       }

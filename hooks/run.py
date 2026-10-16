@@ -63,24 +63,30 @@ def _via_uv(event, payload):
 
 def main(argv):
     try:
-        if len(argv) != 1 or argv[0] not in ("session-start", "subagent-start", "post-tool-batch", "stop"):
+        if len(argv) != 1 or argv[0] not in ("session-start", "subagent-start", "post-tool-batch", "stop",
+                                             "rewake-watch"):
             return 0
         if tuple(sys.version_info[:2]) < MIN_PYTHON:
+            if argv[0] == "rewake-watch":
+                return 0  # no long-lived uv fallback: typing covers this session
             _via_uv(argv[0], sys.stdin.read())
             return 0
         sys.path.insert(0, os.path.join(ROOT, "src"))
         from herdr_inbox.hook import run  # stdlib-only import chain (tests/test_hook_launch.py)
 
-        run(argv[0])
+        code = run(argv[0])
+        # 3 = "wake" (rewake-watch only); the hooks.json wrapper maps exactly 3 to Claude
+        # Code's exit 2, so no crash or interpreter error can ever wake a session
+        return 3 if (argv[0] == "rewake-watch" and code == 3) else 0
     except BaseException:  # noqa: BLE001 - a hook must never fail the session
         pass
     return 0
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    code = main(sys.argv[1:])
     try:
         sys.stdout.flush()
     except BaseException:  # noqa: BLE001
         pass
-    os._exit(0)
+    os._exit(code if code == 3 else 0)
