@@ -325,6 +325,67 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Claude Code session continuation (0.10.3)
+
+**Live, 2026-10-16** (pane "Ghostpaw frontend v2 rework"). Claude Code continued the
+conversation from session `a58e3f68…` into `06acc80f…` **in the same process**.
+- The old transcript ends with
+  `{"type":"continued-in","sessionId":"<old>","continuedInSessionId":"<new>"}`, followed only
+  by bookkeeping records (`last-prompt`, `cost-state`). Nothing in the new file points back.
+- herdr later reported the **old** id again, and so does the process env
+  (`CLAUDE_CODE_SESSION_ID`). Hooks get the new id in their payload.
+
+That broke four things:
+- New questions were filed under the old id, so delivery was verified against the dead transcript.
+- Answers to questions filed under the new id were refused as "conversation changed", because
+  herdr's id did not match.
+- The new session's rewake watcher ended at its first pane check.
+- The old session's watcher stayed alive (herdr's old id "matched"), kept stamping
+  `watch_seen_at`, and held idle typing back for old-id questions.
+
+**Fix: follow the record.** `transcript.follow(session)` / `chain(session)` read the session's
+transcript. If its last `continued-in` is followed only by bookkeeping, they move to the named
+session, repeatedly, without cycles.
+- **Ids from transcripts are followed only as canonical UUIDs.** `find` itself accepts only
+  `[A-Za-z0-9_-]`. These ids become part of a glob path, so `*`, `?`, `[`, slashes,
+  backslashes and dots never reach it (review #41).
+- **Reads are incremental:** a growing transcript is read only where it grew since the last
+  look; a cold look reads the last 64 KiB. Both lookup caches are bounded (LRU, 256 entries).
+- `herdr.live_agent` returns the followed id as `session_id` (herdr's own as
+  `reported_session_id`). Delivery's conversation check, the watcher's pane check and the idle
+  gate all compare against the live conversation. `resolve_caller` files new questions under it.
+
+**Rows keep the session they were filed under.** That session is part of a remote question's
+identity (`qkey`), so rewriting it would make an answer already in a remote outbox be refused
+(review #41 High 1). Instead the worker records each continuation (`sessions.continued_in`, every
+tick, idempotent), and everything that resolves "this session's rows" takes the session's
+**family**: itself plus every recorded session that continued into it.
+- That covers ownership (list_my_questions, check_answers, alerts, withdraw).
+- It covers the hook and the rewake watcher's candidates, including the read-only fast path
+  (a recursive CTE).
+- Rows filed under the old id later, by a stale process, are covered without another pass.
+
+**Verification reads the whole chain.** Every check for "did it already land?" looks in every
+transcript the conversation lived in: the filed session and each session it continued in.
+- That covers delivery's pre-type check, the hook's own pre-send check, the hook-send
+  verification and the reconcile pass.
+- So an answer that landed in the OLD transcript just before a continuation is found there
+  and never sent again (review #41 High 2).
+
+**A stored continuation only nominates.** `family()` includes a predecessor only while its
+transcript **still** ends in `continued-in` to this session (cached, incremental read), both in
+the store and in the hook's read-only fast path. So nothing derived from `sessions.continued_in`
+can be stale (review #41 final pass).
+
+**A resumed old session** (the old id used again after its `continued-in` record) is not
+followed: the record no longer ends that transcript, and it leaves the new session's family at
+once. Its rows are again its own, and a pane
+showing the old conversation gets them. That is the safe direction: at worst an answer waits
+as "conversation changed".
+
+The old session's watcher ends at its next pane check: the pane now resolves to the new
+session.
+
 ## Never type onto a draft; a delivery after other text still counts (0.10.1)
 
 **Live, 2026-10-16 (Q124/Q125, a pre-0.9 session, so the typing path).**

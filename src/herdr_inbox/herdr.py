@@ -141,9 +141,15 @@ def live_agent(pane_id: str) -> dict | None:
     agent = (res or {}).get("agent")
     if not agent:
         return None
+    reported = (agent.get("agent_session") or {}).get("value")
+    from . import transcript
+
     return {
         "agent": agent.get("agent"),
-        "session_id": (agent.get("agent_session") or {}).get("value"),
+        # after a Claude Code session continuation herdr keeps reporting the old id: the
+        # conversation now lives in the session its transcript's `continued-in` names
+        "session_id": transcript.follow(reported) if reported else reported,
+        "reported_session_id": reported,
         "status": agent.get("agent_status"),
         "focused": bool(agent.get("focused")),
     }
