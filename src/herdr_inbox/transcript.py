@@ -5,7 +5,8 @@
 delivery counts only once the session transcript shows it: Claude Code writes a typed prompt
 as a ``user`` record (string content) when idle, or as a ``queue-operation`` ``enqueue``
 (``content``) and an ``attachment`` ``queued_command`` (``prompt``) when it queues it
-mid-turn. Parsing is lenient, like zoetrope's tailer: unknown or broken lines are skipped.
+mid-turn, and a hook's ``additionalContext`` (0.9.0 hook delivery) as an ``attachment``
+``hook_additional_context`` (``content``: a list of strings). Parsing is lenient, like zoetrope's tailer: unknown or broken lines are skipped.
 """
 
 from __future__ import annotations
@@ -82,6 +83,11 @@ def _record_texts(record: dict):
         attachment = record.get("attachment") or {}
         if attachment.get("type") == "queued_command" and isinstance(attachment.get("prompt"), str):
             yield attachment["prompt"]
+        elif attachment.get("type") == "hook_additional_context":  # 0.9.0: our hook's delivery
+            content = attachment.get("content")
+            for text in content if isinstance(content, list) else [content]:
+                if isinstance(text, str):
+                    yield text
 
 
 _SINGLE = re.compile(r"\[inbox\] Q(\d+) answered — ")

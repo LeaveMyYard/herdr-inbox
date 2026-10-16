@@ -135,11 +135,21 @@ An answer arrives in the agent's conversation as
 `[inbox] answered — Q12 <q>: A · Q13 <q>: B`, only while that pane still holds the conversation
 that asked.
 
+**How it gets there depends on the agent.**
+- **A Claude Code session that is working** gets the answer without any typing. The inbox's own
+  hooks hand it over as context at its next tool batch, or when its turn ends; then the turn
+  continues with the answer.
+- **An idle Claude, a Claude session started before 0.9.0, and other agents** (Codex etc.) get
+  it typed into the pane.
+
+Either way the inbox counts an answer as seen only once the conversation transcript shows it.
+
 If an answer can't be delivered right away, one background delivery worker retries every few
 seconds. This covers an agent at a dialog, an agent busy, Claude Code's background-agents panel
 having focus, or a typed answer that never showed up in the conversation. The worker serves every
 pane, whichever inbox version each session runs. It starts with herdr and on demand (`inbox
-worker --ensure`), and stops after 10 idle minutes.
+worker --ensure`). It stays up while herdr reports agents, and stops after 10 idle minutes
+without any.
 
 The popup shows why an answer is waiting. If an answer is still undelivered after 5 minutes, or
 runs out of tries, herdr shows a notification. The agent can always fetch it itself with
