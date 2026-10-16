@@ -65,17 +65,32 @@ def _records(line: str):
         yield text, ts
 
 
+# 0.10.0: an asyncRewake hook's output wakes the session as a task notification that carries
+# it after Claude Code's own label (`Stop hook blocking error from command "Stop": `, 2.1.301).
+# Found by our own header anywhere inside, never by that wording (#30 L2): each `[inbox] `
+# start, up to the end of its paragraph or the reminder.
+_REWAKE_END = re.compile(r"\n\s*\n|</system-reminder>|</task-notification>")
+
+
+def _rewake_texts(content: str):
+    start = content.find("[inbox] ")
+    while start != -1:
+        m = _REWAKE_END.search(content, start)
+        yield content[start:m.start() if m else len(content)].rstrip()
+        start = content.find("[inbox] ", start + 1)
+
+
 def _record_texts(record: dict):
     kind = record.get("type")
     if kind == "user":
         content = (record.get("message") or {}).get("content")
-        if isinstance(content, str):
+        if isinstance(content, list):  # a list of blocks: only its text blocks are the prompt
+            content = "\n".join(b.get("text", "") for b in content
+                                if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str))
+        if isinstance(content, str) and content:
             yield content
-        elif isinstance(content, list):  # a list of blocks: only its text blocks are the prompt
-            text = "\n".join(b.get("text", "") for b in content
-                             if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str))
-            if text:
-                yield text
+            if "<task-notification>" in content:
+                yield from _rewake_texts(content)
     elif kind == "queue-operation" and record.get("operation") == "enqueue":
         if isinstance(record.get("content"), str):
             yield record["content"]
