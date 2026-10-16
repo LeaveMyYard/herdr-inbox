@@ -271,9 +271,19 @@ description = "question inbox"
 Claude Code transcript: `ask_operator` as a card with the title, questions, options, `asked_by`
 and the filed Q ids; `alert_operator` as a card coloured by severity (info cyan, warning yellow,
 urgent red); `check_answers`, `list_my_questions` and the withdraw tools as one dim line (a folded run of
-inbox calls is unfolded when it asks or alerts, so the cards show); and an
-arriving `[inbox]` answer (single, batch or pasted) as a green block listing each Q id with its
-answer, plus a toast. ctrl+o shows the raw message. It changes only what is drawn, never what
+inbox calls is unfolded when it asks or alerts, so the cards show). Operator answers show as a
+quiet block with no `[inbox]` prefix, `✓ Operator answered Q12 — <question>` in green with the
+answer under it, plus a toast, on every delivery path Claude Code lets a mod draw:
+
+| Delivery | Drawn as |
+|---|---|
+| typed or pasted (`Send now`, sessions before 0.9) | the block, in place of the prompt row |
+| idle session woken by the `asyncRewake` watcher (its row reads "Stop hook feedback") | the block, in place of that row |
+| busy session, `PostToolBatch` hook context (Claude Code draws nothing for it) | one dim transcript line `✓ Operator answered Q12 — …: <answer>` |
+| busy session, `Stop` hook context | Claude Code's own `Stop hook feedback: [inbox] …` line, which no mod can redraw; the toast only |
+
+ctrl+o shows the raw message. A wake row from before the mod loaded (a resumed session) stays
+plain. It changes only what is drawn, never what
 the model reads. It uses Claude Code's early-access mods API (2.1.301+; terminal and desktop
 draw it, other surfaces keep the plain rows), which is why it is not part of `herdr-inbox`:
 
