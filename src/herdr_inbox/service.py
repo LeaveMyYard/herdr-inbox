@@ -41,6 +41,9 @@ BUSY_MISS = "busy: typed while the agent was busy, not seen yet; trying again"
 PANEL = "blocked: panel: the agent's background-task panel has focus"
 COMPOSER_DRAFT = "waiting: the agent's input box holds unsent text (send or clear it there)"
 COMPOSER_UNKNOWN = "waiting: cannot read the agent's input box"
+UNREADABLE_NOTIFY_AFTER = 60.0  # an input box unreadable this long gets ONE notification saying why (#37 L2)
+_unreadable_since: dict[str, float] = {}  # pane -> first unreadable read (this process)
+_unreadable_notified: set[str] = set()
 # How long the typed answer may take to show up in the session transcript.
 VERIFY_SECONDS = 15.0
 NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
@@ -512,6 +515,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 # to the draft and submitted with it (live 2026-10-16, Q124/Q125). Not even
                 # for Send now; an input box we cannot read counts as not empty.
                 state = herdr.composer_state(pane)
+                _note_unreadable(pane, state, batch)
                 if state != "empty":
                     reason = COMPOSER_DRAFT if state == "draft" else COMPOSER_UNKNOWN
                     for q in batch:
@@ -556,6 +560,25 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             else:
                 for q in batch:
                     record(q, NOT_VERIFIED)
+
+
+def _note_unreadable(pane: str, state: str, batch: list[Question]) -> None:
+    """Once per pane (per process), when its Claude input box stays unreadable for
+    UNREADABLE_NOTIFY_AFTER: a distinct notification, so a stall from a Claude Code UI change
+    says why instead of only the generic "not delivered" after 5 minutes."""
+    if state != "unknown":
+        _unreadable_since.pop(pane, None)
+        _unreadable_notified.discard(pane)
+        return
+    first = _unreadable_since.setdefault(pane, time.monotonic())
+    if pane in _unreadable_notified or time.monotonic() - first < UNREADABLE_NOTIFY_AFTER:
+        return
+    _unreadable_notified.add(pane)
+    where = batch[0].tab_label or pane
+    refs = ", ".join(q.ref for q in batch)
+    later(lambda: herdr.notify(f"{where}: cannot read the agent's input box",
+                               f"{refs} wait; no answer is typed until it can be read (Claude Code UI changed? "
+                               "check herdr-inbox)"))
 
 
 def _watched(store: Store, session_id: str | None) -> bool:
