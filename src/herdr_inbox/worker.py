@@ -199,6 +199,10 @@ def tick(store: Store) -> int:
     global watching
     store.reconcile()
     try:
+        service.revive_moved(store)  # an answer marked gone whose agent's pane only moved
+    except Exception:  # noqa: BLE001
+        log.warning("moved-pane scan failed", exc_info=True)
+    try:
         service.adopt_continuations(store)  # Claude Code session continuation: follow `continued-in`
     except Exception:  # noqa: BLE001
         log.warning("session continuation scan failed", exc_info=True)
