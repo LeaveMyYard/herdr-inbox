@@ -132,3 +132,10 @@ def test_the_old_sessions_watcher_ends_and_the_new_one_wakes(store, herdr_says_o
     service.submit(store, [qid], deliver=False)
     c = Clock()
     assert rewake.run({"session_id": NEW, "transcript_path": str(tdir() / f"{NEW}.jsonl")}, clock=c, sleep=c.sleep)
+
+
+@pytest.mark.parametrize("bad", ["../../etc/passwd", "*", "a/b", "06ACC80F-0000-4000-8000-000000000002 ", "x" * 36, ""])
+def test_a_continuation_id_that_is_not_a_uuid_is_never_followed(fake_herdr, bad):
+    """Path traversal guard: the id becomes part of a transcript path."""
+    write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": bad}])
+    assert transcript.follow(OLD) == OLD

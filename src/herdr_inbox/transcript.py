@@ -53,6 +53,9 @@ _found: dict[tuple[str, str], Path] = {}
 FOLLOW_TAIL = 256 * 1024
 _BOOKKEEPING = {"last-prompt", "cost-state", "summary", "custom-title", "ai-title", "agent-name", "mode"}
 _follow_cache: dict[str, tuple[int, str | None]] = {}  # path -> (size read, continued-in id)
+# a session id read from a transcript is only ever used as a canonical UUID: it becomes part of
+# a file path (find's glob), so anything else ("../x", "*", a slash) is ignored
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
 def continued_in(path: Path) -> str | None:
@@ -80,7 +83,7 @@ def continued_in(path: Path) -> str | None:
             if not isinstance(record, dict):
                 continue
             if record.get("type") == "continued-in" and isinstance(record.get("continuedInSessionId"), str):
-                nxt = record["continuedInSessionId"]
+                nxt = record["continuedInSessionId"] if _UUID.match(record["continuedInSessionId"]) else None
             elif nxt and record.get("type") not in _BOOKKEEPING:
                 nxt = None  # the old conversation went on after the record
     _follow_cache[key] = (n, nxt)
