@@ -77,7 +77,9 @@ elif cmd == "agent prompt":
             record = {{"type": "queue-operation", "operation": "enqueue", "content": args[3]}}
         else:
             record = {{"type": "user", "message": {{"role": "user", "content": args[3]}}}}
-        with open(os.path.join(folder, session + ".jsonl"), "a") as fh:
+        # FAKE_HERDR_LAND_SESSION: the conversation the pane really runs (after a Claude Code
+        # session continuation herdr can keep reporting the old id)
+        with open(os.path.join(folder, os.environ.get("FAKE_HERDR_LAND_SESSION", session) + ".jsonl"), "a") as fh:
             fh.write(json.dumps(record) + "\n")
     result = {{"type": "agent_prompted"}}
 elif cmd == "pane read":
@@ -174,7 +176,7 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
                 "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
-                "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS"):
+                "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS", "FAKE_HERDR_LAND_SESSION"):
         monkeypatch.delenv(var, raising=False)
     return fake
 

@@ -32,9 +32,75 @@ def find(session_id: str | None, known: str | None = None) -> Path | None:
         return Path(known)
     if not session_id or "/" in session_id:
         return None
-    for path in projects_dir().glob(f"*/{session_id}.jsonl"):
+    base = projects_dir()
+    hit = _found.get((str(base), session_id))
+    if hit and hit.is_file():
+        return hit  # every herdr agent lookup follows its session (see follow): no glob each time
+    for path in base.glob(f"*/{session_id}.jsonl"):
+        _found[(str(base), session_id)] = path
         return path
     return None
+
+
+_found: dict[tuple[str, str], Path] = {}
+
+
+# -- Claude Code session continuation ----------------------------------------------------
+# The conversation can move to a new session id in the same process: the old transcript then
+# ends with {"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW}, followed
+# only by bookkeeping records (captured on 2.1.301, 2026-10-16); nothing in NEW points back,
+# and herdr / the process env keep reporting OLD.
+FOLLOW_TAIL = 256 * 1024
+_BOOKKEEPING = {"last-prompt", "cost-state", "summary", "custom-title", "ai-title", "agent-name", "mode"}
+_follow_cache: dict[str, tuple[int, str | None]] = {}  # path -> (size read, continued-in id)
+
+
+def continued_in(path: Path) -> str | None:
+    """The session ``path``'s conversation continued in, or None. Only when nothing but
+    bookkeeping follows the record (an old session resumed and used again is not followed)."""
+    key, n = str(path), size(path)
+    cached = _follow_cache.get(key)
+    if cached and cached[0] == n:
+        return cached[1]
+    nxt = None
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(max(0, n - FOLLOW_TAIL))
+            data = fh.read()
+    except OSError:
+        return None
+    if b'"continued-in"' in data:
+        for raw in data.split(b"\n"):
+            if not raw.strip():
+                continue
+            try:
+                record = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            if record.get("type") == "continued-in" and isinstance(record.get("continuedInSessionId"), str):
+                nxt = record["continuedInSessionId"]
+            elif nxt and record.get("type") not in _BOOKKEEPING:
+                nxt = None  # the old conversation went on after the record
+    _follow_cache[key] = (n, nxt)
+    return nxt
+
+
+def follow(session_id: str | None, known: str | None = None, max_hops: int = 8) -> str | None:
+    """The session the conversation of ``session_id`` lives in now (itself if it never
+    continued). ``known``: the transcript path recorded for ``session_id``, if any."""
+    current, seen = session_id, set()
+    for _ in range(max_hops):
+        if not current or current in seen or "/" in current:
+            break
+        seen.add(current)
+        path = find(current, known if current == session_id else None)
+        nxt = continued_in(path) if path else None
+        if not nxt or nxt in seen:
+            break
+        current = nxt
+    return current
 
 
 def size(path: Path | None) -> int:

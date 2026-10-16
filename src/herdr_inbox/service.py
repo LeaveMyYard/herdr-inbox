@@ -84,6 +84,8 @@ def resolve_caller() -> Caller:
     with trace.step("caller.pane_identity"):
         ident = herdr.pane_identity(pane_id) if pane_id else {}
     session_id = ident.get("session_id") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
+    if session_id:
+        session_id = transcript.follow(session_id)  # a continued conversation files under its live session
     return Caller(
         pane_id=pane_id,
         tab_id=ident.get("tab_id") or os.environ.get("HERDR_TAB_ID") or None,
@@ -425,6 +427,10 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             continue
         ours = []
         for q in items:
+            if q.session_id and agent["session_id"] != q.session_id \
+                    and transcript.follow(q.session_id, store.session_transcript(q.session_id)) == agent["session_id"]:
+                store.adopt_continuation(q.session_id, agent["session_id"])  # asked before a session continuation
+                q.session_id = agent["session_id"]
             if q.session_id and agent["session_id"] != q.session_id:
                 record(q, f"{CHANGED} {pane}")
             else:
@@ -593,6 +599,21 @@ def _watched(store: Store, session_id: str | None) -> bool:
         return rewake.watcher_alive(session_id)
     except OSError:
         return False
+
+
+def adopt_continuations(store: Store) -> None:
+    """The worker, every tick: sessions with questions or alerts still in play whose
+    transcript says the conversation continued in another session hand them over to it."""
+    rows = store.db.execute(
+        "SELECT DISTINCT session_id FROM questions WHERE session_id IS NOT NULL"
+        " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL))"
+        " UNION SELECT DISTINCT session_id FROM alerts WHERE session_id IS NOT NULL AND status = 'open'").fetchall()
+    for (session,) in rows:
+        if store.continued_in(session):
+            continue
+        nxt = transcript.follow(session, store.session_transcript(session))
+        if nxt and nxt != session:
+            store.adopt_continuation(session, nxt)
 
 
 def verify_hook_deliveries(store: Store) -> None:
