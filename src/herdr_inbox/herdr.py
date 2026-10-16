@@ -205,13 +205,18 @@ def _undimmed(line: str) -> str:
     return "".join(out)
 
 
+_PLACEHOLDER = re.compile(r'^Try ".*"$')
+
+
 def composer_state(pane_id: str) -> str:
-    """Claude Code's input box: 'empty' (nothing but the dim placeholder), 'draft' (text the
-    operator typed and has not sent: typing would append to it and submit both, live bug
+    """Claude Code's input box: 'empty', 'draft' (anything else: the operator's unsent text,
+    a pasted-text or image chip... typing would append to it and submit both, live bug
     2026-10-16 Q124/Q125), or 'unknown' (no input box recognised: never type then).
 
     The box is the lines between the last two ─── borders on screen; its first line starts
-    with ❯ (captured on Claude Code 2.1.301, tests/fixtures/composer)."""
+    with ❯ (captured on Claude Code 2.1.301, tests/fixtures/composer). EMPTY is recognised
+    positively (review #37): the ❯ line is blank, or holds exactly the dim placeholder
+    `Try "…"` (one non-dim cell allowed: a drawn cursor), and every other box line is blank."""
     out, _ = run_raw("pane", "read", pane_id, "--source", "visible", "--lines", "30", "--format", "ansi")
     if not out:
         return "unknown"
@@ -221,16 +226,19 @@ def composer_state(pane_id: str) -> str:
     if len(borders) < 2 or borders[-1] - borders[-2] < 2:
         return "unknown"
     box = range(borders[-2] + 1, borders[-1])
-    first = plain[box[0]].lstrip()
+    first = plain[box[0]].replace("\u00a0", " ").strip()
     if not first.startswith(PROMPT):
         return "unknown"
-    for i in box:
-        text = _undimmed(lines[i])
-        if i == box[0]:
-            text = text.split(PROMPT, 1)[1] if PROMPT in text else ""
-        if text.replace("\u00a0", " ").strip():
-            return "draft"
-    return "empty"
+    if any(plain[i].replace("\u00a0", " ").strip() for i in box[1:]):
+        return "draft"  # a second line: wrapped or multi-line text
+    content = first[len(PROMPT):].strip()
+    if not content:
+        return "empty"
+    undimmed = _undimmed(lines[box[0]]).replace("\u00a0", " ")
+    undimmed = undimmed.split(PROMPT, 1)[1] if PROMPT in undimmed else undimmed
+    if _PLACEHOLDER.match(content) and len(undimmed.strip()) <= 1:
+        return "empty"  # the dim placeholder (a drawn cursor may light one cell)
+    return "draft"
 
 
 def notify(title: str, body: str) -> None:
