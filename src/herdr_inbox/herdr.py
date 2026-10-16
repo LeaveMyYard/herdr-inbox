@@ -176,6 +176,63 @@ def panel_focused(pane_id: str) -> bool:
     return footer.startswith("↑/↓ to select")
 
 
+_SGR = re.compile(r"\x1b\[([0-9;]*)m")
+_OTHER_ESC = re.compile(r"\x1b\[[0-9;?]*[A-Za-ln-z]|\x1b\][^\x07]*\x07|\r")
+PROMPT = "\u276f"  # ❯, Claude Code's input-box prompt
+# an input-box border: a run of ─, optionally with a session tag before its last dashes
+# (`───…─── node ─`, live 2026-10-16)
+_BORDER = re.compile(r"^─{3,}(?: [^─\s][^─]{0,40} ─+)?$")
+
+
+def _undimmed(line: str) -> str:
+    """The characters of an ANSI line that are NOT dim (SGR 2): Claude Code draws its
+    placeholder ("Try …") dim, and typed text plain."""
+    line = _OTHER_ESC.sub("", line)
+    out, dim, pos = [], False, 0
+    for m in _SGR.finditer(line):
+        if not dim:
+            out.append(line[pos:m.start()])
+        for code in (m.group(1) or "0").split(";"):
+            if code in ("0", ""):
+                dim = False
+            elif code == "2":
+                dim = True
+            elif code == "22":
+                dim = False
+        pos = m.end()
+    if not dim:
+        out.append(line[pos:])
+    return "".join(out)
+
+
+def composer_state(pane_id: str) -> str:
+    """Claude Code's input box: 'empty' (nothing but the dim placeholder), 'draft' (text the
+    operator typed and has not sent: typing would append to it and submit both, live bug
+    2026-10-16 Q124/Q125), or 'unknown' (no input box recognised: never type then).
+
+    The box is the lines between the last two ─── borders on screen; its first line starts
+    with ❯ (captured on Claude Code 2.1.301, tests/fixtures/composer)."""
+    out, _ = run_raw("pane", "read", pane_id, "--source", "visible", "--lines", "30", "--format", "ansi")
+    if not out:
+        return "unknown"
+    lines = out.split("\n")
+    plain = [_SGR.sub("", _OTHER_ESC.sub("", line)) for line in lines]
+    borders = [i for i, line in enumerate(plain) if _BORDER.match(line.strip())]
+    if len(borders) < 2 or borders[-1] - borders[-2] < 2:
+        return "unknown"
+    box = range(borders[-2] + 1, borders[-1])
+    first = plain[box[0]].lstrip()
+    if not first.startswith(PROMPT):
+        return "unknown"
+    for i in box:
+        text = _undimmed(lines[i])
+        if i == box[0]:
+            text = text.split(PROMPT, 1)[1] if PROMPT in text else ""
+        if text.replace("\u00a0", " ").strip():
+            return "draft"
+    return "empty"
+
+
 def notify(title: str, body: str) -> None:
     call("notification", "show", title, "--body", body, "--sound", "request")
 
