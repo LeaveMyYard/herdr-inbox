@@ -38,3 +38,5 @@ jobs:
       - run: npm install -g @anthropic-ai/claude-code
       - run: claude plugin validate --strict .
       - run: claude plugin validate --strict .claude-plugin/plugin.json
+      - run: claude plugin validate --strict plugins/herdr-inbox-ui
+      - run: claude plugin test plugins/herdr-inbox-ui
