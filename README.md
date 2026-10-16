@@ -450,9 +450,13 @@ can always fetch its answers itself with `check_answers`.
 **Tabs still show `❓N` after I uninstalled.** Run the `sync-tokens` step from
 [Uninstall](#uninstall) before removing the plugin, or rename the tabs back by hand.
 
-**Does anything leave my machine?** No. Questions and answers live in a local SQLite database
-(`~/.local/state/herdr-inbox/inbox.db`); the plugin talks only to your herdr session and, for
-[remote machines](#remote-machines), over your own SSH.
+**Does anything leave my machine?** The plugin sends your questions and answers nowhere: they
+live in a local SQLite database (`~/.local/state/herdr-inbox/inbox.db`), and the plugin talks only
+to your herdr session. The one exception is [remote machines](#remote-machines), if you set them
+up: then they travel over your own SSH to those machines. An answer is delivered into the asking
+agent's conversation, which Claude Code sends to its model as it does with everything you type.
+Installing and updating download the plugin from GitHub and its Python dependencies from PyPI
+(through uv).
 
 **Codex, pi or other agents?** Not yet: the MCP tool and the hooks target Claude Code.
 
