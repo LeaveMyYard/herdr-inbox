@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.1
+
+- **Fix: an answer could be typed onto your unsent text in a Claude agent's input box,
+  submitted with it, and then delivered twice.**
+  - Live 2026-10-16: a pre-0.9 session received Q124/Q125 appended to a draft; the check did
+    not see the merged message, and Send now typed them again.
+  - Now the inbox reads Claude Code's input box before typing. If it holds text, or can't be
+    read, the answer waits ("the agent's input box holds unsent text"). This includes Send now,
+    which also shows a notification.
+  - A delivery that lands after other text in one message now counts as delivered, when our
+    full message, or that question's exact answer line, follows. A mere `Q<n>` mention still
+    does not.
+  - Other agents are typed into as before.
+
 ## Unreleased
 
 - **New optional plugin `herdr-inbox-ui`** (`plugins/herdr-inbox-ui`, same marketplace:
