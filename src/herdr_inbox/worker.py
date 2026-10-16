@@ -199,6 +199,10 @@ def tick(store: Store) -> int:
     global watching
     store.reconcile()
     try:
+        service.adopt_continuations(store)  # Claude Code session continuation: follow `continued-in`
+    except Exception:  # noqa: BLE001
+        log.warning("session continuation scan failed", exc_info=True)
+    try:
         service.verify_hook_deliveries(store)  # 0.9.0: answers handed over as hook context
     except Exception:  # noqa: BLE001
         log.warning("hook delivery verification failed", exc_info=True)
