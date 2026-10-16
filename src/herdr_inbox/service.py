@@ -52,6 +52,7 @@ MAX_HOOK_MISSES = st_MAX_HOOK_MISSES  # then the hook leaves that answer to typi
 HOOK_WAIT = "busy: delivered at the agent's next tool call or turn end"
 HOOK_UNSEEN = "hook: not seen in the conversation; trying again"
 HOOK_LIVE = timedelta(minutes=10)  # a working session counts as hook-delivered only if its hook fired this recently
+WATCHER_WAIT = "idle: the session's own hook wakes it with the answer"
 MAX_HEADER = 12  # AskUserQuestion's chip limit
 MAX_OPTIONS = 9  # number keys 1-9
 MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
@@ -433,6 +434,15 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
             continue
         busy = status not in DELIVERABLE
+        if status in DELIVERABLE and not force and _watched(store, agent["session_id"]):
+            # idle, and its asyncRewake watcher is alive: it wakes the session with the answer
+            # (no keystrokes); answers its hooks missed twice fall through to typing
+            watched = [q for q in ours if store.hook_misses(q.id) < MAX_HOOK_MISSES]
+            for q in watched:
+                store.set_pending(q.id, claims[q.id], WATCHER_WAIT)
+            ours = [q for q in ours if q not in watched]
+            if not ours:
+                continue
         if status == "working" and not force and store.hook_live(agent["session_id"], HOOK_LIVE):
             # its own hook carries the answer at the next tool batch or turn end: never type
             # into a working Claude that has it (answers its hook missed twice fall through)
@@ -528,6 +538,20 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             else:
                 for q in batch:
                     record(q, NOT_VERIFIED)
+
+
+def _watched(store: Store, session_id: str | None) -> bool:
+    """An idle session is left to its asyncRewake watcher only while the watcher is provably
+    alive (it holds the session lock) AND the session's hook is live (the watcher stamps
+    hook_seen_at while it waits): the same liveness gate as the busy rule (#26 L3)."""
+    if not store.hook_live(session_id, HOOK_LIVE):
+        return False
+    from . import rewake
+
+    try:
+        return rewake.watcher_alive(session_id)
+    except OSError:
+        return False
 
 
 def verify_hook_deliveries(store: Store) -> None:
