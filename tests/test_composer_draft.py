@@ -20,9 +20,32 @@ def screen(name):
 
 
 @pytest.mark.parametrize("name,state", [("empty", "empty"), ("draft", "draft"), ("wrapped", "draft"),
-                                        ("labelled_empty", "empty"), ("labelled_draft", "draft")])
+                                        ("labelled_empty", "empty"), ("labelled_draft", "draft"),
+                                        # real captures (#37 review): focused idle box, pasted-text and image chips
+                                        ("focused_empty", "empty"), ("pasted_text", "draft"), ("image_chip", "draft")])
 def test_the_input_box_state_is_read_from_the_captured_screens(fake_herdr, monkeypatch, name, state):
     monkeypatch.setenv("FAKE_HERDR_SCREEN_ANSI", screen(name))
+    assert herdr.composer_state("w1:p1") == state
+
+
+def variant(prompt_line):
+    """The captured empty screen with its ❯ line replaced (shapes the review asked about)."""
+    lines = screen("empty").split("\n")
+    i = next(k for k, line in enumerate(lines) if "\u276f" in line)
+    lines[i] = prompt_line
+    return "\n".join(lines)
+
+
+@pytest.mark.parametrize("line,state", [
+    ("\u276f\u00a0\x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r", "draft"),  # a DIM chip is still text
+    ("\u276f\u00a0\x1b[0m\x1b[2m[Image #1]\x1b[0m\r", "draft"),
+    ("\u276f\u00a0\x1b[7mT\x1b[0m\x1b[2mry \"refactor <filepath>\"\x1b[0m\r", "empty"),  # cursor cell on the placeholder
+    ("\u276f\u00a0\x1b[0m\x1b[2mTry \"x\"\x1b[0m and more\r", "draft"),  # text after the placeholder
+    ("\u276f\u00a0Try \"x\"\r", "draft"),  # the placeholder's words, typed (not dim)
+    ("\u276f\u00a0\r", "empty"),
+])
+def test_empty_is_recognised_positively(fake_herdr, monkeypatch, line, state):
+    monkeypatch.setenv("FAKE_HERDR_SCREEN_ANSI", variant(line))
     assert herdr.composer_state("w1:p1") == state
 
 

@@ -343,14 +343,20 @@ typed the draft and moved on, so the pane was not focused when the worker typed.
 `herdr.composer_state` reads the pane (`--format ansi`) and finds Claude Code's input box.
 That is the lines between the last two `───` borders; the top border may carry a session tag,
 as in `───… node ─`. Its first line starts with `❯`.
-- `empty`: nothing there but the dim placeholder (SGR 2, e.g. `Try "…"`). Typing proceeds.
-- `draft`: any non-dim text. The answer stays pending ("the agent's input box holds unsent
-  text") and is retried.
+- `empty`, recognised positively (review #37): the `❯` line is blank, or holds exactly the
+  dim placeholder `Try "…"` (one non-dim cell allowed, for a drawn cursor), and the box has
+  no other line. Typing proceeds.
+- `draft`: anything else. That covers typed text, wrapped or multi-line text, and pasted-text
+  or image chips (`[Pasted text #1 +28 lines]`, `[Image #1]`, captured, plain), even if dim.
+  The answer stays pending ("the agent's input box holds unsent text") and is retried.
 - `unknown`: no box recognised. The answer is not typed either ("cannot read the agent's
   input box").
 
 This applies to Send now as well, which also raises a notification so the operator knows why.
-Other agents (Codex etc.) have no such box and are typed into as before. Fixtures are captured
+Other agents (Codex etc.) have no such box and are typed into as before. **The read→type
+race:** the operator can start typing between the read and the keystrokes. Then our message
+is again merged into theirs. Fix 2 below matches that merged record, so it is counted once
+and never typed a second time. Fixtures are captured
 from Claude Code 2.1.301 (`tests/fixtures/composer`).
 
 **2. Count a delivery that follows other text.** The matcher looks at the record's start and
