@@ -325,6 +325,27 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## The asking agent's pane moved (0.10.4)
+
+Delivery is keyed by the pane a question was asked from. When that pane id has no agent any
+more, or holds another conversation, the answer used to be marked "agent gone" after the
+retries, even if the conversation still ran in another pane.
+- Live 2026-10-16, Q155: pane `w6:p48` became `w6:p57` when it moved, and the answer was
+  never delivered.
+
+Now, before recording "no agent" or "conversation changed", delivery looks the conversation up
+among herdr's agents (`agent list`). Continuations are followed on both sides.
+- **Exactly one pane runs it:** the question moves there (`pane_id`, `tab_id`), pending
+  "moved: the asking agent is now in pane …", and the next pass delivers it.
+- **None, or more than one:** never a guess. The old outcome stands.
+- **Already marked gone:** the worker re-checks answers marked "agent gone" within the last
+  day, still unseen, of its own herdr server, and moves them the same way. It looks at each
+  answer at most every `REVIVE_EVERY` (2 min), and calls `agent list` only when one is due.
+  - It never revives an answer the operator **hid** (they dealt with it) or dismissed, nor one
+    being sent right now (a `sending:` claim, e.g. Send now) (review #42).
+- A moved question takes the new tab's id **and label**, so the popup and notifications name
+  the tab the agent is in now.
+
 ## Claude Code session continuation (0.10.3)
 
 **Live, 2026-10-16** (pane "Ghostpaw frontend v2 rework"). Claude Code continued the
