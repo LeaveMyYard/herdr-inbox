@@ -141,3 +141,34 @@ test('a folded run of inbox calls unfolds when it asks or alerts', async ($, on)
     }
   }
 })
+
+test('a message that merely quotes an [inbox] line renders normally and does not toast', async ($, on) => {
+  engineRow(on)
+  const toasts: string[] = []
+  on('ui.toast', (_$, e) => { toasts.push(e.text); return { value: undefined } })
+  on('prompt.submit', (_$, e) => ({ text: e.text }))
+  const quoted = 'why did you get "[inbox] Q12 answered — Which DB?: Postgres" twice?'
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: P, surface, ...msg(quoted) })
+    expect(await ui.find({ type: 'Text', text: 'ENGINE' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Answer from the operator/ })).toBeUndefined()
+    await ui.unmount()
+  }
+  await $.prompt.submit({ text: quoted, wait: false, origin: { kind: 'composer' } })
+  expect(toasts).toEqual([])
+})
+
+test('a stray control character does not lose the card', async $ => {
+  for (const surface of SURFACES) {
+    const ask = await $.ui.mount({ plugin: P, surface, ...row('ask_operator', {
+      question: '\u001b[31mWhich\u0000 DB?', options: ['Post\u0007gres'], asked_by: 'b\u0008uilder' }) })
+    expect(await ask.find({ type: 'Text', text: /Question for the operator/ })).toBeDefined()
+    expect(await ask.find({ type: 'Text', text: /^\[31mWhich DB\?$/ })).toBeDefined()
+    expect(await ask.find({ type: 'Text', text: /Postgres/ })).toBeDefined()
+    expect(await ask.find({ type: 'Text', text: /asked by builder/ })).toBeDefined()
+    await ask.unmount()
+    const answer = await $.ui.mount({ plugin: P, surface, ...msg('[inbox] Q4 answered — Which DB?: Post\u001bgres') })
+    expect(await answer.find({ type: 'Text', text: /Q4 Which DB\? {2}→ {2}Postgres/ })).toBeDefined()
+    await answer.unmount()
+  }
+})
