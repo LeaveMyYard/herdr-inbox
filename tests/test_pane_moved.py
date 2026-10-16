@@ -17,6 +17,11 @@ def agents(*pairs):
                         "agent_session": {"value": s}} for p, s in pairs])
 
 
+@pytest.fixture(autouse=True)
+def _fresh_backoff():
+    getattr(service, "_revive_checked", {}).clear()
+
+
 @pytest.fixture
 def moved(fake_herdr, monkeypatch):
     """The question's pane w1:p1 is gone; the conversation now runs in w1:p7."""
@@ -35,6 +40,7 @@ def test_an_answer_follows_its_agent_to_the_pane_it_moved_to(store, moved, fake_
     qid = answered(store)
     q = store.get(qid)
     assert q.pane_id == "w1:p7" and q.tab_id == "w1:t9" and "moved" in (q.delivery_error or "")
+    assert q.tab_label == "my-tab"  # the new tab's label, not the one the agent left (#42 Low)
     worker.tick(store)
     assert ["agent", "prompt", "w1:p7"] == fake_herdr.calls_of("agent", "prompt")[-1][:3]
     assert store.get(qid).delivered_at
@@ -92,3 +98,51 @@ def test_another_herdr_servers_gone_rows_are_left_alone(store, moved, monkeypatc
     store.db.execute("UPDATE question_ext SET herdr_server = '/other.sock' WHERE id = ?", (qid,))
     service.revive_moved(store)
     assert store.agent_gone(qid) and store.get(qid).pane_id == "w1:p1"
+
+
+
+def gone(store, qid):
+    store.db.execute("UPDATE questions SET pane_id = 'w1:p1', tab_label = 'old-tab',"
+                     " delivery_error = 'agent gone: no live agent in pane w1:p1' WHERE id = ?", (qid,))
+    store.mark_agent_gone(qid, "no live agent in pane w1:p1")
+
+
+def test_42_a_hidden_answer_is_never_revived(store, moved, fake_herdr):
+    """#42 Medium: the operator hid the failed delivery (dealt with it): never typed later."""
+    qid = answered(store)
+    gone(store, qid)
+    store.hide_failed(qid)
+    worker.tick(store)
+    worker.tick(store)
+    q = store.get(qid)
+    assert q.pane_id == "w1:p1" and store.agent_gone(qid) and q.delivered_at is None
+    assert not [c for c in fake_herdr.calls_of("agent", "prompt") if c[2] == "w1:p7"]
+
+
+def test_42_a_dismissed_question_is_never_revived(store, moved):
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Dismissed?")["id"]
+    store.mark_agent_gone(qid, "x")
+    service.close(store, qid, "dismissed")
+    service.revive_moved(store)
+    assert store.get(qid).pane_id == "w1:p1"
+
+
+def test_42_a_send_in_flight_is_not_revived_under_it(store, moved):
+    qid = answered(store)
+    gone(store, qid)
+    store.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ?", (f"sending:{st.now()}:x", qid))
+    service.revive_moved(store)
+    assert store.get(qid).pane_id == "w1:p1"
+
+
+def test_42_revival_backs_off_per_answer(store, moved, fake_herdr, monkeypatch):
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p8", "sess-B")))  # really gone
+    qid = answered(store)
+    gone(store, qid)
+    fake_herdr.reset()
+    service.revive_moved(store)
+    service.revive_moved(store)
+    assert len(fake_herdr.calls_of("agent", "list")) == 1  # the second call is within REVIVE_EVERY
+    monkeypatch.setattr(service, "REVIVE_EVERY", 0.0)
+    service.revive_moved(store)
+    assert len(fake_herdr.calls_of("agent", "list")) == 2
