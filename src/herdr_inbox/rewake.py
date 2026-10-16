@@ -145,10 +145,10 @@ def run(payload: dict, clock=time.monotonic, sleep=time.sleep) -> str | None:
                 else:
                     unknown_since = None
                 if state == "go" and pending:
-                    text = hook.deliver(payload)
+                    text = hook.deliver(payload, liveness=False)
                     if text:
                         return text
-            hook._touch(session)  # alive and watching this session: its hook stays live (a write a minute at most)
+            hook._touch(session, "watch_seen_at")  # the IDLE gate's own stamp (a write a minute at most)
             sleep(WATCH_POLL)
         return None
     finally:

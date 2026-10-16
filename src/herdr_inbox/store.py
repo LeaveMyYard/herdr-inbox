@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     session_id      TEXT PRIMARY KEY,
     transcript_path TEXT,
     hook_delivery   TEXT,  -- written by 0.9.0 pre-release heads only; unused (columns are never dropped)
-    hook_seen_at    TEXT
+    hook_seen_at    TEXT,  -- the PostToolBatch/Stop delivery hooks fired (the WORKING gate)
+    watch_seen_at   TEXT   -- the asyncRewake watcher is waiting (the IDLE gate, with its lock)
 );
 -- One-off migrations and other flags.
 CREATE TABLE IF NOT EXISTS meta (
@@ -237,7 +238,7 @@ TABLE_ADDED_COLUMNS = {
     "question_ext": EXT_ADDED_COLUMNS,
     "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
     "remote_outbox": {"sending_at": "TEXT"},
-    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT"},
+    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT", "watch_seen_at": "TEXT"},
 }
 
 
@@ -732,6 +733,15 @@ class Store:
                 "INSERT INTO sessions (session_id, transcript_path) VALUES (?, ?)"
                 " ON CONFLICT(session_id) DO UPDATE SET transcript_path = excluded.transcript_path",
                 (session_id, transcript_path))
+
+    def watch_live(self, session_id: str | None, within: timedelta) -> bool:
+        """The session's asyncRewake watcher stamped ``watch_seen_at`` within ``within``.
+        Kept apart from ``hook_seen_at`` (#30 M1): a live watcher says nothing about the
+        PostToolBatch/Stop hooks firing, so it never holds a WORKING session's answers."""
+        if not session_id:
+            return False
+        row = self.db.execute("SELECT watch_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return bool(row and row[0] and row[0] >= now(-within))
 
     def hook_live(self, session_id: str | None, within: timedelta) -> bool:
         """Did this session's delivery hook fire within ``within``? Liveness, not capability

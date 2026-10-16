@@ -443,11 +443,27 @@ before the update, sessions whose hooks stopped firing, and "Send now".
   - While alive it holds `rewake/<session>.lock` (flock).
   - Live on moneylust: exactly one watcher across several turns, and none after `/exit`.
 
+**Cost per idle session (review #30 L3).** One sleeping `python3 -I` process (plus its `sh`
+wrapper) for as long as the session is idle, up to about 12 h. Measured: 26 MB RSS, of which
+about 12 MB is private (the rest is shared libraries). It does a read-only SQLite look every
+2 s, one herdr call every 45 s, and at most one write a minute. With ten idle agents that is
+about 120 MB private memory and five database looks a second, all read-only.
+
+**Waking the pane the operator is looking at (review #30 L1, intended).** Unlike typing, the
+watcher does not wait while the operator has the pane focused. A wake is keystroke-free, so
+nothing merges into what the operator is composing. They see the agent take the answer and
+start a turn, which is what they asked for by answering.
+
 **The worker's idle rule.** An idle session is left to its watcher (pending, "idle: the
-session's own hook wakes it with the answer") only while both hold:
+session's own hook wakes it with the answer") only while both hold. These are the watcher's
+own evidence, kept apart from the working gate (review #30 M1):
 - the watcher is provably alive: it holds the lock;
-- the session's hook is live: `hook_seen_at` is less than `HOOK_LIVE` old. The waiting
-  watcher stamps it, at most once a minute, so a long idle stays live.
+- its own stamp `sessions.watch_seen_at` is less than `HOOK_LIVE` old; the waiting watcher
+  writes it at most once a minute.
+
+The WORKING gate reads only `hook_seen_at`, which only PostToolBatch/Stop firings write, so a
+live watcher never keeps a working session on hook delivery when those hooks have gone
+silent. The watcher's own deliveries do not stamp `hook_seen_at` either.
 
 This is the same liveness gate as the busy rule. Otherwise, after a plugin update the old
 root's hooks no longer start and no watcher holds the lock; or past the watcher's max age;
@@ -471,8 +487,10 @@ Stop hook blocking error from command "Stop": [inbox] Q1 answered — …: amber
 </system-reminder>
 ```
 
-The matcher extracts the text after `hook blocking error from command "…": `, so `header_ids`
-and the segment checks work unchanged. The "blocking error" label is Claude Code's wording
+The matcher finds our own `[inbox] ` header anywhere inside a task-notification record and
+takes it up to the end of its paragraph (review #30 L2). It does not rely on Claude Code's
+label wording, so a reworded wrapper still verifies; `header_ids` and the segment checks work
+unchanged. The "blocking error" label is Claude Code's wording
 for any asyncRewake output. It is cosmetic: no error is shown to the operator.
 
 **Consent caveat.** Claude Code tells the model that a woken message is an automated system
