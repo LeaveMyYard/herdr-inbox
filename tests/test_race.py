@@ -90,7 +90,7 @@ async def test_go_to_agent_works_for_multi_select(store, fake_herdr):
         await pilot.pause()
         assert "g go to agent" in str(app.query_one(QuestionView).query_one(".hint").render())
         await pilot.press("g")
-        await pilot.pause()
+        await fake_herdr.went_to_agent(app)
     assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p1"]]
 
 

@@ -109,9 +109,8 @@ async def test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane(store, fake_
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("up", "g")
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-    assert fake_herdr.calls_of("agent", "focus") or fake_herdr.calls_of("pane", "focus")
+        await fake_herdr.went_to_agent(app)
+    assert fake_herdr.focused()
 
 
 def blocked(pane="w1:p1", status="blocked"):
@@ -300,9 +299,8 @@ async def test_m1_a_blocked_alert_view_goes_only_on_a_deliberate_g(store, fake_h
         assert not fake_herdr.calls_of("agent", "focus") and not fake_herdr.calls_of("pane", "focus")
         monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.0)
         await pilot.press("g")
-        await pilot.pause()
-        await app.workers.wait_for_complete()
-    assert fake_herdr.calls_of("agent", "focus") or fake_herdr.calls_of("pane", "focus")
+        await fake_herdr.went_to_agent(app)
+    assert fake_herdr.focused()
 
 
 async def _sequence(store, fake_herdr, keys, with_alert):
@@ -321,8 +319,7 @@ async def _sequence(store, fake_herdr, keys, with_alert):
             await asyncio.sleep(0.6)
             await pilot.press(key)
             await pilot.pause()
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+        await fake_herdr.focus_settled(app)
     q = store.get(1)
     return (q.status, q.answer), [c[2] for c in fake_herdr.calls_of("agent", "focus")]
 
@@ -363,8 +360,7 @@ async def test_m1_an_agent_alerts_pane_turned_blocked_needs_a_deliberate_g(store
         assert app.mode == "alert" and not fake_herdr.calls_of("agent", "focus")
         await asyncio.sleep(0.6)
         await pilot.press("g")
-        await pilot.pause()
-        await app.workers.wait_for_complete()
+        await fake_herdr.went_to_agent(app)
     assert [c[2] for c in fake_herdr.calls_of("agent", "focus")] == ["w1:p1"]
 
 
@@ -405,7 +401,7 @@ async def _g_presses(store, fake_herdr, monkeypatch, gaps):
             await asyncio.sleep(gap)
             await pilot.press("g")
         await pilot.pause()
-        await app.workers.wait_for_complete()
+        await fake_herdr.focus_settled(app)
     return [c[2] for c in fake_herdr.calls_of("agent", "focus")]
 
 
