@@ -360,8 +360,10 @@ The model sees it as `<system-reminder>PostToolBatch hook additional context: [i
   answer must reach the session that asked.
 
 **The hook** (`hook.deliver`, stdlib only like the other hooks, always exit 0):
-0. Liveness: stamp `sessions.hook_seen_at`, at most once a minute (a read, and a write only
-   when the stamp is older than 60 s).
+0. Liveness: stamp `sessions.hook_seen_at`, at most once a minute. The check is a read-only
+   connection; a writable one opens only when the stamp is over 60 s old (0.10.0).
+   (`sessions.hook_delivery`, a capability flag from 0.9.0's first head, is neither read nor
+   written any more; the column stays because columns are never dropped.)
 1. Fast path, read-only with a 0.2 s timeout: any answered, undelivered, unacknowledged
    question of this `session_id` that is not at the miss cap and whose agent is not gone (the
    same filter as `hook_candidates`)? Usually not: exit. Nothing else is written per batch.
