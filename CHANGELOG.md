@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.10.0
+
+- **Idle Claude Code sessions are woken with their answers, without typing.** A `Stop` hook
+  with `asyncRewake` arms one watcher per session at each turn end. When an answer for that
+  session arrives and herdr shows the agent idle or done, the watcher claims the answer,
+  records it and exits with the `[inbox] …` text. Claude Code then starts a turn with it.
+- **One watcher per session:**
+  - A newer watcher supersedes the older one.
+  - A watcher exits with its Claude process, after about 12 h, or when the pane changes
+    conversation. It never wakes a working or blocked agent.
+  - While alive it holds a per-session lock, and the delivery worker leaves an idle session to
+    it only while the lock is held and the session's hook is live. Otherwise the worker types,
+    as before.
+- The transcript matcher reads the woken `task-notification` record (captured on Claude Code
+  2.1.301).
+- Typing now remains only for other agents, pre-update sessions, sessions whose hooks stopped
+  firing, and "Send now".
+- **Consent:** Claude Code marks hook-delivered answers as automated notifications, not user
+  input. Agents act on them, but may not take one as your go-ahead for something risky. Keep
+  asking for those in chat (README, "Delivery").
+- **Restart Claude Code sessions** to pick up the new hook.
+
 ## 0.9.0
 
 - **Answers reach a busy Claude Code session without typing.**
