@@ -52,3 +52,15 @@ def test_herdr_manifest_required_fields():
 def test_license_declared_and_present():
     assert _toml("pyproject.toml")["project"]["license"] == "MIT"
     assert (ROOT / "LICENSE").read_text().startswith("MIT License")
+
+
+def test_ui_mod_is_its_own_plugin():
+    """herdr-inbox-ui (early-access mods API) ships as a separate marketplace entry, so the
+    core plugin never depends on it."""
+    ui = _json("plugins/herdr-inbox-ui/.claude-plugin/plugin.json")
+    entries = {p["name"]: p for p in _json(".claude-plugin/marketplace.json")["plugins"]}
+    entry = entries["herdr-inbox-ui"]
+    assert entry["source"] == "./plugins/herdr-inbox-ui"
+    assert entry["version"] == ui["version"] and ui["name"] == "herdr-inbox-ui"
+    assert _json("plugins/herdr-inbox-ui/hooks/hooks.json") == {"modules": ["./register.tsx"]}
+    assert "modules" not in _json("hooks/hooks.json")
