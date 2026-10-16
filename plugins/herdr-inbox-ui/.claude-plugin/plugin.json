@@ -1,7 +1,7 @@
 {
   "name": "herdr-inbox-ui",
   "displayName": "herdr inbox UI",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cards for herdr-inbox tool calls and operator answers in the Claude Code transcript (early-access mods API)",
   "author": {
     "name": "LeaveMyYard"

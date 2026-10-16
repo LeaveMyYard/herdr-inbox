@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **herdr-inbox-ui 0.2.0: answers on every path, quieter, without `[inbox]`.** An answer is
+  now a compact block, `✓ Operator answered Q12 — <question>` in green with the answer under
+  it, instead of a bordered box. It is drawn for typed and pasted answers and for an idle
+  session's asyncRewake wake (whose row Claude Code labels only "Stop hook feedback"; the mod
+  pairs it with the wake's text, only when the row is first drawn within 5 s of the wake, else
+  leaves it plain). A `PostToolBatch` hook delivery, which Claude Code does not
+  draw at all, gets a dim transcript line; a `Stop` hook delivery, drawn by Claude Code itself,
+  gets the toast. Every path toasts. The fixtures are captures from Claude Code 2.1.301, which
+  also showed that a pasted answer's closing tag carries the paste id
+  (`</pasted_content id=…>`); the answer no longer ends with it.
+
 ## 0.10.2
 
 - If a Claude agent's input box stays unreadable for a minute, the inbox shows one
