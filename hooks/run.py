@@ -63,7 +63,7 @@ def _via_uv(event, payload):
 
 def main(argv):
     try:
-        if len(argv) != 1 or argv[0] not in ("session-start", "subagent-start"):
+        if len(argv) != 1 or argv[0] not in ("session-start", "subagent-start", "post-tool-batch", "stop"):
             return 0
         if tuple(sys.version_info[:2]) < MIN_PYTHON:
             _via_uv(argv[0], sys.stdin.read())
