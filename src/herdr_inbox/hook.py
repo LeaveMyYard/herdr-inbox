@@ -147,14 +147,16 @@ def _has_candidates(session_id: str) -> bool:
 
             # the same filter as Store.hook_candidates: rows at the miss cap or whose agent is
             # gone never open the writable store (review #26 L2)
-            # this session and those it continued (sessions.continued_in, Claude Code continuation)
+            from .store import family
+
+            # this session and those it continued, while their transcripts still say so
+            fam = family(db, session_id, lambda s: (db.execute(
+                "SELECT transcript_path FROM sessions WHERE session_id = ?", (s,)).fetchone() or [None])[0])
             return db.execute(
-                "WITH RECURSIVE fam(s) AS (SELECT ? UNION SELECT sessions.session_id FROM sessions JOIN fam"
-                " ON sessions.continued_in = fam.s)"
-                " SELECT 1 FROM questions WHERE session_id IN (SELECT s FROM fam) AND status = 'answered'"
+                f"SELECT 1 FROM questions WHERE session_id IN ({','.join('?' * len(fam))}) AND status = 'answered'"
                 " AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
                 " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1",
-                (session_id, MAX_HOOK_MISSES)).fetchone() is not None
+                (*fam, MAX_HOOK_MISSES)).fetchone() is not None
         finally:
             db.close()
     except sqlite3.Error:

@@ -406,6 +406,25 @@ def _schema_stamp(migration_source: str | None = None) -> int:
     return zlib.crc32(text.encode()) & 0x7FFFFFFF
 
 
+def family(db, session_id: str | None, known=lambda s: None, limit: int = 32) -> list[str]:
+    """``session_id`` plus its live predecessors (see Store.family); ``db`` may be read-only."""
+    if not session_id:
+        return []
+    from . import transcript  # stdlib only; local so the store has no import cycle
+
+    fam, frontier = [session_id], [session_id]
+    while frontier and len(fam) < limit:
+        current = frontier.pop()
+        for (prev,) in db.execute("SELECT session_id FROM sessions WHERE continued_in = ?", (current,)).fetchall():
+            if prev in fam:
+                continue
+            path = transcript.find(prev, known(prev))
+            if path is not None and transcript.continued_in(path) == current:
+                fam.append(prev)
+                frontier.append(prev)
+    return fam
+
+
 class Store:
     def __init__(self, path: Path | str | None = None, timeout: float = 15.0, maintenance: bool = True):
         """``maintenance=False`` (MCP tool calls): skip the reconcile pass -- the delivery
@@ -752,13 +771,13 @@ class Store:
                         " ON CONFLICT(session_id) DO UPDATE SET continued_in = excluded.continued_in", (old, new))
 
     def family(self, session_id: str | None) -> list[str]:
-        """``session_id`` and every recorded session whose conversation continued into it."""
-        if not session_id:
-            return []
-        rows = self.db.execute(
-            "WITH RECURSIVE fam(s) AS (SELECT ? UNION SELECT sessions.session_id FROM sessions JOIN fam"
-            " ON sessions.continued_in = fam.s) SELECT s FROM fam LIMIT 32", (session_id,)).fetchall()
-        return [r[0] for r in rows]
+        """``session_id`` and every session whose conversation continued into it.
+
+        The stored ``continued_in`` only nominates a predecessor; it counts while its
+        transcript STILL ends in ``continued-in`` to this session (review #41 final pass: a
+        resumed old session owns its rows again, never stale). The read is cached and
+        incremental (transcript.continued_in)."""
+        return family(self.db, session_id, self.session_transcript)
 
     def watch_live(self, session_id: str | None, within: timedelta) -> bool:
         """The session's asyncRewake watcher stamped ``watch_seen_at`` within ``within``.
