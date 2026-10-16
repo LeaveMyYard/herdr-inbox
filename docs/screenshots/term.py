@@ -35,6 +35,9 @@ ANSI = [
     (137, 180, 250), (245, 194, 231), (148, 226, 213), (166, 173, 200),
 ]
 THEME = TerminalTheme(BG, FG, ANSI[:8], ANSI[8:])
+# Emoji that rsvg-convert draws as clipped bitmap fragments: drawn with a font glyph instead,
+# padded to the two cells the terminal gives them. (❓ is drawn in red in ``svg`` below.)
+GLYPHS = {"⏳": "⧗ ", "⌛": "⧗ "}
 NAMES = ["black", "red", "green", "brown", "blue", "magenta", "cyan", "white"]
 
 
@@ -151,7 +154,7 @@ class Terminal:
                     fg, bg = _color(ch.fg, FG), _color(ch.bg, BG)
                     if ch.reverse:
                         fg, bg = bg, fg
-                    line.append(ch.data or " ", Style(color=fg, bgcolor=bg, bold=ch.bold,
+                    line.append(GLYPHS.get(ch.data, ch.data or " "), Style(color=fg, bgcolor=bg, bold=ch.bold,
                                                       italic=ch.italics, underline=ch.underscore))
                 lines.append(line)
         return lines
@@ -163,7 +166,11 @@ class Terminal:
             console.print(line, no_wrap=True, overflow="crop", end="\n")
         svg = console.export_svg(title=title, theme=THEME)
         # rsvg-convert draws emoji as monochrome outlines; give ❓ its emoji red
-        return svg.replace("❓", '<tspan style="fill:#e5484d;font-weight:bold">❓</tspan>')
+        svg = svg.replace("❓", '<tspan style="fill:#e5484d;font-weight:bold">❓</tspan>')
+        # symbols the capture font lacks: a monospace fallback keeps them inside their cell
+        svg = svg.replace("⧗", '<tspan style="font-family:Adwaita Mono">⧗</tspan>')
+        svg = svg.replace("⚠", '<tspan style="font-family:Noto Sans Symbols 2,Noto Sans CJK SC;font-size:80%">⚠</tspan>')
+        return svg
 
     def png(self, path: Path, title: str, width: int = 1840, lines: list[Text] | None = None,
             cols: int | None = None) -> None:
