@@ -46,6 +46,11 @@ NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the c
 # as a ⚠ entry (unseen, for check_answers) instead of typing it again and again -- a verifier
 # miss must never turn into the same answer being typed every tick.
 MAX_UNVERIFIED_ATTEMPTS = 2
+# 0.9.0 hook delivery (DESIGN.md "Hook delivery to busy Claude sessions")
+HOOK_VERIFY_SECONDS = 45.0  # a hook-sent answer must show in the transcript within this
+MAX_HOOK_MISSES = 2  # then the hook leaves that answer to typing
+HOOK_WAIT = "busy: delivered at the agent's next tool call or turn end"
+HOOK_UNSEEN = "hook: not seen in the conversation; trying again"
 MAX_HEADER = 12  # AskUserQuestion's chip limit
 MAX_OPTIONS = 9  # number keys 1-9
 MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
@@ -427,6 +432,15 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
             continue
         busy = status not in DELIVERABLE
+        if status == "working" and not force and store.hook_capable(agent["session_id"]):
+            # its own hook carries the answer at the next tool batch or turn end: never type
+            # into a working Claude that has it (answers its hook missed twice fall through)
+            hooked = [q for q in ours if store.hook_misses(q.id) < MAX_HOOK_MISSES]
+            for q in hooked:
+                store.set_pending(q.id, claims[q.id], HOOK_WAIT)
+            ours = [q for q in ours if q not in hooked]
+            if not ours:
+                continue
         if busy and not force:  # requeued after an old server's lost delivery: at rest only
             requeued = [q for q in ours if (q.delivery_error or "") == REQUEUED]
             for q in requeued:
@@ -513,6 +527,24 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             else:
                 for q in batch:
                     record(q, NOT_VERIFIED)
+
+
+def verify_hook_deliveries(store: Store) -> None:
+    """The worker, every tick: hook-sent answers found in their transcript become verified
+    (and seen); not found within HOOK_VERIFY_SECONDS, back to pending with a miss counted."""
+    for q, sent_at in store.hook_unverified():
+        path = transcript.find(q.session_id, store.session_transcript(q.session_id))
+        landed = transcript.landed_kinds(path, {q.id: (expected_segments(q), q.answered_at)}) if path else {}
+        if q.id in landed:
+            store.hook_verified(q.id, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}))
+            continue
+        try:
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(sent_at)).total_seconds()
+        except ValueError:
+            age = HOOK_VERIFY_SECONDS
+        if age >= HOOK_VERIFY_SECONDS:
+            # no transcript to look in: like typing without one, sent but never counted seen
+            store.hook_unseen(q.id, HOOK_UNSEEN if path is not None else None)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:
