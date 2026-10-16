@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+COMPOSER = Path(__file__).parent / "fixtures" / "composer"  # captured Claude Code input boxes (2.1.301)
+
 FAKE_HERDR = r'''#!{python}
 import json, os, sys
 args = sys.argv[1:]
@@ -79,7 +81,11 @@ elif cmd == "agent prompt":
             fh.write(json.dumps(record) + "\n")
     result = {{"type": "agent_prompted"}}
 elif cmd == "pane read":
-    print(os.environ.get("FAKE_HERDR_SCREEN", ""))  # the pane's visible text (plain)
+    if "ansi" in args:  # the composer check reads the ANSI screen: an empty Claude input box by default
+        ansi = os.environ.get("FAKE_HERDR_SCREEN_ANSI")
+        sys.stdout.write(ansi if ansi is not None else open({composer_empty!r}).read())
+    else:
+        print(os.environ.get("FAKE_HERDR_SCREEN", ""))  # the pane's visible text (plain)
     sys.exit(0)
 elif cmd == "agent list":
     result = {{"agents": json.loads(os.environ.get("FAKE_HERDR_AGENTS", "[]")), "type": "agent_list"}}
@@ -95,7 +101,7 @@ class FakeHerdr:
     def __init__(self, tmp_path: Path):
         self.bin = tmp_path / "herdr"
         self.log = tmp_path / "herdr-calls.jsonl"
-        self.bin.write_text(FAKE_HERDR.format(python=sys.executable))
+        self.bin.write_text(FAKE_HERDR.format(python=sys.executable, composer_empty=str(COMPOSER / "empty.ansi")))
         self.bin.chmod(0o755)
         self.log.touch()
 
@@ -168,7 +174,7 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
                 "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
-                "FAKE_HERDR_SCREEN", "FAKE_HERDR_AGENTS"):
+                "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS"):
         monkeypatch.delenv(var, raising=False)
     return fake
 

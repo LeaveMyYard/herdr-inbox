@@ -129,9 +129,31 @@ def header_ids(text: str) -> set[int]:
     return ids
 
 
-def contains(text: str, qids: list[int]) -> bool:
-    """Our message, naming every id in ``qids`` (see header_ids)."""
-    return set(qids) <= header_ids(text)
+def _tails(text: str):
+    """(is_start, text from there) for the record's start and for every later ``[inbox] ``.
+
+    A delivery typed onto unsent text in the input box lands AFTER that text, in one user
+    record (live 2026-10-16, Q124/Q125). A later start counts only with full evidence: the
+    whole typed message (``contains``) or the question's exact answer line (``landed_kinds``)
+    from there, never our header alone, so a mere mention never counts."""
+    text = _PASTE_WRAPPER.sub("", text, count=1)
+    yield True, text
+    i = text.find("[inbox] ", 1)
+    while i != -1:
+        yield False, text[i:]
+        i = text.find("[inbox] ", i + 1)
+
+
+def contains(text: str, qids: list[int], full: str | None = None) -> bool:
+    """Our message, naming every id in ``qids`` (see header_ids): at the record's start, or
+    later in it when the whole message ``full`` follows verbatim (whitespace folded)."""
+    for start, tail in _tails(text):
+        if start:
+            if set(qids) <= header_ids(tail):
+                return True
+        elif full and _squash(tail).startswith(_squash(full)) and set(qids) <= header_ids(tail):
+            return True
+    return False
 
 
 def landed_ids(path: Path, candidates: list[int]) -> set[int]:
@@ -195,20 +217,21 @@ def landed_kinds(path: Path, expected: dict[int, tuple[list[str], str | None]]) 
         if b"[inbox]" not in raw:
             continue
         for text, ts in _records(raw.decode("utf-8", errors="replace")):
-            stripped = _PASTE_WRAPPER.sub("", text, count=1)
-            named = header_ids(stripped)
-            stripped = _squash(stripped)
-            for qid, (segments, since) in expected.items():
-                if qid not in named or not _after(ts, since):
-                    continue
-                for i, seg in enumerate(map(_squash, segments)):
-                    if stripped.startswith(seg) or ("— " + seg) in stripped or (" · " + seg) in stripped:
-                        found.setdefault(qid, set()).add(i)
+            for _, tail in _tails(text):  # the record's start, and every later `[inbox] ` (see _tails)
+                named = header_ids(tail)
+                stripped = _squash(tail)
+                for qid, (segments, since) in expected.items():
+                    if qid not in named or not _after(ts, since):
+                        continue
+                    for i, seg in enumerate(map(_squash, segments)):
+                        if stripped.startswith(seg) or ("— " + seg) in stripped or (" · " + seg) in stripped:
+                            found.setdefault(qid, set()).add(i)
     return found
 
 
-def landed_since(path: Path, offset: int, qids: list[int]) -> bool:
-    """Whether a record appended after ``offset`` carries our message for ``qids``."""
+def landed_since(path: Path, offset: int, qids: list[int], text: str | None = None) -> bool:
+    """Whether a record appended after ``offset`` carries our message for ``qids`` (with
+    ``text``, the exact message typed, also when it follows other text: see _tails)."""
     try:
         with open(path, "rb") as fh:
             end = fh.seek(0, os.SEEK_END)
@@ -219,16 +242,17 @@ def landed_since(path: Path, offset: int, qids: list[int]) -> bool:
     for raw in data.split(b"\n"):
         if b"[inbox]" not in raw:
             continue
-        for text in _texts(raw.decode("utf-8", errors="replace")):
-            if contains(text, qids):
+        for record_text in _texts(raw.decode("utf-8", errors="replace")):
+            if contains(record_text, qids, text):
                 return True
     return False
 
 
-def wait_landed(path: Path, offset: int, qids: list[int], timeout: float, interval: float = 0.25) -> bool:
+def wait_landed(path: Path, offset: int, qids: list[int], timeout: float, interval: float = 0.25,
+                text: str | None = None) -> bool:
     deadline = time.monotonic() + timeout
     while True:
-        if landed_since(path, offset, qids):
+        if landed_since(path, offset, qids, text):
             return True
         if time.monotonic() >= deadline:
             return False
