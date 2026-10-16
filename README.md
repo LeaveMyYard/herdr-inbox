@@ -239,6 +239,22 @@ command = "leavemyyard.herdr-inbox.open"
 description = "question inbox"
 ```
 
+### Transcript cards (optional)
+
+`herdr-inbox-ui` is a separate plugin in the same marketplace that draws herdr-inbox in the
+Claude Code transcript: `ask_operator` as a card with the title, questions, options, `asked_by`
+and the filed Q ids; `alert_operator` as a card coloured by severity (info cyan, warning yellow,
+urgent red); `check_answers`, `list_my_questions` and the withdraw tools as one dim line (a folded run of
+inbox calls is unfolded when it asks or alerts, so the cards show); and an
+arriving `[inbox]` answer (single, batch or pasted) as a green block listing each Q id with its
+answer, plus a toast. ctrl+o shows the raw message. It changes only what is drawn, never what
+the model reads. It uses Claude Code's early-access mods API (2.1.301+; terminal and desktop
+draw it, other surfaces keep the plain rows), which is why it is not part of `herdr-inbox`:
+
+```sh
+claude plugin install herdr-inbox-ui@herdr-inbox
+```
+
 ## Configuration
 
 Settings live in `config.toml` in the plugin's config directory
@@ -413,6 +429,8 @@ design decisions: [docs/DESIGN.md](docs/DESIGN.md).
 ```sh
 uv sync
 uv run pytest
+claude plugin validate --strict plugins/herdr-inbox-ui
+claude plugin test plugins/herdr-inbox-ui   # the transcript-cards mod (terminal + desktop)
 ```
 
 Tests never touch a real herdr: they point `HERDR_BIN_PATH` at a fake that records its argv and

@@ -274,3 +274,12 @@ def test_m1b_the_session_reappearing_resumes_the_watch(store, monkeypatch, tpath
     monkeypatch.setenv("FAKE_HERDR_SESSION", "")
     clock = Clock(lambda n: n == 5 and monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A"))
     assert watch(tpath, clock) and store.get(qid).delivered_at
+
+
+def test_a_watcher_delivery_never_writes_hook_seen_at(store, monkeypatch, tpath):
+    """#30 final pass 2 NIT: a wake is not evidence that PostToolBatch/Stop fire."""
+    qid = pending_answer(store, monkeypatch)
+    assert watch(tpath)
+    assert store.get(qid).delivered_at
+    row = store.db.execute("SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone()
+    assert row is None or row[0] is None
