@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.3
+
+- **Fix: Claude Code session continuation.**
+  - Claude Code can continue a conversation under a new session id in the same process: the
+    old transcript ends with a `continued-in` record, and herdr may keep reporting the old id.
+  - The inbox now follows that record. New questions are filed under the live session, and
+    answers are typed and verified there; they are no longer refused as "conversation changed"
+    or checked against the dead transcript.
+  - Questions and alerts from the old id are moved to the new one.
+  - The old session's background watcher ends, and the new one's is no longer ended by
+    mistake.
+
 ## Unreleased
 
 - **herdr-inbox-ui 0.2.0: answers on every path, quieter, without `[inbox]`.** An answer is

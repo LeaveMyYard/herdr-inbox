@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     transcript_path TEXT,
     hook_delivery   TEXT,  -- written by 0.9.0 pre-release heads only; unused (columns are never dropped)
     hook_seen_at    TEXT,  -- the PostToolBatch/Stop delivery hooks fired (the WORKING gate)
-    watch_seen_at   TEXT   -- the asyncRewake watcher is waiting (the IDLE gate, with its lock)
+    watch_seen_at   TEXT,  -- the asyncRewake watcher is waiting (the IDLE gate, with its lock)
+    continued_in    TEXT   -- Claude Code continued this conversation in that session (0.10.3)
 );
 -- One-off migrations and other flags.
 CREATE TABLE IF NOT EXISTS meta (
@@ -238,7 +239,7 @@ TABLE_ADDED_COLUMNS = {
     "question_ext": EXT_ADDED_COLUMNS,
     "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
     "remote_outbox": {"sending_at": "TEXT"},
-    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT", "watch_seen_at": "TEXT"},
+    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT", "watch_seen_at": "TEXT", "continued_in": "TEXT"},
 }
 
 
@@ -733,6 +734,23 @@ class Store:
                 "INSERT INTO sessions (session_id, transcript_path) VALUES (?, ?)"
                 " ON CONFLICT(session_id) DO UPDATE SET transcript_path = excluded.transcript_path",
                 (session_id, transcript_path))
+
+    def continued_in(self, session_id: str | None) -> str | None:
+        if not session_id:
+            return None
+        row = self.db.execute("SELECT continued_in FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return row[0] if row else None
+
+    def adopt_continuation(self, old: str, new: str) -> None:
+        """Claude Code continued ``old``'s conversation in ``new``: its questions and alerts
+        belong to ``new`` now (ownership, verification transcript, hook and wake delivery)."""
+        if not old or not new or old == new:
+            return
+        with self.transaction():
+            self.db.execute("UPDATE questions SET session_id = ? WHERE session_id = ?", (new, old))
+            self.db.execute("UPDATE alerts SET session_id = ? WHERE session_id = ?", (new, old))
+            self.db.execute("INSERT INTO sessions (session_id, continued_in) VALUES (?, ?)"
+                            " ON CONFLICT(session_id) DO UPDATE SET continued_in = excluded.continued_in", (old, new))
 
     def watch_live(self, session_id: str | None, within: timedelta) -> bool:
         """The session's asyncRewake watcher stamped ``watch_seen_at`` within ``within``.

@@ -325,6 +325,43 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Claude Code session continuation (0.10.3)
+
+**Live, 2026-10-16** (pane "Ghostpaw frontend v2 rework"). Claude Code continued the
+conversation from session `a58e3f68…` into `06acc80f…` **in the same process**.
+- The old transcript ends with
+  `{"type":"continued-in","sessionId":"<old>","continuedInSessionId":"<new>"}`, followed only
+  by bookkeeping records (`last-prompt`, `cost-state`). Nothing in the new file points back.
+- herdr later reported the **old** id again, and so does the process env
+  (`CLAUDE_CODE_SESSION_ID`). Hooks get the new id in their payload.
+
+That broke four things:
+- New questions were filed under the old id, so delivery was verified against the dead transcript.
+- Answers to questions filed under the new id were refused as "conversation changed", because
+  herdr's id did not match.
+- The new session's rewake watcher ended at its first pane check.
+- The old session's watcher stayed alive (herdr's old id "matched"), kept stamping
+  `watch_seen_at`, and held idle typing back for old-id questions.
+
+**Fix: follow the record.** `transcript.follow(session)` reads the tail of a session's
+transcript. If its last `continued-in` is followed only by bookkeeping, it moves to the named
+session, repeatedly, without cycles. If the old session was resumed and used after the record,
+it is not followed.
+- `herdr.live_agent` returns the followed id as `session_id` (herdr's own is kept as
+  `reported_session_id`). Every comparison (delivery's conversation check, the watcher's pane
+  check, the idle gate) sees the live conversation.
+- `resolve_caller` files questions under the followed id.
+- Questions and alerts filed under the old id are **re-homed** to the new one
+  (`Store.adopt_continuation`, recorded in `sessions.continued_in`). Ownership, the
+  verification transcript and hook/wake delivery then all use the live session. This happens
+  in the worker's tick for anything still in play, and in `deliver_batch` when it meets such a
+  row.
+- The old session's watcher ends at its next pane check: the pane now resolves to the new
+  session.
+
+Transcript lookups are cached per projects directory and session, and the tail read is cached
+by file size, so following costs no extra glob per herdr lookup.
+
 ## Never type onto a draft; a delivery after other text still counts (0.10.1)
 
 **Live, 2026-10-16 (Q124/Q125, a pre-0.9 session, so the typing path).**
