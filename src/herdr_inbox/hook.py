@@ -88,14 +88,45 @@ def _hook_version() -> str:
 
 
 def _remember_transcript(payload: dict) -> None:
-    """Record where this session's transcript is (deliveries are verified against it), and
-    that it runs this version's delivery hooks (the worker then never types into it while
-    it works)."""
-    if payload.get("session_id"):
+    """Record where this session's transcript is: deliveries are verified against it. (Not
+    that it can take hook deliveries: only the delivery hook firing says so, see _touch.)"""
+    if payload.get("session_id") and payload.get("transcript_path"):
         from .store import Store
 
         with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
-            store.record_session(payload["session_id"], payload.get("transcript_path"), hook_delivery=_hook_version())
+            store.record_session(payload["session_id"], payload["transcript_path"], hook_delivery=_hook_version())
+
+
+LIVENESS_EVERY = 60  # seconds between the delivery hook's liveness writes per session
+
+
+def _touch(session_id: str) -> None:
+    """The delivery hook fired: stamp ``sessions.hook_seen_at``, at most once a minute (the
+    worker leaves a WORKING session to its hooks only while this is recent)."""
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    from .store import db_path
+
+    path = db_path()
+    if not path.exists():
+        return
+    stamp = datetime.now(timezone.utc)
+    cutoff = (stamp - timedelta(seconds=LIVENESS_EVERY)).isoformat(timespec="seconds")
+    try:
+        db = sqlite3.connect(str(path), timeout=PENDING_TIMEOUT)
+        try:
+            row = db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+            if row and row[0] and row[0] >= cutoff:
+                return  # fresh enough: no write
+            with db:
+                db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES (?, ?) ON CONFLICT(session_id)"
+                           " DO UPDATE SET hook_seen_at = excluded.hook_seen_at",
+                           (session_id, stamp.isoformat(timespec="seconds")))
+        finally:
+            db.close()
+    except sqlite3.Error:
+        pass  # locked or not migrated yet: the next firing tries again
 
 
 DELIVERY_EVENTS = {"post-tool-batch": "PostToolBatch", "stop": "Stop"}
@@ -113,9 +144,15 @@ def _has_candidates(session_id: str) -> bool:
     try:
         db = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
         try:
+            from .store import MAX_HOOK_MISSES  # stdlib-light: not .service
+
+            # the same filter as Store.hook_candidates: rows at the miss cap or whose agent is
+            # gone never open the writable store (review #26 L2)
             return db.execute(
                 "SELECT 1 FROM questions WHERE session_id = ? AND status = 'answered' AND delivered_at IS NULL"
-                " AND acknowledged_at IS NULL LIMIT 1", (session_id,)).fetchone() is not None
+                " AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
+                " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1",
+                (session_id, MAX_HOOK_MISSES)).fetchone() is not None
         finally:
             db.close()
     except sqlite3.Error:
@@ -131,6 +168,7 @@ def deliver(payload: dict) -> str | None:
     session = payload.get("session_id")
     if not session or payload.get("agent_id"):
         return None  # a subagent's or teammate's hook: the answer belongs to the session that asked
+    _touch(session)
     if not _has_candidates(session):
         return None
     from . import herdr, service, transcript

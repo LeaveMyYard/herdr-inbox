@@ -13,12 +13,15 @@
     it is typed as before.
   - Each answer is claimed (CAS) and recorded before the hook prints it, so the hook, typing
     and `check_answers` deliver it only once.
-- The delivery worker no longer types into a **working** Claude session that runs these
-  hooks. It waits for the hook instead: no busy grace and no busy typing. Idle and done
+- The delivery worker no longer types into a **working** Claude session whose delivery hook
+  fired in the last 10 minutes. It waits for the hook instead: no busy grace and no busy
+  typing. A session whose hooks stop firing (plugin updated or disabled mid-session) falls
+  back to 0.8's busy rules. Idle and done
   sessions, sessions started before this update, and other agents are typed into as before.
   "Send now" still types.
-- **Cost:** a session with no waiting answer pays one read-only query per model step. The
-  hook takes about 40 ms there, python start included.
+- **Cost:** a session with no waiting answer pays one read-only query per model step, plus
+  a liveness write at most once a minute. The hook takes about 40 ms there, python start
+  included.
 - **Restart Claude Code sessions** to pick up the new hooks. Sessions already running keep
   0.8 delivery.
 

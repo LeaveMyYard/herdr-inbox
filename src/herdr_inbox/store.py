@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS question_ext (
 CREATE TABLE IF NOT EXISTS sessions (
     session_id      TEXT PRIMARY KEY,
     transcript_path TEXT,
-    hook_delivery   TEXT
+    hook_delivery   TEXT,
+    hook_seen_at    TEXT
 );
 -- One-off migrations and other flags.
 CREATE TABLE IF NOT EXISTS meta (
@@ -236,7 +237,7 @@ TABLE_ADDED_COLUMNS = {
     "question_ext": EXT_ADDED_COLUMNS,
     "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
     "remote_outbox": {"sending_at": "TEXT"},
-    "sessions": {"hook_delivery": "TEXT"},
+    "sessions": {"hook_delivery": "TEXT", "hook_seen_at": "TEXT"},
 }
 
 
@@ -297,6 +298,7 @@ REQUEUED = "pending: requeued: an earlier delivery never reached the conversatio
 MAX_RESETS = 2
 # A delivery claim older than this belongs to a process that died mid-send.
 CLAIM_STALE = timedelta(seconds=60)
+MAX_HOOK_MISSES = 2  # 0.9.0: after this many unseen hook sends an answer is left to typing
 
 
 def normalize(text: str) -> str:
@@ -733,11 +735,14 @@ class Store:
                 " hook_delivery = COALESCE(excluded.hook_delivery, hook_delivery)",
                 (session_id, transcript_path, hook_delivery))
 
-    def hook_capable(self, session_id: str | None) -> bool:
+    def hook_live(self, session_id: str | None, within: timedelta) -> bool:
+        """Did this session's delivery hook fire within ``within``? Liveness, not capability
+        (review #26 M1): a session whose hooks stopped firing (plugin updated or disabled
+        mid-session, no PostToolBatch) falls back to the 0.8 busy rules."""
         if not session_id:
             return False
-        row = self.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
-        return bool(row and row[0])
+        row = self.db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return bool(row and row[0] and row[0] >= now(-within))
 
     # -- hook delivery (0.9.0; DESIGN.md "Hook delivery to busy Claude sessions") ----------
 
@@ -767,11 +772,12 @@ class Store:
                 (qid, qid, now()))
             return True
 
-    def hook_unverified(self) -> list[tuple[Question, str]]:
+    def hook_unverified(self, server: str) -> list[tuple[Question, str]]:
+        """Hook-sent, not yet verified rows of this herdr server (or of none recorded)."""
         rows = self.db.execute(
             f"SELECT v.*, e.hook_sent_at AS _hook_sent_at FROM {VIEW} v JOIN question_ext e ON e.id = v.id"
             " WHERE e.hook_sent_at IS NOT NULL AND e.verified_at IS NULL AND v.delivered_at IS NOT NULL"
-            " ORDER BY v.id").fetchall()
+            " AND COALESCE(e.herdr_server, ?) = ? ORDER BY v.id", (server, server)).fetchall()
         return [(Question.from_row(r), r["_hook_sent_at"]) for r in rows]
 
     def hook_verified(self, qid: int, acknowledge: bool) -> None:
@@ -781,16 +787,21 @@ class Store:
                                 (now(), qid))
             self.db.execute("UPDATE question_ext SET verified_at = ? WHERE id = ?", (now(), qid))
 
-    def hook_unseen(self, qid: int, reason: str | None) -> None:
+    def hook_unseen(self, qid: int, sent_at: str, reason: str | None) -> bool:
         """Not in the transcript in time: back to pending (``reason``), a miss counted; with
-        ``reason`` None (no transcript to look in), left sent-unverified for check_answers."""
+        ``reason`` None (no transcript to look in), left sent-unverified for check_answers.
+        Compare-and-set on the send that was judged (``sent_at``): a stale read never wipes
+        a newer send (review #26 L1)."""
         with self.transaction():
+            cur = self.db.execute("UPDATE question_ext SET hook_sent_at = NULL,"
+                                  " hook_misses = COALESCE(hook_misses, 0) + ? WHERE id = ? AND hook_sent_at = ?",
+                                  (1 if reason is not None else 0, qid, sent_at))
+            if cur.rowcount != 1:
+                return False
             if reason is not None:
                 self.db.execute("UPDATE questions SET delivered_at = NULL, delivery_error = ?"
                                 " WHERE id = ? AND acknowledged_at IS NULL", (f"{PENDING}{reason}", qid))
-            self.db.execute("UPDATE question_ext SET hook_sent_at = NULL,"
-                            " hook_misses = COALESCE(hook_misses, 0) + ? WHERE id = ?",
-                            (1 if reason is not None else 0, qid))
+            return True
 
     def session_transcript(self, session_id: str | None) -> str | None:
         if not session_id:

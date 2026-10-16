@@ -11,12 +11,12 @@ import logging
 import queue
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 from dataclasses import dataclass
 
 from . import herdr, proc, tabs, trace, transcript
-from .store import PENDING, REQUEUED, Question, Store, normalize
+from .store import MAX_HOOK_MISSES as st_MAX_HOOK_MISSES, PENDING, REQUEUED, Question, Store, normalize
 
 NO_AGENT = "no live agent in pane"
 CHANGED = "conversation changed in pane"
@@ -48,9 +48,10 @@ NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the c
 MAX_UNVERIFIED_ATTEMPTS = 2
 # 0.9.0 hook delivery (DESIGN.md "Hook delivery to busy Claude sessions")
 HOOK_VERIFY_SECONDS = 45.0  # a hook-sent answer must show in the transcript within this
-MAX_HOOK_MISSES = 2  # then the hook leaves that answer to typing
+MAX_HOOK_MISSES = st_MAX_HOOK_MISSES  # then the hook leaves that answer to typing
 HOOK_WAIT = "busy: delivered at the agent's next tool call or turn end"
 HOOK_UNSEEN = "hook: not seen in the conversation; trying again"
+HOOK_LIVE = timedelta(minutes=10)  # a working session counts as hook-delivered only if its hook fired this recently
 MAX_HEADER = 12  # AskUserQuestion's chip limit
 MAX_OPTIONS = 9  # number keys 1-9
 MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
@@ -432,7 +433,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
             continue
         busy = status not in DELIVERABLE
-        if status == "working" and not force and store.hook_capable(agent["session_id"]):
+        if status == "working" and not force and store.hook_live(agent["session_id"], HOOK_LIVE):
             # its own hook carries the answer at the next tool batch or turn end: never type
             # into a working Claude that has it (answers its hook missed twice fall through)
             hooked = [q for q in ours if store.hook_misses(q.id) < MAX_HOOK_MISSES]
@@ -532,7 +533,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
 def verify_hook_deliveries(store: Store) -> None:
     """The worker, every tick: hook-sent answers found in their transcript become verified
     (and seen); not found within HOOK_VERIFY_SECONDS, back to pending with a miss counted."""
-    for q, sent_at in store.hook_unverified():
+    for q, sent_at in store.hook_unverified(herdr.server_id()):
         path = transcript.find(q.session_id, store.session_transcript(q.session_id))
         landed = transcript.landed_kinds(path, {q.id: (expected_segments(q), q.answered_at)}) if path else {}
         if q.id in landed:
@@ -544,7 +545,7 @@ def verify_hook_deliveries(store: Store) -> None:
             age = HOOK_VERIFY_SECONDS
         if age >= HOOK_VERIFY_SECONDS:
             # no transcript to look in: like typing without one, sent but never counted seen
-            store.hook_unseen(q.id, HOOK_UNSEEN if path is not None else None)
+            store.hook_unseen(q.id, sent_at, HOOK_UNSEEN if path is not None else None)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:

@@ -120,16 +120,33 @@ def test_an_unseen_hook_delivery_goes_back_to_pending_then_to_typing(store, fake
     assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch") is None  # typing's turn now
 
 
-def test_session_start_marks_the_session_hook_capable(store, fake_herdr, tpath):
-    run_hook("session-start", {**payload(tpath), "source": "startup"})
-    assert store.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = 'sess-A'").fetchone()[0]
+def seen_at(store):
+    row = store.db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone()
+    return row[0] if row else None
 
 
-def test_the_worker_never_types_into_a_working_hook_capable_session(store, fake_herdr, monkeypatch, tpath):
+def test_only_the_delivery_hook_firing_marks_the_session_live_throttled(store, fake_herdr, tpath):
     run_hook("session-start", {**payload(tpath), "source": "startup"})
+    assert seen_at(store) is None  # SessionStart says nothing about the delivery hooks firing (#26 M1)
+    run_hook("post-tool-batch", payload(tpath))
+    first = seen_at(store)
+    assert first
+    store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'sess-A'", (st.now(-st.timedelta(seconds=30)),))
+    run_hook("post-tool-batch", payload(tpath))
+    assert seen_at(store) < first  # within the minute: no write
+    store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'sess-A'", (st.now(-st.timedelta(minutes=2)),))
+    run_hook("stop", payload(tpath))
+    assert seen_at(store) >= first
+
+
+def past_grace(store, qid):
+    store.db.execute("UPDATE question_ext SET pending_since = ? WHERE id = ?", (st.now(-st.timedelta(minutes=5)), qid))
+
+
+def test_the_worker_never_types_into_a_working_session_whose_hook_is_live(store, fake_herdr, monkeypatch, tpath):
+    run_hook("post-tool-batch", payload(tpath))  # the hook fired (nothing to deliver yet)
     qid = answered_busy(store, monkeypatch)
-    store.db.execute("UPDATE question_ext SET pending_since = ? WHERE id = ?",
-                     (st.now(-st.timedelta(minutes=5)), qid))  # long past the busy grace
+    past_grace(store, qid)
     monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
     worker.tick(store)
     assert not fake_herdr.calls_of("agent", "prompt")
@@ -137,6 +154,55 @@ def test_the_worker_never_types_into_a_working_hook_capable_session(store, fake_
     monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")  # at rest: typing, as before
     worker.tick(store)
     assert fake_herdr.calls_of("agent", "prompt")
+
+
+@pytest.mark.parametrize("fired", [False, True])
+def test_a_session_whose_hook_never_fires_or_went_quiet_gets_0_8_busy_typing(store, fake_herdr, monkeypatch, tpath, fired):
+    """#26 M1: started with 0.9 (SessionStart ran) but the delivery hook never fires (plugin
+    updated or disabled mid-session), or fired long ago: answers are not parked forever."""
+    run_hook("session-start", {**payload(tpath), "source": "startup"})
+    if fired:
+        run_hook("post-tool-batch", payload(tpath))
+        store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'sess-A'",
+                         (st.now(-service.HOOK_LIVE - st.timedelta(minutes=1)),))
+    qid = answered_busy(store, monkeypatch)
+    past_grace(store, qid)
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    worker.tick(store)
+    assert fake_herdr.calls_of("agent", "prompt")  # the 0.8 busy grace, then typing
+
+
+def test_a_stale_verifier_read_never_wipes_a_newer_send(store, fake_herdr, monkeypatch, tpath):
+    """#26 L1: compare-and-set on the hook_sent_at that was judged."""
+    qid = answered_busy(store, monkeypatch)
+    assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch")
+    (_, old_sent), = store.hook_unverified(service.herdr.server_id())
+    assert store.hook_unseen(qid, old_sent, service.HOOK_UNSEEN)  # first miss: re-pended
+    assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch")  # a fresh send
+    store.db.execute("UPDATE question_ext SET hook_sent_at = ? WHERE id = ?", (st.now(st.timedelta(seconds=1)), qid))
+    assert not store.hook_unseen(qid, old_sent, service.HOOK_UNSEEN)  # the stale judgement
+    q = store.get(qid)
+    assert q.delivered_at and store.hook_misses(qid) == 1
+
+
+def test_verification_is_scoped_to_the_workers_herdr_server(store, fake_herdr, monkeypatch, tpath):
+    qid = answered_busy(store, monkeypatch)
+    assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch")
+    store.db.execute("UPDATE question_ext SET herdr_server = '/other.sock' WHERE id = ?", (qid,))
+    assert store.hook_unverified(service.herdr.server_id()) == []
+
+
+def test_rows_at_the_miss_cap_never_open_the_writable_store(store, fake_herdr, monkeypatch, tpath):
+    """#26 L2: the fast path mirrors hook_candidates' filter."""
+    from herdr_inbox import hook
+
+    qid = answered_busy(store, monkeypatch)
+    store.db.execute("INSERT INTO question_ext (id, group_id, hook_misses) VALUES (?, ?, 2)"
+                     " ON CONFLICT(id) DO UPDATE SET hook_misses = 2", (qid, qid))
+    assert not hook._has_candidates("sess-A")
+    store.db.execute("UPDATE question_ext SET hook_misses = 0, agent_gone_at = ? WHERE id = ?", (st.now(), qid))
+    assert not hook._has_candidates("sess-A")
 
 
 def test_a_session_without_the_hook_keeps_the_busy_grace_typing(store, fake_herdr, monkeypatch):
@@ -160,9 +226,12 @@ def test_the_registered_hook_delivers_through_the_stdlib_launcher(store, fake_he
     assert out == {"hookEventName": name, "additionalContext": f"[inbox] Q{qid} answered — Merge it?: squash"}
 
 
-def test_a_session_without_answers_costs_one_read_only_query(store, fake_herdr, tpath):
+def test_a_session_without_answers_writes_only_the_minutely_liveness_stamp(store, fake_herdr, tpath):
     from .test_hook_launch import ROOT, run_hook as launch
 
     proc = launch("PostToolBatch", ROOT, tpath.parent / "data", payload=payload(tpath))
     assert proc.returncode == 0 and proc.stdout == ""
-    assert store.db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0  # nothing written
+    row = store.db.execute("SELECT transcript_path, hook_delivery, hook_seen_at FROM sessions").fetchall()
+    assert len(row) == 1 and row[0][0] is None and row[0][1] is None and row[0][2]
+    launch("PostToolBatch", ROOT, tpath.parent / "data", payload=payload(tpath))
+    assert store.db.execute("SELECT hook_seen_at FROM sessions").fetchone()[0] == row[0][2]  # throttled
