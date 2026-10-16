@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.4
+
+- **Fix: an answer whose agent's pane moved was lost to "agent gone".**
+  - Live: Q155, after `w6:p48` became `w6:p57`.
+  - When the asking pane has no agent or another conversation, the inbox now finds the one
+    pane that runs the asking conversation (continuations followed) and delivers there.
+  - Answers marked gone in the last day are re-checked the same way. If no pane, or more than
+    one, runs the conversation, nothing changes.
+
 ## 0.10.3
 
 - **Fix: Claude Code session continuation.**

@@ -55,7 +55,7 @@ elif cmd == "plugin list":
     ids = [p for p in os.environ.get("FAKE_HERDR_PLUGINS", "").split(",") if p]
     result = {{"plugins": [{{"plugin_id": p, "enabled": True, "name": p}} for p in ids]}}
 elif cmd == "agent get":
-    if os.environ.get("FAKE_HERDR_AGENT", "1") != "1":
+    if os.environ.get("FAKE_HERDR_AGENT", "1") != "1" or args[2] in os.environ.get("FAKE_HERDR_GONE_PANES", "").split(","):
         sys.stderr.write(json.dumps({{"error": {{"code": "agent_not_found", "message": "not found"}}}}))
         sys.exit(1)
     agent = {{"pane_id": args[2], "agent": os.environ.get("FAKE_HERDR_AGENT_KIND", "claude"),
@@ -176,7 +176,7 @@ def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
                 "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
-                "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS", "FAKE_HERDR_LAND_SESSION"):
+                "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS", "FAKE_HERDR_LAND_SESSION", "FAKE_HERDR_GONE_PANES"):
         monkeypatch.delenv(var, raising=False)
     return fake
 
