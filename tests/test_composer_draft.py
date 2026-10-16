@@ -142,3 +142,37 @@ def test_send_now_after_a_merged_landing_records_it_instead_of_typing_again(stor
     service.deliver_batch(store, [store.get(q.id) for q in qs], retry=True, force=True)
     assert not fake_herdr.calls_of("agent", "prompt")
     assert all(store.get(q.id).acknowledged_at for q in qs)
+
+
+def test_l1_a_draft_with_a_blank_first_line_is_a_draft(fake_herdr, monkeypatch):
+    """#37 L1 pin: Shift+Enter first, text on the next box line (the surviving mutant that
+    ignores lines after the ❯ line)."""
+    lines = screen("empty").split("\n")
+    i = next(k for k, line in enumerate(lines) if "❯" in line)
+    lines[i:i + 1] = ["❯ \r", "  second line of a draft\r"]
+    monkeypatch.setenv("FAKE_HERDR_SCREEN_ANSI", "\n".join(lines))
+    assert herdr.composer_state("w1:p1") == "draft"
+
+
+def test_l2_an_unreadable_input_box_says_why_once(store, fake_herdr, monkeypatch):
+    monkeypatch.setattr(service, "UNREADABLE_NOTIFY_AFTER", 0.0)
+    service._unreadable_since.clear()
+    service._unreadable_notified.clear()
+    qid = answered(store, monkeypatch, screen_name=None)  # unknown: not typed
+    for _ in range(3):
+        worker.tick(store)
+    notes = [c for c in fake_herdr.calls_of("notification", "show") if "cannot read the agent's input box" in c[2]]
+    assert len(notes) == 1 and f"Q{qid}" in notes[0][4]
+    assert not fake_herdr.calls_of("agent", "prompt")
+    monkeypatch.setenv("FAKE_HERDR_SCREEN_ANSI", screen("empty"))  # readable again: re-armed
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    worker.tick(store)
+    assert "w1:p1" not in service._unreadable_notified
+
+
+def test_l2_a_brief_unreadable_read_does_not_notify(store, fake_herdr, monkeypatch):
+    service._unreadable_since.clear()
+    service._unreadable_notified.clear()
+    answered(store, monkeypatch, screen_name=None)
+    worker.tick(store)
+    assert not [c for c in fake_herdr.calls_of("notification", "show") if "cannot read" in c[2]]

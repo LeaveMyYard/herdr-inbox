@@ -353,7 +353,18 @@ as in `───… node ─`. Its first line starts with `❯`.
   input box").
 
 This applies to Send now as well, which also raises a notification so the operator knows why.
-Other agents (Codex etc.) have no such box and are typed into as before. **The read→type
+Other agents (Codex etc.) are **not checked** and are typed into as before. The same draft
+hazard exists there, but their input boxes have not been captured, and an unrecognised box
+must not stall them (review #37 L3).
+
+**When the box stays unreadable**, for example after a Claude Code UI change, Claude panes stall
+on typing. Hooks still deliver for 0.9+ sessions. After 60 s of `unknown` for a pane, the
+worker raises **one** distinct notification, "<tab>: cannot read the agent's input box", so the
+cause is visible. It is re-armed once the box reads again (#37 L2).
+
+**Accepted residual (#37 L4):** a window remains between the read and the keystrokes. Hitting
+it takes a second attached herdr client typing into that pane; the popup paths hold the
+keyboard, and the worker re-checks focus just before typing. **The read→type
 race:** the operator can start typing between the read and the keystrokes. Then our message
 is again merged into theirs. Fix 2 below matches that merged record, so it is counted once
 and never typed a second time. Fixtures are captured
