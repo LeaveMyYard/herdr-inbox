@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
         rp.add_argument("machine", help="label or id from `herdr machine list`")
         rp.add_argument("--ref", help="git branch/tag to install (default: the default branch)")
     p = sub.add_parser("hook", help="Claude Code hook entry point")
-    p.add_argument("event", choices=["session-start", "subagent-start", "post-tool-batch", "stop"])
+    p.add_argument("event", choices=["session-start", "subagent-start", "post-tool-batch", "stop", "rewake-watch"])
     args = parser.parse_args(argv)
 
     if args.cmd == "hook":

@@ -235,3 +235,26 @@ def test_a_session_without_answers_writes_only_the_minutely_liveness_stamp(store
     assert len(row) == 1 and row[0][0] is None and row[0][1] is None and row[0][2]
     launch("PostToolBatch", ROOT, tpath.parent / "data", payload=payload(tpath))
     assert store.db.execute("SELECT hook_seen_at FROM sessions").fetchone()[0] == row[0][2]  # throttled
+
+
+def test_a_fresh_liveness_stamp_is_checked_read_only(store, fake_herdr, monkeypatch, tpath):
+    """#26 final-pass NIT: the common path (stamp under a minute old) opens no writable
+    connection."""
+    import sqlite3
+
+    from herdr_inbox import hook
+
+    hook._touch("sess-A")  # stale/missing: one write
+    opened = []
+    real = sqlite3.connect
+    monkeypatch.setattr(sqlite3, "connect", lambda db, *a, **k: opened.append(str(db)) or real(db, *a, **k))
+    hook._touch("sess-A")
+    assert opened and all("mode=ro" in d for d in opened)
+
+
+def test_hook_delivery_column_is_no_longer_written(store, fake_herdr, monkeypatch, tpath):
+    run_hook("session-start", {**payload(tpath), "source": "startup"})
+    qid = answered_busy(store, monkeypatch)
+    assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch")
+    assert store.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = 'sess-A'").fetchone()[0] is None
+    assert store.get(qid).delivered_at
