@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.2
+
+- If a Claude agent's input box stays unreadable for a minute, the inbox shows one
+  notification saying so ("cannot read the agent's input box"), instead of only the generic
+  "not delivered" after 5 minutes. A Claude Code UI change would cause this.
+- A draft that starts with an empty line (Shift+Enter) is covered by a test.
+- DESIGN: other agents' input boxes are not checked.
+
 ## 0.10.1
 
 - **Fix: an answer could be typed onto your unsent text in a Claude agent's input box,
