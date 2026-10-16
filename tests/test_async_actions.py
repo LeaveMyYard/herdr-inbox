@@ -120,10 +120,9 @@ async def test_go_to_agent_focuses_off_the_ui_thread(store, fake_herdr, monkeypa
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("g")
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        assert not app.is_running
+        await fake_herdr.went_to_agent(app)
     assert threads and threads[0] != threading.main_thread().name
+    assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p1"]]
 
 
 def test_spawn_delivery_runs_inbox_deliver_detached(fake_herdr, monkeypatch):
