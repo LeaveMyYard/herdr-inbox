@@ -127,7 +127,7 @@ async def test_chat_about_this_and_escape(store, fake_herdr):
         await pilot.press("n", *"dq", "escape")  # Esc cancels the note box only
         assert app.is_running and view(app).notes == {}
         await pilot.press("5", "enter")  # Chat about this
-        await pilot.pause()
+        await fake_herdr.went_to_agent(app)
     assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p1"]]
     assert store.get(1).status == "open" and prompts(fake_herdr) == []
     app = InboxApp(store)

@@ -108,6 +108,38 @@ class FakeHerdr:
     def reset(self) -> None:
         self.log.write_text("")
 
+    def focused(self) -> list[list[str]]:
+        return self.calls_of("agent", "focus") or self.calls_of("pane", "focus")
+
+    async def went_to_agent(self, app, timeout: float = 10.0) -> None:
+        """Wait, inside ``app.run_test()``, until the popup's go-to-agent finished: herdr got the
+        focus call and the popup exited (``InboxApp._focused``). The focus runs in a worker thread
+        (#19), so a fixed ``pilot.pause()`` races it on slow runners (#28, #31), and
+        ``workers.wait_for_complete()`` raises ``WorkerCancelled`` once that exit cancels the
+        worker it ran in. Waits for the effect itself, with a deadline."""
+        import asyncio
+        import time
+
+        deadline = time.monotonic() + timeout
+        while not (self.focused() and not app.is_running):
+            assert time.monotonic() < deadline, (
+                f"no go-to-agent within {timeout}s: focus calls {self.focused()}, popup running={app.is_running}")
+            await asyncio.sleep(0.01)
+
+    async def focus_settled(self, app, timeout: float = 10.0) -> None:
+        """Wait until no go-to-agent worker is pending or running (or the popup exited): for a
+        sequence that may or may not go to the agent. See went_to_agent."""
+        import asyncio
+        import time
+
+        from textual.worker import WorkerState
+
+        deadline = time.monotonic() + timeout
+        while app.is_running and any(w.group == "focus" and w.state in (WorkerState.PENDING, WorkerState.RUNNING)
+                                     for w in app.workers):
+            assert time.monotonic() < deadline, f"a go-to-agent worker still running after {timeout}s"
+            await asyncio.sleep(0.01)
+
 
 @pytest.fixture
 def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
