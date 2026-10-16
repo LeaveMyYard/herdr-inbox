@@ -9,7 +9,9 @@ starts a turn (probed on 2.1.301: an idle session answered 2 s after the exit). 
   database read-only (``WATCH_POLL``);
 - only while herdr reports the pane's agent ``idle``/``done`` with this very session (a
   working session gets it from the PostToolBatch/Stop hooks; a blocked one must not be
-  disturbed; a pane holding another conversation ends the watch);
+  disturbed; a pane holding another conversation ends the watch, checked every
+  PANE_CHECK_EVERY even with nothing pending; a pane herdr names no session for is never
+  woken, and ends the watch after UNKNOWN_SESSION_END);
 - then it claims the rows (CAS), checks the transcript for a late landing, records them
   hook-sent (verified later by the worker, as for the PostToolBatch hook) and returns the
   ``[inbox] …`` text, which the launcher prints with exit 2.
@@ -29,7 +31,9 @@ import time
 import uuid
 from pathlib import Path
 
-WATCH_POLL = 1.0
+WATCH_POLL = 2.0  # database look (read-only); the wake follows within one poll
+PANE_CHECK_EVERY = 45.0  # herdr look even with nothing pending: a /clear or /resume ends the watch (#30 M1)
+UNKNOWN_SESSION_END = 180.0  # herdr names no session for the pane this long: the watch ends (#30 M1b)
 WATCH_MAX_SECONDS = 12 * 3600.0 - 300  # under the hooks.json timeout (43200 s), which Claude Code enforces
 LOCK_WAIT = 5.0  # for the superseded watcher to let go
 WAKE_EXIT = 3  # run.py's private "wake" code; the hooks.json wrapper maps it (and only it) to 2
@@ -87,12 +91,18 @@ def _still_owner(session_id: str, token: str) -> bool:
 
 
 def _ready(pane: str, session_id: str) -> str:
-    """'go' (idle/done, this session), 'wait' (working, blocked, unknown), or 'end'."""
+    """'go' (idle/done, this very session), 'wait' (working, blocked, unknown status),
+    'unknown' (herdr names no session for the pane: never a wake, #30 M1b), or 'end' (agent
+    gone, or the pane holds another conversation now)."""
     from . import herdr
 
     agent = herdr.live_agent(pane)
-    if agent is None or (agent.get("session_id") and agent["session_id"] != session_id):
-        return "end"  # agent gone, or the pane holds another conversation now
+    if agent is None:
+        return "end"
+    if not agent.get("session_id"):
+        return "unknown"
+    if agent["session_id"] != session_id:
+        return "end"
     return "go" if agent.get("status") in ("idle", "done") else "wait"
 
 
@@ -118,18 +128,27 @@ def run(payload: dict, clock=time.monotonic, sleep=time.sleep) -> str | None:
                     return None
                 sleep(0.1)
         end = clock() + WATCH_MAX_SECONDS
+        last_check, unknown_since = clock(), None
         while clock() < end:
             if not _still_owner(session, token) or not proc.alive(owner):
                 return None
-            hook._touch(session)  # alive and watching: keeps the session's hook live (at most a write a minute)
-            if hook._has_candidates(session):
+            pending = hook._has_candidates(session)
+            if pending or clock() - last_check >= PANE_CHECK_EVERY:
+                last_check = clock()
                 state = _ready(pane, session)
                 if state == "end":
-                    return None
-                if state == "go":
+                    return None  # also with nothing pending: a /clear or /resume left this watch behind
+                if state == "unknown":
+                    unknown_since = unknown_since if unknown_since is not None else clock()
+                    if clock() - unknown_since >= UNKNOWN_SESSION_END:
+                        return None
+                else:
+                    unknown_since = None
+                if state == "go" and pending:
                     text = hook.deliver(payload)
                     if text:
                         return text
+            hook._touch(session)  # alive and watching this session: its hook stays live (a write a minute at most)
             sleep(WATCH_POLL)
         return None
     finally:
