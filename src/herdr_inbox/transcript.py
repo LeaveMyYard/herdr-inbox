@@ -65,12 +65,20 @@ def _records(line: str):
         yield text, ts
 
 
+# 0.10.0: an asyncRewake hook's output wakes the session as a task notification whose text
+# carries it after Claude Code's own label (see rewake.py)
+_REWAKE = re.compile(r'hook blocking error from command "[^"\n]*": (.*?)\s*</system-reminder>', re.S)
+
+
 def _record_texts(record: dict):
     kind = record.get("type")
     if kind == "user":
         content = (record.get("message") or {}).get("content")
         if isinstance(content, str):
             yield content
+            if "<task-notification>" in content:
+                for m in _REWAKE.finditer(content):
+                    yield m.group(1)
         elif isinstance(content, list):  # a list of blocks: only its text blocks are the prompt
             text = "\n".join(b.get("text", "") for b in content
                              if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str))

@@ -222,6 +222,18 @@ def run(event: str) -> int:
                 context = SESSION_RULES
         elif event == "subagent-start":
             name, context = "SubagentStart", SUBAGENT_RULES
+        elif event == "rewake-watch":  # asyncRewake: stdout + the launcher's wake exit
+            from . import rewake
+
+            text = rewake.run(payload)
+            if not text:
+                return 0
+            try:
+                sys.stdout.write(text + "\n")
+                sys.stdout.flush()
+            except BaseException:  # noqa: BLE001
+                return 0
+            return rewake.WAKE_EXIT
         elif event in DELIVERY_EVENTS:
             name = DELIVERY_EVENTS[event]
             context = deliver(payload)
