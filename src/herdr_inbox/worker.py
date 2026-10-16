@@ -199,6 +199,10 @@ def tick(store: Store) -> int:
     global watching
     store.reconcile()
     try:
+        service.verify_hook_deliveries(store)  # 0.9.0: answers handed over as hook context
+    except Exception:  # noqa: BLE001
+        log.warning("hook delivery verification failed", exc_info=True)
+    try:
         from . import alerts
 
         watching = alerts.scan_blocked(store)  # agents stuck at an approval/question prompt (never typed into)

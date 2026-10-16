@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS question_ext (
 -- is verified by finding the typed answer in it.
 CREATE TABLE IF NOT EXISTS sessions (
     session_id      TEXT PRIMARY KEY,
-    transcript_path TEXT
+    transcript_path TEXT,
+    hook_delivery   TEXT
 );
 -- One-off migrations and other flags.
 CREATE TABLE IF NOT EXISTS meta (
@@ -224,7 +225,8 @@ CREATE VIEW IF NOT EXISTS {VIEW} AS
     LEFT JOIN question_groups g ON g.group_id = COALESCE(e.group_id, q.id);
 """
 EXT_ADDED_COLUMNS = {"options_json": "TEXT", "hidden_at": "TEXT", "verified_at": "TEXT", "reset_count": "INTEGER", "pending_since": "TEXT", "busy_attempts": "INTEGER", "notified_at": "TEXT", "herdr_server": "TEXT",
-                     "agent_gone_at": "TEXT", "legacy_misses": "INTEGER", "legacy_checked_at": "TEXT"}  # question_ext is ours alone; 0.1.x never reads it
+                     "agent_gone_at": "TEXT", "legacy_misses": "INTEGER", "legacy_checked_at": "TEXT",
+                     "hook_sent_at": "TEXT", "hook_misses": "INTEGER"}  # question_ext is ours alone; 0.1.x never reads it
 
 # Columns added to a table after it first shipped, per table: Store._migrate adds whichever an
 # existing database lacks (tests/test_schema_migrations.py fails if a CREATE TABLE gains a
@@ -234,6 +236,7 @@ TABLE_ADDED_COLUMNS = {
     "question_ext": EXT_ADDED_COLUMNS,
     "remote_questions": {"issue_notified_at": "TEXT", "cleared_at": "TEXT"},
     "remote_outbox": {"sending_at": "TEXT"},
+    "sessions": {"hook_delivery": "TEXT"},
 }
 
 
@@ -719,10 +722,75 @@ class Store:
         row = self.db.execute("SELECT pending_since FROM question_ext WHERE id = ?", (qid,)).fetchone()
         return row[0] if row else None
 
-    def record_session(self, session_id: str, transcript_path: str | None) -> None:
-        if session_id and transcript_path:
-            self.db.execute("INSERT OR REPLACE INTO sessions (session_id, transcript_path) VALUES (?, ?)",
-                            (session_id, transcript_path))
+    def record_session(self, session_id: str, transcript_path: str | None, hook_delivery: str | None = None) -> None:
+        """Where the session's transcript is; with ``hook_delivery`` (the plugin version), that
+        the session runs the inbox's delivery hooks (0.9.0+)."""
+        if session_id and (transcript_path or hook_delivery):
+            self.db.execute(
+                "INSERT INTO sessions (session_id, transcript_path, hook_delivery) VALUES (?, ?, ?)"
+                " ON CONFLICT(session_id) DO UPDATE SET"
+                " transcript_path = COALESCE(excluded.transcript_path, transcript_path),"
+                " hook_delivery = COALESCE(excluded.hook_delivery, hook_delivery)",
+                (session_id, transcript_path, hook_delivery))
+
+    def hook_capable(self, session_id: str | None) -> bool:
+        if not session_id:
+            return False
+        row = self.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        return bool(row and row[0])
+
+    # -- hook delivery (0.9.0; DESIGN.md "Hook delivery to busy Claude sessions") ----------
+
+    def hook_misses(self, qid: int) -> int:
+        row = self.db.execute("SELECT hook_misses FROM question_ext WHERE id = ?", (qid,)).fetchone()
+        return (row[0] or 0) if row else 0
+
+    def hook_candidates(self, session_id: str, max_misses: int) -> list[Question]:
+        """This session's answers not yet delivered or seen, that the hook may still carry."""
+        rows = self.db.execute(
+            f"SELECT * FROM {VIEW} WHERE session_id = ? AND status = 'answered' AND delivered_at IS NULL"
+            " AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
+            " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) ORDER BY id",
+            (session_id, max_misses)).fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def record_hook_delivery(self, qid: int, claim: str) -> bool:
+        """Under our claim: handed to Claude Code as hook context (sent, not yet seen)."""
+        with self.transaction():
+            cur = self.db.execute("UPDATE questions SET delivered_at = ?, delivery_error = NULL"
+                                  " WHERE id = ? AND delivery_error = ?", (now(), qid, claim))
+            if cur.rowcount != 1:
+                return False
+            self.db.execute(
+                "INSERT INTO question_ext (id, group_id, hook_sent_at) VALUES (?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET hook_sent_at = excluded.hook_sent_at, pending_since = NULL",
+                (qid, qid, now()))
+            return True
+
+    def hook_unverified(self) -> list[tuple[Question, str]]:
+        rows = self.db.execute(
+            f"SELECT v.*, e.hook_sent_at AS _hook_sent_at FROM {VIEW} v JOIN question_ext e ON e.id = v.id"
+            " WHERE e.hook_sent_at IS NOT NULL AND e.verified_at IS NULL AND v.delivered_at IS NOT NULL"
+            " ORDER BY v.id").fetchall()
+        return [(Question.from_row(r), r["_hook_sent_at"]) for r in rows]
+
+    def hook_verified(self, qid: int, acknowledge: bool) -> None:
+        with self.transaction():
+            if acknowledge:
+                self.db.execute("UPDATE questions SET acknowledged_at = COALESCE(acknowledged_at, ?) WHERE id = ?",
+                                (now(), qid))
+            self.db.execute("UPDATE question_ext SET verified_at = ? WHERE id = ?", (now(), qid))
+
+    def hook_unseen(self, qid: int, reason: str | None) -> None:
+        """Not in the transcript in time: back to pending (``reason``), a miss counted; with
+        ``reason`` None (no transcript to look in), left sent-unverified for check_answers."""
+        with self.transaction():
+            if reason is not None:
+                self.db.execute("UPDATE questions SET delivered_at = NULL, delivery_error = ?"
+                                " WHERE id = ? AND acknowledged_at IS NULL", (f"{PENDING}{reason}", qid))
+            self.db.execute("UPDATE question_ext SET hook_sent_at = NULL,"
+                            " hook_misses = COALESCE(hook_misses, 0) + ? WHERE id = ?",
+                            (1 if reason is not None else 0, qid))
 
     def session_transcript(self, session_id: str | None) -> str | None:
         if not session_id:
