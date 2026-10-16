@@ -20,7 +20,9 @@ every agent's open questions in one popup, every answer delivered back to the pa
 
 <br><br>
 
-<img src="docs/screenshots/hero.png" alt="herdr with a Claude Code agent that has just filed demo questions; the inbox popup is open over it on a question with described options" width="920">
+<a href="docs/media/herdr-demo.mp4"><img src="docs/screenshots/herdr/answering.gif" alt="Answering a group in herdr: open the inbox, pick SQLite, tick redis and CDN, submit; the tab's ❓ marker goes and the answer appears in the agent's conversation" width="920"></a>
+
+<sub>Click for the 36-second demo with <a href="https://github.com/LeaveMyYard/herdr-panorama">herdr-panorama</a> (MP4).</sub>
 
 </div>
 
@@ -54,8 +56,33 @@ and `sync-tokens` actions, startup hook), listed on the
 [herdr plugin marketplace](https://herdr.dev/plugins/). You install both.
 
 <div align="center">
-<img src="docs/screenshots/herdr/answering.gif" alt="Answering a group: open the inbox, pick SQLite, tick redis and CDN, submit; the tab's ❓ marker goes and the answer appears in the agent's conversation" width="920">
+<img src="docs/screenshots/hero.png" alt="herdr with a Claude Code agent that has just filed demo questions; the inbox popup is open over it on a question with described options" width="920">
 </div>
+
+## Works great with herdr-panorama
+
+Running many Claude Code agents at once? [herdr-panorama](https://github.com/LeaveMyYard/herdr-panorama)
+shows them all on one live screen: every orchestrator, the threads it drives and the subagents it
+spawned. The two plugins know about each other. An agent that asks through the inbox gets a `?N` on
+its panorama card, `a` on that card opens the inbox right on its question, and your answer goes
+back to the agent, which carries on.
+
+<div align="center">
+<a href="docs/media/herdr-demo.mp4"><img src="docs/media/herdr-demo.gif" alt="Four demo agents in herdr-panorama; the Release notes agent asks a question, its card and tab get a ❓ mark, the operator presses a, answers in the inbox popup, and the agent's pane shows the answer and the agent continuing" width="920"></a>
+</div>
+
+```sh
+herdr plugin install LeaveMyYard/herdr-panorama   # then bind prefix+space to leavemyyard.herdr-panorama.open
+```
+
+## Requirements
+
+- **herdr ≥ 0.9.0** on Linux or macOS ([herdr.dev](https://herdr.dev)).
+- **Claude Code** with plugin support. Hook delivery and idle wake-up were probed on 2.1.301;
+  sessions whose hooks do not fire get their answers typed instead. The optional
+  `herdr-inbox-ui` cards need 2.1.301+.
+- **[uv](https://docs.astral.sh/uv/)** on `PATH` for both herdr and Claude Code (it brings its
+  own Python 3.11+); the hooks use the system `python3` (3.11+, else uv).
 
 ## Answering
 
@@ -198,8 +225,7 @@ the previous file is kept as `config.toml.inbox-bak`.
 
 ## Install
 
-**Requirements:** herdr ≥ 0.9.0 (Linux or macOS); Claude Code with plugin support;
-[`uv`](https://docs.astral.sh/uv/) on `PATH` for both herdr and Claude Code.
+See [Requirements](#requirements) first.
 
 **Claude Code:**
 
@@ -405,6 +431,30 @@ questions to a shared SQLite database. The popup reads it, and answering calls
 `herdr agent prompt <pane>`. Markers use `herdr tab rename` and `herdr pane report-metadata`. A
 SessionStart hook injects a short usage block into each session. Details, data model and
 design decisions: [docs/DESIGN.md](docs/DESIGN.md).
+
+## FAQ and troubleshooting
+
+**`prefix+i` does nothing.** The key is yours to bind (see [Install](#install)); after editing
+`config.toml` run `herdr server reload-config`. `herdr plugin list` should show
+`leavemyyard.herdr-inbox` enabled, and `herdr plugin log` shows its action and startup logs,
+including a missing `uv` on herdr's `PATH`.
+
+**My agents still ask in chat.** Restart the Claude Code sessions (or `/reload-plugins`) after
+installing: the MCP server and the session hook load at session start. Outside herdr, or in a
+`claude` nested inside an agent's pane, the tool tells the agent to ask in chat on purpose.
+
+**An answer did not arrive.** The popup shows it as a `⚠ Q12 not delivered` row with
+**Retry delivery**; `inbox list --all` from a checkout shows every question's state. The agent
+can always fetch its answers itself with `check_answers`.
+
+**Tabs still show `❓N` after I uninstalled.** Run the `sync-tokens` step from
+[Uninstall](#uninstall) before removing the plugin, or rename the tabs back by hand.
+
+**Does anything leave my machine?** No. Questions and answers live in a local SQLite database
+(`~/.local/state/herdr-inbox/inbox.db`); the plugin talks only to your herdr session and, for
+[remote machines](#remote-machines), over your own SSH.
+
+**Codex, pi or other agents?** Not yet: the MCP tool and the hooks target Claude Code.
 
 ## Limitations and known issues
 

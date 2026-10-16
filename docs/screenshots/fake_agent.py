@@ -114,10 +114,14 @@ def main() -> None:
     print(f"{GREY}>{RESET} {task}\n")
     for s in steps:
         step(*s)
-    print(f"{ORANGE}✻{RESET} {ORANGE}{busy}{RESET} {GREY}(esc to interrupt){RESET}\n")
+    idle = os.environ.get("DEMO_STATE") == "idle"  # done with everything that does not need the answers
+    if idle:
+        print(f"{DOT} Everything that doesn't depend on the open questions is done.\n")
+    else:
+        print(f"{ORANGE}✻{RESET} {ORANGE}{busy}{RESET} {GREY}(esc to interrupt){RESET}\n")
     prompt_box()
     sys.stdout.flush()
-    report("working")
+    report("idle" if idle else "working")
     # read what the inbox types (bracketed paste + Enter), without the tty echoing it
     fd = sys.stdin.fileno()
     attrs = termios.tcgetattr(fd)
