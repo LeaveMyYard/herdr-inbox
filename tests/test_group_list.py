@@ -83,7 +83,7 @@ async def test_g_from_the_list_goes_to_the_groups_agent(store, fake_herdr):
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("down", "g")
-        await pilot.pause()
+        await fake_herdr.went_to_agent(app)
     assert fake_herdr.calls_of("agent", "focus") == [["agent", "focus", "w1:p2"]]
 
 
