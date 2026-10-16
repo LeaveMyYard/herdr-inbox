@@ -339,8 +339,12 @@ among herdr's agents (`agent list`). Continuations are followed on both sides.
   "moved: the asking agent is now in pane …", and the next pass delivers it.
 - **None, or more than one:** never a guess. The old outcome stands.
 - **Already marked gone:** the worker re-checks answers marked "agent gone" within the last
-  day, still unseen, of its own herdr server, and moves them the same way (one `agent list`
-  per tick, only while such answers exist).
+  day, still unseen, of its own herdr server, and moves them the same way. It looks at each
+  answer at most every `REVIVE_EVERY` (2 min), and calls `agent list` only when one is due.
+  - It never revives an answer the operator **hid** (they dealt with it) or dismissed, nor one
+    being sent right now (a `sending:` claim, e.g. Send now) (review #42).
+- A moved question takes the new tab's id **and label**, so the popup and notifications name
+  the tab the agent is in now.
 
 ## Claude Code session continuation (0.10.3)
 

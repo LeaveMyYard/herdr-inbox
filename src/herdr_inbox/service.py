@@ -601,6 +601,16 @@ def _watched(store: Store, session_id: str | None) -> bool:
 
 
 MOVED = "moved: the asking agent is now in pane"
+REVIVE_EVERY = 120.0  # per gone answer: look for its conversation in another pane at most this often
+_revive_checked: dict[int, float] = {}
+
+
+def _tab_name(tab_id: str | None) -> str | None:
+    """The tab's label without the inbox's own ❓ prefix (for a moved question's tab_label)."""
+    if not tab_id:
+        return None
+    label = herdr.tab_label(tab_id)
+    return tabs.base_label(label, {tabs.DEFAULT_PREFIX}) if label else None
 
 
 def session_pane(store: Store, session_id: str | None, agents: list | None = None) -> tuple[str, str | None] | None:
@@ -629,7 +639,8 @@ def _relocate(store: Store, items: list[Question], pane: str, claims: dict) -> l
             res, _ = herdr.call("agent", "list")
             agents = (res or {}).get("agents") or []
         loc = session_pane(store, q.session_id, agents)
-        if loc and loc[0] != pane and store.move_to_pane(q.id, loc[0], loc[1], f"{MOVED} {loc[0]}", claims[q.id]):
+        if loc and loc[0] != pane and store.move_to_pane(q.id, loc[0], loc[1], f"{MOVED} {loc[0]}", claims[q.id],
+                                                         tab_label=_tab_name(loc[1])):
             continue
         rest.append(q)
     return rest
@@ -666,15 +677,19 @@ def landed_across(store: Store, qs: list[Question], extra: list | None = None) -
 def revive_moved(store: Store) -> None:
     """The worker: answers marked 'agent gone' in the last day whose conversation turns up in
     another pane of this herdr server are moved there and delivered after all."""
-    rows = [q for q in store.gone_recent(timedelta(days=1)) if store.server_of(q.id) in (None, herdr.server_id())]
+    t = time.monotonic()
+    rows = [q for q in store.gone_recent(timedelta(days=1)) if store.server_of(q.id) in (None, herdr.server_id())
+            and t - _revive_checked.get(q.id, -REVIVE_EVERY) >= REVIVE_EVERY]  # backed off per answer
     if not rows:
         return
+    for q in rows:
+        _revive_checked[q.id] = t
     res, _ = herdr.call("agent", "list")
     agents = (res or {}).get("agents") or []
     for q in rows:
         loc = session_pane(store, q.session_id, agents)
         if loc and loc[0] != q.pane_id:
-            store.move_to_pane(q.id, loc[0], loc[1], f"{MOVED} {loc[0]}")
+            store.move_to_pane(q.id, loc[0], loc[1], f"{MOVED} {loc[0]}", tab_label=_tab_name(loc[1]))
 
 
 def adopt_continuations(store: Store) -> None:
