@@ -325,6 +325,90 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Hook delivery to busy Claude sessions (0.9.0)
+
+Typing into a pane is behind most delivery failures: a busy agent queues the text or loses it
+to a focused panel or dialog, and the transcript check then has to catch the miss. Claude
+Code can take text into a running conversation **without keystrokes**: a hook's
+`additionalContext`. So delivery becomes per agent. Claude Code sessions running this plugin
+version get answers through their own hooks while they work. Typing stays for idle agents, for
+Claude sessions started before the update, and for other agents (Codex etc.).
+
+**Probed on Claude Code 2.1.301 (moneylust, headless haiku, 2026-10-16).** A
+`PostToolBatch` hook's and a `Stop` hook's `hookSpecificOutput.additionalContext` both reach
+the model; the Stop one continues the turn (as "Stop hook feedback", not an error). The
+transcript records each as
+
+```json
+{"type": "attachment", "attachment": {"type": "hook_additional_context",
+  "content": ["[inbox] Q7 answered — …"], "hookEvent": "PostToolBatch", …}}
+```
+
+(plus a `hook_success` record whose `stdout` holds the raw JSON, which the matcher ignores).
+The model sees it as `<system-reminder>PostToolBatch hook additional context: [inbox] Q7 …`.
+
+**Events.**
+- `PostToolBatch`: once per batch of tool calls, before the next model request. That is the
+  point where a `PostToolUse` context would also land (next to the tool results). PostToolUse
+  fires once per tool, concurrently for parallel calls, so it would start the hook several
+  times for one model request. So the inbox registers PostToolBatch only.
+- `Stop`: at turn end, `hookSpecificOutput.additionalContext` (non-error feedback). Claude
+  continues and acts on the answer instead of going idle. Claude Code's
+  8-continuation cap and `stop_hook_active` stay in force. Each answer is delivered once,
+  so this cannot loop.
+- Hooks firing inside a subagent or teammate (`agent_id` in the input) deliver nothing: the
+  answer must reach the session that asked.
+
+**The hook** (`hook.deliver`, stdlib only like the other hooks, always exit 0):
+0. Liveness: stamp `sessions.hook_seen_at`, at most once a minute (a read, and a write only
+   when the stamp is older than 60 s).
+1. Fast path, read-only with a 0.2 s timeout: any answered, undelivered, unacknowledged
+   question of this `session_id` that is not at the miss cap and whose agent is not gone (the
+   same filter as `hook_candidates`)? Usually not: exit. Nothing else is written per batch.
+2. Claim each with the usual CAS (`sending:<time>:<token>`). A row the worker is typing or
+   verifying is skipped.
+3. Already in the transcript (a late typed landing)? Record it verified, as `deliver_batch`
+   does, and skip it.
+4. Record the claimed batch as **hook-sent**: `delivered_at` set, `question_ext.hook_sent_at`
+   set, not acknowledged. Only then print the context. Text and batching are the same as
+   typing (`delivery_messages`: one message per firing; the rest stay for the next firing),
+   so the transcript matcher and `header_ids` keep working.
+5. Remember the session's transcript path.
+
+**Verification** (the delivery worker, every tick). For a hook-sent row not yet verified, the
+worker looks in its session transcript, where the matcher now also reads
+`hook_additional_context` content. If found, the row is verified and acknowledged; for a
+long-answer reference it is verified but left unacknowledged, as with typing. If it is not
+found within `HOOK_VERIFY_SECONDS` (45 s), the row goes back to pending, as a
+compare-and-set on the `hook_sent_at` that was judged, so a stale read never wipes a newer
+send (review L1). Each worker verifies only its own herdr server's rows. The row goes
+(`hook: not seen in the conversation`) and `hook_misses` is counted. After `MAX_HOOK_MISSES`
+(2) the hook leaves that answer to typing.
+
+**The worker no longer types into a working session whose delivery hook is live.** It
+applies when herdr reports `working` and the session's `hook_seen_at` is less than
+`HOOK_LIVE` (10 min) old. That is liveness, not capability (review M1). A session started
+with 0.9.0 whose hooks stop firing still gets 0.8's busy rules: the plugin updated or
+disabled mid-session (its hook commands point at the old root and fail silently), no
+`PostToolBatch` in that Claude Code, or herdr misreporting an idle session as working. So
+does a turn whose tool call outlasts `HOOK_LIVE`. The row stays pending
+(`busy: delivered at the agent's next tool call or turn end`); there is no busy grace and no
+busy typing. `idle`/`done` still type (no hook fires in an idle session). `unknown` keeps
+0.8's rules. The operator's "Send now" still types.
+
+**Idle sessions (next: asyncRewake, review L3).** Waking an idle session to take its answer
+keystroke-free must use the same liveness gate as the busy rule. The worker leaves an idle
+session to its watcher only while that watcher is provably alive (it holds a per-session
+lock) and the session's hook is live; otherwise it types as before. Both paths claim before
+acting and check the transcript first, so a race between them stays once-only.
+
+**Once and only once.** Hook, typing and `check_answers` meet on the same row:
+- Each sender holds the CAS claim until it records. A hook-sent row has `delivered_at` set,
+  so neither `claim_delivery` nor the hook's fast path picks it up again.
+- `check_answers` acknowledges whatever it returns; the hook skips acknowledged rows.
+- The only path to a second delivery is the 45 s verification reset. It happens only when
+  the transcript does not show the first one, the same rule as typing.
+
 ## Deep links: opening the popup on a target (0.6.0)
 
 The integration API for other plugins (e.g. herdr-panorama). It is

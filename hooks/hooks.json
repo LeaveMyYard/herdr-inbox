@@ -36,6 +36,42 @@
           }
         ]
       }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh",
+            "args": [
+              "-c",
+              "python3 -I \"$1\" \"$2\" 2>/dev/null; exit 0",
+              "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "post-tool-batch"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh",
+            "args": [
+              "-c",
+              "python3 -I \"$1\" \"$2\" 2>/dev/null; exit 0",
+              "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "stop"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

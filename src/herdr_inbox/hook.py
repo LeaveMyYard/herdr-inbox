@@ -1,4 +1,5 @@
-"""Claude Code hooks: inject the inbox rules into every session.
+"""Claude Code hooks: inject the inbox rules into every session, and (0.9.0) hand answers
+to a busy session as hook context at its next tool batch or turn end (``deliver``).
 
 Must be fast and must never fail the session: any error means exit 0 with no
 output. Deliberately imports nothing heavy (no mcp, no textual).
@@ -80,13 +81,126 @@ def session_start_context(payload: dict) -> str:
     return text
 
 
+def _hook_version() -> str:
+    from . import __version__
+
+    return __version__ if __version__ != "0" else "0.9+"  # "0": imported from src, not installed
+
+
 def _remember_transcript(payload: dict) -> None:
-    """Record where this session's transcript is: deliveries are verified against it."""
+    """Record where this session's transcript is: deliveries are verified against it. (Not
+    that it can take hook deliveries: only the delivery hook firing says so, see _touch.)"""
     if payload.get("session_id") and payload.get("transcript_path"):
         from .store import Store
 
-        with Store(timeout=RECORD_TIMEOUT) as store:
-            store.record_session(payload["session_id"], payload["transcript_path"])
+        with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
+            store.record_session(payload["session_id"], payload["transcript_path"], hook_delivery=_hook_version())
+
+
+LIVENESS_EVERY = 60  # seconds between the delivery hook's liveness writes per session
+
+
+def _touch(session_id: str) -> None:
+    """The delivery hook fired: stamp ``sessions.hook_seen_at``, at most once a minute (the
+    worker leaves a WORKING session to its hooks only while this is recent)."""
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    from .store import db_path
+
+    path = db_path()
+    if not path.exists():
+        return
+    stamp = datetime.now(timezone.utc)
+    cutoff = (stamp - timedelta(seconds=LIVENESS_EVERY)).isoformat(timespec="seconds")
+    try:
+        db = sqlite3.connect(str(path), timeout=PENDING_TIMEOUT)
+        try:
+            row = db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+            if row and row[0] and row[0] >= cutoff:
+                return  # fresh enough: no write
+            with db:
+                db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES (?, ?) ON CONFLICT(session_id)"
+                           " DO UPDATE SET hook_seen_at = excluded.hook_seen_at",
+                           (session_id, stamp.isoformat(timespec="seconds")))
+        finally:
+            db.close()
+    except sqlite3.Error:
+        pass  # locked or not migrated yet: the next firing tries again
+
+
+DELIVERY_EVENTS = {"post-tool-batch": "PostToolBatch", "stop": "Stop"}
+
+
+def _has_candidates(session_id: str) -> bool:
+    """The fast path, read-only: any answer for this session not yet delivered or seen?"""
+    import sqlite3
+
+    from .store import db_path
+
+    path = db_path()
+    if not path.exists():
+        return False
+    try:
+        db = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
+        try:
+            from .store import MAX_HOOK_MISSES  # stdlib-light: not .service
+
+            # the same filter as Store.hook_candidates: rows at the miss cap or whose agent is
+            # gone never open the writable store (review #26 L2)
+            return db.execute(
+                "SELECT 1 FROM questions WHERE session_id = ? AND status = 'answered' AND delivered_at IS NULL"
+                " AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
+                " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1",
+                (session_id, MAX_HOOK_MISSES)).fetchone() is not None
+        finally:
+            db.close()
+    except sqlite3.Error:
+        return False
+
+
+def deliver(payload: dict) -> str | None:
+    """This session's waiting answers as the hook's additionalContext, or None.
+
+    Same text as typing (``[inbox] Q7 answered — …``), one message per firing. Each row is
+    claimed (CAS) and recorded as hook-sent BEFORE the text is printed; the delivery worker
+    verifies it in the transcript, or puts it back to pending (DESIGN.md, "Hook delivery")."""
+    session = payload.get("session_id")
+    if not session or payload.get("agent_id"):
+        return None  # a subagent's or teammate's hook: the answer belongs to the session that asked
+    _touch(session)
+    if not _has_candidates(session):
+        return None
+    from . import herdr, service, transcript
+    from .store import Store
+
+    with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
+        store.record_session(session, payload.get("transcript_path"), hook_delivery=_hook_version())
+        qs = store.hook_candidates(session, service.MAX_HOOK_MISSES)
+        claims = {q.id: c for q in qs if (c := store.claim_delivery(q.id))}
+        qs = [q for q in qs if q.id in claims]
+        if not qs:
+            return None
+        path = transcript.find(session, payload.get("transcript_path"))
+        if path is not None:  # a late typed landing: recorded, never sent twice
+            landed = transcript.landed_kinds(path, {q.id: (service.expected_segments(q), q.answered_at) for q in qs})
+            for q in qs:
+                if q.id in landed:
+                    store.record_delivery(q.id, None, acknowledge=bool(landed[q.id] - {service.REFERENCE_INDEX}),
+                                          claim=claims[q.id], verified=True)
+            qs = [q for q in qs if q.id not in landed]
+        if not qs:
+            return None
+        text, batch, _ = service.delivery_messages(qs)[0]
+        for q in qs:
+            if q not in batch:  # the next firing carries it
+                store.release_claim(q.id, claims[q.id], q.delivery_error)
+        sent = [q for q in batch if store.record_hook_delivery(q.id, claims[q.id])]
+        if not sent:
+            return None
+        if len(sent) != len(batch):
+            text = service.delivery_messages(sent)[0][0]
+    return herdr.clean(text, limit=10**9)
 
 
 def run(event: str) -> int:
@@ -108,6 +222,11 @@ def run(event: str) -> int:
                 context = SESSION_RULES
         elif event == "subagent-start":
             name, context = "SubagentStart", SUBAGENT_RULES
+        elif event in DELIVERY_EVENTS:
+            name = DELIVERY_EVENTS[event]
+            context = deliver(payload)
+            if not context:
+                return 0
         else:
             return 0
         out = json.dumps({"hookSpecificOutput": {"hookEventName": name, "additionalContext": context}})
