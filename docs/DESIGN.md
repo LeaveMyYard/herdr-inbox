@@ -360,8 +360,11 @@ The model sees it as `<system-reminder>PostToolBatch hook additional context: [i
   answer must reach the session that asked.
 
 **The hook** (`hook.deliver`, stdlib only like the other hooks, always exit 0):
+0. Liveness: stamp `sessions.hook_seen_at`, at most once a minute (a read, and a write only
+   when the stamp is older than 60 s).
 1. Fast path, read-only with a 0.2 s timeout: any answered, undelivered, unacknowledged
-   question of this `session_id` not held by another sender's claim? Usually not: exit.
+   question of this `session_id` that is not at the miss cap and whose agent is not gone (the
+   same filter as `hook_candidates`)? Usually not: exit. Nothing else is written per batch.
 2. Claim each with the usual CAS (`sending:<time>:<token>`). A row the worker is typing or
    verifying is skipped.
 3. Already in the transcript (a late typed landing)? Record it verified, as `deliver_batch`
@@ -370,22 +373,34 @@ The model sees it as `<system-reminder>PostToolBatch hook additional context: [i
    set, not acknowledged. Only then print the context. Text and batching are the same as
    typing (`delivery_messages`: one message per firing; the rest stay for the next firing),
    so the transcript matcher and `header_ids` keep working.
-5. Remember the session as hook-capable (`sessions.hook_delivery` = plugin version), and its
-   transcript path.
+5. Remember the session's transcript path.
 
 **Verification** (the delivery worker, every tick). For a hook-sent row not yet verified, the
 worker looks in its session transcript, where the matcher now also reads
 `hook_additional_context` content. If found, the row is verified and acknowledged; for a
 long-answer reference it is verified but left unacknowledged, as with typing. If it is not
-found within `HOOK_VERIFY_SECONDS` (45 s), the row goes back to pending
+found within `HOOK_VERIFY_SECONDS` (45 s), the row goes back to pending, as a
+compare-and-set on the `hook_sent_at` that was judged, so a stale read never wipes a newer
+send (review L1). Each worker verifies only its own herdr server's rows. The row goes
 (`hook: not seen in the conversation`) and `hook_misses` is counted. After `MAX_HOOK_MISSES`
 (2) the hook leaves that answer to typing.
 
-**The worker no longer types into a working, hook-capable session.** It applies when herdr
-reports `working` for a pane whose session recorded `hook_delivery`. The row stays pending
+**The worker no longer types into a working session whose delivery hook is live.** It
+applies when herdr reports `working` and the session's `hook_seen_at` is less than
+`HOOK_LIVE` (10 min) old. That is liveness, not capability (review M1). A session started
+with 0.9.0 whose hooks stop firing still gets 0.8's busy rules: the plugin updated or
+disabled mid-session (its hook commands point at the old root and fail silently), no
+`PostToolBatch` in that Claude Code, or herdr misreporting an idle session as working. So
+does a turn whose tool call outlasts `HOOK_LIVE`. The row stays pending
 (`busy: delivered at the agent's next tool call or turn end`); there is no busy grace and no
 busy typing. `idle`/`done` still type (no hook fires in an idle session). `unknown` keeps
 0.8's rules. The operator's "Send now" still types.
+
+**Idle sessions (next: asyncRewake, review L3).** Waking an idle session to take its answer
+keystroke-free must use the same liveness gate as the busy rule. The worker leaves an idle
+session to its watcher only while that watcher is provably alive (it holds a per-session
+lock) and the session's hook is live; otherwise it types as before. Both paths claim before
+acting and check the transcript first, so a race between them stays once-only.
 
 **Once and only once.** Hook, typing and `check_answers` meet on the same row:
 - Each sender holds the CAS claim until it records. A hook-sent row has `delivered_at` set,
