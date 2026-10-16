@@ -325,6 +325,43 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Never type onto a draft; a delivery after other text still counts (0.10.1)
+
+**Live, 2026-10-16 (Q124/Q125, a pre-0.9 session, so the typing path).**
+1. The worker typed the batch into a working agent's pane after the busy grace. The input box
+   still held the operator's unsent text, so Claude Code appended the batch to it and
+   submitted both as one user message: `<draft>[inbox] answered — Q124 …: … · Q125 …: …`.
+2. The matcher wanted our header at the start of a record, so it did not count this landing.
+3. The answer went back to "retrying when the agent is not busy". The operator pressed
+   **Send now**, its pre-check missed the merged record for the same reason, and it typed
+   Q124/Q125 a second time.
+
+The focus rule (wait while the operator is in that pane) could not help: the operator had
+typed the draft and moved on, so the pane was not focused when the worker typed.
+
+**1. Never type onto unsent text.** Before each typed message to a **Claude** agent,
+`herdr.composer_state` reads the pane (`--format ansi`) and finds Claude Code's input box.
+That is the lines between the last two `───` borders; the top border may carry a session tag,
+as in `───… node ─`. Its first line starts with `❯`.
+- `empty`: nothing there but the dim placeholder (SGR 2, e.g. `Try "…"`). Typing proceeds.
+- `draft`: any non-dim text. The answer stays pending ("the agent's input box holds unsent
+  text") and is retried.
+- `unknown`: no box recognised. The answer is not typed either ("cannot read the agent's
+  input box").
+
+This applies to Send now as well, which also raises a notification so the operator knows why.
+Other agents (Codex etc.) have no such box and are typed into as before. Fixtures are captured
+from Claude Code 2.1.301 (`tests/fixtures/composer`).
+
+**2. Count a delivery that follows other text.** The matcher looks at the record's start and
+at every later `[inbox] ` in it. A later start counts only with full evidence:
+- after typing (`landed_since`/`inbox verify`), the exact typed message from there;
+- for the pre-type check and the reconcile (`landed_kinds`), our header naming the id plus
+  that question's exact answer line or message.
+
+Our header alone, or a `Q<n>` mention, never counts. With this, the incident's first landing
+is verified, and Send now's pre-check records it instead of typing it again.
+
 ## Hook delivery to busy Claude sessions (0.9.0)
 
 Typing into a pane is behind most delivery failures: a busy agent queues the text or loses it

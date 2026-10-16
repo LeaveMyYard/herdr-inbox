@@ -39,6 +39,8 @@ MAX_BUSY_ATTEMPTS = 1  # 0.6.1: one busy try, then the next idle/done (live: the
 BUSY_WAIT_IDLE = "busy: typed while the agent was busy but never seen; waiting for it to be idle"
 BUSY_MISS = "busy: typed while the agent was busy, not seen yet; trying again"
 PANEL = "blocked: panel: the agent's background-task panel has focus"
+COMPOSER_DRAFT = "waiting: the agent's input box holds unsent text (send or clear it there)"
+COMPOSER_UNKNOWN = "waiting: cannot read the agent's input box"
 # How long the typed answer may take to show up in the session transcript.
 VERIFY_SECONDS = 15.0
 NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
@@ -505,6 +507,20 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                     for q in batch:
                         store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
                     continue
+            if agent.get("agent") == "claude":
+                # never type onto unsent text in Claude Code's input box: it would be appended
+                # to the draft and submitted with it (live 2026-10-16, Q124/Q125). Not even
+                # for Send now; an input box we cannot read counts as not empty.
+                state = herdr.composer_state(pane)
+                if state != "empty":
+                    reason = COMPOSER_DRAFT if state == "draft" else COMPOSER_UNKNOWN
+                    for q in batch:
+                        store.set_pending(q.id, claims[q.id], reason)
+                    if force:
+                        refs = ", ".join(q.ref for q in batch)
+                        later(lambda refs=refs, reason=reason: herdr.notify(
+                            f"{refs} not sent", reason[len("waiting: "):]))
+                    continue
             offset = transcript.size(path)
             with trace.step("deliver.prompt", chars=len(text)):
                 err = herdr.prompt_agent(pane, text)
@@ -525,10 +541,12 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 # typed now (the popup still holds the keyboard); the up-to-15 s transcript
                 # check runs in a detached `inbox verify`, which records under our claims
                 verify_later({"path": str(path), "offset": offset, "ack": ack, "busy": busy,
+                              "text": herdr.clean(text, limit=10**9),
                               "rows": [{"id": q.id, "claim": claims[q.id]} for q in batch]})
                 continue
             with trace.step("deliver.verify_wait"):
-                landed_now = transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS)
+                landed_now = transcript.wait_landed(path, offset, [q.id for q in batch], VERIFY_SECONDS,
+                                                    text=herdr.clean(text, limit=10**9))
             if landed_now:
                 for q in batch:
                     record(q, None, acknowledge=ack, verified=True)
@@ -706,7 +724,7 @@ def verify_job(store: Store, job: dict) -> None:
     from pathlib import Path
 
     ids = [r["id"] for r in job["rows"]]
-    landed = transcript.wait_landed(Path(job["path"]), int(job["offset"]), ids, VERIFY_SECONDS)
+    landed = transcript.wait_landed(Path(job["path"]), int(job["offset"]), ids, VERIFY_SECONDS, text=job.get("text"))
     for r in job["rows"]:
         if landed:
             store.record_delivery(r["id"], None, acknowledge=bool(job.get("ack", True)), claim=r["claim"], verified=True)
