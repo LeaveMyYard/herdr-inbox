@@ -30,8 +30,8 @@ def find(session_id: str | None, known: str | None = None) -> Path | None:
     lookup by file name under Claude Code's projects directory."""
     if known and Path(known).is_file():
         return Path(known)
-    if not session_id or "/" in session_id:
-        return None
+    if not session_id or not _SESSION_CHARS.match(session_id):
+        return None  # never a glob pattern or a path: no `*?[`, slashes, backslashes or dots
     base = projects_dir()
     hit = _found.get((str(base), session_id))
     if hit and hit.is_file():
@@ -43,6 +43,7 @@ def find(session_id: str | None, known: str | None = None) -> Path | None:
 
 
 _found: dict[tuple[str, str], Path] = {}
+_SESSION_CHARS = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 # -- Claude Code session continuation ----------------------------------------------------
@@ -60,50 +61,62 @@ _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 def continued_in(path: Path) -> str | None:
     """The session ``path``'s conversation continued in, or None. Only when nothing but
-    bookkeeping follows the record (an old session resumed and used again is not followed)."""
+    bookkeeping follows the record (an old session resumed and used again is not followed).
+
+    Incremental: a growing transcript (every live session) is read only where it grew since
+    the last look, never its whole tail again (review #41)."""
     key, n = str(path), size(path)
     cached = _follow_cache.get(key)
     if cached and cached[0] == n:
         return cached[1]
-    nxt = None
+    start, nxt = (cached[0], cached[1]) if cached and cached[0] < n and n - cached[0] <= FOLLOW_TAIL \
+        else (max(0, n - FOLLOW_TAIL), None)
     try:
         with open(path, "rb") as fh:
-            fh.seek(max(0, n - FOLLOW_TAIL))
-            data = fh.read()
+            fh.seek(start)
+            data = fh.read(n - start)
     except OSError:
         return None
-    if b'"continued-in"' in data:
-        for raw in data.split(b"\n"):
-            if not raw.strip():
-                continue
-            try:
-                record = json.loads(raw)
-            except ValueError:
-                continue
-            if not isinstance(record, dict):
-                continue
-            if record.get("type") == "continued-in" and isinstance(record.get("continuedInSessionId"), str):
-                nxt = record["continuedInSessionId"] if _UUID.match(record["continuedInSessionId"]) else None
-            elif nxt and record.get("type") not in _BOOKKEEPING:
-                nxt = None  # the old conversation went on after the record
-    _follow_cache[key] = (n, nxt)
+    end = data.rfind(b"\n")  # only complete lines; a partial last line is read next time
+    if end == -1:
+        return cached[1] if cached else None
+    for raw in data[:end].split(b"\n"):
+        if not raw.strip():
+            continue
+        if b'"type"' not in raw:
+            continue
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if record.get("type") == "continued-in" and isinstance(record.get("continuedInSessionId"), str):
+            nxt = record["continuedInSessionId"] if _UUID.match(record["continuedInSessionId"]) else None
+        elif nxt and record.get("type") not in _BOOKKEEPING:
+            nxt = None  # the old conversation went on after the record
+    _follow_cache[key] = (start + end + 1, nxt)
     return nxt
+
+
+def chain(session_id: str | None, known: str | None = None, max_hops: int = 8) -> list[str]:
+    """``session_id`` and every session its conversation continued in, in order (cycle-safe)."""
+    out: list[str] = []
+    current = session_id
+    for _ in range(max_hops):
+        if not current or current in out:
+            break
+        out.append(current)
+        path = find(current, known if current == session_id else None)
+        current = continued_in(path) if path else None
+    return out
 
 
 def follow(session_id: str | None, known: str | None = None, max_hops: int = 8) -> str | None:
     """The session the conversation of ``session_id`` lives in now (itself if it never
     continued). ``known``: the transcript path recorded for ``session_id``, if any."""
-    current, seen = session_id, set()
-    for _ in range(max_hops):
-        if not current or current in seen or "/" in current:
-            break
-        seen.add(current)
-        path = find(current, known if current == session_id else None)
-        nxt = continued_in(path) if path else None
-        if not nxt or nxt in seen:
-            break
-        current = nxt
-    return current
+    found = chain(session_id, known, max_hops)
+    return found[-1] if found else session_id
 
 
 def size(path: Path | None) -> int:

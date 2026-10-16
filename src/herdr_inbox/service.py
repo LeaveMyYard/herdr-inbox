@@ -428,10 +428,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
         ours = []
         for q in items:
             if q.session_id and agent["session_id"] != q.session_id \
-                    and transcript.follow(q.session_id, store.session_transcript(q.session_id)) == agent["session_id"]:
-                store.adopt_continuation(q.session_id, agent["session_id"])  # asked before a session continuation
-                q.session_id = agent["session_id"]
-            if q.session_id and agent["session_id"] != q.session_id:
+                    and transcript.follow(q.session_id, store.session_transcript(q.session_id)) != agent["session_id"]:
                 record(q, f"{CHANGED} {pane}")
             else:
                 ours.append(q)
@@ -496,18 +493,18 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 store.set_pending(q.id, claims[q.id], PANEL)
             continue
         path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
-        if path is not None:
-            # already in the conversation? (a late landing, or a sender that typed and then
-            # died mid-verify, whose stale claim we just took over): look before EVERY typing
-            landed = transcript.landed_kinds(path, {q.id: (expected_segments(q), q.answered_at) for q in ours})
-            for q in ours:
-                if q.id in landed:
-                    # only the long-answer reference landed: the agent has a pointer to
-                    # check_answers, not the answer -- verified, but it stays unseen
-                    record(q, None, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}), verified=True)
-            ours = [q for q in ours if q.id not in landed]
-            if not ours:
-                continue
+        # already in the conversation? (a late landing, or a sender that typed and then
+        # died mid-verify, whose stale claim we just took over): look before EVERY typing,
+        # in every transcript of the conversation (a continuation moved it, #41)
+        landed = landed_across(store, ours, [path])
+        for q in ours:
+            if q.id in landed:
+                # only the long-answer reference landed: the agent has a pointer to
+                # check_answers, not the answer -- verified, but it stays unseen
+                record(q, None, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}), verified=True)
+        ours = [q for q in ours if q.id not in landed]
+        if not ours:
+            continue
         for text, batch, ack in delivery_messages(ours):
             if retry and not force:
                 # the operator may have stepped into the pane since the check above
@@ -601,19 +598,46 @@ def _watched(store: Store, session_id: str | None) -> bool:
         return False
 
 
+def landed_across(store: Store, qs: list[Question], extra: list | None = None) -> dict[int, set[int]]:
+    """landed_kinds over every transcript a question's conversation lived in: the session it
+    was filed under and each session it continued in (review #41: a delivery that landed in
+    the OLD transcript just before a continuation is found, never sent again), plus ``extra``
+    paths (e.g. the hook payload's own transcript)."""
+    found: dict[int, set[int]] = {}
+    by_session: dict[str | None, list[Question]] = {}
+    for q in qs:
+        by_session.setdefault(q.session_id, []).append(q)
+    paths: dict[str, list[Question]] = {}
+    for session, items in by_session.items():
+        for s in transcript.chain(session, store.session_transcript(session)) if session else []:
+            p = transcript.find(s, store.session_transcript(s))
+            if p is not None:
+                paths.setdefault(str(p), []).extend(items)
+    for p in extra or []:
+        if p is not None:
+            paths.setdefault(str(p), []).extend(qs)
+    from pathlib import Path
+
+    for p, items in paths.items():
+        uniq = {q.id: q for q in items}
+        for qid, kinds in transcript.landed_kinds(Path(p), {q.id: (expected_segments(q), q.answered_at)
+                                                            for q in uniq.values()}).items():
+            found.setdefault(qid, set()).update(kinds)
+    return found
+
+
 def adopt_continuations(store: Store) -> None:
     """The worker, every tick: sessions with questions or alerts still in play whose
-    transcript says the conversation continued in another session hand them over to it."""
+    transcript says the conversation continued in another session: the continuation is
+    recorded (sessions.continued_in). Rows keep their filed session (it is in qkey)."""
     rows = store.db.execute(
         "SELECT DISTINCT session_id FROM questions WHERE session_id IS NOT NULL"
         " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL))"
         " UNION SELECT DISTINCT session_id FROM alerts WHERE session_id IS NOT NULL AND status = 'open'").fetchall()
-    for (session,) in rows:
-        if store.continued_in(session):
-            continue
-        nxt = transcript.follow(session, store.session_transcript(session))
-        if nxt and nxt != session:
-            store.adopt_continuation(session, nxt)
+    for (session,) in rows:  # every tick, idempotent: rows filed under OLD later are covered too
+        found = transcript.chain(session, store.session_transcript(session))
+        for old, new in zip(found, found[1:]):
+            store.record_continuation(old, new)
 
 
 def verify_hook_deliveries(store: Store) -> None:
@@ -621,7 +645,7 @@ def verify_hook_deliveries(store: Store) -> None:
     (and seen); not found within HOOK_VERIFY_SECONDS, back to pending with a miss counted."""
     for q, sent_at in store.hook_unverified(herdr.server_id()):
         path = transcript.find(q.session_id, store.session_transcript(q.session_id))
-        landed = transcript.landed_kinds(path, {q.id: (expected_segments(q), q.answered_at)}) if path else {}
+        landed = landed_across(store, [q])  # the whole continuation chain (#41)
         if q.id in landed:
             store.hook_verified(q.id, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}))
             continue
