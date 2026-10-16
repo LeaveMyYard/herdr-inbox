@@ -172,7 +172,10 @@ def build_scene(h: Herdr) -> list[dict]:
         else:
             res = h("tab", "create", "--workspace", ws, "--cwd", cwd, "--label", label)
             tab, pane = res["tab"]["tab_id"], res["root_pane"]["pane_id"]
-        h("pane", "run", pane, f"cd {cwd} && clear && exec claude {script}")
+        # the Billing API agent has finished what it can and is idle: inbox 0.10 types an answer
+        # into an idle agent at once (a working one gets it through its hooks, or after a grace)
+        state = "DEMO_STATE=idle " if i == 0 else ""
+        h("pane", "run", pane, f"cd {cwd} && clear && {state}exec claude {script}")
         scene.append({"tab": tab, "pane": pane, "label": label, "cwd": cwd})
     # a second pane in Docs site: a dev server, so the tab is not just one agent
     docs = scene[2]
@@ -255,7 +258,7 @@ class Shots:
 
 def capture(term: Terminal, h: Herdr, scene: list[dict], env: dict[str, str]) -> None:
     shots = Shots(term)
-    term.wait_for("Writing the deploy hook")
+    term.wait_for("doesn't depend on the open questions")
     time.sleep(1.5)
     before = term.rich_lines()[0]
     seed(env, scene)
