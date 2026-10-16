@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import OrderedDict
 import re
 import time
 from pathlib import Path
@@ -35,14 +36,23 @@ def find(session_id: str | None, known: str | None = None) -> Path | None:
     base = projects_dir()
     hit = _found.get((str(base), session_id))
     if hit and hit.is_file():
+        _found.move_to_end((str(base), session_id))
         return hit  # every herdr agent lookup follows its session (see follow): no glob each time
     for path in base.glob(f"*/{session_id}.jsonl"):
-        _found[(str(base), session_id)] = path
+        _remember(_found, (str(base), session_id), path)
         return path
     return None
 
 
-_found: dict[tuple[str, str], Path] = {}
+CACHE_MAX = 256  # both lookup caches are bounded (LRU): a long-lived worker sees many sessions
+_found: "OrderedDict[tuple[str, str], Path]" = OrderedDict()
+
+
+def _remember(cache: OrderedDict, key, value) -> None:
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > CACHE_MAX:
+        cache.popitem(last=False)
 _SESSION_CHARS = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
@@ -51,9 +61,9 @@ _SESSION_CHARS = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # ends with {"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW}, followed
 # only by bookkeeping records (captured on 2.1.301, 2026-10-16); nothing in NEW points back,
 # and herdr / the process env keep reporting OLD.
-FOLLOW_TAIL = 256 * 1024
+FOLLOW_TAIL = 64 * 1024  # the record is near the end: only bookkeeping may follow it
 _BOOKKEEPING = {"last-prompt", "cost-state", "summary", "custom-title", "ai-title", "agent-name", "mode"}
-_follow_cache: dict[str, tuple[int, str | None]] = {}  # path -> (size read, continued-in id)
+_follow_cache: "OrderedDict[str, tuple[int, str | None]]" = OrderedDict()  # path -> (size read, continued-in id)
 # a session id read from a transcript is only ever used as a canonical UUID: it becomes part of
 # a file path (find's glob), so anything else ("../x", "*", a slash) is ignored
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -95,7 +105,7 @@ def continued_in(path: Path) -> str | None:
             nxt = record["continuedInSessionId"] if _UUID.match(record["continuedInSessionId"]) else None
         elif nxt and record.get("type") not in _BOOKKEEPING:
             nxt = None  # the old conversation went on after the record
-    _follow_cache[key] = (start + end + 1, nxt)
+    _remember(_follow_cache, key, (start + end + 1, nxt))
     return nxt
 
 

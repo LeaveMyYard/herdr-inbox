@@ -350,7 +350,7 @@ session, repeatedly, without cycles.
   `[A-Za-z0-9_-]`. These ids become part of a glob path, so `*`, `?`, `[`, slashes,
   backslashes and dots never reach it (review #41).
 - **Reads are incremental:** a growing transcript is read only where it grew since the last
-  look.
+  look; a cold look reads the last 64 KiB. Both lookup caches are bounded (LRU, 256 entries).
 - `herdr.live_agent` returns the followed id as `session_id` (herdr's own as
   `reported_session_id`). Delivery's conversation check, the watcher's pane check and the idle
   gate all compare against the live conversation. `resolve_caller` files new questions under it.
@@ -372,8 +372,14 @@ transcript the conversation lived in: the filed session and each session it cont
 - So an answer that landed in the OLD transcript just before a continuation is found there
   and never sent again (review #41 High 2).
 
+**A stored continuation only nominates.** `family()` includes a predecessor only while its
+transcript **still** ends in `continued-in` to this session (cached, incremental read), both in
+the store and in the hook's read-only fast path. So nothing derived from `sessions.continued_in`
+can be stale (review #41 final pass).
+
 **A resumed old session** (the old id used again after its `continued-in` record) is not
-followed: the record no longer ends that transcript. Its rows are again its own, and a pane
+followed: the record no longer ends that transcript, and it leaves the new session's family at
+once. Its rows are again its own, and a pane
 showing the old conversation gets them. That is the safe direction: at worst an answer waits
 as "conversation changed".
 

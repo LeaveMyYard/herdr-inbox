@@ -214,3 +214,56 @@ def test_follow_reads_only_what_a_live_transcript_appended(fake_herdr, monkeypat
     write(NEW, [{"type": "user", "message": {"role": "user", "content": "y"}}])
     assert transcript.follow(NEW) == NEW
     assert reads and max(reads) < 200  # only the appended line
+
+
+
+def resumed_old(store):
+    """OLD continued in NEW (recorded), then the operator resumed OLD and used it again."""
+    service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "In play before the switch?")
+    continued()
+    worker.tick(store)  # records OLD -> NEW
+    write(OLD, [{"type": "user", "message": {"role": "user", "content": "back in the old one"}}])
+
+
+def test_final_a_resumed_old_sessions_answer_never_goes_to_new_by_hook(store, fake_herdr, monkeypatch):
+    """#41 final pass H1 (reproduced there): after a resume, NEW's hooks must not take OLD's answers."""
+    from herdr_inbox import hook
+
+    resumed_old(store)
+    qid = service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "Asked in the resumed old session?")["id"]
+    store.set_draft(qid, service.make_detail("for OLD"))
+    service.submit(store, [qid], deliver=False)
+    assert store.family(NEW) == [NEW]
+    assert store.hook_candidates(NEW, service.MAX_HOOK_MISSES) == []
+    assert not hook._has_candidates(NEW)
+    assert hook.deliver({"session_id": NEW}) is None
+    assert store.get(qid).delivered_at is None
+
+
+def test_final_a_resumed_old_sessions_answer_never_goes_to_new_by_check_answers(store, fake_herdr):
+    from herdr_inbox import alerts
+
+    resumed_old(store)
+    qid = service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "Asked in the resumed old session?")["id"]
+    service.answer(store, qid, "for OLD", deliver=False)
+    a = alerts.raise_alert(store, Caller("w9:p9", None, None, OLD, "/r"), "OLD's alert")["id"]
+    assert store.unacknowledged_answers(NEW, None) == [] and store.mine(NEW, None) == []
+    assert alerts.mine(store, Caller("w9:p9", None, None, NEW, "/r")) == []
+    assert [q.id for q in store.unacknowledged_answers(OLD, None)] == [qid]
+    assert [x.id for x in alerts.mine(store, Caller("w9:p9", None, None, OLD, "/r"))] == [a]
+
+
+def test_final_the_family_still_holds_while_the_continuation_stands(store, fake_herdr):
+    service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "In play?")
+    continued()
+    worker.tick(store)
+    assert set(store.family(NEW)) == {NEW, OLD}
+
+
+def test_final_the_lookup_caches_are_bounded(fake_herdr, monkeypatch):
+    monkeypatch.setattr(transcript, "CACHE_MAX", 5)
+    for i in range(20):
+        sid = f"{i:08d}-0000-4000-8000-000000000000"
+        write(sid, [{"type": "user", "message": {"role": "user", "content": "x"}}])
+        transcript.follow(sid)
+    assert len(transcript._found) <= 5 and len(transcript._follow_cache) <= 5
