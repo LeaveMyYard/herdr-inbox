@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **New optional plugin `herdr-inbox-ui`** (`plugins/herdr-inbox-ui`, same marketplace:
+  `claude plugin install herdr-inbox-ui@herdr-inbox`). A Claude Code mod (early-access mods API,
+  2.1.301+) that draws `ask_operator` and `alert_operator` calls as cards (severity colours),
+  the check/list/withdraw tools as one line (unfolding a folded run of inbox calls that asks or
+  alerts), and `[inbox]` answers, single, batch or inside a
+  `<pasted_content>` wrapper, as a green block with each Q id and answer; it toasts when an
+  answer arrives. ctrl+o shows the raw text; what the model reads is unchanged. The core
+  plugin does not depend on it. CI validates and tests it.
+
 ## 0.9.0
 
 - **Answers reach a busy Claude Code session without typing.**
