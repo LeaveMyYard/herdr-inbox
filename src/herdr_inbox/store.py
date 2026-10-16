@@ -973,6 +973,27 @@ class Store:
             self.db.execute("UPDATE questions SET delivery_error = ? WHERE id = ? AND delivered_at IS NULL"
                             " AND COALESCE(delivery_error, '') NOT LIKE 'sending:%'", (f"{AGENT_GONE}{reason}", qid))
 
+    def move_to_pane(self, qid: int, pane_id: str, tab_id: str | None, reason: str, claim: str | None = None) -> bool:
+        """The asking conversation now runs in ``pane_id`` (its pane moved): deliver there.
+        Under ``claim`` when one is held; clears an earlier 'agent gone'."""
+        mine, args = (" AND delivery_error = ?", (claim,)) if claim else ("", ())
+        with self.transaction():
+            cur = self.db.execute(
+                f"UPDATE questions SET pane_id = ?, tab_id = COALESCE(?, tab_id), delivery_error = ?,"
+                f" delivery_attempts = 0 WHERE id = ? AND status = 'answered' AND acknowledged_at IS NULL{mine}",
+                (pane_id, tab_id, f"{PENDING}{reason}", qid, *args))
+            if cur.rowcount:
+                self.db.execute("UPDATE question_ext SET agent_gone_at = NULL WHERE id = ?", (qid,))
+            return cur.rowcount == 1
+
+    def gone_recent(self, within: timedelta) -> list[Question]:
+        """Answers marked 'agent gone' recently, still unseen: maybe their pane only moved."""
+        rows = self.db.execute(
+            f"SELECT v.* FROM {VIEW} v JOIN question_ext e ON e.id = v.id WHERE e.agent_gone_at >= ?"
+            " AND v.status = 'answered' AND v.acknowledged_at IS NULL AND v.delivered_at IS NULL"
+            " AND v.session_id IS NOT NULL ORDER BY v.id", (now(-within),)).fetchall()
+        return [Question.from_row(r) for r in rows]
+
     def agent_gone(self, qid: int) -> bool:
         row = self.db.execute("SELECT agent_gone_at FROM question_ext WHERE id = ?", (qid,)).fetchone()
         return bool(row and row[0])

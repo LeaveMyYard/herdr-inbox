@@ -422,16 +422,18 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             continue
         agent = herdr.live_agent(pane)
         if agent is None:
-            for q in items:
+            for q in _relocate(store, items, pane, claims):  # its pane may only have moved
                 record(q, f"{NO_AGENT} {pane}")
             continue
-        ours = []
+        ours, changed = [], []
         for q in items:
             if q.session_id and agent["session_id"] != q.session_id \
                     and transcript.follow(q.session_id, store.session_transcript(q.session_id)) != agent["session_id"]:
-                record(q, f"{CHANGED} {pane}")
+                changed.append(q)
             else:
                 ours.append(q)
+        for q in _relocate(store, changed, pane, claims) if changed else []:  # moved to another pane?
+            record(q, f"{CHANGED} {pane}")
         if not ours:
             continue
         status = agent["status"]
@@ -598,6 +600,41 @@ def _watched(store: Store, session_id: str | None) -> bool:
         return False
 
 
+MOVED = "moved: the asking agent is now in pane"
+
+
+def session_pane(store: Store, session_id: str | None, agents: list | None = None) -> tuple[str, str | None] | None:
+    """The one pane whose agent runs ``session_id``'s conversation now (continuations
+    followed on both sides), or None when there is none or more than one (never a guess)."""
+    if not session_id:
+        return None
+    if agents is None:
+        res, _ = herdr.call("agent", "list")
+        agents = (res or {}).get("agents") or []
+    live = transcript.follow(session_id, store.session_transcript(session_id))
+    hits = []
+    for a in agents:
+        reported = (a.get("agent_session") or {}).get("value") if isinstance(a, dict) else None
+        if reported and a.get("pane_id") and transcript.follow(reported) == live:
+            hits.append((a["pane_id"], a.get("tab_id")))
+    return hits[0] if len(hits) == 1 else None
+
+
+def _relocate(store: Store, items: list[Question], pane: str, claims: dict) -> list[Question]:
+    """Rows whose conversation runs in ANOTHER pane now (the pane moved, e.g. w6:p48 ->
+    w6:p57, live 2026-10-16 Q155): moved there, pending for the next pass. Returns the rest."""
+    rest, agents = [], None
+    for q in items:
+        if agents is None:
+            res, _ = herdr.call("agent", "list")
+            agents = (res or {}).get("agents") or []
+        loc = session_pane(store, q.session_id, agents)
+        if loc and loc[0] != pane and store.move_to_pane(q.id, loc[0], loc[1], f"{MOVED} {loc[0]}", claims[q.id]):
+            continue
+        rest.append(q)
+    return rest
+
+
 def landed_across(store: Store, qs: list[Question], extra: list | None = None) -> dict[int, set[int]]:
     """landed_kinds over every transcript a question's conversation lived in: the session it
     was filed under and each session it continued in (review #41: a delivery that landed in
@@ -624,6 +661,20 @@ def landed_across(store: Store, qs: list[Question], extra: list | None = None) -
                                                             for q in uniq.values()}).items():
             found.setdefault(qid, set()).update(kinds)
     return found
+
+
+def revive_moved(store: Store) -> None:
+    """The worker: answers marked 'agent gone' in the last day whose conversation turns up in
+    another pane of this herdr server are moved there and delivered after all."""
+    rows = [q for q in store.gone_recent(timedelta(days=1)) if store.server_of(q.id) in (None, herdr.server_id())]
+    if not rows:
+        return
+    res, _ = herdr.call("agent", "list")
+    agents = (res or {}).get("agents") or []
+    for q in rows:
+        loc = session_pane(store, q.session_id, agents)
+        if loc and loc[0] != q.pane_id:
+            store.move_to_pane(q.id, loc[0], loc[1], f"{MOVED} {loc[0]}")
 
 
 def adopt_continuations(store: Store) -> None:

@@ -72,3 +72,23 @@ def test_an_answer_already_marked_gone_is_revived_when_its_agent_turns_up(store,
     worker.tick(store)
     q = store.get(qid)
     assert q.pane_id == "w1:p7" and not store.agent_gone(qid) and q.delivered_at
+
+
+def test_a_pane_now_holding_another_conversation_sends_the_answer_after_its_own(store, fake_herdr, monkeypatch):
+    """The pane id was reused by another conversation (CHANGED); ours runs in w1:p7."""
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Still me?")["id"]
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-OTHER")  # w1:p1 now runs another conversation
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", "sess-OTHER"), ("w1:p7", "sess-A")))
+    service.answer(store, qid, "yes")
+    assert store.get(qid).pane_id == "w1:p7"
+    assert not fake_herdr.calls_of("agent", "prompt")  # never typed into the other conversation
+
+
+def test_another_herdr_servers_gone_rows_are_left_alone(store, moved, monkeypatch):
+    qid = answered(store)
+    store.db.execute("UPDATE questions SET pane_id = 'w1:p1' WHERE id = ?", (qid,))
+    store.mark_agent_gone(qid, "x")
+    store.db.execute("UPDATE question_ext SET herdr_server = '/other.sock' WHERE id = ?", (qid,))
+    service.revive_moved(store)
+    assert store.agent_gone(qid) and store.get(qid).pane_id == "w1:p1"
