@@ -110,8 +110,9 @@ def test_the_watch_ends_with_its_claude_process_and_after_the_max_age(store, mon
     monkeypatch.setattr(proc, "owning_claude", lambda: dead.pid)
     assert watch(tpath) is None
     monkeypatch.setattr(proc, "owning_claude", lambda: None)
+    monkeypatch.setattr(rewake, "WATCH_MAX_SECONDS", 10.0)
     clock = Clock()
-    assert watch(tpath, clock) is None and clock.t >= rewake.WATCH_MAX_SECONDS
+    assert watch(tpath, clock) is None and 10.0 <= clock.t <= 11.0
 
 
 def test_nothing_for_a_subagent_or_outside_herdr(store, monkeypatch, tpath):
@@ -122,7 +123,7 @@ def test_nothing_for_a_subagent_or_outside_herdr(store, monkeypatch, tpath):
 
 
 def test_the_worker_leaves_an_idle_watched_session_to_its_watcher(store, monkeypatch, tpath, fake_herdr):
-    run_hook("session-start", {"session_id": "sess-A", "transcript_path": str(tpath), "source": "startup"})
+    run_hook("post-tool-batch", {"session_id": "sess-A", "transcript_path": str(tpath)})  # the hook is live
     qid = pending_answer(store, monkeypatch)
     store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
     started, release = threading.Event(), threading.Event()
@@ -184,3 +185,30 @@ def test_no_crash_or_stray_exit_code_can_wake_a_session(tmp_path, tpath):
         (bindir / "python3").write_text(f"#!/bin/sh\necho junk\nexit {code}\n")
         (bindir / "python3").chmod(0o755)
         assert launch_rewake(ROOT, tpath, spec, bindir).returncode == 0
+
+
+def test_a_live_watcher_whose_session_hook_is_stale_does_not_hold_typing_back(store, monkeypatch, tpath, fake_herdr):
+    """#26 L3: the idle gate is the same liveness stamp as the busy one, not the lock alone."""
+    import fcntl
+
+    qid = pending_answer(store, monkeypatch)
+    store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
+    store.db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES ('sess-A', ?)",
+                     (st.now(-service.HOOK_LIVE - st.timedelta(minutes=1)),))
+    lock = open(rewake._dir() / "sess-A.lock", "a")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+        worker.tick(store)
+        assert fake_herdr.calls_of("agent", "prompt")
+    finally:
+        lock.close()
+
+
+def test_the_waiting_watcher_keeps_its_session_hook_live(store, monkeypatch, tpath):
+    seen = []
+    clock = Clock(lambda n: seen.append(store.db.execute(
+        "SELECT hook_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone()) or n == 2
+        and rewake._claim_ownership("sess-A"))
+    assert watch(tpath, clock) is None
+    assert seen[0] and seen[0][0]
