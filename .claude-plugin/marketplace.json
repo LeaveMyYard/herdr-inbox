@@ -12,6 +12,14 @@
       "source": "./",
       "license": "MIT",
       "repository": "https://github.com/LeaveMyYard/herdr-inbox"
+    },
+    {
+      "name": "herdr-inbox-ui",
+      "description": "Optional: cards for herdr-inbox tool calls and operator answers in the Claude Code transcript (needs Claude Code mods, early access)",
+      "version": "0.1.0",
+      "source": "./plugins/herdr-inbox-ui",
+      "license": "MIT",
+      "repository": "https://github.com/LeaveMyYard/herdr-inbox"
     }
   ]
 }
