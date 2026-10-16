@@ -9,7 +9,9 @@
 - **One watcher per session:**
   - A newer watcher supersedes the older one.
   - A watcher exits with its Claude process, after about 12 h, or when the pane changes
-    conversation. It never wakes a working or blocked agent.
+    conversation. It checks that every 45 s even with nothing pending, so `/clear` and
+    `/resume` leave no watcher behind. It never wakes a working or blocked agent, or a pane
+    that herdr names no session for.
   - While alive it holds a per-session lock, and the delivery worker leaves an idle session to
     it only while the lock is held and the session's hook is live. Otherwise the worker types,
     as before.

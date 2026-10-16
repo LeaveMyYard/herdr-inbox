@@ -422,9 +422,12 @@ before the update, sessions whose hooks stopped firing, and "Send now".
 
 **The watcher** (`rewake.py`; `Stop` hook `rewake-watch`, `asyncRewake: true`, timeout
 43200 s):
-- Every turn end arms one watcher for its session. It polls the database read-only once a
-  second for an answer of this session that is neither delivered nor seen.
+- Every turn end arms one watcher for its session. It polls the database read-only every 2 s
+  for an answer of this session that is neither delivered nor seen.
 - It acts only while herdr reports the pane's agent `idle` or `done` *with this session*.
+  It looks at the pane every 45 s even with nothing pending, so a watch that a `/clear` or
+  `/resume` left behind ends within a minute (review #30 M1). If herdr names no session for
+  the pane, it never wakes; after 3 minutes of that the watch ends (M1b).
   - `working`: the 0.9.0 PostToolBatch/Stop hooks carry the answer.
   - `blocked`: never disturbed.
   - The pane now holds another conversation: the watch ends.

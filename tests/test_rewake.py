@@ -212,3 +212,30 @@ def test_the_waiting_watcher_keeps_its_session_hook_live(store, monkeypatch, tpa
         and rewake._claim_ownership("sess-A"))
     assert watch(tpath, clock) is None
     assert seen[0] and seen[0][0]
+
+
+def test_m1_a_watch_left_behind_by_clear_ends_without_any_answer(store, monkeypatch, tpath, fake_herdr):
+    """#30 M1 (reviewer's repro): the pane now holds sess-NEW; the old watcher has nothing
+    pending, yet it checks the pane on a slow cadence and ends."""
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-NEW")
+    clock = Clock()
+    assert watch(tpath, clock) is None
+    assert rewake.PANE_CHECK_EVERY <= clock.t <= rewake.PANE_CHECK_EVERY + 2 * rewake.WATCH_POLL
+    assert len(fake_herdr.calls_of("agent", "get")) == 1  # one herdr look, not one per poll
+
+
+def test_m1b_a_pane_without_a_session_is_never_woken_and_the_watch_ends(store, monkeypatch, tpath, fake_herdr):
+    """#30 M1b: herdr reports the agent but no session: wait, never wake; end after a while."""
+    qid = pending_answer(store, monkeypatch)
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "")
+    clock = Clock()
+    assert watch(tpath, clock) is None
+    assert rewake.UNKNOWN_SESSION_END <= clock.t <= rewake.UNKNOWN_SESSION_END + 2 * rewake.WATCH_POLL
+    assert store.get(qid).delivered_at is None
+
+
+def test_m1b_the_session_reappearing_resumes_the_watch(store, monkeypatch, tpath):
+    qid = pending_answer(store, monkeypatch)
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "")
+    clock = Clock(lambda n: n == 5 and monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A"))
+    assert watch(tpath, clock) and store.get(qid).delivered_at
