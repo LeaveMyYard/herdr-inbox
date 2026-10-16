@@ -87,7 +87,7 @@ def test_an_answer_to_a_question_asked_before_the_switch_is_typed_and_verified(s
     service.answer(store, qid, "yes")
     q = store.get(qid)
     assert q.delivery_error is None and q.acknowledged_at  # typed, found in NEW's transcript
-    assert q.session_id == NEW  # re-homed
+    assert q.session_id == OLD  # identity kept (qkey); resolved through the continuation
     assert len(fake_herdr.calls_of("agent", "prompt")) == 1
 
 
@@ -98,16 +98,21 @@ def test_a_question_filed_under_new_is_not_refused_as_changed(store, herdr_says_
     assert store.get(qid).acknowledged_at
 
 
-def test_the_worker_re_homes_old_rows_and_alerts(store, fake_herdr):
+def test_the_worker_records_the_continuation_and_new_owns_old_rows(store, fake_herdr):
     from herdr_inbox import alerts
 
     q_open = service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "Open one?")["id"]
     a = alerts.raise_alert(store, Caller("w9:p9", None, None, OLD, "/r"), "Check it")["id"]
     continued()
     worker.tick(store)
-    assert store.get(q_open).session_id == NEW and alerts.get(store, a).session_id == NEW
     assert store.db.execute("SELECT continued_in FROM sessions WHERE session_id = ?", (OLD,)).fetchone()[0] == NEW
-
+    assert store.get(q_open).session_id == OLD and alerts.get(store, a).session_id == OLD  # never rewritten
+    new = Caller("w9:p9", None, None, NEW, "/r")
+    assert [q.id for q in store.mine(NEW, None)] == [q_open]  # list_my_questions of NEW
+    assert [x.id for x in alerts.mine(store, new)] == [a] and alerts.withdraw(store, new, a)["status"] == "withdrawn"
+    # a row filed under OLD later (a stale process) is NEW's too, no second pass needed
+    late = service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "Filed late under old?")["id"]
+    assert late in [q.id for q in store.mine(NEW, None)]
 
 def test_the_old_sessions_watcher_ends_and_the_new_one_wakes(store, herdr_says_old, monkeypatch):
     from herdr_inbox import proc
@@ -139,3 +144,73 @@ def test_a_continuation_id_that_is_not_a_uuid_is_never_followed(fake_herdr, bad)
     """Path traversal guard: the id becomes part of a transcript path."""
     write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": bad}])
     assert transcript.follow(OLD) == OLD
+
+
+def test_a_remote_answer_in_flight_survives_the_continuation(store, fake_herdr, tmp_path, monkeypatch):
+    """#41 High 1: qkey hashes the filed session; it never changes, so a queued answer applies."""
+    from herdr_inbox import remote, remote_api
+    from herdr_inbox.store import Store
+
+    remote_db = Store(tmp_path / "remote.db")
+    qid = service.ask(remote_db, Caller("w1:p1", "w1:t1", "tab", OLD, "/r"), "Remote, before the switch?")["id"]
+    key = remote_api.qkey(remote_db, remote_db.get(qid))
+    continued()
+    worker.tick(remote_db)  # the remote's worker records the continuation
+    assert remote_api.qkey(remote_db, remote_db.get(qid)) == key
+    out = remote_api.apply(remote_db, {"request_id": "r1", "db_id": remote_api.db_id(remote_db), "id": qid,
+                                       "qkey": key, "action": "answer", "detail": {"text": "applied"}})
+    assert out["outcome"] == "applied" and remote_db.get(qid).answer == "applied"
+    remote_db.close()
+
+
+def test_a_hook_answer_that_landed_in_the_old_transcript_is_not_sent_again(store, herdr_says_old, monkeypatch):
+    """#41 High 2 (the reviewer's repro): sent as hook context in OLD, landed in OLD.jsonl,
+    then the continuation; verification must find it there."""
+    from herdr_inbox import hook
+
+    monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", OLD, "/r"), "Busy answer?")["id"]
+    service.answer(store, qid, "sure")
+    old_path = write(OLD, [])
+    text = hook.deliver({"session_id": OLD, "transcript_path": str(old_path)})
+    assert text
+    write(OLD, [{"type": "attachment", "timestamp": st.now(),
+                 "attachment": {"type": "hook_additional_context", "content": [text], "hookEvent": "PostToolBatch"}}])
+    continued()
+    monkeypatch.setattr(service, "HOOK_VERIFY_SECONDS", 0.0)
+    worker.tick(store)
+    q = store.get(qid)
+    assert q.delivered_at and q.acknowledged_at  # verified in OLD's transcript, not re-pended
+
+
+@pytest.mark.parametrize("bad", ["*", "?", "[ab]", "..\\evil", "../evil", "a.b", "*-0000-4000-8000-000000000002"])
+def test_find_never_globs_or_walks_with_a_bad_session_id(fake_herdr, bad):
+    """#41 Medium: ids reach find from herdr, env and transcripts; never a glob or a path."""
+    write(NEW, [])
+    assert transcript.find(bad) is None
+    write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": bad}])
+    assert transcript.follow(OLD) == OLD
+
+
+def test_follow_reads_only_what_a_live_transcript_appended(fake_herdr, monkeypatch):
+    """#41 Low: a growing transcript is read incrementally, not its tail every lookup."""
+    path = write(NEW, [{"type": "user", "message": {"role": "user", "content": "x" * 300_000}}])
+    assert transcript.follow(NEW) == NEW
+    reads = []
+    real_open = open
+
+    def counting_open(p, mode="r", *a, **k):
+        fh = real_open(p, mode, *a, **k)
+        if str(p) == str(path) and "b" in mode:
+            real_read = fh.read
+            def read(n=-1):
+                data = real_read(n)
+                reads.append(len(data))
+                return data
+            fh.read = read
+        return fh
+    monkeypatch.setattr("builtins.open", counting_open)
+    write(NEW, [{"type": "user", "message": {"role": "user", "content": "y"}}])
+    assert transcript.follow(NEW) == NEW
+    assert reads and max(reads) < 200  # only the appended line

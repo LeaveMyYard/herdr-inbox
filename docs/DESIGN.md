@@ -343,24 +343,42 @@ That broke four things:
 - The old session's watcher stayed alive (herdr's old id "matched"), kept stamping
   `watch_seen_at`, and held idle typing back for old-id questions.
 
-**Fix: follow the record.** `transcript.follow(session)` reads the tail of a session's
-transcript. If its last `continued-in` is followed only by bookkeeping, it moves to the named
-session, repeatedly, without cycles. If the old session was resumed and used after the record,
-it is not followed.
-- `herdr.live_agent` returns the followed id as `session_id` (herdr's own is kept as
-  `reported_session_id`). Every comparison (delivery's conversation check, the watcher's pane
-  check, the idle gate) sees the live conversation.
-- `resolve_caller` files questions under the followed id.
-- Questions and alerts filed under the old id are **re-homed** to the new one
-  (`Store.adopt_continuation`, recorded in `sessions.continued_in`). Ownership, the
-  verification transcript and hook/wake delivery then all use the live session. This happens
-  in the worker's tick for anything still in play, and in `deliver_batch` when it meets such a
-  row.
-- The old session's watcher ends at its next pane check: the pane now resolves to the new
-  session.
+**Fix: follow the record.** `transcript.follow(session)` / `chain(session)` read the session's
+transcript. If its last `continued-in` is followed only by bookkeeping, they move to the named
+session, repeatedly, without cycles.
+- **Ids from transcripts are followed only as canonical UUIDs.** `find` itself accepts only
+  `[A-Za-z0-9_-]`. These ids become part of a glob path, so `*`, `?`, `[`, slashes,
+  backslashes and dots never reach it (review #41).
+- **Reads are incremental:** a growing transcript is read only where it grew since the last
+  look.
+- `herdr.live_agent` returns the followed id as `session_id` (herdr's own as
+  `reported_session_id`). Delivery's conversation check, the watcher's pane check and the idle
+  gate all compare against the live conversation. `resolve_caller` files new questions under it.
 
-Transcript lookups are cached per projects directory and session, and the tail read is cached
-by file size, so following costs no extra glob per herdr lookup.
+**Rows keep the session they were filed under.** That session is part of a remote question's
+identity (`qkey`), so rewriting it would make an answer already in a remote outbox be refused
+(review #41 High 1). Instead the worker records each continuation (`sessions.continued_in`, every
+tick, idempotent), and everything that resolves "this session's rows" takes the session's
+**family**: itself plus every recorded session that continued into it.
+- That covers ownership (list_my_questions, check_answers, alerts, withdraw).
+- It covers the hook and the rewake watcher's candidates, including the read-only fast path
+  (a recursive CTE).
+- Rows filed under the old id later, by a stale process, are covered without another pass.
+
+**Verification reads the whole chain.** Every check for "did it already land?" looks in every
+transcript the conversation lived in: the filed session and each session it continued in.
+- That covers delivery's pre-type check, the hook's own pre-send check, the hook-send
+  verification and the reconcile pass.
+- So an answer that landed in the OLD transcript just before a continuation is found there
+  and never sent again (review #41 High 2).
+
+**A resumed old session** (the old id used again after its `continued-in` record) is not
+followed: the record no longer ends that transcript. Its rows are again its own, and a pane
+showing the old conversation gets them. That is the safe direction: at worst an answer waits
+as "conversation changed".
+
+The old session's watcher ends at its next pane check: the pane now resolves to the new
+session.
 
 ## Never type onto a draft; a delivery after other text still counts (0.10.1)
 

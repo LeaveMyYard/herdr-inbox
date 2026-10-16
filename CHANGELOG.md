@@ -8,7 +8,11 @@
   - The inbox now follows that record. New questions are filed under the live session, and
     answers are typed and verified there; they are no longer refused as "conversation changed"
     or checked against the dead transcript.
-  - Questions and alerts from the old id are moved to the new one.
+  - Questions and alerts filed under the old id belong to the new session as well. They
+    keep their filed id, so remote answers already on their way still apply.
+  - Checks for an answer that already landed look in every transcript of the conversation,
+    so nothing is delivered twice across the switch.
+  - A continuation id is used only if it is a UUID: it becomes part of a file path.
   - The old session's background watcher ends, and the new one's is no longer ended by
     mistake.
 

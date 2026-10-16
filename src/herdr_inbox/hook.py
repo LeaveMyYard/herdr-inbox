@@ -147,9 +147,12 @@ def _has_candidates(session_id: str) -> bool:
 
             # the same filter as Store.hook_candidates: rows at the miss cap or whose agent is
             # gone never open the writable store (review #26 L2)
+            # this session and those it continued (sessions.continued_in, Claude Code continuation)
             return db.execute(
-                "SELECT 1 FROM questions WHERE session_id = ? AND status = 'answered' AND delivered_at IS NULL"
-                " AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
+                "WITH RECURSIVE fam(s) AS (SELECT ? UNION SELECT sessions.session_id FROM sessions JOIN fam"
+                " ON sessions.continued_in = fam.s)"
+                " SELECT 1 FROM questions WHERE session_id IN (SELECT s FROM fam) AND status = 'answered'"
+                " AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
                 " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1",
                 (session_id, MAX_HOOK_MISSES)).fetchone() is not None
         finally:
@@ -182,13 +185,13 @@ def deliver(payload: dict, liveness: bool = True) -> str | None:
         if not qs:
             return None
         path = transcript.find(session, payload.get("transcript_path"))
-        if path is not None:  # a late typed landing: recorded, never sent twice
-            landed = transcript.landed_kinds(path, {q.id: (service.expected_segments(q), q.answered_at) for q in qs})
-            for q in qs:
-                if q.id in landed:
-                    store.record_delivery(q.id, None, acknowledge=bool(landed[q.id] - {service.REFERENCE_INDEX}),
-                                          claim=claims[q.id], verified=True)
-            qs = [q for q in qs if q.id not in landed]
+        # a late landing, in any transcript of the conversation: recorded, never sent twice
+        landed = service.landed_across(store, qs, [path])
+        for q in qs:
+            if q.id in landed:
+                store.record_delivery(q.id, None, acknowledge=bool(landed[q.id] - {service.REFERENCE_INDEX}),
+                                      claim=claims[q.id], verified=True)
+        qs = [q for q in qs if q.id not in landed]
         if not qs:
             return None
         text, batch, _ = service.delivery_messages(qs)[0]

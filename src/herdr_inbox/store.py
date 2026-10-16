@@ -484,8 +484,9 @@ class Store:
 
     def _owner_clause(self, session_id: str | None, pane_id: str | None) -> tuple[str, tuple]:
         """Questions belong to a session; without one, to the pane."""
-        if session_id:
-            return "session_id = ?", (session_id,)
+        if session_id:  # this session and the sessions it continued (Claude Code session continuation)
+            fam = self.family(session_id)
+            return f"session_id IN ({','.join('?' * len(fam))})", tuple(fam)
         if pane_id:
             return "session_id IS NULL AND pane_id = ?", (pane_id,)
         return "0", ()
@@ -741,16 +742,23 @@ class Store:
         row = self.db.execute("SELECT continued_in FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
         return row[0] if row else None
 
-    def adopt_continuation(self, old: str, new: str) -> None:
-        """Claude Code continued ``old``'s conversation in ``new``: its questions and alerts
-        belong to ``new`` now (ownership, verification transcript, hook and wake delivery)."""
-        if not old or not new or old == new:
+    def record_continuation(self, old: str, new: str) -> None:
+        """Claude Code continued ``old``'s conversation in ``new``. Rows keep the session they
+        were FILED under (it is part of a remote question's identity, qkey; review #41): who
+        owns them, where they are delivered and verified is resolved through this record."""
+        if not old or not new or old == new or self.continued_in(old) == new:
             return
-        with self.transaction():
-            self.db.execute("UPDATE questions SET session_id = ? WHERE session_id = ?", (new, old))
-            self.db.execute("UPDATE alerts SET session_id = ? WHERE session_id = ?", (new, old))
-            self.db.execute("INSERT INTO sessions (session_id, continued_in) VALUES (?, ?)"
-                            " ON CONFLICT(session_id) DO UPDATE SET continued_in = excluded.continued_in", (old, new))
+        self.db.execute("INSERT INTO sessions (session_id, continued_in) VALUES (?, ?)"
+                        " ON CONFLICT(session_id) DO UPDATE SET continued_in = excluded.continued_in", (old, new))
+
+    def family(self, session_id: str | None) -> list[str]:
+        """``session_id`` and every recorded session whose conversation continued into it."""
+        if not session_id:
+            return []
+        rows = self.db.execute(
+            "WITH RECURSIVE fam(s) AS (SELECT ? UNION SELECT sessions.session_id FROM sessions JOIN fam"
+            " ON sessions.continued_in = fam.s) SELECT s FROM fam LIMIT 32", (session_id,)).fetchall()
+        return [r[0] for r in rows]
 
     def watch_live(self, session_id: str | None, within: timedelta) -> bool:
         """The session's asyncRewake watcher stamped ``watch_seen_at`` within ``within``.
@@ -777,12 +785,14 @@ class Store:
         return (row[0] or 0) if row else 0
 
     def hook_candidates(self, session_id: str, max_misses: int) -> list[Question]:
-        """This session's answers not yet delivered or seen, that the hook may still carry."""
+        """This session's answers (and those of the sessions it continued) not yet delivered
+        or seen, that the hook may still carry."""
+        fam = self.family(session_id)
         rows = self.db.execute(
-            f"SELECT * FROM {VIEW} WHERE session_id = ? AND status = 'answered' AND delivered_at IS NULL"
-            " AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
+            f"SELECT * FROM {VIEW} WHERE session_id IN ({','.join('?' * len(fam))}) AND status = 'answered'"
+            " AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
             " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) ORDER BY id",
-            (session_id, max_misses)).fetchall()
+            (*fam, max_misses)).fetchall()
         return [Question.from_row(r) for r in rows]
 
     def record_hook_delivery(self, qid: int, claim: str) -> bool:
@@ -888,13 +898,14 @@ class Store:
         found: set[int] = set()
         read: set[int] = set()  # rows whose transcript was actually read
         for session, qids in by_session.items():
-            path = transcript.find(session, self.session_transcript(session))
-            if path is not None:
-                from .service import expected_segments  # local: service imports the store
+            from .service import expected_segments  # local: service imports the store
 
-                qs = [q for q in (self.get(i) for i in qids) if q is not None]
-                found |= transcript.landed_exact(path, {q.id: (expected_segments(q), q.answered_at) for q in qs})
-                read |= set(qids)
+            qs = [q for q in (self.get(i) for i in qids) if q is not None]
+            for s in transcript.chain(session, self.session_transcript(session)):  # incl. continuations
+                path = transcript.find(s, self.session_transcript(s))
+                if path is not None:
+                    found |= transcript.landed_exact(path, {q.id: (expected_segments(q), q.answered_at) for q in qs})
+                    read |= set(qids)
         with self.transaction():
             for qid, _, recent_signature in rows:
                 if qid in found:

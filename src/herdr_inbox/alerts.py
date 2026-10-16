@@ -70,6 +70,21 @@ def akey(store: Store, a: Alert, db_id: str) -> str:
     return hashlib.sha256(f"{db_id}|alert|{a.id}|{a.created_at}|{a.title}".encode()).hexdigest()[:32]
 
 
+def _owned(store: Store, caller) -> tuple[str, tuple]:
+    """The caller's alerts: its session and the sessions it continued; without a session,
+    the pane's session-less ones."""
+    if caller.session_id:
+        fam = store.family(caller.session_id)
+        return f"session_id IN ({','.join('?' * len(fam))})", tuple(fam)
+    return "session_id IS NULL AND pane_id = ?", (caller.pane_id,)
+
+
+def _is_mine(store: Store, a: "Alert", caller) -> bool:
+    if caller.session_id:
+        return a.session_id in store.family(caller.session_id)
+    return a.session_id is None and a.pane_id == caller.pane_id
+
+
 def raise_alert(store: Store, caller, title: str, message: str | None = None, severity: str = "warning",
                 asked_by: str | None = None) -> dict:
     if not caller.pane_id:
@@ -80,9 +95,9 @@ def raise_alert(store: Store, caller, title: str, message: str | None = None, se
         return {"status": "error", "message": "An alert needs a short title."}
     message = (str(message).strip()[:MAX_MESSAGE] or None) if message else None
     with store.transaction():
-        dup = store.db.execute("SELECT id FROM alerts WHERE status = 'open' AND kind = 'agent' AND title = ?"
-                               " AND COALESCE(session_id, pane_id) = COALESCE(?, ?)",
-                               (title, caller.session_id, caller.pane_id)).fetchone()
+        where, args = _owned(store, caller)
+        dup = store.db.execute(f"SELECT id FROM alerts WHERE status = 'open' AND kind = 'agent' AND title = ? AND {where}",
+                               (title, *args)).fetchone()
         if dup:
             return {"id": dup[0], "status": "already_open",
                     "message": f"A{dup[0]} is already with the operator; do not raise it again."}
@@ -118,7 +133,7 @@ def acknowledge(store: Store, aid: int) -> bool:
 
 def withdraw(store: Store, caller, aid: int) -> dict:
     a = _get(store, aid)
-    if a is None or a.kind != "agent" or (a.session_id or a.pane_id) != (caller.session_id or caller.pane_id):
+    if a is None or a.kind != "agent" or not _is_mine(store, a, caller):
         return {"id": aid, "status": "error", "message": f"A{aid} is not an alert of this session."}
     if _close(store, aid, "withdrawn") is None:
         return {"id": aid, "status": "error", "message": f"A{aid} is {a.status}, not open."}
@@ -129,8 +144,7 @@ def acknowledged_unreported(store: Store, caller) -> list[Alert]:
     """This session's alerts the operator acknowledged since the last report (check_answers)."""
     rows = store.db.execute(
         "SELECT * FROM alerts WHERE kind = 'agent' AND status = 'acked' AND reported_at IS NULL"
-        " AND COALESCE(session_id, pane_id) = COALESCE(?, ?) ORDER BY id",
-        (caller.session_id, caller.pane_id)).fetchall()
+        f" AND {_owned(store, caller)[0]} ORDER BY id", _owned(store, caller)[1]).fetchall()
     out = [Alert(**dict(r)) for r in rows]
     for a in out:
         store.db.execute("UPDATE alerts SET reported_at = ? WHERE id = ?", (now(), a.id))
@@ -139,8 +153,8 @@ def acknowledged_unreported(store: Store, caller) -> list[Alert]:
 
 def mine(store: Store, caller) -> list[Alert]:
     return [Alert(**dict(r)) for r in store.db.execute(
-        "SELECT * FROM alerts WHERE kind = 'agent' AND COALESCE(session_id, pane_id) = COALESCE(?, ?) ORDER BY id",
-        (caller.session_id, caller.pane_id)).fetchall()]
+        f"SELECT * FROM alerts WHERE kind = 'agent' AND {_owned(store, caller)[0]} ORDER BY id",
+        _owned(store, caller)[1]).fetchall()]
 
 
 # -- automatic alerts for agents at a blocking prompt ---------------------------------------
