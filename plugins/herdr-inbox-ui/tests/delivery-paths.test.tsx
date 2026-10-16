@@ -1,5 +1,5 @@
 import type { On } from 'claude-code'
-import { test, expect } from 'claude-code/testing'
+import { test, expect, mock } from 'claude-code/testing'
 
 import { pastedRow, pastedSubmit, postToolBatch, rewakeRow, rewakeSubmit, stop, typedRow, typedSubmit } from './captured'
 
@@ -52,6 +52,7 @@ test('pasted answer: the id-carrying closing tag is not part of the answer', asy
 })
 
 test('asyncRewake wake: the "Stop hook feedback" row shows the answer it carried', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
   engine(on)
   const { toasts, prompts } = sinks(on)
   await $.prompt.submit(submit(rewakeSubmit))
@@ -73,6 +74,7 @@ test('asyncRewake wake: the "Stop hook feedback" row shows the answer it carried
 })
 
 test('a non-inbox Stop hook wake keeps the pairing and its row', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
   engine(on)
   const { toasts } = sinks(on)
   const foreign = rewakeSubmit.text.replace(/\[inbox\][^\n]*/, 'lint failed')
@@ -113,4 +115,43 @@ test('hook results without inbox answers stay quiet', async ($, on) => {
   await $.classic.Stop({ stop_hook_active: false } as never)
   expect(logs).toEqual([])
   expect(toasts).toEqual([])
+})
+
+test('a wake row drawn outside the window stays plain and never shifts later labels', async ($, on) => {
+  const clock = mock.clock(on, { now: 1_000_000 })
+  engine(on)
+  sinks(on)
+  // A wake whose row is never drawn (missed, or another surface): it must not label the next row.
+  await $.prompt.submit(submit(rewakeSubmit))
+  await clock.advance(6_000)
+  const late = await $.ui.mount({ plugin: P, surface: 'terminal', ...userRow(rewakeRow), requestId: 'late-row' })
+  expect(await late.find({ type: 'Text', text: 'ENGINE' })).toBeDefined()  // someone else's feedback: plain
+  await late.unmount()
+  // The next wake still pairs with its own row.
+  await $.prompt.submit(submit(rewakeSubmit))
+  await clock.advance(200)
+  const own = await $.ui.mount({ plugin: P, surface: 'terminal', ...userRow(rewakeRow), requestId: 'own-row' })
+  expect(await own.find({ type: 'Text', text: /^✓ Operator answered Q15/ })).toBeDefined()
+  await own.unmount()
+  // Redrawing a row keeps what it took; a redraw is not a new row.
+  const again = await $.ui.mount({ plugin: P, surface: 'terminal', ...userRow(rewakeRow), requestId: 'own-row' })
+  expect(await again.find({ type: 'Text', text: /^✓ Operator answered Q15/ })).toBeDefined()
+  await again.unmount()
+})
+
+// `claude plugin test` loads the plugin afresh for each test (checked: these two pass with the
+// session.start reset removed); they pin that no queued wake leaks from one test into the next.
+test('pairing state does not leak in from an earlier test', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  engine(on)
+  sinks(on)
+  await $.prompt.submit(submit(rewakeSubmit))  // queued, its row never drawn in this test
+})
+
+test('…so a fresh row here stays plain', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  engine(on)
+  const row = await $.ui.mount({ plugin: P, surface: 'terminal', ...userRow(rewakeRow), requestId: 'fresh-row' })
+  expect(await row.find({ type: 'Text', text: 'ENGINE' })).toBeDefined()
+  await row.unmount()
 })

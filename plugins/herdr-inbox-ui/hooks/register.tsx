@@ -40,8 +40,11 @@ export function parseAnswers(raw: string): Answer[] {
 // asyncRewake (an idle session): Claude Code wakes it with a task notification whose summary is
 // this and whose body is `Stop hook blocking error from command "…": [inbox] …` (2.1.301).
 const REWAKE_SUMMARY = 'Stop hook feedback'
-const rewakes: Answer[][] = []
-const rewakeRows = new Map<string, Answer[]>()
+// The row arrives within a frame of its prompt. A row only takes a wake from this window, so a
+// missed or late row never shifts a label onto another hook's feedback: it stays plain.
+export const WAKE_WINDOW_MS = 5000
+const wakes: { at: number; answers: Answer[] }[] = []
+const wakeRows = new Map<string, Answer[]>()
 
 export function rewakeAnswers(text: string): Answer[] {
   const m = /Stop hook blocking error from command "[^"]*": ([\s\S]*?)\s*<\/system-reminder>/.exec(text)
@@ -49,6 +52,13 @@ export function rewakeAnswers(text: string): Answer[] {
 }
 
 export const register: Register = on => {
+  // A new session (and each test) starts unpaired.
+  on('session.start', ($, e, next) => {
+    wakes.length = 0
+    wakeRows.clear()
+    return next(e)
+  })
+
   on('ui.render', { component: 'ToolUse' }, ($, e, next) => {
     const name = TOOL.exec(e.props.tool)?.[1]
     if (!name || !DRAWN.has(e.surface)) return next(e)
@@ -104,14 +114,19 @@ export const register: Register = on => {
 
   // A typed or pasted answer (UserMessage, origin composer), and an idle session's asyncRewake
   // wake: its row reads only "Stop hook feedback" (origin task-notification); the answer is in
-  // the prompt prompt.submit saw just before, so each such row takes the next one queued there.
-  on('ui.render', { component: 'UserMessage' }, ($, e, next) => {
+  // the prompt prompt.submit saw just before: a row first drawn within WAKE_WINDOW_MS of a queued
+  // wake takes the oldest such wake; any other row stays as Claude Code draws it.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.isExpanded || !DRAWN.has(e.surface)) return next(e)
     let answers = parseAnswers(e.props.text)
     if (answers.length === 0 && e.props.origin.kind === 'task-notification' && e.props.text === REWAKE_SUMMARY
         && e.requestId !== 'placeholder') {
-      if (!rewakeRows.has(e.requestId)) rewakeRows.set(e.requestId, rewakes.shift() ?? [])
-      answers = rewakeRows.get(e.requestId) ?? []
+      if (!wakeRows.has(e.requestId)) {
+        const now = await $.clock.now()
+        while (wakes.length > 0 && now - wakes[0]!.at > WAKE_WINDOW_MS) wakes.shift()
+        wakeRows.set(e.requestId, wakes.shift()?.answers ?? [])
+      }
+      answers = wakeRows.get(e.requestId) ?? []
     }
     if (answers.length === 0) return next(e)
     const { Box, Text } = $.ui.resolve(e)
@@ -127,10 +142,10 @@ export const register: Register = on => {
     )
   })
 
-  on('prompt.submit', ($, e, next) => {
+  on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind === 'task-notification' && e.text.includes(`<summary>${REWAKE_SUMMARY}</summary>`)) {
       const answers = rewakeAnswers(e.text)
-      rewakes.push(answers)  // one entry per wake row, inbox or not, so rows and answers stay paired
+      wakes.push({ at: await $.clock.now(), answers })  // every wake, inbox or not: rows pair in order
       announce($, answers)
     } else {
       announce($, parseAnswers(e.text))
