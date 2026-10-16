@@ -54,3 +54,34 @@ def nested_claude() -> bool:
                 return True
         pid = ppid
     return False
+
+
+def owning_claude() -> int | None:
+    """The pid of the nearest `claude` above us (the session a hook belongs to), else our
+    grandparent (hook -> sh -> agent); None if unknown."""
+    pid, first = os.getppid(), None
+    for depth in range(MAX_DEPTH):
+        if pid <= 1:
+            break
+        info = _parent(pid)
+        if info is None:
+            break
+        ppid, comm = info
+        if comm == "claude":
+            return pid
+        if depth == 0:
+            first = ppid
+        pid = ppid
+    return first if first and first > 1 else None
+
+
+def alive(pid: int | None) -> bool:
+    if not pid:
+        return True  # unknown: the other bounds (supersede, max age) still apply
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True

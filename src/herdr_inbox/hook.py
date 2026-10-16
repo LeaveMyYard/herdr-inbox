@@ -81,12 +81,6 @@ def session_start_context(payload: dict) -> str:
     return text
 
 
-def _hook_version() -> str:
-    from . import __version__
-
-    return __version__ if __version__ != "0" else "0.9+"  # "0": imported from src, not installed
-
-
 def _remember_transcript(payload: dict) -> None:
     """Record where this session's transcript is: deliveries are verified against it. (Not
     that it can take hook deliveries: only the delivery hook firing says so, see _touch.)"""
@@ -94,13 +88,13 @@ def _remember_transcript(payload: dict) -> None:
         from .store import Store
 
         with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
-            store.record_session(payload["session_id"], payload["transcript_path"], hook_delivery=_hook_version())
+            store.record_session(payload["session_id"], payload["transcript_path"])
 
 
 LIVENESS_EVERY = 60  # seconds between the delivery hook's liveness writes per session
 
 
-def _touch(session_id: str) -> None:
+def _touch(session_id: str, column: str = "hook_seen_at") -> None:
     """The delivery hook fired: stamp ``sessions.hook_seen_at``, at most once a minute (the
     worker leaves a WORKING session to its hooks only while this is recent)."""
     import sqlite3
@@ -113,15 +107,20 @@ def _touch(session_id: str) -> None:
         return
     stamp = datetime.now(timezone.utc)
     cutoff = (stamp - timedelta(seconds=LIVENESS_EVERY)).isoformat(timespec="seconds")
-    try:
+    try:  # the common case is a read-only look: the stamp is under a minute old
+        ro = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
+        try:
+            assert column in ("hook_seen_at", "watch_seen_at")
+            row = ro.execute(f"SELECT {column} FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+        finally:
+            ro.close()
+        if row and row[0] and row[0] >= cutoff:
+            return  # fresh enough: no write, no writable connection
         db = sqlite3.connect(str(path), timeout=PENDING_TIMEOUT)
         try:
-            row = db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
-            if row and row[0] and row[0] >= cutoff:
-                return  # fresh enough: no write
             with db:
-                db.execute("INSERT INTO sessions (session_id, hook_seen_at) VALUES (?, ?) ON CONFLICT(session_id)"
-                           " DO UPDATE SET hook_seen_at = excluded.hook_seen_at",
+                db.execute(f"INSERT INTO sessions (session_id, {column}) VALUES (?, ?) ON CONFLICT(session_id)"
+                           f" DO UPDATE SET {column} = excluded.{column}",
                            (session_id, stamp.isoformat(timespec="seconds")))
         finally:
             db.close()
@@ -159,7 +158,7 @@ def _has_candidates(session_id: str) -> bool:
         return False
 
 
-def deliver(payload: dict) -> str | None:
+def deliver(payload: dict, liveness: bool = True) -> str | None:
     """This session's waiting answers as the hook's additionalContext, or None.
 
     Same text as typing (``[inbox] Q7 answered — …``), one message per firing. Each row is
@@ -168,14 +167,15 @@ def deliver(payload: dict) -> str | None:
     session = payload.get("session_id")
     if not session or payload.get("agent_id"):
         return None  # a subagent's or teammate's hook: the answer belongs to the session that asked
-    _touch(session)
+    if liveness:  # the PostToolBatch/Stop hooks only; the rewake watcher stamps its own column
+        _touch(session)
     if not _has_candidates(session):
         return None
     from . import herdr, service, transcript
     from .store import Store
 
     with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
-        store.record_session(session, payload.get("transcript_path"), hook_delivery=_hook_version())
+        store.record_session(session, payload.get("transcript_path"))
         qs = store.hook_candidates(session, service.MAX_HOOK_MISSES)
         claims = {q.id: c for q in qs if (c := store.claim_delivery(q.id))}
         qs = [q for q in qs if q.id in claims]
@@ -222,6 +222,18 @@ def run(event: str) -> int:
                 context = SESSION_RULES
         elif event == "subagent-start":
             name, context = "SubagentStart", SUBAGENT_RULES
+        elif event == "rewake-watch":  # asyncRewake: stdout + the launcher's wake exit
+            from . import rewake
+
+            text = rewake.run(payload)
+            if not text:
+                return 0
+            try:
+                sys.stdout.write(text + "\n")
+                sys.stdout.flush()
+            except BaseException:  # noqa: BLE001
+                return 0
+            return rewake.WAKE_EXIT
         elif event in DELIVERY_EVENTS:
             name = DELIVERY_EVENTS[event]
             context = deliver(payload)

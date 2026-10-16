@@ -136,11 +136,20 @@ An answer arrives in the agent's conversation as
 that asked.
 
 **How it gets there depends on the agent.**
+- **An idle Claude Code session** (0.10.0) is woken with the answer without any typing. A
+  background hook waits for answers after each turn and starts a new turn with the answer. It
+  wakes the agent even while you are looking at its pane, without touching what you type. Each
+  idle session keeps one small background process (about 12 MB of its own memory).
 - **A Claude Code session that is working** gets the answer without any typing. The inbox's own
   hooks hand it over as context at its next tool batch, or when its turn ends; then the turn
   continues with the answer.
-- **An idle Claude, a Claude session started before 0.9.0, and other agents** (Codex etc.) get
-  it typed into the pane.
+- **Other agents** (Codex etc.), **Claude sessions started before the update**, sessions whose
+  hooks stopped firing, and **Send now** get it typed into the pane.
+
+**Note on consent.** Claude Code marks an answer that arrives through its hooks as an
+automated notification, not as something the user typed. Agents act on such answers as
+information. But an agent may refuse to treat one as your approval for something risky, like
+"deploy? yes". Ask for such confirmations in chat, as the inbox rules already say.
 
 Either way the inbox counts an answer as seen only once the conversation transcript shows it.
 
