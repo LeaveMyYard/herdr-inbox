@@ -411,3 +411,65 @@ def test_r2_a_same_size_rewrite_is_re_indexed(fake_herdr):
     os.utime(path)
     assert not transcript.seen_answer(path, 7, "q", "aaaa", None)
     assert transcript.seen_answer(path, 7, "q", "bbbb", None)
+
+
+# -- review round 3 (#44): the own-answer match is an actual `inbox answer <n>` invocation ----
+
+def bash_and_result(command, result, use_id):
+    return [tool_use("Bash", {"command": command}, use_id),
+            {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": use_id, "content": result}]}}]
+
+
+@pytest.mark.parametrize("command,result", [
+    ('grep -n "answer {n}" ~/Code/herdr-inbox/worker.log',
+     "1234: Q{n} answered, not delivered: no live agent in pane w6:p48"),
+    ('gh pr comment 44 -R LeaveMyYard/herdr-inbox --body "run inbox answer {n} x to reproduce"',
+     "https://github.com/x/1\nQ{n} answered, pending: busy"),
+    ("inbox answer {n} x; grep 'Q{n}' ~/.local/state/herdr-inbox/worker.log",
+     "Q{n} is not open\nQ{n} answered, delivered to w1:p1"),
+])
+def test_r3_only_a_real_successful_inbox_answer_invocation_counts(store, fake_herdr, command, result):
+    q = filed(store, "w6:p48", NEW, "Anchored own answer?", "a long answer value here")
+    as_stored(store, q.id, GONE_P48)
+    write(NEW, bash_and_result(command.format(n=q.id), result.format(n=q.id), "u9"))
+    worker.tick(store)
+    assert [r.id for r in store.failed_deliveries()] == [q.id]
+
+
+@pytest.mark.parametrize("command", [
+    "B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n$B answer {n} \"x\"",
+    "cd ~/Code/herdr-inbox && uv run inbox answer Q{n} \"x\"",
+    "/home/u/.venv/bin/inbox answer {n} 'x'",
+    "python3 -m herdr_inbox.cli answer {n} x",
+])
+def test_r3_the_real_invocation_forms_count(store, fake_herdr, command):
+    q = filed(store, "w6:p48", NEW, "Real own answer?", "a long answer value here")
+    as_stored(store, q.id, GONE_P48)
+    out = f"inbox: herdr ('agent', 'get') failed: x\nQ{q.id} answered, not delivered: no live agent in pane w6:p48\n"
+    write(NEW, bash_and_result(command.format(n=q.id), out, "u8"))
+    worker.tick(store)
+    assert store.get(q.id).acknowledged_at
+
+
+def test_r3_the_live_pre_type_guard_never_uses_self_answer_evidence(store, fake_herdr, monkeypatch):
+    """KISS: live, `inbox answer` from the conversation marks the row seen itself (CLI);
+    the transcript self-answer heuristic is only for reconciling old rows."""
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    store.record_session("sess-A", str(tdir() / "sess-A.jsonl"))
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Pre-type?")["id"]
+    write("sess-A", bash_and_result(f"inbox answer {qid} \"a long answer value here\"",
+                                    f"Q{qid} answered, delivered to w1:p1", "u7"))
+    service.answer(store, qid, "a long answer value here")
+    assert fake_herdr.calls_of("agent", "prompt")
+
+
+def test_r3_the_captured_multi_answer_command_counts_every_question():
+    """The live command (2026-10-17): one Bash call answering Q159..Q166 with `&&` + newline,
+    answers containing `;`, `(a)`, `/` (text neutralised)."""
+    cmd = ("B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n"
+           '$B answer 159 "Keep as built (merged in #1943): placeholder; goes away with v1" &&\n'
+           '$B answer 160 "Keep as built: prev/next + counter" &&\n'
+           '$B answer 165 "(a) as built (allowance / week); log it" &&\n'
+           '$B answer 166 "x | y"')
+    assert transcript.own_answer_qids(cmd) == {159, 160, 165, 166}

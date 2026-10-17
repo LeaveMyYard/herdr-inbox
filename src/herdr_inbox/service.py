@@ -524,12 +524,8 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
         pane_sessions = [s for s in (agent.get("session_id"), agent.get("reported_session_id")) if s]
         related = {str(p): p for q in ours for p in _relative_paths(store, q.session_id, pane_sessions)}
         landed = landed_across(store, ours, [path] + [p for p, _ in _watch_paths(store, agent)] + list(related.values()))
-        seen = {q.id for q in ours if q.id not in landed
-                and any(transcript.seen_answer(p, q.id, q.question, q.answer or "", q.answered_at)
-                        for p in related.values())}
-        for qid in seen:
-            store.mark_seen_elsewhere(qid, claim=claims[qid])  # the agent read it another way: never typed
-        ours = [q for q in ours if q.id not in seen]
+        # (no "seen another way" evidence here: live, `inbox answer` from the conversation
+        # marks the row seen itself; that transcript heuristic only reconciles old rows)
         for q in ours:
             if q.id in landed:
                 # only the long-answer reference landed: the agent has a pointer to

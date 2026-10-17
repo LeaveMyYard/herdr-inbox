@@ -359,11 +359,77 @@ def _strings(value):
 
 
 OWN = object()  # evidence kind: the conversation itself answered (our CLI's output line)
-_CLI_ANSWERED = re.compile(r"(?<![A-Za-z0-9])Q(\d+) answered(?:, | by its own conversation)")
 _evidence_cache: "OrderedDict[str, tuple]" = OrderedDict()  # path -> (stat, offset, edge, found, uses)
 
 
-_OWN_ANSWER_CMD = re.compile(r"(?<![\w-])answer\s+Q?(\d+)(?!\d)")
+_ASSIGN = re.compile(r"^([A-Za-z_]\w*)=(\S+)$")
+_QID = re.compile(r"^Q?(\d+)$")
+_VALUE_FLAGS = {"--project", "--directory", "--python", "--with", "--from", "-p"}
+
+
+def own_answer_qids(command: str) -> set[int]:
+    """The question ids a shell command ANSWERS with the inbox CLI: only an actual
+    invocation at the start of a command segment (start, newline, `;`, `&&`, `||`, `|`):
+    `[path/]inbox answer [Q]<n>`, `$VAR answer <n>` with VAR set to an inbox path earlier in
+    the command, `uv run [flags] inbox answer <n>`, `python[3] -m herdr_inbox.cli answer <n>`.
+    A path, a repo name, a grep pattern or a comment body never counts (review #44 r3)."""
+    import shlex
+
+    try:  # quote-aware: `;`, `&`, `|` and newlines inside a quoted answer are text, not separators
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|\n")
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        tokens_all = list(lexer)
+    except ValueError:
+        return set()
+    segments, current = [], []
+    for tok in tokens_all:
+        if tok and set(tok) <= set(";&|\n"):
+            segments.append(current)
+            current = []
+        else:
+            current.append(tok)
+    segments.append(current)
+    inbox_vars, out = set(), set()
+    for tokens in segments:
+        tokens = [t for t in (tokens[:1] and [tokens[0].lstrip("\n")]) + tokens[1:] if t]  # "&&\n$B" glues
+        if len(tokens) == 1 and _ASSIGN.match(tokens[0]):
+            name, value = _ASSIGN.match(tokens[0]).groups()
+            if value == "inbox" or value.endswith("/inbox"):
+                inbox_vars.add(name)
+            continue
+        while tokens and _ASSIGN.match(tokens[0]):  # leading env assignments
+            tokens = tokens[1:]
+        if not tokens:
+            continue
+        head, rest = tokens[0], None
+        if head == "inbox" or head.endswith("/inbox"):
+            rest = tokens[1:]
+        elif head.startswith("$") and head.strip("${}") in inbox_vars:
+            rest = tokens[1:]
+        elif head == "uv" and len(tokens) > 2 and tokens[1] == "run":
+            i, n = 2, len(tokens)
+            while i < n and tokens[i].startswith("-"):
+                i += 2 if tokens[i] in _VALUE_FLAGS else 1
+            if i < n and (tokens[i] == "inbox" or tokens[i].endswith("/inbox")):
+                rest = tokens[i + 1:]
+        elif head.split("/")[-1] in ("python", "python3") and tokens[1:3] == ["-m", "herdr_inbox.cli"]:
+            rest = tokens[3:]
+        if rest and len(rest) >= 2 and rest[0] == "answer":
+            qm = _QID.match(rest[1])
+            if qm:
+                out.add(int(qm.group(1)))
+    return out
+
+
+def own_answer_succeeded(output: str, qid: int) -> bool:
+    """Our CLI's own success line for ``qid`` starts a line of the output, and it did not
+    say the question was not open."""
+    lines = [line.strip() for line in output.splitlines()]
+    if any(line.startswith(f"Q{qid} is not open") for line in lines):
+        return False
+    return any(line.startswith((f"Q{qid} answered, ", f"Q{qid} answered by its own conversation"))
+               for line in lines)
 _INBOX_READS = ("check_answers", "list_my_questions")
 
 
@@ -390,7 +456,7 @@ def _tool_uses(record: dict):
         name = block.get("name") or ""
         inp = block.get("input") if isinstance(block.get("input"), dict) else {}
         if name == "Bash" and isinstance(inp.get("command"), str) and "inbox" in inp["command"]:
-            qids = {int(m.group(1)) for m in _OWN_ANSWER_CMD.finditer(inp["command"])}
+            qids = own_answer_qids(inp["command"])
             if qids:
                 yield block["id"], "own", qids
         elif "herdr-inbox" in name and name.endswith(_INBOX_READS):
@@ -483,9 +549,9 @@ def evidence(path: Path) -> dict:
         for use_id, text in _tool_results(record):
             what, qids = uses.get(use_id, (None, frozenset()))
             if what == "own":
-                for m in _CLI_ANSWERED.finditer(text):
-                    if int(m.group(1)) in qids:
-                        found.setdefault(int(m.group(1)), []).append((ts, OWN))
+                for qid in qids:
+                    if own_answer_succeeded(text, qid):
+                        found.setdefault(qid, []).append((ts, OWN))
             elif what == "read" and '"answer"' in text:
                 try:
                     parsed = json.loads(text)

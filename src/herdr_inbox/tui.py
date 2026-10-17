@@ -699,6 +699,7 @@ class FailedView(Vertical, can_focus=True):
         _close(self.app)
 
 
+_go_clock = time.monotonic  # the `g` pause's clock (tests drive it; never the event loop's)
 ALERT_GO_GRACE = 0.5  # an alert view opened under the operator's typing never sends them to a prompt
 SEVERITY_STYLE = {"urgent": "$inbox-warning", "warning": "$inbox-warning", "info": "$inbox-suggestion"}
 
@@ -1391,7 +1392,7 @@ class InboxApp(App):
         if isinstance(event, events.Key) and event is not getattr(self, "_last_key_event", None):
             self._last_key_event = event
             self.prev_key_at = getattr(self, "last_key_at", 0.0)  # `g` to a waiting agent needs a pause after it
-            self.last_key_at = time.monotonic()
+            self.last_key_at = _go_clock()
         # The general rule: a background event never changes what the next keypress does.
         # Right after a view change the operator did not cause, keys are dropped.
         if isinstance(event, events.Key) and time.monotonic() < self.grace_until:
@@ -1406,12 +1407,12 @@ class InboxApp(App):
         """This `g` came ALERT_GO_GRACE after the previous key of ANY kind (a g too: a held,
         auto-repeating or double-tapped g never passes) and after the last view change: a
         deliberate g, not the tail of a typed sequence ("1 g", "1 Enter 1")."""
-        now = time.monotonic()
+        now = _go_clock()
         return (now - getattr(self, "prev_key_at", 0.0) >= ALERT_GO_GRACE
                 and now - getattr(self, "view_at", 0.0) >= ALERT_GO_GRACE)
 
     def _mount(self, view) -> None:
-        self.view_at = time.monotonic()
+        self.view_at = _go_clock()
         self.set_class(self.mode == "empty", "empty")
         body = self.base.query_one("#body")
         body.remove_children()
