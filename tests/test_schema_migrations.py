@@ -100,6 +100,41 @@ def migrated(tmp_path):
     return path
 
 
+# The schema each revision migrates a fresh database to (store.reference_schema), hashed. A
+# change to SCHEMA, VIEW_SQL, OLD_VIEWS, TABLE_ADDED_COLUMNS or what _migrate does on a fresh
+# database changes it: bump MIGRATION_REVISION and add the new value. Without the bump every
+# installed database would silently never migrate again (review of #48, H1). Comment edits do
+# not change it. A migration step that only matters for older databases (a data fix) does not
+# show here: bump the revision for it by hand.
+SCHEMA_FINGERPRINTS = {
+    1: "5481bf7d1a804c241e55eccbc52e982585577191c2d67ae81d7db033daf24f9e",
+}
+
+
+def schema_fingerprint() -> str:
+    import hashlib
+
+    columns, objects = st.reference_schema()
+    text = repr((sorted(columns.items()), sorted(objects.items())))
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_a_schema_change_comes_with_a_revision_bump():
+    assert schema_fingerprint() == SCHEMA_FINGERPRINTS.get(st.MIGRATION_REVISION), (
+        "the schema changed: bump store.MIGRATION_REVISION and record the new fingerprint here")
+
+
+def test_the_check_is_built_from_what_the_migration_produces(migrated):
+    """No parsing of SCHEMA: the reference is a migrated in-memory database, and it equals a
+    migrated file database object for object, column for column."""
+    db = sqlite3.connect(migrated)
+    assert st.describe_schema(db) == st.reference_schema()
+    tables, others = st._expected_schema()
+    assert tables == {t: cols for t, cols in declared().items()} | {
+        t: declared()[t] | set(added) for t, added in st.TABLE_ADDED_COLUMNS.items()}
+    assert st.VIEW in others and "questions_status" in others and "changes_x_upd" in others
+
+
 def test_revisions_live_in_the_sign_bit_so_no_crc32_is_ever_a_revision():
     assert revision_stamp() < 0 and stamped_revision(revision_stamp()) == st.MIGRATION_REVISION
     assert stamped_revision(revision_stamp(st.MIGRATION_REVISION + 1)) == st.MIGRATION_REVISION + 1
@@ -158,10 +193,8 @@ def test_a_non_migrating_open_on_a_stale_stamp_uses_the_db_without_any_write(mig
     holder.execute("BEGIN IMMEDIATE")  # the write lock is busy: a migrating open would wait 0.2 s and fail
     statements = traced(monkeypatch)  # (after the holder: the patch is process-wide)
     try:
-        started = time.monotonic()
-        with Store(migrated, timeout=0.2, maintenance=False) as s:
+        with Store(migrated, timeout=0.2, maintenance=False) as s:  # BEGIN IMMEDIATE would raise "locked"
             assert s.list() == []
-        assert time.monotonic() - started < 0.2
     finally:
         holder.execute("ROLLBACK")
         holder.close()
@@ -270,14 +303,19 @@ def test_two_bridge_revisions_interleave_forward_only(migrated, monkeypatch):
     assert "added_in_r2" in columns(migrated, "remote_outbox")  # never dropped
 
 
-def test_the_cli_never_migrates(store, fake_herdr, capsys):
-    """CLI commands open without migrating (store.py): on an older schema they say so and
-    exit 1; herdr's startup sync-tokens exits 0 quietly; a remote export/apply answers with
-    an error the pulling worker backs off on. The stamp and the schema are left alone."""
+def test_the_cli_never_migrates(store, fake_herdr, capsys, monkeypatch):
+    """CLI commands open without migrating (store.py): on an older schema they start the worker,
+    say so and exit 1; herdr's startup sync-tokens exits 0 quietly; a remote export/apply
+    answers with an error the pulling worker backs off on (review of #48, L1: and starts that
+    machine's worker). The stamp and the schema are left alone."""
     import json
 
     from herdr_inbox import cli
 
+    from herdr_inbox import service
+
+    started = []
+    monkeypatch.setattr(service, "_ensure_worker", lambda server=None: started.append(1))
     make_older_head(store.path)
     for argv in (["list"], ["answer", "1", "x"], ["dismiss", "1"], ["redeliver", "1"], ["deliver", "1"],
                  ["verify", "{}"]):
@@ -288,6 +326,7 @@ def test_the_cli_never_migrates(store, fake_herdr, capsys):
     for command in ("export", "apply"):
         assert cli.main([command], stdin="{}") == 1
         assert json.loads(capsys.readouterr().out)["error"].startswith("not ready: ")
+    assert len(started) == 9  # every one of them starts the worker, which migrates
     assert stamp_of(store.path) == CURRENT_PRE_BRIDGE
     assert "sending_at" not in columns(store.path, "remote_outbox")
 
