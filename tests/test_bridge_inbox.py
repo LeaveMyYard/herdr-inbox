@@ -279,3 +279,41 @@ def test_a_bad_session_link_never_matches_questions_without_a_session(store):
 
     service.ask(store, Caller("w1:p1", "w1:t1", "tab", None, "/r"), "No session?")
     assert deeplink.resolve(store, {"kind": "session", "value": "not-a-session"}) is None
+
+
+def test_without_procfs_a_walk_reads_the_process_table_once(monkeypatch):
+    """macOS: is_claude needs argv for every non-claude ancestor; asking ps per ancestor doubled
+    the cost of every hook (CI: SessionStart over 1 s). Two ps calls per walk, whatever the depth."""
+    import builtins
+    import subprocess
+
+    real_open = builtins.open
+
+    def no_proc(path, *a, **k):
+        if str(path).startswith("/proc/"):
+            raise FileNotFoundError(path)
+        return real_open(path, *a, **k)
+
+    chain = [(100, 101, "python3", "python3 -I hooks.py"), (101, 102, "zsh", "zsh"),
+             (102, 103, "2.1.301", "/Users/u/.local/share/claude/versions/2.1.301 -p"),
+             (103, 104, "bash", "bash -c x"), (104, 105, "/Users/u/.local/bin/claude", "/Users/u/.local/bin/claude"),
+             (105, 1, "/bin/zsh", "-zsh")]
+    calls = []
+
+    def fake_run(argv, **k):
+        calls.append(argv)
+        if "pid=,ppid=,comm=" in argv:
+            out = "".join(f"{p:>6} {pp:>6} {comm}\n" for p, pp, comm, _ in chain)
+        else:
+            out = "".join(f"{p:>6} {cmd}\n" for p, _, _, cmd in chain)
+        return subprocess.CompletedProcess(argv, 0, out, "")
+
+    monkeypatch.setattr(builtins, "open", no_proc)
+    monkeypatch.setattr(proc.subprocess, "run", fake_run)
+    monkeypatch.setattr(proc.os, "getppid", lambda: 100)
+    assert proc.nested_claude()
+    assert len(calls) == 2
+    assert proc.owning_claude() == 102
+    assert len(calls) == 4  # a new walk reads a fresh table
+    assert proc._parent(104) == (105, "claude") and proc._cmdline(102)[0].endswith("/2.1.301")
+    assert len(calls) == 8  # outside a walk nothing is kept

@@ -1,6 +1,6 @@
 """The rules both plugins must share (herdr-panorama docs/plans/rust-rewrite.md §1.3 rows 3-5,
-D6), as the same tables as herdr-panorama's tests/test_bridge_rules.py (herdr-panorama#53,
-f504b95), case for case. Only the calls differ: panorama's discovery.is_uuid /
+D6), as the same tables as herdr-panorama's tests/test_bridge_rules.py (herdr-panorama main 4f525f3,
+#53 merged), case for case. Only the calls differ: panorama's discovery.is_uuid /
 canonical_session_id / Session / hooks.is_claude are transcript.session_id_or_none /
 transcript.continued_in / proc.is_claude here.
 
