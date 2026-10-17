@@ -6,6 +6,10 @@ docs/plans/rust-rewrite.md §5.2) from the running Python code. Nothing in them 
   ``tests/make_screenshots.py`` and ``tests/test_tui.py``; every screen is what Textual's
   compositor sends to the terminal, as runs of ``[text, fg, bg, bold]`` per row (the shape of
   panorama's ``design_*.json`` and ``screens/*.json``; ``null`` is the terminal's default colour).
+- ``tests/fixtures/decisions.json`` (item 5, the delivery decision table ``inbox-core::decide``
+  must reproduce): the test suite runs in its own pytest with ``tests/decision_recorder.py``,
+  which turns on the test-only trace (``herdr_inbox.decision_trace``) and records every delivery
+  decision the tests drive, normalised and deduplicated.
 
 Deterministic: fixed sizes and data, TZ=UTC, every ``HERDR_*`` variable dropped, a temporary
 inbox database, the herdr binary the tests' fake (``tests/conftest.py``), the arming delays at
@@ -13,8 +17,9 @@ inbox database, the herdr binary the tests' fake (``tests/conftest.py``), the ar
 herdr never read. ``tests/test_goldens.py`` runs this into a temporary directory and compares.
 Regenerate after a deliberate behaviour change (and say why in the PR):
 
-    uv run python tools/capture_goldens.py              # rewrite tests/fixtures/screens/
-    uv run python tools/capture_goldens.py --out DIR    # write DIR/screens/ instead
+    uv run python tools/capture_goldens.py                    # rewrite screens/ and decisions.json
+    uv run python tools/capture_goldens.py --only decisions   # the decision table alone (whole suite)
+    uv run python tools/capture_goldens.py --out DIR          # write under DIR instead
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -353,15 +359,60 @@ def capture_screens(out: Path, work: Path) -> list[Path]:
     return written
 
 
+# -- item 5: the delivery decision table ---------------------------------------------------
+
+def write_decisions(path: Path, doc: dict) -> None:
+    """One row per line: small diffs when behaviour changes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    head = {k: v for k, v in doc.items() if k != "rows"}
+    body = ",\n".join("  " + json.dumps(r, ensure_ascii=False, sort_keys=True, separators=(", ", ": "))
+                      for r in doc["rows"])
+    text = json.dumps(head, ensure_ascii=False)[:-1] + ', "rows": [\n' + body + "\n]}\n"
+    json.loads(text)  # well-formed
+    path.write_text(text)
+
+
+def capture_decisions(out: Path, work: Path, env: dict, tests: list[str] | None) -> list[Path]:
+    """The test suite (or only the node ids ``tests``) under tests/decision_recorder.py, in its
+    own pytest."""
+    table = work / "decisions-raw.json"
+    paths = tests or ["tests"]
+    res = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                          "-p", "tests.decision_recorder", "--decision-table", str(table),
+                          "--ignore", "tests/test_goldens.py", *paths],
+                         env=env, cwd=ROOT, capture_output=True, text=True, timeout=1800)
+    if res.returncode != 0 or not table.exists():
+        raise SystemExit(f"the recorded test run failed:\n{res.stdout[-4000:]}\n{res.stderr[-2000:]}")
+    rows = json.loads(table.read_text())["rows"]
+    doc = {"source": "tests/decision_recorder.py over the inbox test suite (tools/capture_goldens.py); "
+                     "see tests/fixtures/README.md",
+           "files": sorted({t.split("::", 1)[0] for r in rows for t in r["tests"]}),
+           "rows": rows}
+    path = out / "decisions.json"
+    write_decisions(path, doc)
+    return [path]
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--out", type=Path, default=FIXTURES, help="write OUT/screens (default: %(default)s)")
-    p.add_argument("--only", choices=("screens",), help="one set (the decision table joins it in a later PR)")
+    p.add_argument("--out", type=Path, default=FIXTURES,
+                   help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
+    p.add_argument("--only", choices=("screens", "decisions"), help="one of the two sets")
+    p.add_argument("--golden-tests", action="store_true",
+                   help="decisions: run only the tests the committed decisions.json names (the check; any "
+                        "other test drives no traced decision, so the table comes out the same)")
     args = p.parse_args(argv)
     work = Path(tempfile.mkdtemp(prefix="inbox-goldens-"))
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
     try:
         isolate(work)
         written = []
+        if args.only in (None, "decisions"):
+            tests = None
+            if args.golden_tests:
+                rows = json.loads((FIXTURES / "decisions.json").read_text())["rows"]
+                tests = sorted({t for r in rows for t in r["tests"]})
+            written += capture_decisions(args.out, work, env, tests)
         if args.only in (None, "screens"):
             shutil.rmtree(args.out / "screens", ignore_errors=True)
             written += capture_screens(args.out, work)

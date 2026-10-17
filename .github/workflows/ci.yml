@@ -40,3 +40,24 @@ jobs:
       - run: claude plugin validate --strict .claude-plugin/plugin.json
       - run: claude plugin validate --strict plugins/herdr-inbox-ui
       - run: claude plugin test plugins/herdr-inbox-ui
+
+  decision-table:
+    # The delivery decision table (tests/fixtures/decisions.json, rust-rewrite §5.2 item 5)
+    # regenerated from the WHOLE suite: test_goldens[decisions] reruns only the tests the golden
+    # names, so a new test (or a src change that makes another test decide) shows up only here.
+    name: decision table (whole suite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.13"
+          python-version: "3.13"
+      - run: uv sync --frozen
+      - run: |
+          uv run python tools/capture_goldens.py --only decisions --out "$RUNNER_TEMP/goldens"
+          if ! cmp -s tests/fixtures/decisions.json "$RUNNER_TEMP/goldens/decisions.json"; then
+            diff tests/fixtures/decisions.json "$RUNNER_TEMP/goldens/decisions.json" | head -40
+            echo "::error::the delivery decision table changed; if deliberate: uv run python tools/capture_goldens.py"
+            exit 1
+          fi

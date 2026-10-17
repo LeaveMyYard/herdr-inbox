@@ -16,7 +16,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import herdr, proc, tabs, trace, transcript
+from . import decision_trace, herdr, proc, tabs, trace, transcript
 from .store import MAX_HOOK_MISSES as st_MAX_HOOK_MISSES, PENDING, REQUEUED, Question, Store, live_session, normalize
 
 NO_AGENT = "no live agent in pane"
@@ -68,6 +68,7 @@ MAX_OPTIONS = 9  # number keys 1-9
 MAX_QUESTIONS = 4  # AskUserQuestion's limit per call
 
 log = logging.getLogger("herdr_inbox")
+_obs = decision_trace.note  # test-only decision trace: returns its value untouched (decision_trace.py)
 
 
 @dataclass
@@ -440,191 +441,212 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
     for q in qs:
         by_pane.setdefault(q.pane_id, []).append(q)
     for pane, items in by_pane.items():
-        # Claim every row before writing any outcome for it (sent, no agent, conversation
-        # changed): another process mid-send is never overwritten, and never doubled.
-        claims = {q.id: c for q in items if (c := store.claim_delivery(q.id))}
-        items = [q for q in items if q.id in claims]
-        if not items:
-            continue
+        frame = decision_trace.begin("deliver_batch", store, items, retry=retry, force=force,
+                                     verify_later=verify_later is not None)
+        try:
+            # Claim every row before writing any outcome for it (sent, no agent, conversation
+            # changed): another process mid-send is never overwritten, and never doubled.
+            claims = {q.id: c for q in items if (c := store.claim_delivery(q.id))}
+            if frame is not None:
+                for q in items:
+                    frame.note("claimed", q.id in claims, [q.id])
+            items = [q for q in items if q.id in claims]
+            if not items:
+                continue
 
-        def record(q: Question, error: str | None, acknowledge: bool = True, verified: bool = False) -> None:
-            store.record_delivery(q.id, error, acknowledge=acknowledge, claim=claims[q.id], verified=verified)
+            def record(q: Question, error: str | None, acknowledge: bool = True, verified: bool = False) -> None:
+                store.record_delivery(q.id, error, acknowledge=acknowledge, claim=claims[q.id], verified=verified)
 
-        if not pane:
+            if not _obs(frame, "pane", bool(pane)):
+                for q in items:
+                    record(q, "no pane: answer available through check_answers")
+                continue
+            agent = _obs(frame, "agent", herdr.live_agent(pane))
+            if agent is None:
+                for q in decision_trace.kept(frame, "moved_elsewhere", items,
+                                             _relocate(store, items, pane, claims)):  # its pane may only have moved
+                    record(q, f"{NO_AGENT} {pane}")
+                continue
+            ours, changed = [], []
             for q in items:
-                record(q, "no pane: answer available through check_answers")
-            continue
-        agent = herdr.live_agent(pane)
-        if agent is None:
-            for q in _relocate(store, items, pane, claims):  # its pane may only have moved
-                record(q, f"{NO_AGENT} {pane}")
-            continue
-        ours, changed = [], []
-        for q in items:
-            # the pane takes the answer only if it runs the asking session or one it continued
-            # into (its forward family); never an OLDER session that continued into it
-            if q.session_id and agent["session_id"] not in question_family(store, q):
-                changed.append(q)
-            else:
-                ours.append(q)
-        for q in _relocate(store, changed, pane, claims) if changed else []:  # moved to another pane?
-            older = older_conversation(store, agent["session_id"], q.session_id)
-            record(q, older_error(pane, agent["session_id"], q.session_id) if older else f"{CHANGED} {pane}")
-        if not ours:
-            continue
-        status = agent["status"]
-        if status == BLOCKED:
-            # At a prompt or dialog, typed text is swallowed: wait (the retry loop delivers
-            # once it is answered), however long that takes.
-            for q in ours:
-                store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
-            continue
-        busy = status not in DELIVERABLE
-        if status in DELIVERABLE and not force and _watched(store, agent["session_id"]):
-            # idle, and its asyncRewake watcher is alive: it wakes the session with the answer
-            # (no keystrokes); answers its hooks missed twice fall through to typing
-            watched = [q for q in ours if store.hook_misses(q.id) < MAX_HOOK_MISSES]
-            for q in watched:
-                store.set_pending(q.id, claims[q.id], WATCHER_WAIT)
-            ours = [q for q in ours if q not in watched]
+                # the pane takes the answer only if it runs the asking session or one it continued
+                # into (its forward family); never an OLDER session that continued into it
+                if q.session_id and agent["session_id"] not in question_family(store, q):
+                    changed.append(q)
+                else:
+                    ours.append(q)
+                _obs(frame, "conversation_changed", q in changed, [q.id])
+            for q in decision_trace.kept(frame, "moved_elsewhere", changed,
+                                         _relocate(store, changed, pane, claims) if changed else []):  # moved?
+                older = _obs(frame, "pane_runs_older_session", older_conversation(store, agent["session_id"], q.session_id),
+                             [q.id])
+                record(q, older_error(pane, agent["session_id"], q.session_id) if older else f"{CHANGED} {pane}")
             if not ours:
                 continue
-        if status == "working" and not force and store.hook_live(agent["session_id"], HOOK_LIVE):
-            # its own hook carries the answer at the next tool batch or turn end: never type
-            # into a working Claude that has it (answers its hook missed twice fall through)
-            hooked = [q for q in ours if store.hook_misses(q.id) < MAX_HOOK_MISSES]
-            for q in hooked:
-                store.set_pending(q.id, claims[q.id], HOOK_WAIT)
-            ours = [q for q in ours if q not in hooked]
-            if not ours:
+            status = agent["status"]
+            if status == BLOCKED:
+                # At a prompt or dialog, typed text is swallowed: wait (the retry loop delivers
+                # once it is answered), however long that takes.
+                for q in ours:
+                    store.set_pending(q.id, claims[q.id], "blocked: the agent is at a prompt or dialog")
                 continue
-        if busy and not force:  # requeued after an old server's lost delivery: at rest only
-            requeued = [q for q in ours if (q.delivery_error or "") == REQUEUED]
-            for q in requeued:
-                store.set_pending(q.id, claims[q.id], REQUEUED[len(PENDING):])
-            ours = [q for q in ours if q not in requeued]
-            if not ours:
-                continue
-        if busy:
-            # Give it BUSY_GRACE to come to rest, then type anyway (verified below); after
-            # MAX_BUSY_ATTEMPTS misses while busy, wait for idle. "Send now" skips the grace.
-            waiting = []
-            for q in ours:
-                if not force and store.busy_attempts(q.id) >= MAX_BUSY_ATTEMPTS:
-                    store.set_pending(q.id, claims[q.id], BUSY_WAIT_IDLE)
-                    waiting.append(q)
-                elif not force and _busy_for(store, q.id) < BUSY_GRACE:
-                    store.set_pending(q.id, claims[q.id], f"busy: the agent is {status}")
-                    waiting.append(q)
-            ours = [q for q in ours if q not in waiting]
-            if not ours:
-                continue
-        if retry and agent["focused"] and not force:
-            # The operator may be typing there: the prompt would merge with their input.
-            for q in ours:
-                store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
-            continue
-        if not force and herdr.panel_focused(pane):
-            # Claude Code's background-agents panel (or a subagent view) has focus: typed
-            # text never reaches the conversation (probe 2026-10-15). Wait, even for Send now.
-            for q in ours:
-                store.set_pending(q.id, claims[q.id], PANEL)
-            continue
-        path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
-        # already in the conversation? (a late landing, or a sender that typed and then
-        # died mid-verify, whose stale claim we just took over): look before EVERY typing,
-        # in every transcript of the asker's forward family (a continuation moved it, #41) and
-        # what the pane runs (in that family, see ``ours``). Never an older session's file:
-        # text there never reached the asking conversation (live 2026-10-17, Q129-Q152).
-        landed = landed_across(store, ours, [path])
-        # (no "seen another way" evidence here: live, `inbox answer` from the conversation
-        # marks the row seen itself; that transcript heuristic only reconciles old rows)
-        for q in ours:
-            if q.id in landed:
-                # only the long-answer reference landed: the agent has a pointer to
-                # check_answers, not the answer -- verified, but it stays unseen
-                record(q, None, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}), verified=True)
-        ours = [q for q in ours if q.id not in landed]
-        if not ours:
-            continue
-        # already typed into an OLDER session this pane runs (herdr resumed it, unseen by our
-        # SessionStart hook)? Never again there: the row keeps saying where it went
-        reported = agent.get("reported_session_id")
-        if reported and reported != agent["session_id"]:
-            older_path = transcript.find(reported, store.session_transcript(reported))
-            stray = [q for q in ours if q.session_id and older_conversation(store, reported, q.session_id)]
-            hit = transcript.landed_kinds(older_path, {q.id: (expected_segments(q), q.answered_at) for q in stray}) \
-                if stray and older_path is not None else {}
-            for q in stray:
-                if q.id in hit:
-                    record(q, older_error(pane, reported, q.session_id, typed=True), acknowledge=False)
-            ours = [q for q in ours if q.id not in hit]
-            if not ours:
-                continue
-        for text, batch, ack in delivery_messages(ours):
-            if retry and not force:
-                # the operator may have stepped into the pane since the check above
-                now_agent = herdr.live_agent(pane)
-                if now_agent is None or now_agent["focused"] or now_agent["session_id"] != agent["session_id"]:
-                    for q in batch:
-                        store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
+            busy = status not in DELIVERABLE
+            if status in DELIVERABLE and not force and _obs(frame, "watched", _watched(store, agent["session_id"])):
+                # idle, and its asyncRewake watcher is alive: it wakes the session with the answer
+                # (no keystrokes); answers its hooks missed twice fall through to typing
+                watched = [q for q in ours if _obs(frame, "hook_misses", store.hook_misses(q.id), [q.id]) < MAX_HOOK_MISSES]
+                for q in watched:
+                    store.set_pending(q.id, claims[q.id], WATCHER_WAIT)
+                ours = [q for q in ours if q not in watched]
+                if not ours:
                     continue
-            if agent.get("agent") == "claude":
-                # never type onto unsent text in Claude Code's input box: it would be appended
-                # to the draft and submitted with it (live 2026-10-16, Q124/Q125). Not even
-                # for Send now; an input box we cannot read counts as not empty.
-                state = herdr.composer_state(pane)
-                _note_unreadable(pane, state, batch)
-                if state != "empty":
-                    reason = COMPOSER_DRAFT if state == "draft" else COMPOSER_UNKNOWN
-                    for q in batch:
-                        store.set_pending(q.id, claims[q.id], reason)
-                    if force:
-                        refs = ", ".join(q.ref for q in batch)
-                        later(lambda refs=refs, reason=reason: herdr.notify(
-                            f"{refs} not sent", reason[len("waiting: "):]))
+            if status == "working" and not force and _obs(frame, "hook_live", store.hook_live(agent["session_id"], HOOK_LIVE)):
+                # its own hook carries the answer at the next tool batch or turn end: never type
+                # into a working Claude that has it (answers its hook missed twice fall through)
+                hooked = [q for q in ours if _obs(frame, "hook_misses", store.hook_misses(q.id), [q.id]) < MAX_HOOK_MISSES]
+                for q in hooked:
+                    store.set_pending(q.id, claims[q.id], HOOK_WAIT)
+                ours = [q for q in ours if q not in hooked]
+                if not ours:
                     continue
-            # the transcripts the typed text can land in: the followed conversation's AND the
-            # session herdr reports (after herdr resumed an OLD id unseen by our SessionStart
-            # hook, the first prompt lands in the OLD file and only then ends its
-            # continuation; live 2026-10-17, Q129-Q152). Only a landing in the batch's forward
-            # family delivers; one in an older session is recorded as such, never verified.
-            watch = _watch_paths(store, agent)
-            offset = transcript.size(path)
-            with trace.step("deliver.prompt", chars=len(text)):
-                err = herdr.prompt_agent(pane, text)
-            if err:
+            if busy and not force:  # requeued after an old server's lost delivery: at rest only
+                requeued = [q for q in ours if (q.delivery_error or "") == REQUEUED]
+                for q in requeued:
+                    store.set_pending(q.id, claims[q.id], REQUEUED[len(PENDING):])
+                ours = [q for q in ours if q not in requeued]
+                if not ours:
+                    continue
+            if busy:
+                # Give it BUSY_GRACE to come to rest, then type anyway (verified below); after
+                # MAX_BUSY_ATTEMPTS misses while busy, wait for idle. "Send now" skips the grace.
+                waiting = []
+                for q in ours:
+                    if not force and _obs(frame, "busy_attempts", store.busy_attempts(q.id), [q.id]) >= MAX_BUSY_ATTEMPTS:
+                        store.set_pending(q.id, claims[q.id], BUSY_WAIT_IDLE)
+                        waiting.append(q)
+                    elif not force and _obs(frame, "within_busy_grace", _busy_for(store, q.id) < BUSY_GRACE, [q.id]):
+                        store.set_pending(q.id, claims[q.id], f"busy: the agent is {status}")
+                        waiting.append(q)
+                ours = [q for q in ours if q not in waiting]
+                if not ours:
+                    continue
+            if retry and agent["focused"] and not force:
+                # The operator may be typing there: the prompt would merge with their input.
+                for q in ours:
+                    store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
+                continue
+            if not force and _obs(frame, "panel_focused", herdr.panel_focused(pane)):
+                # Claude Code's background-agents panel (or a subagent view) has focus: typed
+                # text never reaches the conversation (probe 2026-10-15). Wait, even for Send now.
+                for q in ours:
+                    store.set_pending(q.id, claims[q.id], PANEL)
+                continue
+            path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
+            # already in the conversation? (a late landing, or a sender that typed and then
+            # died mid-verify, whose stale claim we just took over): look before EVERY typing,
+            # in every transcript of the asker's forward family (a continuation moved it, #41) and
+            # what the pane runs (in that family, see ``ours``). Never an older session's file:
+            # text there never reached the asking conversation (live 2026-10-17, Q129-Q152).
+            landed = landed_across(store, ours, [path])
+            # (no "seen another way" evidence here: live, `inbox answer` from the conversation
+            # marks the row seen itself; that transcript heuristic only reconciles old rows)
+            if frame is not None:
+                frame.note("transcript_known", path is not None)
+                for q in ours:
+                    frame.note("landed", landed.get(q.id), [q.id])
+            for q in ours:
+                if q.id in landed:
+                    # only the long-answer reference landed: the agent has a pointer to
+                    # check_answers, not the answer -- verified, but it stays unseen
+                    record(q, None, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}), verified=True)
+            ours = [q for q in ours if q.id not in landed]
+            if not ours:
+                continue
+            # already typed into an OLDER session this pane runs (herdr resumed it, unseen by our
+            # SessionStart hook)? Never again there: the row keeps saying where it went
+            reported = agent.get("reported_session_id")
+            if _obs(frame, "pane_reports_another_session", bool(reported and reported != agent["session_id"])):
+                older_path = transcript.find(reported, store.session_transcript(reported))
+                stray = [q for q in ours if q.session_id and older_conversation(store, reported, q.session_id)]
+                hit = transcript.landed_kinds(older_path, {q.id: (expected_segments(q), q.answered_at) for q in stray}) \
+                    if stray and older_path is not None else {}
+                if frame is not None:
+                    for q in ours:
+                        frame.note("already_typed_into_older_session", q.id in hit, [q.id])
+                for q in stray:
+                    if q.id in hit:
+                        record(q, older_error(pane, reported, q.session_id, typed=True), acknowledge=False)
+                ours = [q for q in ours if q.id not in hit]
+                if not ours:
+                    continue
+            for text, batch, ack in delivery_messages(ours):
+                _obs(frame, "full_answer_in_message", ack, [q.id for q in batch])
+                if retry and not force:
+                    # the operator may have stepped into the pane since the check above
+                    now_agent = _obs(frame, "agent_again", herdr.live_agent(pane), [q.id for q in batch])
+                    if now_agent is None or now_agent["focused"] or now_agent["session_id"] != agent["session_id"]:
+                        for q in batch:
+                            store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
+                        continue
+                if agent.get("agent") == "claude":
+                    # never type onto unsent text in Claude Code's input box: it would be appended
+                    # to the draft and submitted with it (live 2026-10-16, Q124/Q125). Not even
+                    # for Send now; an input box we cannot read counts as not empty.
+                    state = _obs(frame, "composer", herdr.composer_state(pane), [q.id for q in batch])
+                    _note_unreadable(pane, state, batch)
+                    if state != "empty":
+                        reason = COMPOSER_DRAFT if state == "draft" else COMPOSER_UNKNOWN
+                        for q in batch:
+                            store.set_pending(q.id, claims[q.id], reason)
+                        if force:
+                            refs = ", ".join(q.ref for q in batch)
+                            later(lambda refs=refs, reason=reason: herdr.notify(
+                                f"{refs} not sent", reason[len("waiting: "):]))
+                        continue
+                # the transcripts the typed text can land in: the followed conversation's AND the
+                # session herdr reports (after herdr resumed an OLD id unseen by our SessionStart
+                # hook, the first prompt lands in the OLD file and only then ends its
+                # continuation; live 2026-10-17, Q129-Q152). Only a landing in the batch's forward
+                # family delivers; one in an older session is recorded as such, never verified.
+                watch = _watch_paths(store, agent)
+                offset = transcript.size(path)
+                with trace.step("deliver.prompt", chars=len(text)):
+                    err = _obs(frame, "prompt_error", herdr.prompt_agent(pane, text), [q.id for q in batch])
+                if err:
+                    for q in batch:
+                        record(q, err)
+                    continue
+                if path is None:  # a brand-new session's transcript may appear with this very prompt
+                    path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
+                    offset = 0
+                if path is not None and str(path) not in {str(p) for p, _ in watch}:
+                    watch.append((path, offset))
+                if path is None:
+                    watch = _watch_paths(store, agent, fresh=True)
+                    path = watch[0][0] if watch else None
+                if _obs(frame, "verify_transcript", path is not None, [q.id for q in batch]) is False:
+                    # Cannot verify (no transcript known): sent, but never counted as seen, so
+                    # check_answers still returns it. Not retried (that could double it).
+                    for q in batch:
+                        record(q, None, acknowledge=False)
+                    continue
+                plans = _verify_plans(store, pane, watch, batch)  # per question: where it counts
+                clean = herdr.clean(text, limit=10**9)
+                if verify_later is not None:
+                    # typed now (the popup still holds the keyboard); the up-to-15 s transcript
+                    # check runs in a detached `inbox verify`, which records under our claims
+                    verify_later({"path": str(path), "offset": offset, "ack": ack, "busy": busy,
+                                  "watch": [[str(p), off] for p, off in watch], "text": clean,
+                                  "rows": [{"id": q.id, "claim": claims[q.id], **plans[q.id]} for q in batch]})
+                    continue
+                with trace.step("deliver.verify_wait"):
+                    hits = _wait_hits(watch, [q.id for q in batch], clean)
                 for q in batch:
-                    record(q, err)
-                continue
-            if path is None:  # a brand-new session's transcript may appear with this very prompt
-                path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
-                offset = 0
-            if path is not None and str(path) not in {str(p) for p, _ in watch}:
-                watch.append((path, offset))
-            if path is None:
-                watch = _watch_paths(store, agent, fresh=True)
-                path = watch[0][0] if watch else None
-            if path is None:
-                # Cannot verify (no transcript known): sent, but never counted as seen, so
-                # check_answers still returns it. Not retried (that could double it).
-                for q in batch:
-                    record(q, None, acknowledge=False)
-                continue
-            plans = _verify_plans(store, pane, watch, batch)  # per question: where it counts
-            clean = herdr.clean(text, limit=10**9)
-            if verify_later is not None:
-                # typed now (the popup still holds the keyboard); the up-to-15 s transcript
-                # check runs in a detached `inbox verify`, which records under our claims
-                verify_later({"path": str(path), "offset": offset, "ack": ack, "busy": busy,
-                              "watch": [[str(p), off] for p, off in watch], "text": clean,
-                              "rows": [{"id": q.id, "claim": claims[q.id], **plans[q.id]} for q in batch]})
-                continue
-            with trace.step("deliver.verify_wait"):
-                hits = _wait_hits(watch, [q.id for q in batch], clean)
-            for q in batch:
-                _record_outcome(store, q.id, claims[q.id], hits, plans[q.id], ack, busy)
+                    _note_landing(frame, q.id, hits, plans[q.id])
+                    _record_outcome(store, q.id, claims[q.id], hits, plans[q.id], ack, busy)
 
+        finally:
+            decision_trace.end(frame)
 
 def _note_unreadable(pane: str, state: str, batch: list[Question]) -> None:
     """Once per pane (per process), when its Claude input box stays unreadable for
@@ -858,6 +880,16 @@ def _wait_hits(watch: list, ids: list[int], text: str | None, timeout: float | N
     return {str(p) for p, off in watch if transcript.landed_since(p, off, ids, text)}
 
 
+def _note_landing(frame, qid: int, hits: set[str], plan: dict) -> None:
+    """Test-only decision trace (decision_trace.py): where a typed answer landed, as
+    _record_outcome reads it. Nothing when tracing is off."""
+    if frame is not None:
+        counting = set(plan.get("counting") or [])
+        frame.note("landed_after_typing", bool(hits & counting), [qid])
+        frame.note("landed_anywhere_after_typing", bool(hits), [qid])
+        frame.note("older_session_watched", bool(plan.get("older_error")), [qid])
+
+
 def _record_outcome(store: Store, qid: int, claim: str, hits: set[str], plan: dict, ack: bool, busy: bool) -> None:
     """A typed answer's outcome from where its text landed (``hits``) and its plan."""
     if hits & set(plan.get("counting") or []):
@@ -948,18 +980,22 @@ def verify_hook_deliveries(store: Store) -> None:
     """The worker, every tick: hook-sent answers found in their transcript become verified
     (and seen); not found within HOOK_VERIFY_SECONDS, back to pending with a miss counted."""
     for q, sent_at in store.hook_unverified(herdr.server_id()):
-        path = transcript.find(q.session_id, store.session_transcript(q.session_id))
-        landed = landed_across(store, [q])  # the whole continuation chain (#41)
-        if q.id in landed:
-            store.hook_verified(q.id, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}))
-            continue
+        frame = decision_trace.begin("verify_hook", store, [q])
         try:
-            age = (datetime.now(timezone.utc) - datetime.fromisoformat(sent_at)).total_seconds()
-        except ValueError:
-            age = HOOK_VERIFY_SECONDS
-        if age >= HOOK_VERIFY_SECONDS:
-            # no transcript to look in: like typing without one, sent but never counted seen
-            store.hook_unseen(q.id, sent_at, HOOK_UNSEEN if path is not None else None)
+            path = transcript.find(q.session_id, store.session_transcript(q.session_id))
+            landed = landed_across(store, [q])  # the whole continuation chain (#41)
+            if _obs(frame, "landed", landed.get(q.id), [q.id]) is not None:
+                store.hook_verified(q.id, acknowledge=bool(landed[q.id] - {REFERENCE_INDEX}))
+                continue
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(sent_at)).total_seconds()
+            except ValueError:
+                age = HOOK_VERIFY_SECONDS
+            if _obs(frame, "verify_time_up", age >= HOOK_VERIFY_SECONDS, [q.id]):
+                # no transcript to look in: like typing without one, sent but never counted seen
+                store.hook_unseen(q.id, sent_at, HOOK_UNSEEN if _obs(frame, "transcript_known", path is not None) else None)
+        finally:
+            decision_trace.end(frame)
 
 
 def retry_deliveries(store: Store, pane_id: str) -> None:
@@ -1097,8 +1133,13 @@ def verify_job(store: Store, job: dict) -> None:
 
     ids = [r["id"] for r in job["rows"]]
     watch = [(Path(p), int(off)) for p, off in job.get("watch") or []] or [(Path(job["path"]), int(job["offset"]))]
-    hits = _wait_hits(watch, ids, job.get("text"))
-    for r in job["rows"]:
-        # a job without per-row plans (an older popup's): every watched transcript counts
-        plan = r if "counting" in r else {"counting": [str(p) for p, _ in watch]}
-        _record_outcome(store, r["id"], r["claim"], hits, plan, bool(job.get("ack", True)), bool(job.get("busy")))
+    frame = decision_trace.begin("verify_job", store, ids, ack=bool(job.get("ack", True)), busy=bool(job.get("busy")))
+    try:
+        hits = _wait_hits(watch, ids, job.get("text"))
+        for r in job["rows"]:
+            # a job without per-row plans (an older popup's): every watched transcript counts
+            plan = r if "counting" in r else {"counting": [str(p) for p, _ in watch]}
+            _note_landing(frame, r["id"], hits, plan)
+            _record_outcome(store, r["id"], r["claim"], hits, plan, bool(job.get("ack", True)), bool(job.get("busy")))
+    finally:
+        decision_trace.end(frame)

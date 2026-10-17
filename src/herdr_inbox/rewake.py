@@ -31,7 +31,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import transcript  # stdlib only
+from . import decision_trace, transcript  # stdlib only
 
 WATCH_POLL = 2.0  # database look (read-only); the wake follows within one poll
 PANE_CHECK_EVERY = 45.0  # herdr look even with nothing pending: a /clear or /resume ends the watch (#30 M1)
@@ -137,24 +137,33 @@ def run(payload: dict, clock=time.monotonic, sleep=time.sleep) -> str | None:
         end = clock() + WATCH_MAX_SECONDS
         last_check, unknown_since = clock(), None
         while clock() < end:
-            if not _still_owner(session, token) or not proc.alive(owner):
+            still_owner = _still_owner(session, token)
+            if not still_owner or not proc.alive(owner):
+                decision_trace.event("rewake", still_owner=still_owner, action="end")
                 return None
             pending = hook._has_candidates(session)
             if pending or clock() - last_check >= PANE_CHECK_EVERY:
                 last_check = clock()
                 state = _ready(pane, session)
                 if state == "end":
+                    decision_trace.event("rewake", pending=pending, ready=state, action="end")
                     return None  # also with nothing pending: a /clear or /resume left this watch behind
                 if state == "unknown":
                     unknown_since = unknown_since if unknown_since is not None else clock()
                     if clock() - unknown_since >= UNKNOWN_SESSION_END:
+                        decision_trace.event("rewake", pending=pending, ready=state, unknown_too_long=True,
+                                             action="end")
                         return None
                 else:
                     unknown_since = None
                 if state == "go" and pending:
                     text = hook.deliver(payload, liveness=False)
+                    decision_trace.event("rewake", pending=pending, ready=state, hook_sent=bool(text),
+                                         action="wake" if text else "keep watching")
                     if text:
                         return text
+                else:
+                    decision_trace.event("rewake", pending=pending, ready=state, action="keep watching")
             hook._touch(session, "watch_seen_at")  # the IDLE gate's own stamp (a write a minute at most)
             sleep(WATCH_POLL)
         return None
