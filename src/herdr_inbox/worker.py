@@ -199,6 +199,11 @@ def tick(store: Store) -> int:
     global watching
     store.reconcile()
     try:
+        service.reconcile_failed(store)  # a 'failed' answer that did land is verified, seen ones lose the error
+        service.archive_gone(store)  # gone for a day: out of the popup (check_answers keeps them)
+    except Exception:  # noqa: BLE001
+        log.warning("failed-answer reconcile failed", exc_info=True)
+    try:
         service.revive_moved(store)  # an answer marked gone whose agent's pane only moved
     except Exception:  # noqa: BLE001
         log.warning("moved-pane scan failed", exc_info=True)

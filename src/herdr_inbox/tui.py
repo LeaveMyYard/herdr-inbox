@@ -699,6 +699,7 @@ class FailedView(Vertical, can_focus=True):
         _close(self.app)
 
 
+_go_clock = time.monotonic  # the `g` pause's clock (tests drive it; never the event loop's)
 ALERT_GO_GRACE = 0.5  # an alert view opened under the operator's typing never sends them to a prompt
 SEVERITY_STYLE = {"urgent": "$inbox-warning", "warning": "$inbox-warning", "info": "$inbox-suggestion"}
 
@@ -869,6 +870,14 @@ class GroupListView(Vertical, can_focus=True):
         cur, number = _cursor(here), (f"[$text-muted]{n}.[/]" if n is not None else "  ")
         closed = self.inbox.closed.get(entry)
         store = self.inbox.store
+        if entry[0] == "gone":
+            if closed:
+                return f"{cur} {number} [$inbox-warning]✕ answers for gone agents · {escape(closed)}[/]"
+            qs = self.inbox.gone_live()
+            head = f"⚠ {len(qs)} answer{'s' if len(qs) != 1 else ''} for agents that are gone · d hides them all"
+            line1 = f"[b $inbox-warning]{head}[/]" if here else f"[$inbox-warning]{head}[/]"
+            refs = ", ".join(q.ref for q in qs[:8]) + (" …" if len(qs) > 8 else "")
+            return f"{cur} {number} {line1}\n      [dim]{escape(refs)} · still readable with check_answers[/dim]"
         if entry[0] == "failed":
             q = store.get(entry[1])
             where = escape(tab_name(q, store))
@@ -993,7 +1002,7 @@ class GroupListView(Vertical, can_focus=True):
         groups = sum(1 for e in live if e[0] == "group")
         others = [self.inbox.store.get(e[1]) for e in live if e[0] == "failed"]
         pending = sum(1 for q in others if q and _pending(q))
-        failed = len(others) - pending
+        failed = len(others) - pending + (len(self.inbox.gone_live()) if self.inbox.GONE in live else 0)
         parts = [f"{groups} group{'s' if groups != 1 else ''}"]
         parts += [f"{pending} pending delivery"] if pending else []
         parts += [f"{failed} not delivered"] if failed else []
@@ -1236,6 +1245,27 @@ class InboxApp(App):
     def _live(self) -> tuple[list[Question], list[Question]]:
         return self.store.list(), self.store.failed_deliveries()
 
+    GONE = ("gone", 0)  # one ⚠ row for every answer whose agent is gone (operator Q167)
+
+    def _collapse_gone(self, entries: list[Entry]) -> list[Entry]:
+        """Answers whose agent is gone, two or more when the popup opens: ONE summary row, `d`
+        hides them all (they stay readable via check_answers). The set is fixed when the popup
+        opens (nothing joins it in the background): later ones show as their own rows."""
+        gone = [e for e in entries if e[0] == "failed" and _gone(self.store.get(e[1]))]
+        if getattr(self, "_gone_batch", None) is None:
+            self._gone_batch = [e[1] for e in gone] if len(gone) >= 2 else []
+        batch = set(self._gone_batch)
+        out = [e for e in entries if not (e[0] == "failed" and e[1] in batch)]
+        if any(e[1] in batch for e in gone):
+            out.append(self.GONE)
+        return out
+
+    def gone_live(self) -> list[Question]:
+        """The summary row's answers still gone and shown (not hidden, not delivered or seen)."""
+        shown = {q.id for q in self.store.failed_deliveries()}
+        return [q for q in (self.store.get(i) for i in getattr(self, "_gone_batch", None) or [])
+                if q and q.id in shown and _gone(q)]
+
     def _alert_entries(self) -> list[Entry]:
         try:
             return ([("alert", a.id) for a in alerts.open_alerts(self.store)]
@@ -1308,7 +1338,8 @@ class InboxApp(App):
         except sqlite3.OperationalError:
             open_qs, failed = [], []
             self.notify(BUSY, severity="warning")
-        self.entries = self._alert_entries() + entry_order(open_qs, failed, self.focus_pane) + self._remote_entries()
+        self.entries = self._alert_entries() + self._collapse_gone(entry_order(open_qs, failed, self.focus_pane)) \
+            + self._remote_entries()
         target = None
         try:
             request = deeplink.consume_request()  # `inbox open --question …` (deeplink.py)
@@ -1361,7 +1392,7 @@ class InboxApp(App):
         if isinstance(event, events.Key) and event is not getattr(self, "_last_key_event", None):
             self._last_key_event = event
             self.prev_key_at = getattr(self, "last_key_at", 0.0)  # `g` to a waiting agent needs a pause after it
-            self.last_key_at = time.monotonic()
+            self.last_key_at = _go_clock()
         # The general rule: a background event never changes what the next keypress does.
         # Right after a view change the operator did not cause, keys are dropped.
         if isinstance(event, events.Key) and time.monotonic() < self.grace_until:
@@ -1376,12 +1407,12 @@ class InboxApp(App):
         """This `g` came ALERT_GO_GRACE after the previous key of ANY kind (a g too: a held,
         auto-repeating or double-tapped g never passes) and after the last view change: a
         deliberate g, not the tail of a typed sequence ("1 g", "1 Enter 1")."""
-        now = time.monotonic()
+        now = _go_clock()
         return (now - getattr(self, "prev_key_at", 0.0) >= ALERT_GO_GRACE
                 and now - getattr(self, "view_at", 0.0) >= ALERT_GO_GRACE)
 
     def _mount(self, view) -> None:
-        self.view_at = time.monotonic()
+        self.view_at = _go_clock()
         self.set_class(self.mode == "empty", "empty")
         body = self.base.query_one("#body")
         body.remove_children()
@@ -1444,6 +1475,9 @@ class InboxApp(App):
             box.update(escape(f"{m.get('label')}:Q{qs[0]['id']} · "
                               f"{qs[0].get('title') or service.first_line(qs[0]['question'], 80)}"))
             self._mount(QuestionView(remote.as_question(qs[0])))
+            return
+        if entry[0] == "gone":
+            self.notify("Those agents are gone: d hides all these answers (check_answers still has them)")
             return
         if entry[0] == "failed":
             self.mode, self.entry = "failed", entry
@@ -1546,7 +1580,7 @@ class InboxApp(App):
         if self._unmounted or not self.screen_stack:
             return  # tearing down (a late timer tick): nothing to update
         open_qs, failed = self._live()
-        current = self._alert_entries() + entry_order(open_qs, failed, None) + self._remote_entries()
+        current = self._alert_entries() + self._collapse_gone(entry_order(open_qs, failed, None)) + self._remote_entries()
         live = set(current)
         for e in self.entries:
             if e not in live and e not in self.closed:
@@ -1598,6 +1632,8 @@ class InboxApp(App):
             return "delivered or cleared"
         if entry[0] == "failed":
             return self._gone_reason("failed", entry[1])
+        if entry[0] == "gone":
+            return "hidden or delivered"
         qs = self.store.group(entry[1], include_closed=True)
         reasons = {self._gone_reason("q", q.id) for q in qs}
         return reasons.pop() if len(reasons) == 1 else "closed"
@@ -1909,6 +1945,13 @@ class InboxApp(App):
 
                 self.push_screen(ConfirmDismiss(f"{label}:Q{qs[0]['id']}", service.first_line(qs[0]["question"], 70)),
                                  done_remote)
+                return
+            if entry == self.GONE and entry not in self.closed:
+                # every answer of the summary row: hiding loses nothing (check_answers has them)
+                for q in self.gone_live():
+                    self.store.hide_failed(q.id)
+                self.closed[entry] = "hidden"
+                view.render_rows()
                 return
             if entry and entry[0] == "failed" and entry not in self.closed and _gone(self.store.get(entry[1])):
                 # an agent-gone row: hiding it loses nothing (check_answers still has it)

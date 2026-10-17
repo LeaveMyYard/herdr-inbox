@@ -1070,10 +1070,65 @@ class Store:
         return [Question.from_row(r) for r in rows]
 
     def acknowledge(self, qids: list[int]) -> None:
+        """The agent has the answer (check_answers): seen, and no longer a failed delivery --
+        a stale error on a seen answer is noise (operator 2026-10-17)."""
         self.db.executemany(
-            "UPDATE questions SET acknowledged_at = ? WHERE id = ? AND acknowledged_at IS NULL",
+            "UPDATE questions SET acknowledged_at = COALESCE(acknowledged_at, ?),"
+            " delivery_error = CASE WHEN delivery_error LIKE 'sending:%' THEN delivery_error ELSE NULL END"
+            " WHERE id = ?",
             [(now(), q) for q in qids],
         )
+
+    def clear_seen_errors(self) -> int:
+        """Reconcile: answers already seen (acknowledged) that still carry a delivery error."""
+        return self.db.execute(
+            "UPDATE questions SET delivery_error = NULL WHERE acknowledged_at IS NOT NULL"
+            " AND delivery_error IS NOT NULL AND delivery_error NOT LIKE 'sending:%'").rowcount
+
+    def archive_gone(self, after: timedelta) -> int:
+        """Answers whose agent has been gone longer than ``after`` leave the popup by themselves
+        (hidden; check_answers still returns them). Operator Q167, 2026-10-17."""
+        return self.db.execute(
+            "UPDATE question_ext SET hidden_at = ? WHERE agent_gone_at IS NOT NULL AND agent_gone_at <= ?"
+            " AND hidden_at IS NULL AND id IN (SELECT id FROM questions WHERE status = 'answered'"
+            " AND acknowledged_at IS NULL)", (now(), now(-after))).rowcount
+
+    def failed_pile(self, within: timedelta) -> list[Question]:
+        """Unseen answers shown (or about to show) as failed: not verified, agent gone,
+        conversation changed, no agent -- reconcile candidates."""
+        rows = self.db.execute(
+            f"SELECT * FROM {VIEW} WHERE status = 'answered' AND acknowledged_at IS NULL AND delivered_at IS NULL"
+            " AND answered_at >= ? AND delivery_error IS NOT NULL AND delivery_error NOT LIKE 'sending:%'"
+            " AND delivery_error NOT LIKE ? ORDER BY id", (now(-within), f"{PENDING}%")).fetchall()
+        return [Question.from_row(r) for r in rows]
+
+    def mark_seen_elsewhere(self, qid: int, claim: str | None = None) -> bool:
+        """The agent has the answer (it read it some other way): seen, never typed again, no
+        longer a failure. Not 'delivered': we did not deliver it."""
+        with self.transaction():
+            cur = self.db.execute(
+                "UPDATE questions SET acknowledged_at = COALESCE(acknowledged_at, ?), delivery_error = NULL"
+                " WHERE id = ? AND (delivery_error IS ? OR COALESCE(delivery_error, '') NOT LIKE 'sending:%')",
+                (now(), qid, claim))
+            if cur.rowcount:
+                self.db.execute("UPDATE question_ext SET agent_gone_at = NULL WHERE id = ?", (qid,))
+            return cur.rowcount == 1
+
+    def mark_landed(self, qid: int, acknowledge: bool) -> bool:
+        """Found in a transcript after all: delivered and verified (and seen unless only the
+        long-answer reference landed); the error and any 'agent gone' are cleared."""
+        with self.transaction():
+            cur = self.db.execute(
+                "UPDATE questions SET delivered_at = COALESCE(delivered_at, ?), delivery_error = NULL,"
+                " acknowledged_at = CASE WHEN ? THEN COALESCE(acknowledged_at, ?) ELSE acknowledged_at END"
+                " WHERE id = ? AND COALESCE(delivery_error, '') NOT LIKE 'sending:%'",
+                (now(), int(acknowledge), now(), qid))
+            if cur.rowcount:
+                self.db.execute(
+                    "INSERT INTO question_ext (id, group_id, verified_at) VALUES (?, ?, ?)"
+                    " ON CONFLICT(id) DO UPDATE SET verified_at = COALESCE(verified_at, excluded.verified_at),"
+                    " agent_gone_at = NULL", (qid, qid, now()))
+            return cur.rowcount == 1
 
     def unacknowledged_answers(self, session_id: str | None, pane_id: str | None) -> list[Question]:
         where, args = self._owner_clause(session_id, pane_id)

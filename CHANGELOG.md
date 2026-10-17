@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.5
+
+- **Fix: answers that did arrive were shown as failed.** Live, 16 rows in the ⚠ pile; most had
+  reached the agent. When herdr resumes an agent under its **older** session id, a typed answer
+  lands in that older conversation's transcript. The inbox now watches it, so the answer
+  verifies.
+- On start, and then every few minutes, the inbox re-checks the failed pile:
+  - an answer found in any transcript of the conversation (its continuations, and older
+    sessions resumed since) counts as delivered;
+  - one the agent was given another way counts as seen. Only two things count: the result of its
+    own check_answers / list_my_questions call, or its own successful `inbox answer` run. Its
+    own text never counts.
+  - Seen answers never show an error.
+- **Never twice:** before typing, including Send now, the inbox checks all those transcripts for
+  our delivered text, so an answer that already arrived is not typed again.
+- `inbox answer` run by the asking agent itself (or its subagent) types nothing and never shows as
+  failed. The main thread still gets the answer from check_answers.
+- A question asked from a pane that has since moved is filed under the pane it runs in now.
+- **Answers for agents that are gone (your choice "Both"):** two or more show as one ⚠ row,
+  `d` hides them all (check_answers still has them), and they leave the popup by themselves
+  after 24 h.
+- Tests can no longer reach a live herdr when run from inside a herdr pane.
+
 ## 0.10.4
 
 - **Fix: an answer whose agent's pane moved was lost to "agent gone".**
