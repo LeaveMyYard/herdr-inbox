@@ -98,7 +98,7 @@ def resolve_caller() -> Caller:
             ident = herdr.pane_identity(pane_id)
     session_id = ident.get("session_id") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
     if session_id:
-        session_id = live_session(session_id)  # a continued conversation files under its live session
+        session_id = live_session(session_id, pane=pane_id)  # a continued conversation files under its live session
     return Caller(
         pane_id=pane_id,
         tab_id=ident.get("tab_id") or os.environ.get("HERDR_TAB_ID") or None,
@@ -117,7 +117,7 @@ def _pane_running(session_id: str | None) -> str | None:
     res, _ = herdr.call("agent", "list")
     hits = [a["pane_id"] for a in (res or {}).get("agents") or []
             if isinstance(a, dict) and a.get("pane_id")
-            and live_session((a.get("agent_session") or {}).get("value")) == live]
+            and live_session((a.get("agent_session") or {}).get("value"), pane=a["pane_id"]) == live]
     return hits[0] if len(hits) == 1 else None
 
 
@@ -685,7 +685,8 @@ def session_pane(store: Store, session_id: str | None, agents: list | None = Non
     for a in agents:
         reported = (a.get("agent_session") or {}).get("value") if isinstance(a, dict) else None
         # live_session: a pane herdr resumed under an OLDER id runs that older conversation
-        if reported and a.get("pane_id") and live_session(reported, store.session_transcript(reported)) == live:
+        if reported and a.get("pane_id") \
+                and live_session(reported, store.session_transcript(reported), pane=a["pane_id"]) == live:
             hits.append((a["pane_id"], a.get("tab_id")))
     return hits[0] if len(hits) == 1 else None
 
@@ -784,7 +785,8 @@ def answered_by_own_conversation(store: Store, q: Question) -> bool:
     me = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not q.session_id or not me:
         return False
-    return live_session(me, store.session_transcript(me)) in question_family(store, q)
+    here = os.environ.get("HERDR_PANE_ID")
+    return live_session(me, store.session_transcript(me), pane=here) in question_family(store, q)
 
 
 def reconcile_failed(store: Store) -> None:
