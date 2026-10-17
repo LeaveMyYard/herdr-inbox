@@ -511,6 +511,10 @@ stand-in agent in each tab (`docs/screenshots/fake_agent.py`, no API calls), fil
 questions through the plugin's own code and drives the popup with real keys; `frame.py` adds the
 backdrop. Popup-only renders: `uv run pytest tests/make_screenshots.py` (needs `rsvg-convert`).
 
+## Contributing
+
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) (how to build, test and send a PR; the Python code is on a bug-fix-only freeze while the Rust port is in progress). Please follow the [Code of Conduct](CODE_OF_CONDUCT.md); report security problems as described in [SECURITY.md](SECURITY.md).
+
 <div align="center">
 <sub>MIT licensed. Screenshots are captures of herdr with demo data and a scripted stand-in agent.</sub>
 </div>
