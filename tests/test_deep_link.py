@@ -340,4 +340,11 @@ def test_id_arguments_take_one_optional_q(fake_herdr, cmd, capsys):
     assert [cli._question_id(v) for v in ("q12", "Q12", "12")] == [12, 12, 12]
     with pytest.raises(SystemExit):
         cli.main([c.format("QQ12") for c in cmd])
-    assert "'QQ12'" in capsys.readouterr().err
+    assert "invalid question id value: 'QQ12'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("12", "Q12"), ("Q12", "Q12"), ("qnap:12", "qnap:Q12"), ("box:12", "box:Q12"), ("qnap:Q12", "qnap:Q12")])
+def test_describe_names_a_question_with_one_q_before_the_number(value, expected):
+    """#55 review: describe also used lstrip("Qq"): "qnap:12" read "Qnap:12", "box:12" "Qbox:12"."""
+    assert deeplink.describe({"kind": "question", "value": value}) == expected
