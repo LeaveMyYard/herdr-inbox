@@ -446,12 +446,23 @@ same conversation. That was the bug.
 - **What a pane runs** (`store.live_session`): herdr's reported id, followed by the D6 rule,
   **except** when a Claude process (re)started that id **after** its `continued-in` record.
   Then the pane runs that older session itself. Until its first prompt, a resumed old
-  transcript still ends in `continued-in`, so D6 alone cannot tell. The inbox's SessionStart
-  hook touches `<state dir>/starts/<session>` on every start (startup, resume, clear,
-  compact, fork). It is a file, not a column: no schema change, no database lock in the hook,
-  and older versions ignore it. A continuation inside one process fires no SessionStart (the
-  captured `c5240607` has none at 11:22). `live_agent`, the caller's own session, the
-  moved-pane lookup and the rewake watcher's pane check all read it.
+  transcript still ends in `continued-in`, so D6 alone cannot tell.
+  - The inbox's SessionStart hook writes `<state dir>/starts/<session>`, holding the herdr
+    pane id, **only for `source == "resume"`**. A resume is the one start that re-runs an id
+    that may have continued elsewhere: startup, clear and fork run a fresh id.
+  - Compaction is not a resume. The captured `c5240607` was created by a compaction at 10-15
+    18:22 that fired `SessionStart:compact`, while `1cd70de7`'s `continued-in` record is
+    dated 10-16 11:22, written about 17 h later. A compact marker could therefore post-date
+    nothing and flip a pane that runs the newer session (review #53 final M1).
+  - It is a file, not a column: no schema change, no database lock in the hook, and older
+    versions ignore it.
+  - **Per pane** (review #53 final L3): a marker counts only for the pane its resume ran in.
+    One pane can run OLD's in-process continuation (herdr still reports OLD) while another
+    runs OLD resumed. Only the second runs OLD. A moved pane's new id does not match, so it
+    falls back to D6 plus the typed-once path below. A caller that knows no pane (a process
+    without `HERDR_PANE_ID`) trusts the marker.
+  - `live_agent`, the caller's own session, the moved-pane lookup, the rewake watcher's pane
+    check and the `inbox answer` own-conversation check all read it.
   - **Window (review #53 L1):** herdr can report the resumed id, idle, before our hook
     process has written the marker (several SessionStart hooks run in parallel). A worker
     pass in that window falls back to the no-marker path below: typed once, recorded as
