@@ -147,7 +147,7 @@ def test_reconcile_backs_off_per_answer(store, fake_herdr, monkeypatch):
     as_stored(store, q.id, GONE_P48)
     looked = []
     real = service._relative_paths
-    monkeypatch.setattr(service, "_relative_paths", lambda store, s: looked.append(s) or real(store, s))
+    monkeypatch.setattr(service, "_relative_paths", lambda store, q: looked.append(q.session_id) or real(store, q))
     service.reconcile_failed(store)
     service.reconcile_failed(store)
     assert looked == [NEW]  # the transcripts were read once; the second pass backed off

@@ -216,6 +216,7 @@ def tick(store: Store) -> int:
     try:
         service.reconcile_failed(store)  # a 'failed' answer that did land is verified, seen ones lose the error
         service.archive_gone(store)  # gone for a day: out of the popup (check_answers keeps them)
+        service.prune_starts()  # old SessionStart markers (hourly)
     except Exception:  # noqa: BLE001
         log.warning("failed-answer reconcile failed", exc_info=True)
     try:

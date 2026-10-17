@@ -190,6 +190,48 @@ def continued_targets(path: Path) -> frozenset:
     return result
 
 
+_edges_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
+
+
+def continued_edges(path: Path) -> frozenset:
+    """(target, record time or None) for every continued-in record ``path`` EVER holds (main
+    conversation only: never an isSidechain record, never a subagent's file). Lets a caller
+    follow only the continuations made after a given moment (service.forward_family).
+    Incremental over complete lines and cached, like continued_in."""
+    if "subagents" in Path(path).parts[-4:-1]:
+        return frozenset()
+    key, n = str(path), size(path)
+    cached = _edges_cache.get(key)
+    if cached and cached[0] == n:
+        return cached[1]
+    start, found = (cached[0], set(cached[1])) if cached and cached[0] < n else (0, set())
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(start)
+            data = fh.read(n - start)
+    except OSError:
+        return frozenset()
+    end = data.rfind(b"\n")  # only complete lines; a partial last line is read next time
+    if end == -1:
+        return frozenset(found)
+    own = session_id_or_none(Path(path).stem)
+    for raw in data[:end].split(b"\n"):
+        if b"continued-in" not in raw:
+            continue
+        try:
+            record = json.loads(raw)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(record, dict) or record.get("type") != "continued-in" or record.get("isSidechain") is True:
+            continue
+        target = session_id_or_none(record.get("continuedInSessionId"))
+        if target is not None and target != own:
+            found.add((target, _ts(record.get("timestamp"))))
+    result = frozenset(found)
+    _remember(_edges_cache, key, (start + end + 1, result))
+    return result
+
+
 def chain(session_id: str | None, known: str | None = None, max_hops: int = 8) -> list[str]:
     """``session_id`` and every session its conversation continued in, in order (cycle-safe)."""
     out: list[str] = []

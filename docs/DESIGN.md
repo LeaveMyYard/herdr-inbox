@@ -421,8 +421,24 @@ same conversation. That was the bug.
 
 - **The forward family** (`service.forward_family`): the asking session plus every session it
   continued into, transitively. That is its D6 chain, plus every `continued-in` its transcript
-  **ever** wrote (`continued_targets`; a resumed session keeps its record mid-file). Nothing
-  else is a delivery target or a place where delivery is verified. Typing, Send now, the
+  **ever** wrote (`continued_edges`; a resumed session keeps its record mid-file).
+  - **Bounded by the question** (`question_family`, review #53 B1). A past continuation counts
+    only if its record is dated **at or after** the question's `created_at`, so the question
+    was in the conversation when it moved. Consider a session that was resumed and used on its
+    own branch after continuing elsewhere: its later questions never reached that old
+    continuation.
+  - The current chain always counts. The asker's transcript still ends in that record, so
+    nothing was asked after it.
+  - An **undated** past record never counts. That is conservative: the worst case is that the
+    row stays failed. Every captured record is dated.
+  - The bound is the record's own time, not when the new session started: a compaction
+    continuation's file begins with history copied from earlier (`c5240607`'s first records
+    are dated 10-15, its `continued-in` 10-16 11:22).
+  - Both times come from the same machine's clock (a remote's rows are delivered by its own
+    worker, against its own transcripts). `created_at` is whole seconds, rounded down, so a
+    question filed in the same second as the move still counts.
+
+  Nothing else is a delivery target or a place where delivery is verified. Typing, Send now, the
   pre-type "already landed?" check, verification after typing (also the detached
   `inbox verify`), hook verification and the reconcile all use it. The hook and the rewake
   watcher only ever carry answers of their own session and its live predecessors (`family`),
@@ -436,6 +452,12 @@ same conversation. That was the bug.
   and older versions ignore it. A continuation inside one process fires no SessionStart (the
   captured `c5240607` has none at 11:22). `live_agent`, the caller's own session, the
   moved-pane lookup and the rewake watcher's pane check all read it.
+  - **Window (review #53 L1):** herdr can report the resumed id, idle, before our hook
+    process has written the marker (several SessionStart hooks run in parallel). A worker
+    pass in that window falls back to the no-marker path below: typed once, recorded as
+    typed into an older session, never verified, never typed there again.
+  - The worker drops markers older than 30 days, at most hourly (`prune_starts`). A
+    resumed session idle for longer than that just falls back the same way.
 - **A pane running an older session gets nothing typed**, Send now included. The row shows a
   failure: `older conversation: pane <pane> runs <old>, an older session than the asking
   <asker>; resume <asker> to deliver`. It is retried every pass, never called "agent gone",
@@ -443,7 +465,9 @@ same conversation. That was the bug.
   pane or another one (moved as before), the answer is delivered there exactly once. Ancestor
   transcripts are never evidence, so nothing blocks it.
 - **Without the marker** (an older plugin, or a hook that did not run), the inbox types once
-  into what looks like the asker. If the text lands in the older session's transcript and not
+  into what looks like the asker. Where the text landed is judged **per question** (a batch
+  can mix an OLD asker, for which the reported OLD file counts, with a NEW one, for which it
+  does not). If the text lands in the older session's transcript and not
   in the forward family, the row says `older conversation: typed into <old> in pane <pane>, an
   older session than the asking <asker>, which never got it; resume <asker> to deliver`. It is
   not delivered, verified or seen, and it is never typed into that session again (pre-type
