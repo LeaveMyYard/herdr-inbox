@@ -1,0 +1,125 @@
+# Kit bump: opens a PR that moves the herdr-agent-kit git dependency to a new
+# tag (plan docs/plans/rust-rewrite.md §2.1, "automating the bump PRs").
+#
+# Triggers:
+#   - repository_dispatch `kit-release`, sent by the kit's release workflow when
+#     it pushes a tag, with client_payload {"tag": "vX.Y.Z"};
+#   - workflow_dispatch with a `tag` input (empty = the kit's latest tag);
+#   - a daily schedule that polls the kit's latest vX.Y.Z tag, in case a
+#     dispatch was missed.
+#
+# It is a no-op when Cargo.toml has no herdr-agent-kit git dependency, when the
+# dependency already names the tag, or when the bump branch already exists.
+# Only plain release tags vX.Y.Z are accepted; pre-releases are bumped by hand.
+#
+# Secrets:
+#   KIT_BUMP_TOKEN (this repo) — a fine-grained PAT, or a GitHub App token,
+#     with Contents: read and write and Pull requests: read and write on
+#     LeaveMyYard/herdr-inbox. It pushes the branch and opens the PR. Without
+#     it the workflow falls back to GITHUB_TOKEN, which works, but GitHub does
+#     not start workflows for a PR opened with GITHUB_TOKEN, so the PR's CI must
+#     then be started by hand (close and reopen it). For GITHUB_TOKEN to open
+#     PRs at all, "Allow GitHub Actions to create and approve pull requests"
+#     must be on in the repo's Actions settings.
+#   The kit's side (lives in herdr-agent-kit, not here): a token with Contents:
+#     read and write on this repo, which is what POST /repos/{owner}/{repo}/
+#     dispatches requires, used as
+#       gh api repos/LeaveMyYard/herdr-inbox/dispatches \
+#         -f event_type=kit-release -F 'client_payload[tag]=vX.Y.Z'
+
+name: Kit bump
+
+on:
+  repository_dispatch:
+    types: [kit-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Kit tag to bump to (vX.Y.Z); empty = the kit's latest tag
+        required: false
+        default: ""
+  schedule:
+    - cron: "17 6 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: kit-bump
+  cancel-in-progress: false
+
+env:
+  KIT_URL: https://github.com/LeaveMyYard/herdr-agent-kit
+  GH_TOKEN: ${{ secrets.KIT_BUMP_TOKEN || github.token }}
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.KIT_BUMP_TOKEN || github.token }}
+
+      - name: Pick the tag
+        id: tag
+        env:
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          tag="${DISPATCH_TAG:-$INPUT_TAG}"
+          if [ -z "$tag" ]; then
+            tag=$(git ls-remote --tags --refs "$KIT_URL" 'v*' \
+              | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -n 1 || true)
+          fi
+          if [ -z "$tag" ]; then
+            echo "The kit has no release tag yet: nothing to do."
+          elif ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$tag' is not a release tag vX.Y.Z"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Bump Cargo.toml
+        id: bump
+        if: steps.tag.outputs.tag != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          result=$(python3 tools/kit_bump.py "$TAG" Cargo.toml)
+          echo "Cargo.toml: $result"
+          branch="kit-bump/$TAG"
+          if [ "$result" = bumped ] && git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "Branch $branch already exists: a bump PR is open or was closed on purpose."
+            result=exists
+          fi
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        if: steps.bump.outputs.result == 'bumped'
+        run: rustup toolchain install --profile minimal
+
+      - name: Refresh Cargo.lock
+        if: steps.bump.outputs.result == 'bumped'
+        run: |
+          cargo update -p herdr-agent-kit
+          cargo metadata --locked --format-version 1 >/dev/null
+
+      - name: Open the PR
+        if: steps.bump.outputs.result == 'bumped'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add Cargo.toml Cargo.lock
+          git commit -m "Bump herdr-agent-kit to $TAG"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "Bump herdr-agent-kit to $TAG" \
+            --body "Moves the herdr-agent-kit git dependency to [$TAG]($KIT_URL/releases/tag/$TAG) and refreshes Cargo.lock. Opened by .github/workflows/kit-bump.yml (trigger: ${{ github.event_name }})."
