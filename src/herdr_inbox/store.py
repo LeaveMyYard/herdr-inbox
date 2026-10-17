@@ -292,9 +292,32 @@ def record_start(session_id: str | None) -> None:
         return
     d = _starts_dir()
     d.mkdir(parents=True, exist_ok=True)
-    path = d / sid
-    path.touch()
-    os.utime(path)  # an existing marker gets the new time too
+    (d / sid).touch()  # an existing marker gets the new time too
+
+
+STARTS_KEEP = 30 * 86400  # a start marker older than this is dropped (a missing one falls back)
+
+
+def prune_starts(keep: float = STARTS_KEEP, clock=None) -> int:
+    """Drop start markers older than ``keep`` seconds (the worker, at most hourly). A marker
+    only matters while it is newer than its session's continued-in record; a session idle for
+    longer than ``keep`` with its marker gone falls back to D6 plus the typed-once path."""
+    import time as _time
+
+    cutoff = (clock or _time.time)() - keep
+    n = 0
+    try:
+        entries = list(_starts_dir().iterdir())
+    except OSError:
+        return 0
+    for path in entries:
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                n += 1
+        except OSError:
+            continue
+    return n
 
 
 def started_at(session_id: str | None) -> float | None:

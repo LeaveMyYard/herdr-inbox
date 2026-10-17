@@ -12,6 +12,7 @@ transcript is never a delivery; and the asker, once it runs again, gets it exact
 
 import os
 import time
+from datetime import timedelta
 
 import pytest
 
@@ -142,9 +143,11 @@ def test_the_detached_verify_job_never_counts_an_older_landing(store, fake_herdr
     claim = store.claim_delivery(q.id)
     text = herdr.clean(service.delivery_text([store.get(q.id)]), limit=10**9)
     new_path, old_path = tdir() / f"{NEW}.jsonl", tdir() / f"{OLD}.jsonl"
+    watch = [(new_path, transcript.size(new_path)), (old_path, transcript.size(old_path))]
+    plans = service._verify_plans(store, "w1:p1", watch, [store.get(q.id)])
+    assert plans[q.id]["counting"] == [str(new_path)]
     job = {"path": str(new_path), "offset": transcript.size(new_path), "ack": True, "busy": False, "text": text,
-           "watch": [[str(new_path), transcript.size(new_path)]], "older": [[str(old_path), transcript.size(old_path)]],
-           "rows": [{"id": q.id, "claim": claim, "older_error": service.older_error("w1:p1", OLD, NEW, typed=True)}]}
+           "watch": [[str(p), off] for p, off in watch], "rows": [{"id": q.id, "claim": claim, **plans[q.id]}]}
     write(OLD, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": text}}])
     service.verify_job(store, job)
     r = store.get(q.id)
@@ -173,8 +176,12 @@ def test_an_answer_for_an_older_asker_reaches_its_forward_continuation(store, fa
     """OLD asked, continued in NEW, then OLD was resumed elsewhere (its file goes on): NEW
     still carries OLD's conversation, so a pane running NEW takes OLD's answer."""
     q = filed(store, "w1:p1", OLD, "Asked by the older session?", "noted")
-    continued()
-    write(OLD, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": "resumed elsewhere"}}])
+    write(OLD, [{"type": "continued-in", "timestamp": st.now(timedelta(seconds=1)), "sessionId": OLD,
+                 "continuedInSessionId": NEW},
+                {"type": "user", "timestamp": st.now(timedelta(seconds=2)),
+                 "message": {"role": "user", "content": "resumed elsewhere"}}])
+    write(NEW, [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}])
+    assert transcript.follow(OLD) == OLD  # only the past record links them now
     monkeypatch.setenv("FAKE_HERDR_SESSION", NEW)
     monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", NEW)
     service.deliver(store, store.get(q.id))
@@ -213,3 +220,87 @@ def test_older_conversation_is_directional(store, fake_herdr):
     assert not service.older_conversation(store, NEW, NEW)
     assert service.forward_family(store, NEW) == [NEW]
     assert service.forward_family(store, OLD) == [OLD, NEW]
+
+
+# -- review #53 round 1 -------------------------------------------------------------------
+
+def resumed_branch():
+    """OLD continued in NEW (10-16), then OLD was resumed and USED on its own branch."""
+    continued()
+    write(OLD, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": "resumed, working"}}])
+    assert transcript.follow(OLD) == OLD
+
+
+def test_r1_b1_a_branch_question_never_goes_to_the_old_continuation(store, fake_herdr, monkeypatch):
+    """Reviewer probe: asked by the resumed OLD branch after its continuation was made; NEW
+    never saw it. With the pane running NEW, nothing is typed (main: CHANGED, also untyped)."""
+    resumed_branch()
+    q = filed(store, "w1:p1", OLD, "Asked by the resumed OLD branch, after the continuation?", "branch answer")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", NEW)
+    monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", NEW)
+    service.deliver(store, store.get(q.id))
+    assert not prompts(fake_herdr), "typed the OLD-branch answer into NEW"
+    assert not store.get(q.id).delivered_at
+
+
+def test_r1_b1_the_cli_from_the_old_continuation_is_not_the_branch_askers_own(store, fake_herdr, monkeypatch):
+    resumed_branch()
+    q = filed(store, "w1:p1", OLD, "Asked by the resumed OLD branch?", "x")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", NEW)
+    assert not service.answered_by_own_conversation(store, store.get(q.id))
+
+
+def test_r1_b1_a_branch_landing_in_the_old_continuation_is_never_verified(store, fake_herdr):
+    resumed_branch()
+    q = filed(store, "w6:p1", OLD, "Branch question, reconciled?", "branch")
+    store.db.execute("UPDATE questions SET delivery_error = ?, delivery_attempts = 2 WHERE id = ?",
+                     (service.NOT_VERIFIED, q.id))
+    write(NEW, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content":
+                 herdr.clean(service.delivery_text([store.get(q.id)]), limit=10**9)}}])
+    worker.tick(store)
+    assert not store.get(q.id).verified_at
+
+
+def test_r1_b1_an_undated_past_continuation_is_never_followed(store, fake_herdr):
+    q = filed(store, "w1:p1", OLD, "Undated?", "x")
+    write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW},
+                {"type": "user", "timestamp": st.now(timedelta(seconds=2)), "message": {"role": "user", "content": "on"}}])
+    assert service.question_family(store, store.get(q.id)) == [OLD]
+    assert service.forward_family(store, OLD) == [OLD, NEW]  # unbounded: ancestry checks only
+
+
+def test_r1_m1_a_landing_in_the_reported_file_delivers_its_own_asker(store, fake_herdr, monkeypatch):
+    """#44's positive case, kept: OLD asked before its in-process continuation; herdr reports
+    OLD without a marker, D6 follows to NEW, and the text lands in the reported OLD file. OLD
+    is the asker: verified in the same pass."""
+    q = filed(store, "w1:p1", OLD, "Asked by OLD before?", "old answer")
+    continued_then_resumed()  # OLD -> NEW record; OLD's own file gets the typed text below
+    monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
+    monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)
+    service.deliver(store, store.get(q.id))
+    r = store.get(q.id)
+    assert len(prompts(fake_herdr)) == 1 and r.verified_at and r.delivery_error is None
+
+
+def test_r1_m1_a_mixed_batch_is_judged_per_question(store, fake_herdr, monkeypatch):
+    """q2 asked by OLD (before the continuation), q1 by NEW; no marker; the batch lands in the
+    reported OLD file. q2 is delivered (OLD is its asker), q1 is 'typed into an older
+    session' -- never q2 called older than itself."""
+    q2 = filed(store, "w1:p1", OLD, "Asked by OLD before?", "old answer")
+    continued_then_resumed()
+    monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
+    monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)
+    q1 = filed(store, "w1:p1", NEW, "Asked by NEW?", "new answer")
+    service.deliver_batch(store, [store.get(q1.id), store.get(q2.id)])
+    r1, r2 = store.get(q1.id), store.get(q2.id)
+    assert r2.verified_at and r2.delivery_error is None
+    assert not r1.verified_at and r1.delivery_error.startswith(f"{service.OLDER}typed into {OLD[:8]}")
+
+
+def test_r1_l2_old_start_markers_are_pruned(store, fake_herdr):
+    st.record_start(OLD)
+    st.record_start(NEW)
+    old = st._starts_dir() / OLD
+    os.utime(old, (time.time() - st.STARTS_KEEP - 60,) * 2)
+    assert st.prune_starts() == 1
+    assert not old.exists() and st.started_at(NEW) is not None
