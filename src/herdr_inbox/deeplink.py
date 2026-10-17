@@ -36,6 +36,20 @@ VALID = {"question": re.compile(r"(?:[A-Za-z0-9._-]{1,64}:)?[Qq]?\d+"), "group":
          "pane": re.compile(r"\S+")}  # a session: transcript.session_id_or_none, the one validator
 
 
+def question_ref(value: str) -> str:
+    """``[machine:]Qn`` without its Q: at most one ``Q``/``q``, removed only right before the
+    number, after the optional ``machine:`` (#55: ``lstrip("Qq")`` strips characters, not a
+    prefix, so ``qnap:Q12`` became ``nap:Q12``). ``qnap:Q12`` -> ``qnap:12``, ``Q12`` and
+    ``q12`` -> ``12``, ``QQ12`` -> ``Q12`` (not a number), ``12`` -> ``12``."""
+    machine, colon, ref = str(value).rpartition(":")
+    return machine + colon + (ref[1:] if ref[:1] in ("Q", "q") else ref)
+
+
+def question_id(value: str) -> int:
+    """A local question reference (``Q12``, ``q12``, ``12``) as its id; ValueError otherwise."""
+    return int(question_ref(value))
+
+
 def request_path() -> Path:
     return db_path().parent / "open-request.json"
 
@@ -115,7 +129,7 @@ def resolve(store: Store, target: dict) -> tuple[tuple[str, int], int | None] | 
     open_qs = store.list()
     if kind in ("question", "group"):
         try:
-            n = int(value.lstrip("Qq") if kind == "question" else value)
+            n = question_id(value) if kind == "question" else int(value)
         except ValueError:
             return None
         if kind == "question":
@@ -133,7 +147,8 @@ def resolve(store: Store, target: dict) -> tuple[tuple[str, int], int | None] | 
 def describe(target: dict) -> str:
     kind, value = target.get("kind"), target.get("value")
     if kind == "question":
-        return f"Q{str(value).lstrip('Qq')}"
+        machine, colon, ref = question_ref(str(value)).rpartition(":")
+        return f"{machine}{colon}Q{ref}"  # qnap:12 -> qnap:Q12 (#55: was "Qnap:12")
     return f"{kind} {value}"
 
 
@@ -193,7 +208,7 @@ def _resolve_remote(store: Store, value: str):
     if not any(label in (m.get("label"), m.get("id")) for m in remote.enabled_machines()):
         return None
     try:
-        n = int(ref.lstrip("Qq"))
+        n = question_id(ref)
     except ValueError:
         return None
     for key, m, qs in remote.open_groups(store):
