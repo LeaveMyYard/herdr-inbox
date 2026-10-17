@@ -360,12 +360,45 @@ def _strings(value):
 
 OWN = object()  # evidence kind: the conversation itself answered (our CLI's output line)
 _CLI_ANSWERED = re.compile(r"(?<![A-Za-z0-9])Q(\d+) answered(?:, | by its own conversation)")
-_evidence_cache: "OrderedDict[str, tuple[int, dict]]" = OrderedDict()
+_evidence_cache: "OrderedDict[str, tuple]" = OrderedDict()  # path -> (stat, offset, edge, found, uses)
 
 
-def _tool_result_texts(record: dict):
-    """Text the conversation was GIVEN by a tool (tool_result blocks of user records): never
-    what the agent itself wrote (assistant text, tool_use input)."""
+_OWN_ANSWER_CMD = re.compile(r"(?<![\w-])answer\s+Q?(\d+)(?!\d)")
+_INBOX_READS = ("check_answers", "list_my_questions")
+
+
+def _stat_key(path: Path) -> tuple | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns, st.st_ino)
+
+
+def _tool_uses(record: dict):
+    """(id, kind, qids) of the inbox calls this assistant record makes: `own` for a Bash
+    command running `inbox answer <n>` (the conversation answers itself), `read` for
+    herdr-inbox's check_answers / list_my_questions MCP tools."""
+    if record.get("type") != "assistant":
+        return
+    content = (record.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use" or not isinstance(block.get("id"), str):
+            continue
+        name = block.get("name") or ""
+        inp = block.get("input") if isinstance(block.get("input"), dict) else {}
+        if name == "Bash" and isinstance(inp.get("command"), str) and "inbox" in inp["command"]:
+            qids = {int(m.group(1)) for m in _OWN_ANSWER_CMD.finditer(inp["command"])}
+            if qids:
+                yield block["id"], "own", qids
+        elif "herdr-inbox" in name and name.endswith(_INBOX_READS):
+            yield block["id"], "read", set()
+
+
+def _tool_results(record: dict):
+    """(tool_use_id, text) of the tool results this user record carries."""
     if record.get("type") != "user":
         return
     content = (record.get("message") or {}).get("content")
@@ -374,18 +407,17 @@ def _tool_result_texts(record: dict):
     for block in content:
         if not isinstance(block, dict) or block.get("type") != "tool_result":
             continue
-        inner = block.get("content")
+        inner, use = block.get("content"), block.get("tool_use_id")
         if isinstance(inner, str):
-            yield inner
+            yield use, inner
         elif isinstance(inner, list):
             for b in inner:
                 if isinstance(b, dict) and isinstance(b.get("text"), str):
-                    yield b["text"]
+                    yield use, b["text"]
 
 
 def _answers_in(value, out: list):
-    """{"id": <int>, "answer": "<str>"} objects anywhere in parsed JSON (check_answers,
-    list_my_questions)."""
+    """{"id": <int>, "answer": "<str>"} objects anywhere in parsed JSON."""
     if isinstance(value, dict):
         if isinstance(value.get("id"), int) and isinstance(value.get("answer"), str):
             out.append((value["id"], value["answer"]))
@@ -397,27 +429,45 @@ def _answers_in(value, out: list):
 
 
 def evidence(path: Path) -> dict:
-    """qid -> [(timestamp, answer | OWN)] from the transcript's tool results, in the inbox's
-    own output shapes only: our CLI's `Q7 answered, …` / `Q7 answered by its own
-    conversation` line (the conversation answered it itself), and check_answers-style JSON
-    `{"id": 7, "answer": "<exact>"}`. Indexed incrementally (complete lines only), cached by
-    file size: an unchanged transcript is never read again (review #44)."""
-    key, n = str(path), size(path)
+    """qid -> [(timestamp, answer | OWN)]: what the conversation's OWN inbox calls gave it
+    (review #44 rounds 1-2). A tool result counts only through the tool_use it answers:
+    - the conversation's Bash `inbox answer <n> ...` and our CLI's `Q<n> answered` line in
+      its result: the conversation answered n itself (OWN);
+    - herdr-inbox's check_answers / list_my_questions: `{"id": n, "answer": "<exact>"}`.
+    Quoted output (a terminal read, a log, an echo) never counts. Indexed incrementally;
+    the cache is keyed on size, mtime and inode (a rewrite is re-indexed)."""
+    key, stat = str(path), _stat_key(path)
+    if stat is None:
+        return {}
     cached = _evidence_cache.get(key)
-    if cached and cached[0] == n:
-        return cached[1]
-    start, found = (cached[0], {k: list(v) for k, v in cached[1].items()}) if cached and cached[0] < n else (0, {})
+    if cached and cached[0] == stat:
+        return cached[3]
     try:
         with open(path, "rb") as fh:
+            grow = False
+            if cached and cached[0][2] == stat[2] and cached[1] < stat[0]:
+                # an append keeps everything up to the indexed offset: check its last bytes
+                fh.seek(max(0, cached[1] - len(cached[2])))
+                grow = fh.read(len(cached[2])) == cached[2]
+            start, uses, found = (cached[1], dict(cached[4]), {k: list(v) for k, v in cached[3].items()}) if grow \
+                else (0, {}, {})
             fh.seek(start)
-            data = fh.read(n - start)
+            data = fh.read(stat[0] - start)
+            end = data.rfind(b"\n")
+            offset = start + end + 1 if end != -1 else start
+            fh.seek(max(0, offset - 64))
+            edge = fh.read(min(64, offset))
     except OSError:
         return {}
-    end = data.rfind(b"\n")
     if end == -1:
-        return cached[1] if cached else {}
+        _remember(_evidence_cache, key, (stat, offset, edge, found, uses))
+        return found
     for raw in data[:end].split(b"\n"):
-        if b'"tool_result"' not in raw or b"answer" not in raw:
+        if b'"tool_use"' in raw and (b"inbox" in raw):
+            kind = "use"
+        elif b'"tool_result"' in raw and raw.count(b"answer"):
+            kind = "result"
+        else:
             continue
         try:
             record = json.loads(raw)
@@ -425,11 +475,18 @@ def evidence(path: Path) -> dict:
             continue
         if not isinstance(record, dict):
             continue
+        if kind == "use":
+            for use_id, what, qids in _tool_uses(record):
+                uses[use_id] = (what, frozenset(qids))
+            continue
         ts = record.get("timestamp") if isinstance(record.get("timestamp"), str) else None
-        for text in _tool_result_texts(record):
-            for m in _CLI_ANSWERED.finditer(text):
-                found.setdefault(int(m.group(1)), []).append((ts, OWN))
-            if '"answer"' in text:
+        for use_id, text in _tool_results(record):
+            what, qids = uses.get(use_id, (None, frozenset()))
+            if what == "own":
+                for m in _CLI_ANSWERED.finditer(text):
+                    if int(m.group(1)) in qids:
+                        found.setdefault(int(m.group(1)), []).append((ts, OWN))
+            elif what == "read" and '"answer"' in text:
                 try:
                     parsed = json.loads(text)
                 except ValueError:
@@ -438,7 +495,8 @@ def evidence(path: Path) -> dict:
                 _answers_in(parsed, pairs)
                 for qid, ans in pairs:
                     found.setdefault(qid, []).append((ts, ans))
-    _remember(_evidence_cache, key, (start + end + 1, found))
+    # a hit needs the exact (size, mtime, inode); growth continues from the indexed offset
+    _remember(_evidence_cache, key, (stat, offset, edge, found, uses))
     return found
 
 

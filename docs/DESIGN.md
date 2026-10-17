@@ -364,18 +364,22 @@ transcripts, read-only. Most of them had arrived.
      session, or of what the asking pane runs now, become delivered and verified. That needs
      our exact text, as before.
    - Answers the conversation was **given** another way become seen (review #44: a false
-     "seen" loses an answer silently, so the evidence is narrow). It counts only from
-     `tool_result` blocks, i.e. what a tool handed the conversation, never what the agent
-     itself wrote, in the inbox's own output shapes:
-     - check_answers / list_my_questions JSON `{"id": 7, "answer": "<exact value>"}`;
-     - our CLI's own line `Q7 answered, …` / `Q7 answered by its own conversation`, which means
-       the conversation answered it itself.
+     "seen" loses an answer silently, so the evidence is narrow). A tool result counts only
+     through the **conversation's own call** it answers, paired by `tool_use_id`. Quoted
+     output never counts: a terminal read, a log, a PR comment, an `echo`.
+     - Its Bash `tool_use` running `inbox answer <n> …`, whose result carries our CLI's
+       `Q<n> answered…` line, means the conversation answered n itself.
+     - Its herdr-inbox `check_answers` / `list_my_questions` call, whose result holds
+       `{"id": n, "answer": "<exact value>"}`.
    - The record must come after `answered_at`, with no window before it. Agent text, a
      substring, or a bare mention never counts.
    - The pane's current conversation is read only if it is related to the question's session
      (a reused pane's other conversation never is).
-   - Evidence is indexed per transcript incrementally and cached by file size, so an unchanged
-     transcript is never read again.
+   - Evidence is indexed per transcript incrementally. The cache is keyed on size, mtime and
+     inode, and an append is told from a rewrite by the bytes before the indexed offset.
+     An unchanged transcript is never read again. A cold index of a big transcript costs
+     about 1 s, once per process: the worker's first pass, or a popup Send now that checks
+     before typing.
    - Seen answers lose any stale error; acknowledging always clears it.
 4. **No second delivery.** Before typing, delivery (Send now included) checks every related
    transcript for a landing and for "seen" evidence. If either is found, nothing is typed.

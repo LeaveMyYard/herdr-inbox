@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "u3", "name": "mcp__plugin_herdr-inbox_herdr-inbox__check_answers", "input": {}}]}}
+{"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "u3", "content": "{\"answers\": [{\"id\": 7, \"answer\": \"aaaa\"}]}"}]}}
