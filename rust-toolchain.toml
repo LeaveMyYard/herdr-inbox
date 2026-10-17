@@ -1,0 +1,5 @@
+# The toolchain for development, CI and releases. It equals the MSRV
+# (rust-version in Cargo.toml); bump both together, as in herdr-agent-kit.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
