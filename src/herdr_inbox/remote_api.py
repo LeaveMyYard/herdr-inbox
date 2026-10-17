@@ -216,4 +216,5 @@ def run_cli(command: str, raw: str) -> tuple[int, dict]:
         with Store(timeout=5, maintenance=False) as store:
             return 0, apply(store, request)
     except SchemaNotReady as exc:
+        service._ensure_worker()  # this machine's worker migrates; the next pull gets through
         return 1, {"error": f"not ready: {exc}"}

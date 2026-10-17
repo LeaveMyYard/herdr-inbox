@@ -405,21 +405,62 @@ class SchemaNotReady(sqlite3.DatabaseError):
     MCP tool returns an "unavailable" receipt -- until the worker or the popup migrates it."""
 
 
-_SCHEMA_OBJECTS = re.compile(r"CREATE (TABLE|INDEX|TRIGGER|VIEW) IF NOT EXISTS (\w+)")
+def _apply_schema(db: sqlite3.Connection) -> None:
+    """Every statement that brings a database to this code's schema; idempotent (CREATE IF NOT
+    EXISTS, ADD COLUMN only when missing). The caller holds the transaction."""
+    for statement in _statements(SCHEMA):
+        db.execute(statement)
+    for table, added in TABLE_ADDED_COLUMNS.items():
+        if table == "questions":
+            continue  # after the views, below (as before)
+        have = {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
+        for name, decl in added.items():
+            if name not in have:
+                db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+    for old in OLD_VIEWS:
+        db.execute(f"DROP VIEW IF EXISTS {old}")
+    for statement in _statements(VIEW_SQL):
+        db.execute(statement)
+    columns = {r[1] for r in db.execute("PRAGMA table_info(questions)")}
+    for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
+        if name not in columns:
+            db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+
+
+def describe_schema(db: sqlite3.Connection) -> tuple[dict[str, list[tuple]], dict[str, tuple[str, str | None]]]:
+    """(columns per table and view as (name, type, notnull, default, pk), and every object as
+    name -> (type, whitespace-collapsed SQL; None for tables, whose columns say it all)),
+    without SQLite's own objects."""
+    objects = {name: (kind, None if kind == "table" or sql is None else " ".join(sql.split()))
+               for kind, name, sql in db.execute("SELECT type, name, sql FROM sqlite_master")
+               if not name.startswith("sqlite_")}
+    columns = {name: [tuple(r[1:6]) for r in db.execute(f"PRAGMA table_info({name})")]
+               for name, (kind, _) in objects.items() if kind in ("table", "view")}
+    return columns, objects
+
+
+def reference_schema() -> tuple[dict[str, list[tuple]], dict[str, tuple[str, str | None]]]:
+    """``describe_schema`` of a fresh in-memory database migrated by this code: the schema it
+    reads and writes, exact by construction (no parsing of SCHEMA)."""
+    db = sqlite3.connect(":memory:")
+    try:
+        _apply_schema(db)
+        return describe_schema(db)
+    finally:
+        db.close()
+
+
 _expected_cache: tuple[dict[str, set[str]], set[str]] | None = None
 
 
 def _expected_schema() -> tuple[dict[str, set[str]], set[str]]:
-    """(columns per table, names of every other schema object) this code reads and writes."""
+    """(columns per table, names of every other schema object) this code reads and writes;
+    built once per process, only on the stale-stamp path."""
     global _expected_cache
     if _expected_cache is None:
-        tables: dict[str, set[str]] = {}
-        for name, body in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+) \((.*?)\n\);", SCHEMA, re.S):
-            cols = {line.split()[0] for line in map(str.strip, body.splitlines())
-                    if line and not line.startswith(("--", "PRIMARY KEY"))}
-            tables[name] = cols | set(TABLE_ADDED_COLUMNS.get(name, {}))
-        others = {name for kind, name in _SCHEMA_OBJECTS.findall(SCHEMA + VIEW_SQL) if kind != "TABLE"}
-        _expected_cache = (tables, others)
+        columns, objects = reference_schema()
+        tables = {name: {c[0] for c in columns[name]} for name, (kind, _) in objects.items() if kind == "table"}
+        _expected_cache = (tables, {name for name, (kind, _) in objects.items() if kind != "table"})
     return _expected_cache
 
 
@@ -518,23 +559,7 @@ class Store:
             if revision is not None and revision >= MIGRATION_REVISION:
                 self.db.execute("COMMIT")  # someone migrated while we waited (or a newer release did)
                 return
-            for statement in _statements(SCHEMA):
-                self.db.execute(statement)
-            for table, added in TABLE_ADDED_COLUMNS.items():
-                if table == "questions":
-                    continue  # after the views, below (as before)
-                have = {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}
-                for name, decl in added.items():
-                    if name not in have:
-                        self.db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
-            for old in OLD_VIEWS:
-                self.db.execute(f"DROP VIEW IF EXISTS {old}")
-            for statement in _statements(VIEW_SQL):
-                self.db.execute(statement)
-            columns = {r[1] for r in self.db.execute("PRAGMA table_info(questions)")}
-            for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
-                if name not in columns:
-                    self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+            _apply_schema(self.db)
             self.db.execute(f"PRAGMA user_version = {revision_stamp()}")
             self.db.execute("COMMIT")
         except BaseException:

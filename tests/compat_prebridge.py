@@ -89,14 +89,15 @@ def make_older_head(path, stamp: int = CURRENT_PRE_BRIDGE, table: str = "remote_
 
 
 def traced(monkeypatch) -> list[str]:
-    """Every SQL statement run on connections opened from here on (sqlite3.connect is patched
-    process-wide: open helper connections before calling this)."""
+    """Every SQL statement run on file connections opened from here on (sqlite3.connect is
+    patched process-wide: open helper connections before calling this)."""
     statements: list[str] = []
     real_connect = sqlite3.connect
 
     def connect(*a, **k):
         db = real_connect(*a, **k)
-        db.set_trace_callback(statements.append)
+        if (a[0] if a else k.get("database")) != ":memory:":  # store.reference_schema's scratch copy
+            db.set_trace_callback(statements.append)
         return db
 
     monkeypatch.setattr(sqlite3, "connect", connect)

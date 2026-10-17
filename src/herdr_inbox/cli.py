@@ -103,11 +103,14 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
     try:
         return _command(args, parser, stdin)
     except SchemaNotReady:
-        # the CLI never migrates (store.py): the worker and the popup do
+        # the CLI never migrates (store.py): the worker and the popup do; start the worker
+        from . import service
+
+        service._ensure_worker()
         if args.cmd == "sync-tokens":
             return 0  # herdr's startup command: nothing to count before the worker migrates
-        print("inbox: the inbox database is not migrated to this version yet; start the worker "
-              "(inbox worker --ensure) or open the popup, then run this again", file=sys.stderr)
+        print("inbox: the inbox database is not migrated to this version yet; the delivery worker "
+              "(started now) migrates it: run this again in a few seconds", file=sys.stderr)
         return 1
 
 
