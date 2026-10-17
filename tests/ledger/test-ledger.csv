@@ -488,6 +488,7 @@ tests/test_hook_launch.py::test_a_locked_inbox_db_still_gets_the_rules_out_fast[
 tests/test_hook_launch.py::test_old_python_fallback_kills_the_whole_group_on_timeout,tests/test_hook_launch.py,,todo,,
 tests/test_isolation.py::test_no_herdr_environment_leaks_into_a_test,tests/test_isolation.py,,todo,,
 tests/test_isolation.py::test_the_fake_replaces_it,tests/test_isolation.py,,todo,,
+tests/test_isolation.py::test_a_worker_left_running_is_found_by_the_teardown_guard,tests/test_isolation.py,,todo,,
 tests/test_manifests.py::test_versions_match_everywhere,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_claude_plugin_required_fields,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_hooks_manifest_parses,tests/test_manifests.py,,todo,,

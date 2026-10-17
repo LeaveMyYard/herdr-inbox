@@ -105,7 +105,10 @@ async def test_claude_session_env_is_the_fallback(migrated_db, fake_herdr, monke
 @pytest.mark.parametrize("mode", ["legacy", "auto"])
 async def test_stdio_server_end_to_end(migrated_db, fake_herdr, mode):
     """Spawn `inbox mcp` as a real subprocess and talk MCP over its stdin/stdout."""
-    env = {k: os.environ[k] for k in ("HERDR_BIN_PATH", "FAKE_HERDR_LOG", "HERDR_INBOX_DB", "HERDR_PANE_ID", "PATH")}
+    # HERDR_INBOX_NO_WORKER too: ask_operator would start a real, detached delivery worker
+    # (against this test's database and fake herdr) that outlives the test
+    env = {k: os.environ[k] for k in ("HERDR_BIN_PATH", "FAKE_HERDR_LOG", "HERDR_INBOX_DB", "HERDR_PANE_ID", "PATH",
+                                      "HERDR_INBOX_NO_WORKER")}
     params = StdioServerParameters(command=sys.executable, args=["-m", "herdr_inbox.cli", "mcp"], env=env)
     async with Client(params, mode=mode, read_timeout_seconds=20) as client:
         r = await call(client, "ask_operator", {"question": "Over stdio?", "context": "e2e test"})

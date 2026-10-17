@@ -152,6 +152,38 @@ class FakeHerdr:
             await asyncio.sleep(0.01)
 
 
+def leaked_workers(root: Path) -> list[int]:
+    """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
+
+    Cheap when nothing was spawned: worker.ensure() writes worker.log next to the database
+    before it starts one, so without that file there is nothing to look for."""
+    if not (root / "worker.log").exists():
+        return []
+    marker = f"HERDR_INBOX_DB={root}{os.sep}"
+    found = []
+    if sys.platform.startswith("linux"):
+        for d in Path("/proc").iterdir():
+            if not d.name.isdigit() or int(d.name) == os.getpid():
+                continue
+            try:
+                args = (d / "cmdline").read_bytes().split(b"\0")
+                env = (d / "environ").read_bytes().split(b"\0")
+            except OSError:
+                continue
+            if b"herdr_inbox.cli" in args and b"worker" in args \
+                    and any(e.decode(errors="replace").startswith(marker) for e in env):
+                found.append(int(d.name))
+    else:  # macOS: ps -E shows the environment of the user's own processes
+        import subprocess
+
+        out = subprocess.run(["ps", "-Aww", "-E", "-o", "pid=,command="], capture_output=True, text=True).stdout
+        for line in out.splitlines():
+            pid, _, command = line.strip().partition(" ")
+            if "herdr_inbox.cli worker" in command and marker in command and pid.isdigit():
+                found.append(int(pid))
+    return found
+
+
 @pytest.fixture
 def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     fake = FakeHerdr(tmp_path)
@@ -181,7 +213,18 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
                 "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
                 "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS", "FAKE_HERDR_LAND_SESSION", "FAKE_HERDR_GONE_PANES"):
         monkeypatch.delenv(var, raising=False)
-    return fake
+    yield fake
+    leaked = leaked_workers(tmp_path)
+    if leaked:
+        import signal
+
+        for pid in leaked:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        pytest.fail(f"inbox worker process(es) {leaked} outlived the test (database under {tmp_path}); "
+                    "a test that starts a real worker must stop it", pytrace=False)
 
 
 @pytest.fixture
