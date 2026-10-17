@@ -14,12 +14,17 @@ import time
 from datetime import datetime, timedelta, timezone
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from . import herdr, proc, tabs, trace, transcript
-from .store import MAX_HOOK_MISSES as st_MAX_HOOK_MISSES, PENDING, REQUEUED, Question, Store, normalize
+from .store import MAX_HOOK_MISSES as st_MAX_HOOK_MISSES, PENDING, REQUEUED, Question, Store, live_session, normalize
 
 NO_AGENT = "no live agent in pane"
 CHANGED = "conversation changed in pane"
+# The pane runs an OLDER session of the asking conversation (one that continued into it, which
+# herdr resumed): a different conversation, without the asker's context. Never typed there,
+# never verified there; shown as failed until the asking session runs again (then delivered).
+OLDER = "older conversation: "
 # Retries (30 s apart) before giving up on a pane whose conversation is gone;
 # the answer stays available through check_answers either way.
 MAX_STALE_RETRIES = 10
@@ -93,7 +98,7 @@ def resolve_caller() -> Caller:
             ident = herdr.pane_identity(pane_id)
     session_id = ident.get("session_id") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
     if session_id:
-        session_id = transcript.follow(session_id)  # a continued conversation files under its live session
+        session_id = live_session(session_id)  # a continued conversation files under its live session
     return Caller(
         pane_id=pane_id,
         tab_id=ident.get("tab_id") or os.environ.get("HERDR_TAB_ID") or None,
@@ -108,11 +113,11 @@ def _pane_running(session_id: str | None) -> str | None:
     on both sides), or None."""
     if not session_id:
         return None
-    live = transcript.follow(session_id)
+    live = live_session(session_id)
     res, _ = herdr.call("agent", "list")
     hits = [a["pane_id"] for a in (res or {}).get("agents") or []
             if isinstance(a, dict) and a.get("pane_id")
-            and transcript.follow((a.get("agent_session") or {}).get("value")) == live]
+            and live_session((a.get("agent_session") or {}).get("value")) == live]
     return hits[0] if len(hits) == 1 else None
 
 
@@ -456,13 +461,15 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             continue
         ours, changed = [], []
         for q in items:
-            if q.session_id and agent["session_id"] != q.session_id \
-                    and transcript.follow(q.session_id, store.session_transcript(q.session_id)) != agent["session_id"]:
+            # the pane takes the answer only if it runs the asking session or one it continued
+            # into (its forward family); never an OLDER session that continued into it
+            if q.session_id and agent["session_id"] not in forward_family(store, q.session_id):
                 changed.append(q)
             else:
                 ours.append(q)
         for q in _relocate(store, changed, pane, claims) if changed else []:  # moved to another pane?
-            record(q, f"{CHANGED} {pane}")
+            older = older_conversation(store, agent["session_id"], q.session_id)
+            record(q, older_error(pane, agent["session_id"], q.session_id) if older else f"{CHANGED} {pane}")
         if not ours:
             continue
         status = agent["status"]
@@ -526,12 +533,10 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
         path = transcript.find(agent["session_id"], store.session_transcript(agent["session_id"]))
         # already in the conversation? (a late landing, or a sender that typed and then
         # died mid-verify, whose stale claim we just took over): look before EVERY typing,
-        # in every transcript of the conversation (a continuation moved it, #41)
-        # every transcript of the conversation: its chain, resumed predecessors, what the pane
-        # runs (operator 2026-10-17: never deliver twice what already arrived anywhere)
-        pane_sessions = [s for s in (agent.get("session_id"), agent.get("reported_session_id")) if s]
-        related = {str(p): p for q in ours for p in _relative_paths(store, q.session_id, pane_sessions)}
-        landed = landed_across(store, ours, [path] + [p for p, _ in _watch_paths(store, agent)] + list(related.values()))
+        # in every transcript of the asker's forward family (a continuation moved it, #41) and
+        # what the pane runs (in that family, see ``ours``). Never an older session's file:
+        # text there never reached the asking conversation (live 2026-10-17, Q129-Q152).
+        landed = landed_across(store, ours, [path])
         # (no "seen another way" evidence here: live, `inbox answer` from the conversation
         # marks the row seen itself; that transcript heuristic only reconciles old rows)
         for q in ours:
@@ -542,6 +547,20 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
         ours = [q for q in ours if q.id not in landed]
         if not ours:
             continue
+        # already typed into an OLDER session this pane runs (herdr resumed it, unseen by our
+        # SessionStart hook)? Never again there: the row keeps saying where it went
+        reported = agent.get("reported_session_id")
+        if reported and reported != agent["session_id"]:
+            older_path = transcript.find(reported, store.session_transcript(reported))
+            stray = [q for q in ours if q.session_id and older_conversation(store, reported, q.session_id)]
+            hit = transcript.landed_kinds(older_path, {q.id: (expected_segments(q), q.answered_at) for q in stray}) \
+                if stray and older_path is not None else {}
+            for q in stray:
+                if q.id in hit:
+                    record(q, older_error(pane, reported, q.session_id, typed=True), acknowledge=False)
+            ours = [q for q in ours if q.id not in hit]
+            if not ours:
+                continue
         for text, batch, ack in delivery_messages(ours):
             if retry and not force:
                 # the operator may have stepped into the pane since the check above
@@ -566,8 +585,10 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                             f"{refs} not sent", reason[len("waiting: "):]))
                     continue
             # the transcripts the typed text can land in: the followed conversation's AND the
-            # session herdr reports (after herdr resumed an OLD id, the first prompt lands in
-            # the OLD file and only then ends its continuation; live 2026-10-17, Q129-Q152)
+            # session herdr reports (after herdr resumed an OLD id unseen by our SessionStart
+            # hook, the first prompt lands in the OLD file and only then ends its
+            # continuation; live 2026-10-17, Q129-Q152). Only a landing in the batch's forward
+            # family delivers; one in an older session is recorded as such, never verified.
             watch = _watch_paths(store, agent)
             offset = transcript.size(path)
             with trace.step("deliver.prompt", chars=len(text)):
@@ -590,18 +611,28 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 for q in batch:
                     record(q, None, acknowledge=False)
                 continue
+            watch, older = _split_watch(store, watch, batch)
+            older_errors = {q.id: older_error(pane, older[0][2], q.session_id, typed=True) for q in batch} \
+                if older else {}
+            older = [(p, off) for p, off, _ in older]
             if verify_later is not None:
                 # typed now (the popup still holds the keyboard); the up-to-15 s transcript
                 # check runs in a detached `inbox verify`, which records under our claims
                 verify_later({"path": str(path), "offset": offset, "ack": ack, "busy": busy,
                               "watch": [[str(p), off] for p, off in watch],
+                              "older": [[str(p), off] for p, off in older],
                               "text": herdr.clean(text, limit=10**9),
-                              "rows": [{"id": q.id, "claim": claims[q.id]} for q in batch]})
+                              "rows": [{"id": q.id, "claim": claims[q.id], "older_error": older_errors.get(q.id)}
+                                       for q in batch]})
                 continue
             with trace.step("deliver.verify_wait"):
-                landed_now = transcript.wait_landed_any(watch, [q.id for q in batch],
+                landed_now = transcript.wait_landed_any(watch + older, [q.id for q in batch],
                                                         VERIFY_SECONDS, text=herdr.clean(text, limit=10**9))
-            if landed_now:
+            if landed_now and older and not _landed_in(watch, batch, text):
+                # it went to an older session of the conversation: typed, but not delivered
+                for q in batch:
+                    record(q, older_errors[q.id], acknowledge=False)
+            elif landed_now:
                 for q in batch:
                     record(q, None, acknowledge=ack, verified=True)
             elif busy:  # not counted toward the idle cap (see MAX_BUSY_ATTEMPTS)
@@ -670,7 +701,8 @@ def session_pane(store: Store, session_id: str | None, agents: list | None = Non
     hits = []
     for a in agents:
         reported = (a.get("agent_session") or {}).get("value") if isinstance(a, dict) else None
-        if reported and a.get("pane_id") and transcript.follow(reported) == live:
+        # live_session: a pane herdr resumed under an OLDER id runs that older conversation
+        if reported and a.get("pane_id") and live_session(reported, store.session_transcript(reported)) == live:
             hits.append((a["pane_id"], a.get("tab_id")))
     return hits[0] if len(hits) == 1 else None
 
@@ -694,47 +726,52 @@ def _relocate(store: Store, items: list[Question], pane: str, claims: dict) -> l
 RECONCILE_EVERY = 300.0  # per failed answer: look for it in the transcripts at most this often
 RECONCILE_WINDOW = timedelta(days=7)
 GONE_ARCHIVE_AFTER = timedelta(hours=24)  # operator Q167: gone answers leave the popup after a day
-RELATIVE_MAX_AGE = 14 * 86400  # transcripts older than this are never scanned for relatives
 _reconciled_at: dict[int, float] = {}
+FAMILY_LIMIT = 32  # sessions in one forward family at most (cycle-safe either way)
 
 
-def related_sessions(store: Store, session: str | None) -> set[str]:
-    """``session``, its continuation chain, and every known session whose transcript EVER
-    continued into one of those (an old session herdr resumed afterwards, live 2026-10-17):
-    one conversation, as far as who has its answers goes. Never used for ownership."""
-    members = set(transcript.chain(session, store.session_transcript(session))) if session else set()
-    known = store.db.execute("SELECT session_id, transcript_path FROM sessions WHERE transcript_path IS NOT NULL"
-                             ).fetchall()
-    fresh = []
-    for sid, tp in known:
-        p = transcript.find(sid, tp)
-        try:
-            if p is not None and time.time() - p.stat().st_mtime <= RELATIVE_MAX_AGE:
-                fresh.append((sid, p))
-        except OSError:
-            continue
-    grew = bool(members)
-    while grew:
-        grew = False
-        for sid, p in fresh:
-            if sid not in members and transcript.continued_targets(p) & members:
-                members.add(sid)
-                grew = True
-    return members
+def forward_family(store: Store, session: str | None) -> list[str]:
+    """``session`` and every session its conversation continued into, transitively: its
+    continuation chain plus every session its transcript EVER continued in (a resumed session
+    keeps its record mid-file). The only sessions an answer to ``session``'s question may be
+    delivered to, or verified in. Never an ANCESTOR (a session that continued into it): that
+    is an older, different conversation without the asker's context (live 2026-10-17: Q129-
+    Q152 counted as delivered because they landed in 1cd70de7, an ancestor of c5240607)."""
+    if not session:
+        return []
+    out = list(transcript.chain(session, store.session_transcript(session)))
+    i = 0
+    while i < len(out) and len(out) < FAMILY_LIMIT:
+        p = transcript.find(out[i], store.session_transcript(out[i]))
+        for t in sorted(transcript.continued_targets(p)) if p is not None else []:
+            if t not in out:
+                out.append(t)
+        i += 1
+    return out
 
 
-def _relative_paths(store: Store, session: str | None, pane_sessions: list[str]) -> list:
-    """Every transcript an answer for ``session`` can have landed in: its related sessions and
-    the conversations the asking pane runs now (typed text lands where the pane is). Landing
-    still needs our exact text."""
-    members = related_sessions(store, session)
-    for s in pane_sessions:
-        # what the pane runs counts only if it is this conversation (a reused pane's other
-        # conversation never is: review #44)
-        if s in members or transcript.follow(s) in members:
-            members.update(transcript.chain(s))
+def older_conversation(store: Store, live: str | None, asker: str | None) -> bool:
+    """``live`` (what a pane runs) is an older session of ``asker``'s conversation: it
+    continued (perhaps transitively) into the asker, and is not itself in the asker's forward
+    family."""
+    if not live or not asker or live == asker:
+        return False
+    return asker in forward_family(store, live) and live not in forward_family(store, asker)
+
+
+def older_error(pane: str, live: str | None, asker: str | None, typed: bool = False) -> str:
+    """The operator-facing state of an answer whose pane runs an older session (OLDER)."""
+    old, ask = (live or "?")[:8], (asker or "?")[:8]
+    if typed:
+        return (f"{OLDER}typed into {old} in pane {pane}, an older session than the asking {ask}, "
+                f"which never got it; resume {ask} to deliver")
+    return f"{OLDER}pane {pane} runs {old}, an older session than the asking {ask}; resume {ask} to deliver"
+
+
+def _relative_paths(store: Store, session: str | None) -> list:
+    """Every transcript an answer for ``session`` counts as landed in: its forward family's."""
     paths, seen = [], set()
-    for m in members:
+    for m in forward_family(store, session):
         p = transcript.find(m, store.session_transcript(m))
         if p is not None and str(p) not in seen:
             seen.add(str(p))
@@ -743,14 +780,15 @@ def _relative_paths(store: Store, session: str | None, pane_sessions: list[str])
 
 
 def answered_by_own_conversation(store: Store, q: Question) -> bool:
-    """This process runs inside the conversation that asked ``q`` (its continuation, or an
-    older session of it resumed), e.g. an agent answering its own question with the CLI."""
+    """This process runs inside the conversation that asked ``q`` (the asking session or one
+    it continued into; never an older one), e.g. an agent answering its own question with the
+    CLI."""
     # only a Claude Code session's own process (its Bash tool, hooks) has CLAUDE_CODE_SESSION_ID;
     # the operator's shell, even in a herdr pane, does not
     me = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not q.session_id or not me:
         return False
-    return me in related_sessions(store, q.session_id) or transcript.follow(me) == transcript.follow(q.session_id)
+    return live_session(me, store.session_transcript(me)) in forward_family(store, q.session_id)
 
 
 def reconcile_failed(store: Store) -> None:
@@ -763,17 +801,10 @@ def reconcile_failed(store: Store) -> None:
     rows = [q for q in store.failed_pile(RECONCILE_WINDOW)
             if store.server_of(q.id) in (None, herdr.server_id())
             and t - _reconciled_at.get(q.id, -RECONCILE_EVERY) >= RECONCILE_EVERY]
-    if not rows:
-        return
-    res, _ = herdr.call("agent", "list")
-    by_pane: dict[str, list[str]] = {}
-    for a in (res or {}).get("agents") or []:
-        s = (a.get("agent_session") or {}).get("value") if isinstance(a, dict) else None
-        if s and a.get("pane_id"):
-            by_pane.setdefault(a["pane_id"], []).append(s)
     for q in rows:
         _reconciled_at[q.id] = t
-        paths = _relative_paths(store, q.session_id, by_pane.get(q.pane_id or "", []))
+        # only the asker's forward family: a landing in an older session is no delivery
+        paths = _relative_paths(store, q.session_id)
         found: set[int] = set()
         for p in paths:
             found |= transcript.landed_kinds(p, {q.id: (expected_segments(q), q.answered_at)}).get(q.id, set())
@@ -785,6 +816,28 @@ def reconcile_failed(store: Store) -> None:
 
 def archive_gone(store: Store) -> None:
     store.archive_gone(GONE_ARCHIVE_AFTER)
+
+
+def _split_watch(store: Store, watch: list, batch: list[Question]) -> tuple[list, list]:
+    """``watch`` ((path, offset) per transcript the typed text can land in) split into the
+    ones that count as delivery -- in the forward family of every asker in ``batch`` -- and
+    the older ones, as (path, offset, session): a landing there reached an OLDER session of
+    the conversation, not the asking one."""
+    fams = [set(forward_family(store, q.session_id)) for q in batch if q.session_id]
+    counting, older = [], []
+    for p, off in watch:
+        sid = transcript.session_id_or_none(Path(p).stem)
+        if sid is None or all(sid in f for f in fams):
+            counting.append((p, off))
+        else:
+            older.append((p, off, sid))
+    return counting, older
+
+
+def _landed_in(watch: list, batch: list[Question], text: str | None) -> bool:
+    ids = [q.id for q in batch]
+    return any(transcript.landed_since(p, off, ids, herdr.clean(text, limit=10**9) if text else None)
+               for p, off in watch)
 
 
 def _watch_paths(store: Store, agent: dict, fresh: bool = False) -> list:
@@ -800,17 +853,18 @@ def _watch_paths(store: Store, agent: dict, fresh: bool = False) -> list:
 
 
 def landed_across(store: Store, qs: list[Question], extra: list | None = None) -> dict[int, set[int]]:
-    """landed_kinds over every transcript a question's conversation lived in: the session it
-    was filed under and each session it continued in (review #41: a delivery that landed in
-    the OLD transcript just before a continuation is found, never sent again), plus ``extra``
-    paths (e.g. the hook payload's own transcript)."""
+    """landed_kinds over every transcript of a question's forward family: the session it was
+    filed under and each session it continued in (review #41: a delivery that landed in the
+    OLD transcript just before a continuation is found, never sent again), plus ``extra``
+    paths (e.g. the hook payload's own transcript, always in that family). Never an older
+    session's transcript: a landing there is not a delivery."""
     found: dict[int, set[int]] = {}
     by_session: dict[str | None, list[Question]] = {}
     for q in qs:
         by_session.setdefault(q.session_id, []).append(q)
     paths: dict[str, list[Question]] = {}
     for session, items in by_session.items():
-        for s in transcript.chain(session, store.session_transcript(session)) if session else []:
+        for s in forward_family(store, session):
             p = transcript.find(s, store.session_transcript(s))
             if p is not None:
                 paths.setdefault(str(p), []).extend(items)
@@ -1012,9 +1066,15 @@ def verify_job(store: Store, job: dict) -> None:
 
     ids = [r["id"] for r in job["rows"]]
     watch = [(Path(p), int(off)) for p, off in job.get("watch") or []] or [(Path(job["path"]), int(job["offset"]))]
-    landed = transcript.wait_landed_any(watch, ids, VERIFY_SECONDS, text=job.get("text"))
+    older = [(Path(p), int(off)) for p, off in job.get("older") or []]
+    landed = transcript.wait_landed_any(watch + older, ids, VERIFY_SECONDS, text=job.get("text"))
+    to_older = bool(landed and older) and not any(
+        transcript.landed_since(p, off, ids, job.get("text")) for p, off in watch)
     for r in job["rows"]:
-        if landed:
+        if to_older:  # typed into an older session of the conversation: not delivered
+            store.record_delivery(r["id"], r.get("older_error") or f"{OLDER}typed into an older session",
+                                  acknowledge=False, claim=r["claim"])
+        elif landed:
             store.record_delivery(r["id"], None, acknowledge=bool(job.get("ack", True)), claim=r["claim"], verified=True)
         elif job.get("busy"):
             store.record_busy_miss(r["id"], r["claim"], BUSY_WAIT_IDLE)

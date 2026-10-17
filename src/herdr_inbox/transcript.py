@@ -154,6 +154,15 @@ def continued_in(path: Path) -> str | None:
     return nxt
 
 
+def continued_at(path: Path) -> float | None:
+    """The time of the continued-in record that makes ``path``'s session continued (see
+    continued_in), or None: not continued, or the record (and everything before it) undated."""
+    if continued_in(path) is None:
+        return None
+    cached = _follow_cache.get(str(path))
+    return cached[2] if cached else None
+
+
 _targets_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
 _TARGET = re.compile(rb'"continuedInSessionId"\s*:\s*"([^"\\]{0,64})"')  # candidates; session_id_or_none decides
 

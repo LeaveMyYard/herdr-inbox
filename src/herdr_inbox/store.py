@@ -277,6 +277,58 @@ def db_path() -> Path:
     return Path(state) / "herdr-inbox" / "inbox.db"
 
 
+def _starts_dir() -> Path:
+    return db_path().parent / "starts"
+
+
+def record_start(session_id: str | None) -> None:
+    """A Claude process started (or resumed, cleared into, compacted) ``session_id`` now: the
+    SessionStart hook touches ``<state>/starts/<session>``. A file, not a column: no schema
+    change, no database lock on the hook's path, and older versions simply ignore it."""
+    from . import transcript  # stdlib only; local so the store has no import cycle
+
+    sid = transcript.session_id_or_none(session_id)
+    if sid is None:
+        return
+    d = _starts_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / sid
+    path.touch()
+    os.utime(path)  # an existing marker gets the new time too
+
+
+def started_at(session_id: str | None) -> float | None:
+    """When a Claude process last started ``session_id`` (record_start), or None."""
+    from . import transcript
+
+    sid = transcript.session_id_or_none(session_id)
+    if sid is None:
+        return None
+    try:
+        return (_starts_dir() / sid).stat().st_mtime
+    except OSError:
+        return None
+
+
+def live_session(reported: str | None, known: str | None = None) -> str | None:
+    """The session a Claude process reported as ``reported`` (by herdr, or its own
+    CLAUDE_CODE_SESSION_ID) runs now: ``transcript.follow``, except that a session a Claude
+    process (re)started AFTER its continued-in record runs ITSELF. herdr resumes a pane under
+    the OLD id, and until its first prompt the old transcript still ends in continued-in, so
+    the D6 rule alone takes the older conversation for the newer one (live 2026-10-17: Q129-
+    Q152 were typed into 1cd70de7, an ancestor of the asking c5240607)."""
+    from . import transcript
+
+    if not reported:
+        return reported
+    path = transcript.find(reported, known)
+    if path is not None and transcript.continued_in(path) is not None:
+        started, at = started_at(reported), transcript.continued_at(path)
+        if started is not None and at is not None and started > at:
+            return transcript.session_id_or_none(reported) or reported
+    return transcript.follow(reported, known)
+
+
 def now(delta: timedelta = timedelta()) -> str:
     return (datetime.now(timezone.utc) + delta).isoformat(timespec="seconds")
 
