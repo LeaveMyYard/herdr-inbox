@@ -1,0 +1,174 @@
+# Kit bump: opens a PR that moves the herdr-agent-kit git dependency to a new
+# release (plan docs/plans/rust-rewrite.md §2.1, "automating the bump PRs").
+#
+# Triggers:
+#   - repository_dispatch `kit-release`, sent by the kit's release workflow
+#     after it publishes a release, with client_payload {"tag": "vX.Y.Z"};
+#   - workflow_dispatch with a `tag` input (empty = the kit's latest release)
+#     and an `allow_downgrade` box;
+#   - a daily schedule that polls the kit's latest release, in case a dispatch
+#     was missed.
+#
+# Only published, non-draft, non-pre-release GitHub releases named vX.Y.Z are
+# used: a tag without a release (for example one the kit's release workflow
+# refused) is never proposed. Pre-releases are bumped by hand.
+#
+# It is a no-op when Cargo.toml has no herdr-agent-kit git dependency, when the
+# dependency is pinned by branch, rev or a non-semver tag (managed by hand),
+# when it already names the tag or a newer one, or when a PR from the bump
+# branch exists in any state (a closed one was closed on purpose). Only a manual
+# run with `allow_downgrade` moves the kit backwards.
+#
+# A kit release that raises the kit's MSRV fails the bump PR's CI until
+# rust-toolchain.toml and rust-version here are raised to match (MSRV = the
+# pinned toolchain, bumped together, as in the kit).
+#
+# Secrets:
+#   KIT_BUMP_TOKEN (this repo) — a fine-grained PAT, or a GitHub App token,
+#     with Contents: read and write and Pull requests: read and write on
+#     LeaveMyYard/herdr-inbox. Only the last step sees it: it pushes the branch
+#     and opens the PR. Without it the workflow falls back to GITHUB_TOKEN,
+#     which works, but GitHub does not start workflows for a PR opened with
+#     GITHUB_TOKEN, so the PR's CI must then be started by hand (close and
+#     reopen it). For GITHUB_TOKEN to open PRs at all, "Allow GitHub Actions to
+#     create and approve pull requests" must be on in the repo's Actions
+#     settings.
+#   The kit's side (lives in herdr-agent-kit, not here): a token with Contents:
+#     read and write on this repo, which is what POST /repos/{owner}/{repo}/
+#     dispatches requires, used as
+#       gh api repos/LeaveMyYard/herdr-inbox/dispatches \
+#         -f event_type=kit-release -F 'client_payload[tag]=vX.Y.Z'
+
+name: Kit bump
+
+on:
+  repository_dispatch:
+    types: [kit-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Kit release to bump to (vX.Y.Z); empty = the kit's latest release
+        required: false
+        default: ""
+      allow_downgrade:
+        description: Allow moving to an older release than the one pinned now
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 6 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: kit-bump
+  cancel-in-progress: false
+
+env:
+  KIT_REPO: LeaveMyYard/herdr-agent-kit
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Pick the release
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}  # read-only use: the kit's public releases
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          release_re='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          tag="${DISPATCH_TAG:-$INPUT_TAG}"
+          if [ -n "$tag" ]; then
+            if ! [[ $tag =~ $release_re ]]; then
+              echo "::error::the requested tag is not a release tag vX.Y.Z"
+              exit 1
+            fi
+            if ! state=$(gh api "repos/$KIT_REPO/releases/tags/$tag" --jq '"\(.draft) \(.prerelease)"'); then
+              echo "::error::$tag has no published release in $KIT_REPO"
+              exit 1
+            fi
+            if [ "$state" != "false false" ]; then
+              echo "::error::$tag is a draft or a pre-release (bump pre-releases by hand)"
+              exit 1
+            fi
+          else
+            # releases/latest skips drafts and pre-releases; 404 = none yet.
+            # Any other failure fails the run, so a broken poll is not silent.
+            if tag=$(gh api "repos/$KIT_REPO/releases/latest" --jq .tag_name 2>"$RUNNER_TEMP/kit-latest.err"); then
+              if ! [[ $tag =~ $release_re ]]; then
+                echo "::error::the kit's latest release is not named vX.Y.Z"
+                exit 1
+              fi
+            elif grep -q 'HTTP 404' "$RUNNER_TEMP/kit-latest.err"; then
+              echo "The kit has no published release yet: nothing to do."
+              tag=""
+            else
+              cat "$RUNNER_TEMP/kit-latest.err" >&2
+              exit 1
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Bump Cargo.toml
+        id: bump
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}  # read-only use: list this repo's PRs
+          TAG: ${{ steps.tag.outputs.tag }}
+          ALLOW_DOWNGRADE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.allow_downgrade == 'true' }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [ "$ALLOW_DOWNGRADE" = true ]; then flags+=(--allow-downgrade); fi
+          result=$(python3 tools/kit_bump.py "${flags[@]}" "$TAG" Cargo.toml)
+          echo "Cargo.toml: $result"
+          branch="kit-bump/$TAG"
+          if [ "$result" = bumped ]; then
+            prs=$(gh pr list --head "$branch" --state all --json number --jq length)
+            if [ "$prs" != 0 ]; then
+              echo "A PR from $branch exists (open, merged, or closed on purpose): nothing to do."
+              result=exists
+            fi
+          fi
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        if: steps.bump.outputs.result == 'bumped'
+        run: rustup toolchain install --profile minimal
+
+      - name: Refresh Cargo.lock
+        if: steps.bump.outputs.result == 'bumped'
+        run: |
+          cargo update -p herdr-agent-kit
+          cargo metadata --locked --format-version 1 >/dev/null
+
+      - name: Open the PR
+        if: steps.bump.outputs.result == 'bumped'
+        env:
+          GH_TOKEN: ${{ secrets.KIT_BUMP_TOKEN || github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          BRANCH: ${{ steps.bump.outputs.branch }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add Cargo.toml Cargo.lock
+          git commit -m "Bump herdr-agent-kit to $TAG"
+          # --force: a branch left by an earlier run whose PR creation failed is
+          # replaced (the PR check above found no PR from it).
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "Bump herdr-agent-kit to $TAG" \
+            --body "Moves the herdr-agent-kit git dependency to [$TAG](https://github.com/$KIT_REPO/releases/tag/$TAG) and refreshes Cargo.lock. Opened by .github/workflows/kit-bump.yml (trigger: $EVENT)."
