@@ -34,12 +34,14 @@ say why in the PR:
   ```
 
   A run is text with one style: `fg` and `bg` are `#rrggbb` (lowercase) or `null` (the
-  terminal's default colour), `bold` a boolean. It is what Textual's compositor sends to the
+  terminal's default colour), `bold` a boolean. `reverse` is resolved (fg and bg swapped, as the
+  terminal shows it: the selected tab, chips, the input cursor); the popup draws no other
+  attribute. It is what Textual's compositor sends to the
   terminal (`export_screenshot`'s own render), the same shape as herdr-panorama's
   `design_*.json` and `screens/*.json`. Screens are in the order the scenario reaches them.
 
-  Deterministic: fixed sizes and data, `TZ=UTC`, every `HERDR_*` and `INBOX_*` variable
-  dropped, a temporary inbox database per scenario, the tests' fake herdr, the arming delays at
+  Deterministic: fixed sizes and data, `TZ=UTC`, every `HERDR_*`, `INBOX_*` and `TEXTUAL*`
+  variable and `NO_COLOR`/`FORCE_COLOR`/`COLORTERM`/`TERM` dropped, a temporary inbox database per scenario, the tests' fake herdr, the arming delays at
   0 (as in the tests), text cursors held on, and a held clock: every row's `created_at` is fixed
-  relative to `HELD`, and the popup's ages are formatted by the real `cli._age` as of `HELD`.
+  relative to `HELD`, in id order, and the popup's ages are formatted by the real `cli._age` as of `HELD`.
   Nothing of the operator's (inbox, config, transcripts, herdr) is read.
