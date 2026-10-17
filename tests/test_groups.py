@@ -74,7 +74,7 @@ def test_cli_answer_still_answers_immediately(store, fake_herdr):
     assert q.status == "answered" and q.delivered_at
 
 
-async def test_mcp_questions_parameter(fake_herdr):
+async def test_mcp_questions_parameter(migrated_db, fake_herdr):
     async with Client(mcp) as client:
         r = (await client.call_tool("ask_operator", {"questions": [
             {"question": "DB?", "header": "DB", "options": ["pg", {"label": "sqlite", "description": "one file"}]},

@@ -280,7 +280,7 @@ def start_successor() -> bool:
 
 
 def _pending_now() -> int:
-    with Store(timeout=5) as store:
+    with Store(timeout=5, migrate=True) as store:  # the worker migrates (store.py)
         return sum(len(items) for items in served(store).values())
 
 
@@ -310,6 +310,10 @@ def _loop(box: dict) -> int:
         venvs.claim_current()  # spawned from an MCP venv: keep it from being cleaned up
     except BaseException:  # noqa: BLE001
         pass
+    try:  # migrate first: the remote thread and every other process open without migrating
+        Store(timeout=5, maintenance=False, migrate=True).close()
+    except Exception:  # noqa: BLE001 - the first tick tries again
+        log.exception("worker migration failed")
     mine = running_version()
     handover_failed = False
     idle_since = time.monotonic()
@@ -325,7 +329,7 @@ def _loop(box: dict) -> int:
             start_remote_thread()  # pulls/flushes remote machines (docs/REMOTE.md)
             remote_started = True
         try:
-            with Store(timeout=5) as store:
+            with Store(timeout=5, migrate=True) as store:  # the worker migrates (store.py)
                 pending = tick(store)
         except Exception:  # noqa: BLE001 - keep the worker alive
             log.exception("worker tick failed")

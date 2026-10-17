@@ -87,6 +87,7 @@ def _remember_transcript(payload: dict) -> None:
     if payload.get("session_id") and payload.get("transcript_path"):
         from .store import Store
 
+        # never migrates (store.py): on an older schema this raises and run() leaves it
         with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
             store.record_session(payload["session_id"], payload["transcript_path"])
 
@@ -177,9 +178,13 @@ def deliver(payload: dict, liveness: bool = True) -> str | None:
     if not _has_candidates(session):
         return None
     from . import herdr, service, transcript
-    from .store import Store
+    from .store import SchemaNotReady, Store
 
-    with Store(timeout=RECORD_TIMEOUT, maintenance=False) as store:
+    try:  # never migrates: an older schema waits for the worker or the popup (store.py)
+        store = Store(timeout=RECORD_TIMEOUT, maintenance=False)
+    except SchemaNotReady:
+        return None
+    with store:
         store.record_session(session, payload.get("transcript_path"))
         qs = store.hook_candidates(session, service.MAX_HOOK_MISSES)
         claims = {q.id: c for q in qs if (c := store.claim_delivery(q.id))}

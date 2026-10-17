@@ -19,7 +19,7 @@ from typing_extensions import NotRequired, TypedDict  # pydantic needs this Type
 from mcp.server.mcpserver import MCPServer
 
 from . import service, trace
-from .store import Store
+from .store import SchemaNotReady, Store
 
 INSTRUCTIONS = (
     "Non-blocking question inbox for the human operator. Use ask_operator instead of asking the "
@@ -81,13 +81,23 @@ def tool_store() -> Store:
 
 
 def busy_safe(fn):
-    """Retry a tool when SQLite reports the database locked; never surface a raw error."""
+    """Retry a tool when SQLite reports the database locked; never surface a raw error. A
+    database not migrated to this code's schema yet gets the "unavailable" receipt: tools
+    never migrate (store.py), the worker does."""
 
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
+        started_worker = False
         for delay in (*BUSY_BACKOFF, None):
             try:
                 return fn(*args, **kwargs)
+            except SchemaNotReady:  # raised by the store open, before any write: safe to retry
+                if not started_worker:
+                    _ensure_worker()  # it migrates on start (a fresh install, an upgrade); never fatal
+                    started_worker = True
+                if delay is None:
+                    return dict(service.NOT_MIGRATED)
+                time.sleep(delay)
             except sqlite3.OperationalError as exc:
                 if "locked" not in str(exc) and "busy" not in str(exc):
                     raise

@@ -89,7 +89,7 @@ def test_marker_failure_never_fails_ask(store, fake_herdr, monkeypatch):
     assert r["status"] == "open" and store.get(r["id"]).repeat_count == 0
 
 
-async def test_mcp_ask_returns_the_open_receipt_when_markers_fail(fake_herdr, monkeypatch):
+async def test_mcp_ask_returns_the_open_receipt_when_markers_fail(migrated_db, fake_herdr, monkeypatch):
     def locked(*args, **kwargs):
         raise sqlite3.OperationalError("database is locked")
 
@@ -102,7 +102,7 @@ async def test_mcp_ask_returns_the_open_receipt_when_markers_fail(fake_herdr, mo
         assert s.get(r["id"]).repeat_count == 0 and len(s.list()) == 1
 
 
-def test_mcp_store_uses_a_short_busy_timeout(fake_herdr):
+def test_mcp_store_uses_a_short_busy_timeout(migrated_db, fake_herdr):
     from herdr_inbox import server
 
     with server.tool_store() as s:
