@@ -80,7 +80,7 @@ def session_id_or_none(value) -> str | None:
 # ``assistant`` whose timestamp is greater than the continued-in's) clears it: the old session
 # was resumed (``claude --resume``). Bookkeeping (last-prompt, cost-state, mode,
 # file-history-snapshot, any type Claude Code adds tomorrow) never does.
-FOLLOW_TAIL = 64 * 1024  # the record is near the end: a fresh read looks at the tail only
+FOLLOW_TAIL = 64 * 1024  # the record is near the end: a cold read looks at the tail only
 _CONVERSATION = ("user", "assistant")
 # path -> (size read, continued-in id, its time, latest record time seen)
 _follow_cache: "OrderedDict[str, tuple[int, str | None, float | None, float | None]]" = OrderedDict()
@@ -107,14 +107,15 @@ def continued_in(path: Path) -> str | None:
     and used again since: see the rule above).
 
     Incremental: a growing transcript (every live session) is read only where it grew since
-    the last look, never its whole tail again (review #41)."""
+    the last look, never its whole tail again (review #41). The growth is read whole (up to
+    MAX_READ), so the mark and its time survive any amount of bookkeeping between looks."""
     if "subagents" in Path(path).parts:
         return None  # a subagent's own transcript: only the main one moves the conversation
     key, n = str(path), size(path)
     cached = _follow_cache.get(key)
     if cached and cached[0] == n:
         return cached[1]
-    if cached and cached[0] < n and n - cached[0] <= FOLLOW_TAIL:
+    if cached and cached[0] < n and n - cached[0] <= MAX_READ:
         start, nxt, at, last = cached
     else:
         start, nxt, at, last = max(0, n - FOLLOW_TAIL), None, None, None
@@ -181,7 +182,7 @@ def continued_targets(path: Path) -> frozenset:
 def chain(session_id: str | None, known: str | None = None, max_hops: int = 8) -> list[str]:
     """``session_id`` and every session its conversation continued in, in order (cycle-safe)."""
     out: list[str] = []
-    current = session_id
+    current = session_id_or_none(session_id) or session_id  # canonical when it is a session id
     for _ in range(max_hops):
         if not current or current in out:
             break

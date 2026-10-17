@@ -172,3 +172,52 @@ def test_a_bad_session_id_is_never_used_as_a_path(tmp_path, monkeypatch, sid):
     assert transcript.find(sid) is None
     assert transcript.chain(sid) in ([], [sid])  # itself only, never a continuation read
     assert touched == []
+
+
+def test_bookkeeping_over_64_kib_between_reads_keeps_the_mark(tmp_path):
+    """Review #47 L1: a growth larger than the cold-read window is read whole, so D6's 'bookkeeping
+    never clears it' holds however much of it arrives between two looks."""
+    m = Project(tmp_path / "projects").main(SID)
+    m.prompt(BASE, "work")
+    continued(m, BASE + 10)
+    m.write()
+    assert transcript.continued_in(m.path) == NEXT
+    while sum(len(x) + 1 for x in m.lines) < 3 * transcript.FOLLOW_TAIL:
+        bookkeeping(m, "cost_state")
+    m.write()
+    assert transcript.continued_in(m.path) == NEXT
+    m.prompt(BASE + 11, "resumed")
+    m.write()
+    assert transcript.continued_in(m.path) is None
+
+
+def test_chain_and_follow_return_the_canonical_id(tmp_path, monkeypatch):
+    """Review #47 L3: an id handed over in another case comes back canonical; anything that is
+    not a session id comes back as it was (never looked up)."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    hex_id = "abcdef01-2345-4abc-8def-0123456789ab"
+    Project(tmp_path / "projects").main(hex_id).write()
+    assert transcript.chain(hex_id.upper()) == [hex_id]
+    assert transcript.follow(hex_id.upper()) == hex_id
+    assert transcript.follow("not-a-session") == "not-a-session"
+
+
+@pytest.mark.parametrize("bad", ["../../x", "*", "a/b", SID + " ", "agent-a1"])
+def test_rewake_never_names_a_file_after_a_bad_session_id(store, fake_herdr, monkeypatch, bad):
+    """Review #47 L2: the watcher's lock and owner files are named only by the one validator."""
+    from herdr_inbox import rewake
+
+    monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
+    before = set(rewake._dir().iterdir())
+    assert rewake.run({"session_id": bad}) is None
+    assert not rewake.watcher_alive(bad)
+    assert set(rewake._dir().iterdir()) == before
+    with pytest.raises(ValueError):
+        rewake._safe(bad)
+
+
+def test_rewake_files_use_the_canonical_id(store, fake_herdr):
+    from herdr_inbox import rewake
+
+    hex_id = "abcdef01-2345-4abc-8def-0123456789ab"
+    assert rewake._owner_path(hex_id.upper()).name == f"{hex_id}.owner"

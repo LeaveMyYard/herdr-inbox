@@ -57,7 +57,9 @@ A `claude` nested inside the pane's agent (e.g. `claude -p` run from its Bash
 tool) inherits `HERDR_PANE_ID` but is not that agent. It is recognised from the
 process tree: walking up from the server or hook, the nearest `claude` is our
 own; a second `claude` further up means nested (verified on a real nested run).
-An unreadable tree counts as not nested. A nested session is treated like one
+"`claude`" is `proc.is_claude`, shared with herdr-panorama: a process named `claude`, a
+versioned binary (`~/.local/share/claude/versions/<v>`, whose command name is the version) or
+node running the `@anthropic-ai/claude-code` package. An unreadable tree counts as not nested. A nested session is treated like one
 outside herdr. (Comparing `CLAUDE_CODE_SESSION_ID` with the pane's session was
 rejected: the MCP server's environment is fixed at spawn, so it would misfire
 after `/clear`, and the SessionStart hook races herdr's own session report.)
@@ -445,8 +447,8 @@ among herdr's agents (`agent list`). Continuations are followed on both sides.
 **Live, 2026-10-16** (pane "Ghostpaw frontend v2 rework"). Claude Code continued the
 conversation from session `a58e3f68…` into `06acc80f…` **in the same process**.
 - The old transcript ends with
-  `{"type":"continued-in","sessionId":"<old>","continuedInSessionId":"<new>"}`, followed only
-  by bookkeeping records (`last-prompt`, `cost-state`). Nothing in the new file points back.
+  `{"type":"continued-in","sessionId":"<old>","continuedInSessionId":"<new>"}`, followed by
+  bookkeeping records (`last-prompt`, `cost-state`). Nothing in the new file points back.
 - herdr later reported the **old** id again, and so does the process env
   (`CLAUDE_CODE_SESSION_ID`). Hooks get the new id in their payload.
 
@@ -459,13 +461,25 @@ That broke four things:
   `watch_seen_at`, and held idle typing back for old-id questions.
 
 **Fix: follow the record.** `transcript.follow(session)` / `chain(session)` read the session's
-transcript. If its last `continued-in` is followed only by bookkeeping, they move to the named
-session, repeatedly, without cycles.
-- **Ids from transcripts are followed only as canonical UUIDs.** `find` itself accepts only
-  `[A-Za-z0-9_-]`. These ids become part of a glob path, so `*`, `?`, `[`, slashes,
-  backslashes and dots never reach it (review #41).
+transcript and move to the session it continued in, repeatedly, without cycles.
+- **The continuation rule (D6; the same as herdr-panorama, pinned by the shared table
+  `tests/test_bridge_rules.py`).** A `continued-in` record in the MAIN transcript (never a file
+  under `subagents/`, never an `isSidechain: true` record) naming another valid session id
+  marks the session continued. Only a later `user` or `assistant` record whose timestamp is
+  greater than the continued-in's clears it: the old session was resumed (`claude --resume`).
+  Bookkeeping (`last-prompt`, `cost-state`, `mode`, `file-history-snapshot`, any type Claude
+  Code adds later) never clears it. An undated continued-in takes the time of the last dated
+  record before it; with none, any later `user`/`assistant` record clears it. (Before D6
+  any record outside a 7-type bookkeeping list cleared it, so real transcripts stopped being
+  followed at `file-history-snapshot`.)
+- **One session-id validator**, `transcript.session_id_or_none`: a canonical 8-4-4-4-12 hex
+  UUID in any case, returned lowercase; anything else is None. Every id that can become part of
+  a path goes through it (`find`'s glob, continued-in targets, rewake's lock and owner files,
+  `inbox open --session`), so `*`, `?`, `[`, slashes, backslashes, dots and whitespace never
+  reach the file system (review #41).
 - **Reads are incremental:** a growing transcript is read only where it grew since the last
-  look; a cold look reads the last 64 KiB. Both lookup caches are bounded (LRU, 256 entries).
+  look (the whole growth, up to 8 MiB); a cold look reads the last 64 KiB. Both lookup caches
+  are bounded (LRU, 256 entries).
 - `herdr.live_agent` returns the followed id as `session_id` (herdr's own as
   `reported_session_id`). Delivery's conversation check, the watcher's pane check and the idle
   gate all compare against the live conversation. `resolve_caller` files new questions under it.
