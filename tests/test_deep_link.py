@@ -305,3 +305,39 @@ def test_open_command_no_hold_flag(fake_herdr, flag, hold):
     assert cli.main(["open", "--question", "Q1", *flag]) == 0
     data = json.loads(deeplink.request_path().read_text())
     assert data.get("hold", True) is hold
+
+
+# -- #55: one optional Q, only before the number (lstrip("Qq") ate "qnap:" -> "nap:") ----------
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("qnap:Q12", "qnap:12"), ("qnap:q12", "qnap:12"), ("qnap:12", "qnap:12"), ("Qnap:Q7", "Qnap:7"),
+    ("Q12", "12"), ("q12", "12"), ("12", "12"), ("QQ12", "Q12"), ("", ""), ("nap", "nap"), ("Q", ""),
+])
+def test_question_ref_removes_one_q_before_the_number(value, expected):
+    assert deeplink.question_ref(value) == expected
+
+
+@pytest.mark.parametrize("value,expected", [("Q12", 12), ("q12", 12), ("12", 12)])
+def test_question_id_accepts_one_optional_q(value, expected):
+    assert deeplink.question_id(value) == expected
+
+
+@pytest.mark.parametrize("value", ["QQ12", "qq12", "", "nap", "Q", "qnap:Q12"])
+def test_question_id_rejects_anything_else(value):
+    with pytest.raises(ValueError):
+        deeplink.question_id(value)
+
+
+def test_open_keeps_a_machine_name_that_starts_with_q(fake_herdr):
+    assert cli.main(["open", "--question", "qnap:Q12"]) == 0
+    assert take(json.loads(deeplink.request_path().read_text())["nonce"]) == {"kind": "question", "value": "qnap:12"}
+
+
+@pytest.mark.parametrize("cmd", [["answer", "{}", "yes"], ["dismiss", "{}"], ["redeliver", "{}"], ["deliver", "{}"]])
+def test_id_arguments_take_one_optional_q(fake_herdr, cmd, capsys):
+    """`inbox answer q12` and friends parse as before; `QQ12` is refused (it was 12)."""
+    assert [cli._question_id(v) for v in ("q12", "Q12", "12")] == [12, 12, 12]
+    with pytest.raises(SystemExit):
+        cli.main([c.format("QQ12") for c in cmd])
+    assert "'QQ12'" in capsys.readouterr().err
