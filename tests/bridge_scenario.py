@@ -1,5 +1,5 @@
 """The part of herdr-panorama's tests/scenario.py that tests/test_bridge_rules.py needs, copied
-as it is (herdr-panorama fix/bridge-rules abc1d7e), so both plugins build the shared rule table
+as it is (herdr-panorama main 4f525f3, #53), so both plugins build the shared rule table
 from the same captured records.
 
 Every record is a deep copy of a template captured from a real file

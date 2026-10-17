@@ -136,6 +136,7 @@ tests/test_bridge_inbox.py::test_a_workflow_agents_transcript_is_a_subagents_too
 tests/test_bridge_inbox.py::test_a_config_dir_under_a_folder_named_subagents_still_follows,tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_a_transcript_that_shrank_is_read_again_from_its_tail,tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_a_bad_session_link_never_matches_questions_without_a_session,tests/test_bridge_inbox.py,,todo,,
+tests/test_bridge_inbox.py::test_without_procfs_a_walk_reads_the_process_table_once,tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_rules.py::test_a_session_id_in_any_case_is_valid_and_canonical_is_lowercase[55555555-5555-4555-8555-555555555555-55555555-5555-4555-8555-555555555555],tests/test_bridge_rules.py,,todo,,
 tests/test_bridge_rules.py::test_a_session_id_in_any_case_is_valid_and_canonical_is_lowercase[0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d],tests/test_bridge_rules.py,,todo,,
 tests/test_bridge_rules.py::test_a_session_id_in_any_case_is_valid_and_canonical_is_lowercase[0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d],tests/test_bridge_rules.py,,todo,,
