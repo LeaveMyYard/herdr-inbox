@@ -17,7 +17,7 @@ def test_long_lived_v04_connection_survives_a_newer_open(tmp_path, fake_herdr):
     path = tmp_path / "inbox.db"
     old = v04.Store(path)  # a 0.4 popup or MCP server, connected before the update
     qid = old.insert("Old?", pane_id="w1:p1", session_id="sess-A").id
-    new = current.Store(path)  # 0.5 opens (and migrates) the same DB
+    new = current.Store(path, migrate=True)  # 0.5's worker opens (and migrates) the same DB
     service.ask_group(new, A, [{"question": "New one?"}, {"question": "Another?"}], title="Named")
     # the 0.4 connection keeps working: every query it makes goes through its own view
     assert sorted(q.id for q in old.list()) == [qid, 2, 3]
@@ -29,7 +29,7 @@ def test_long_lived_v04_connection_survives_a_newer_open(tmp_path, fake_herdr):
 
 def test_v04_and_newer_processes_opening_concurrently(tmp_path, fake_herdr):
     path = tmp_path / "inbox.db"
-    current.Store(path).close()
+    current.Store(path, migrate=True).close()
     service.ask(current.Store(path), A, "Seed?")
     errors: list[str] = []
     stop = time.monotonic() + 1.5

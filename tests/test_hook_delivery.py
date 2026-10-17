@@ -258,3 +258,56 @@ def test_hook_delivery_column_is_no_longer_written(store, fake_herdr, monkeypatc
     assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch")
     assert store.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = 'sess-A'").fetchone()[0] is None
     assert store.get(qid).delivered_at
+
+
+# -- P0b: hooks never migrate (store.py, MIGRATION_REVISION) ----------------------------------
+
+from herdr_inbox import hook  # noqa: E402
+
+from .compat_prebridge import (  # noqa: E402
+    CURRENT_PRE_BRIDGE, columns, make_older_head, schema_statements, set_stamp, stamp_of, traced)
+from .test_hook import context_of  # noqa: E402
+
+
+@pytest.mark.parametrize("event,name", [("post-tool-batch", "PostToolBatch"), ("stop", "Stop")])
+def test_a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp(store, fake_herdr, monkeypatch, tpath, event, name):
+    """A 0.10.5 MCP server re-stamped its crc32: the schema is all there, the hook delivers,
+    and the stamp stays the old server's (before P0b the hook migrated and re-stamped)."""
+    qid = answered_busy(store, monkeypatch)
+    set_stamp(store.path, CURRENT_PRE_BRIDGE)
+    assert context(run_hook(event, payload(tpath)), name) == f"[inbox] Q{qid} answered — Merge it?: squash"
+    assert stamp_of(store.path) == CURRENT_PRE_BRIDGE
+
+
+@pytest.mark.parametrize("event", ["post-tool-batch", "stop", "session-start"])
+def test_a_hook_on_an_older_schema_does_nothing_and_exits_0(store, fake_herdr, monkeypatch, tpath, event):
+    qid = answered_busy(store, monkeypatch)
+    make_older_head(store.path)
+    proc = run_hook(event, payload(tpath, source="startup"))
+    if event == "session-start":
+        assert "ask_operator" in context_of(proc)  # the rules still go out
+    else:
+        assert proc.returncode == 0 and proc.stdout == ""
+    assert stamp_of(store.path) == CURRENT_PRE_BRIDGE
+    assert "sending_at" not in columns(store.path, "remote_outbox")  # no migration ran
+    q = store.get(qid)
+    assert q.delivered_at is None and q.delivery_error.startswith("pending: busy")  # never claimed
+
+
+def test_the_hooks_run_no_schema_statement_on_a_stale_stamp(store, fake_herdr, monkeypatch, tpath):
+    answered_busy(store, monkeypatch)
+    set_stamp(store.path, CURRENT_PRE_BRIDGE)
+    statements = traced(monkeypatch)
+    hook._remember_transcript(payload(tpath))
+    assert hook.deliver(payload(tpath))
+    assert statements and schema_statements(statements) == []
+
+
+def test_deliver_returns_nothing_when_the_store_is_not_ready(store, fake_herdr, monkeypatch, tpath):
+    """The rewake watcher calls deliver in its loop: an older schema is 'nothing yet', never an
+    exception that ends the watch."""
+    answered_busy(store, monkeypatch)
+    make_older_head(store.path)
+    monkeypatch.setattr(hook, "_has_candidates", lambda session: True)
+    assert hook.deliver(payload(tpath)) is None
+    assert stamp_of(store.path) == CURRENT_PRE_BRIDGE

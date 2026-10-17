@@ -134,7 +134,7 @@ def test_a_locked_inbox_db_still_gets_the_rules_out_fast(tmp_path, fake_herdr, s
 
     from herdr_inbox.store import Store
 
-    Store().close()  # schema exists
+    Store(migrate=True).close()  # schema exists (the worker migrated it)
     lock = sqlite3.connect(os.environ["HERDR_INBOX_DB"], isolation_level=None)
     lock.execute("PRAGMA journal_mode=DELETE")
     lock.execute("BEGIN EXCLUSIVE")

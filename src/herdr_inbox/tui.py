@@ -1218,7 +1218,7 @@ class InboxApp(App):
 
     def __init__(self, store: Store | None = None, focus_pane: str | None = None):
         super().__init__()
-        self.store = store or Store()
+        self.store = store or Store(migrate=True)  # the popup migrates (store.py)
         self.focus_pane = focus_pane
         self.mode = "empty"  # "empty" | "list" | "group" | "failed"
         self.entries: list[Entry] = []
