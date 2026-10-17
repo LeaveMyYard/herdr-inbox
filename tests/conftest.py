@@ -29,7 +29,10 @@ session = os.environ.get("FAKE_HERDR_SESSION", "sess-A")
 tabs_file = os.environ.get("FAKE_HERDR_TABS")  # JSON {{tab_id: label}}; renames persist there
 tabs = json.load(open(tabs_file)) if tabs_file and os.path.exists(tabs_file) else {{}}
 PANE_TAB = {{"w1:p1": "w1:t1", "w1:p2": "w1:t2", "w1:p3": "w1:t1"}}
-if cmd == "pane get":
+if cmd == "pane get" and args[2] in os.environ.get("FAKE_HERDR_GONE_PANES", "").split(","):
+    sys.stderr.write(json.dumps({{"error": {{"code": "pane_not_found", "message": "pane " + args[2] + " not found"}}}}))
+    sys.exit(1)
+elif cmd == "pane get":
     pane = {{"pane_id": args[2], "tab_id": PANE_TAB.get(args[2], "w1:t1"), "workspace_id": "w1", "agent": "claude"}}
     if session:
         pane["agent_session"] = {{"agent": "claude", "kind": "id", "source": "herdr:claude", "value": session}}
@@ -150,7 +153,7 @@ class FakeHerdr:
 
 
 @pytest.fixture
-def fake_herdr(tmp_path, monkeypatch) -> FakeHerdr:
+def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     fake = FakeHerdr(tmp_path)
     monkeypatch.setenv("HERDR_BIN_PATH", str(fake.bin))
     monkeypatch.setenv("FAKE_HERDR_LOG", str(fake.log))
@@ -195,6 +198,20 @@ def subprocess_env(**extra: str) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items()}
     env.update(extra)
     return env
+
+
+NO_HERDR = "/nonexistent/herdr-not-allowed-in-tests"
+
+
+@pytest.fixture(autouse=True)
+def _no_live_herdr(monkeypatch):
+    """pytest started inside a herdr pane inherits HERDR_SOCKET_PATH, HERDR_PANE_ID, ...: a
+    test without the fake would then reach the operator's LIVE herdr. Every HERDR_* is
+    scrubbed and herdr itself points at a path that does not exist; fake_herdr (which runs
+    after this) sets its own. tests/test_isolation.py fails if this scrub goes."""
+    for var in [v for v in os.environ if v.startswith("HERDR_")]:
+        monkeypatch.delenv(var)
+    monkeypatch.setenv("HERDR_BIN_PATH", NO_HERDR)
 
 
 @pytest.fixture(autouse=True)
