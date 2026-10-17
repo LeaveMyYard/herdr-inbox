@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -152,6 +153,46 @@ class FakeHerdr:
             await asyncio.sleep(0.01)
 
 
+# leaked_workers runs in fake_herdr's teardown, before monkeypatch undoes a test's patches: a
+# test that replaced subprocess.Popen (worker.subprocess IS subprocess) must not break it
+_REAL_POPEN = subprocess.Popen
+
+
+def leaked_workers(root: Path) -> list[int]:
+    """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
+
+    Covers the Python workers worker.ensure() starts (``python -m herdr_inbox.cli worker``),
+    not a successor started through uv or a Rust binary. Cheap when nothing was spawned:
+    ensure() writes worker.log next to the database before it starts one, so without that file
+    there is nothing to look for (tests/test_isolation.py spawns through ensure() to keep the
+    two tied)."""
+    if not (root / "worker.log").exists():
+        return []
+    marker = f"HERDR_INBOX_DB={root}{os.sep}"
+    found = []
+    if sys.platform.startswith("linux"):
+        for d in Path("/proc").iterdir():
+            if not d.name.isdigit() or int(d.name) == os.getpid():
+                continue
+            try:
+                args = (d / "cmdline").read_bytes().split(b"\0")
+                env = (d / "environ").read_bytes().split(b"\0")
+            except OSError:
+                continue
+            if b"herdr_inbox.cli" in args and b"worker" in args \
+                    and any(e.decode(errors="replace").startswith(marker) for e in env):
+                found.append(int(d.name))
+    else:  # macOS: ps -E shows the environment of the user's own processes
+        with _REAL_POPEN(["ps", "-Aww", "-E", "-o", "pid=,command="], stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, text=True) as ps:
+            out = ps.communicate()[0]
+        for line in out.splitlines():
+            pid, _, command = line.strip().partition(" ")
+            if "herdr_inbox.cli worker" in command and marker in command and pid.isdigit():
+                found.append(int(pid))
+    return found
+
+
 @pytest.fixture
 def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     fake = FakeHerdr(tmp_path)
@@ -181,7 +222,18 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
                 "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
                 "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS", "FAKE_HERDR_LAND_SESSION", "FAKE_HERDR_GONE_PANES"):
         monkeypatch.delenv(var, raising=False)
-    return fake
+    yield fake
+    leaked = leaked_workers(tmp_path)
+    if leaked:
+        import signal
+
+        for pid in leaked:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        pytest.fail(f"inbox worker process(es) {leaked} outlived the test (database under {tmp_path}); "
+                    "a test that starts a real worker must stop it", pytrace=False)
 
 
 @pytest.fixture
