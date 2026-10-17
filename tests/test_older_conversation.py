@@ -159,7 +159,7 @@ def test_a_forward_continuation_running_in_the_pane_is_delivered_once(store, fak
     the env keep reporting OLD). OLD's own start marker predates the continuation."""
     q = filed(store, "w1:p1", OLD, "Asked before the continuation?", "yes")
     continued()
-    hook_session_start(OLD, monkeypatch, source="startup")
+    hook_session_start(OLD, monkeypatch)  # OLD was resumed once, long before it continued
     marker = st._starts_dir() / OLD
     os.utime(marker, (time.time() - 10**8, time.time() - 10**8))  # started long before the continued-in
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
@@ -304,3 +304,54 @@ def test_r1_l2_old_start_markers_are_pruned(store, fake_herdr):
     os.utime(old, (time.time() - st.STARTS_KEEP - 60,) * 2)
     assert st.prune_starts() == 1
     assert not old.exists() and st.started_at(NEW) is not None
+
+
+# -- review #53 final pass ----------------------------------------------------------------
+
+@pytest.mark.parametrize("source", ["compact", "clear", "fork", "startup"])
+def test_final_m1_only_a_resume_writes_a_start_marker(store, fake_herdr, monkeypatch, source):
+    """A compaction continuation fires SessionStart:compact (captured: c5240607, 10-15 18:22,
+    17 h before 1cd70de7's continued-in record). Only a resume re-runs an old id."""
+    continued()
+    hook_session_start(OLD, monkeypatch, source=source)
+    assert st.started_at(OLD) is None
+    monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
+    assert herdr.live_agent("w1:p1")["session_id"] == NEW
+
+
+def test_final_l3_a_resume_in_another_pane_never_flips_this_one(store, fake_herdr, monkeypatch):
+    """Pane w1:p1 runs OLD's in-process continuation NEW (herdr reports OLD); the operator
+    resumes OLD in pane w1:p2. Only w1:p2 runs OLD."""
+    continued()
+    hook_session_start(OLD, monkeypatch)  # HERDR_PANE_ID=w1:p1 in the helper
+    monkeypatch.setenv("HERDR_PANE_ID", "w1:p2")
+    st.record_start(OLD, "w1:p2")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
+    assert herdr.live_agent("w1:p1")["session_id"] == NEW
+    assert herdr.live_agent("w1:p2")["session_id"] == OLD
+    assert st.live_session(OLD) == OLD  # no pane known: the marker counts
+
+
+def test_final_l2_a_planless_verify_job_from_0_10_5_still_verifies(store, fake_herdr, monkeypatch):
+    """An older popup's detached job has no per-row plans: every watched transcript counts."""
+    q = filed(store, "w1:p1", NEW, "Old popup's job?", "fine")
+    claim = store.claim_delivery(q.id)
+    text = herdr.clean(service.delivery_text([store.get(q.id)]), limit=10**9)
+    new_path = write(NEW, [])
+    job = {"path": str(new_path), "offset": transcript.size(new_path), "ack": True, "busy": False, "text": text,
+           "watch": [[str(new_path), transcript.size(new_path)]], "rows": [{"id": q.id, "claim": claim}]}
+    write(NEW, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": text}}])
+    service.verify_job(store, job)
+    r = store.get(q.id)
+    assert r.verified_at and r.acknowledged_at and r.delivery_error is None
+
+
+def test_final_l1_continued_edges_streams_and_waits_for_a_whole_line(fake_herdr):
+    path = write(OLD, [{"type": "user", "message": {"role": "user", "content": "x" * 1000}}])
+    with open(path, "a") as fh:
+        fh.write('{"type": "continued-in", "timestamp": "2026-10-16T11:22:22.458Z", "sessionId": "%s", '
+                 '"continuedInSessionId": "%s"' % (OLD, NEW))  # not yet a whole line
+    assert transcript.continued_edges(path) == frozenset()
+    with open(path, "a") as fh:
+        fh.write("}\n")
+    assert {t for t, _ in transcript.continued_edges(path)} == {NEW}

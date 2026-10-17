@@ -205,30 +205,31 @@ def continued_edges(path: Path) -> frozenset:
     if cached and cached[0] == n:
         return cached[1]
     start, found = (cached[0], set(cached[1])) if cached and cached[0] < n else (0, set())
+    own = session_id_or_none(Path(path).stem)
+    done = start
     try:
-        with open(path, "rb") as fh:
+        with open(path, "rb") as fh:  # streamed line by line: a cold read of a big file stays small
             fh.seek(start)
-            data = fh.read(n - start)
+            for raw in fh:
+                if not raw.endswith(b"\n"):
+                    break  # a partial last line is read next time
+                done += len(raw)
+                if b"continued-in" not in raw:
+                    continue
+                try:
+                    record = json.loads(raw)
+                except (ValueError, RecursionError):
+                    continue
+                if not isinstance(record, dict) or record.get("type") != "continued-in" \
+                        or record.get("isSidechain") is True:
+                    continue
+                target = session_id_or_none(record.get("continuedInSessionId"))
+                if target is not None and target != own:
+                    found.add((target, _ts(record.get("timestamp"))))
     except OSError:
         return frozenset()
-    end = data.rfind(b"\n")  # only complete lines; a partial last line is read next time
-    if end == -1:
-        return frozenset(found)
-    own = session_id_or_none(Path(path).stem)
-    for raw in data[:end].split(b"\n"):
-        if b"continued-in" not in raw:
-            continue
-        try:
-            record = json.loads(raw)
-        except (ValueError, RecursionError):
-            continue
-        if not isinstance(record, dict) or record.get("type") != "continued-in" or record.get("isSidechain") is True:
-            continue
-        target = session_id_or_none(record.get("continuedInSessionId"))
-        if target is not None and target != own:
-            found.add((target, _ts(record.get("timestamp"))))
     result = frozenset(found)
-    _remember(_edges_cache, key, (start + end + 1, result))
+    _remember(_edges_cache, key, (done, result))
     return result
 
 

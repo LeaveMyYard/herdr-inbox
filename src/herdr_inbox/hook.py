@@ -228,10 +228,14 @@ def run(event: str) -> int:
             name = "SessionStart"
             try:
                 # first, and cheap: a resumed OLD session id runs itself from now on, not
-                # the session its transcript once continued in (store.live_session)
-                from .store import record_start
+                # the session its transcript once continued in (store.live_session). Only a
+                # resume re-runs an id that may have continued elsewhere: a compaction
+                # continuation fires SessionStart:compact (captured, c5240607 10-15 18:22),
+                # and clear/fork/startup run a fresh id (review #53 final M1)
+                if payload.get("source") == "resume":
+                    from .store import record_start
 
-                record_start(payload.get("session_id"))
+                    record_start(payload.get("session_id"), os.environ.get("HERDR_PANE_ID"))
             except BaseException:  # noqa: BLE001
                 pass
             try:

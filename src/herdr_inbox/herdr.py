@@ -150,7 +150,7 @@ def live_agent(pane_id: str) -> dict | None:
         # after a Claude Code session continuation herdr keeps reporting the old id: the
         # conversation now lives in the session its transcript's `continued-in` names --
         # unless herdr resumed that old id itself (store.live_session)
-        "session_id": live_session(reported) if reported else reported,
+        "session_id": live_session(reported, pane=pane_id) if reported else reported,
         "reported_session_id": reported,
         "status": agent.get("agent_status"),
         "focused": bool(agent.get("focused")),
