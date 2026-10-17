@@ -6,7 +6,9 @@
 # job at the end always reports and is the one to require: it is green when
 # every job passed or was skipped, and red when any failed or was cancelled.
 #
-# Python CI stays in ci.yml and is not affected.
+# Python CI stays in ci.yml and is not affected. The MSRV (rust-version) equals
+# the toolchain pinned in rust-toolchain.toml and both are bumped together, as in
+# herdr-agent-kit, so `check` covers the MSRV.
 
 name: Rust
 
@@ -26,6 +28,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  BIN: herdr-inbox  # the plugin's binary; the only line that differs between the plugin repos
 
 jobs:
   changes:
@@ -49,11 +52,16 @@ jobs:
               - 'src/**/*.rs'
               - '.github/workflows/rust.yml'
             ledger:
-              - 'tests/ledger/**'
+              - 'tests/**'
+              - 'src/herdr_*/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
               - 'tools/ledger_check.py'
               - '.github/workflows/rust.yml'
 
   check:
+    # On macOS this job also builds both darwin release targets, so a run holds
+    # one macOS runner (the account's macOS concurrency is shared with ci.yml).
     name: fmt, clippy, test (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -61,7 +69,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - { os: ubuntu-latest, targets: "" }
+          - { os: macos-latest, targets: "aarch64-apple-darwin x86_64-apple-darwin" }
     steps:
       - uses: actions/checkout@v4
       - name: Install the pinned toolchain (rust-toolchain.toml)
@@ -70,32 +80,32 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-
-  msrv:
-    name: MSRV (rust-version)
-    needs: changes
-    if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install the MSRV toolchain
-        id: msrv
+      - name: Build and check the darwin release targets
+        if: matrix.targets != ''
+        env:
+          TARGETS: ${{ matrix.targets }}
         run: |
-          msrv=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
-          test -n "$msrv"
-          rustup toolchain install "$msrv" --profile minimal
-          echo "version=$msrv" >> "$GITHUB_OUTPUT"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: msrv
-      - run: cargo +${{ steps.msrv.outputs.version }} check --workspace --all-targets --locked
+          set -euo pipefail
+          for target in $TARGETS; do
+            rustup target add "$target"
+            cargo build --release --locked --target "$target"
+            bin="target/$target/release/$BIN"
+            file "$bin"
+            case "$target" in
+              x86_64-*) file "$bin" | grep -q 'x86_64' ;;
+              aarch64-*)
+                file "$bin" | grep -q 'arm64'
+                "$bin" | grep -q "^$BIN "  # macos-latest is arm64; x86_64 is a cross build
+                ;;
+            esac
+          done
 
   build:
-    # The four release targets (§4 item 1). Static musl on Linux; each Linux
-    # target builds natively on its own arch, so C dependencies need no cross
-    # toolchain. When rusqlite arrives it must use the `bundled` feature (no
-    # system sqlite): its C build then goes through musl-gcc (CC_* below) on
-    # Linux and Apple clang (which targets both archs) on macOS.
+    # The Linux release targets (§4 item 1; darwin builds run in `check`).
+    # Static musl, each built natively on its own arch, so C dependencies need
+    # no cross toolchain. When rusqlite arrives it must use the `bundled`
+    # feature (no system sqlite): its C build then goes through musl-gcc (CC_*
+    # below) on Linux and Apple clang (which targets both archs) on macOS.
     name: build ${{ matrix.target }}
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -104,17 +114,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, run: true }
-          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, run: true }
-          - { target: aarch64-apple-darwin, os: macos-latest, run: true }
-          - { target: x86_64-apple-darwin, os: macos-latest, run: false }  # cross from arm64
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
     env:
       CC_x86_64_unknown_linux_musl: musl-gcc
       CC_aarch64_unknown_linux_musl: musl-gcc
     steps:
       - uses: actions/checkout@v4
       - name: Install musl-tools
-        if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -yq musl-tools
       - name: Install the pinned toolchain and the target
         run: rustup toolchain install && rustup target add ${{ matrix.target }}
@@ -124,27 +131,41 @@ jobs:
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Check the binary
         run: |
-          bin=target/${{ matrix.target }}/release/herdr-inbox
+          set -euo pipefail
+          bin="target/${{ matrix.target }}/release/$BIN"
           file "$bin"
-          case "${{ matrix.target }}" in
-            *-linux-musl) file "$bin" | grep -Eq 'static(-pie)? linked' ;;
-            x86_64-apple-darwin) file "$bin" | grep -q 'x86_64' ;;
-            aarch64-apple-darwin) file "$bin" | grep -q 'arm64' ;;
-          esac
-          if [ "${{ matrix.run }}" = true ]; then "$bin" | grep -q '^herdr-inbox '; fi
+          # x86_64 links static-pie; aarch64 musl links a static non-PIE binary.
+          file "$bin" | grep -Eq 'static-pie linked|statically linked'
+          "$bin" | grep -q "^$BIN "
 
   ledger:
+    # The ledger must list exactly the tests pytest collects: a Python PR that
+    # adds or renames a test fails here until its ledger row is added. The
+    # collection runs with every HERDR_* variable unset and scratch state.
     name: test ledger
     needs: changes
     if: needs.changes.outputs.ledger == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/ledger_check.py
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.13"
+          python-version: "3.13"
+      - run: uv sync --frozen
+      - name: Collect the Python tests
+        run: |
+          set -euo pipefail
+          for v in $(env | sed -n 's/^\(HERDR_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$v"; done
+          scratch="$RUNNER_TEMP/ledger"
+          mkdir -p "$scratch/state"
+          export HERDR_INBOX_DB="$scratch/inbox.db" XDG_STATE_HOME="$scratch/state"
+          uv run pytest --collect-only -q -p no:cacheprovider > "$scratch/collected.txt"
+      - run: python3 tools/ledger_check.py --collected "$RUNNER_TEMP/ledger/collected.txt"
 
   rust-ok:
     name: rust ok
-    needs: [changes, check, msrv, build, ledger]
+    needs: [changes, check, build, ledger]
     if: always()
     runs-on: ubuntu-latest
     steps:
