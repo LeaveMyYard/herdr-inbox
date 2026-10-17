@@ -41,7 +41,7 @@ def renames(fake):
     return [c[2:] for c in fake.calls_of("tab", "rename")]
 
 
-def caller(pane="w1:p1", tab="w1:t1", label="Billing API", session="sess-A"):
+def caller(pane="w1:p1", tab="w1:t1", label="Billing API", session="aaaaaaaa-0000-4000-8000-00000000000a"):
     return Caller(pane_id=pane, tab_id=tab, tab_label=label, session_id=session, cwd="/r")
 
 

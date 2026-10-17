@@ -7,8 +7,8 @@ from herdr_inbox.server import mcp
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def test_group_ask_shares_group_and_dedupes_per_item(store, fake_herdr):

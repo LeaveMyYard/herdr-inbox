@@ -10,7 +10,7 @@ from herdr_inbox import cli, remote_api, service
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def test_every_database_has_a_stable_random_id(store):

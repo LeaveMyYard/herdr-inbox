@@ -15,7 +15,7 @@ from herdr_inbox.store import Store
 from .test_hook import context_of, run_hook
 
 
-def caller(session="sess-A", pane="w1:p1"):
+def caller(session="aaaaaaaa-0000-4000-8000-00000000000a", pane="w1:p1"):
     return Caller(pane_id=pane, tab_id="w1:t1", tab_label="my-tab", session_id=session, cwd="/repo")
 
 
@@ -23,11 +23,11 @@ def caller(session="sess-A", pane="w1:p1"):
 
 def test_no_delivery_when_pane_holds_another_conversation(store, fake_herdr, monkeypatch):
     qid = service.ask(store, caller(), "Merge it?")["id"]
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-after-clear")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "cccccccc-0000-4000-8000-00000000000c")
     q = service.answer(store, qid, "yes, merge")
     assert fake_herdr.calls_of("agent", "prompt") == []
     assert q.delivered_at is None and "conversation changed" in q.delivery_error
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]
 
 
 def test_no_delivery_into_a_different_agent(store, fake_herdr, monkeypatch):
@@ -49,8 +49,8 @@ def test_delivered_answer_is_acknowledged(store, fake_herdr):
     qid = service.ask(store, caller(), "Merge it?")["id"]
     q = service.answer(store, qid, "yes")
     assert q.delivered_at and q.acknowledged_at
-    assert store.unacknowledged_answers("sess-A", "w1:p1") == []
-    ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "compact"}))
+    assert store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1") == []
+    ctx = context_of(run_hook("session-start", {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "source": "compact"}))
     assert f"Q{qid}" not in ctx
 
 
@@ -134,8 +134,8 @@ def test_hooks_are_silent_outside_herdr(fake_herdr, monkeypatch):
 
 def test_resume_does_not_list_other_conversations_in_the_pane(store, fake_herdr):
     service.ask(store, caller(session="old-conversation"), "Old question?")
-    service.ask(store, caller(session="sess-A"), "My question?")
-    ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "resume"}))
+    service.ask(store, caller(session="aaaaaaaa-0000-4000-8000-00000000000a"), "My question?")
+    ctx = context_of(run_hook("session-start", {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "source": "resume"}))
     assert "My question?" in ctx and "Old question" not in ctx
 
 

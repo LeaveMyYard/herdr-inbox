@@ -8,7 +8,7 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import Question
 from herdr_inbox.tui import QuestionView
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def test_long_batch_is_split_not_truncated(store, fake_herdr):
@@ -30,7 +30,7 @@ def test_answer_longer_than_a_message_is_referenced(store, fake_herdr):
     prompt = fake_herdr.calls_of("agent", "prompt")[0][3]
     assert "y" * 100 not in prompt and "check_answers" in prompt and "5000" in prompt
     assert q.delivered_at and q.acknowledged_at is None  # the agent still has to fetch it
-    assert [a.answer for a in store.unacknowledged_answers("sess-A", "w1:p1")] == ["y" * 5000]
+    assert [a.answer for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == ["y" * 5000]
 
 
 def test_retry_picks_up_answers_never_attempted(store, fake_herdr):

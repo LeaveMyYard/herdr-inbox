@@ -16,8 +16,8 @@ from herdr_inbox import service, tui
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import FailedView, GroupListView, InboxApp, QuestionView, ReviewView, _armed
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 GAP = 0.15  # the reviewer's spacing between keys
 DEADLINE = 15.0
 

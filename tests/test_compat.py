@@ -8,13 +8,13 @@ from herdr_inbox.service import Caller
 
 from . import compat_v01_store as v01
 
-A = Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def test_v01_reads_and_writes_after_v02_migrated_and_wrote(tmp_path, fake_herdr):
     path = tmp_path / "inbox.db"
     old = v01.Store(path)
-    legacy = old.insert("Old question?", options=["yes", "no"], pane_id="w1:p1", session_id="sess-A")
+    legacy = old.insert("Old question?", options=["yes", "no"], pane_id="w1:p1", session_id="aaaaaaaa-0000-4000-8000-00000000000a")
     new = store_v02.Store(path)  # 0.2 opens (and migrates) the same DB
     group = service.ask_group(new, A, [{"question": "DB?", "header": "DB", "options": [{"label": "pg", "description": "x"}],
                                         "multi_select": True}, {"question": "Cache?"}])
@@ -28,10 +28,10 @@ def test_v01_reads_and_writes_after_v02_migrated_and_wrote(tmp_path, fake_herdr)
     assert old.get(ids[0]).answer == "pg (note: keep schema)"
     assert old.get(ids[0]).options == ["pg"]  # N3: plain labels, as a 0.1.x popup escape()s them
     assert new.get(ids[0]).options == [{"label": "pg", "description": "x", "preview": None}]
-    assert [q.id for q in old.mine("sess-A", "w1:p1")] == [legacy.id, ids[0], ids[1]]
-    assert old.find_duplicate(v01.normalize("cache"), "sess-A", "w1:p1").id == ids[1]
+    assert [q.id for q in old.mine("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [legacy.id, ids[0], ids[1]]
+    assert old.find_duplicate(v01.normalize("cache"), "aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1").id == ids[1]
     assert old.set_answer(ids[1], "memcached")
-    assert [q.id for q in old.unacknowledged_answers("sess-A", "w1:p1")] == [ids[1]]
+    assert [q.id for q in old.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [ids[1]]
 
     # and 0.2 still sees what 0.1.x wrote
     assert new.get(ids[1]).answer == "memcached" and new.get(legacy.id).group == legacy.id
