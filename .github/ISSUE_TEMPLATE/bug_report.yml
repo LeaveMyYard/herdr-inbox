@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: herdr
+    attributes:
+      label: herdr version
+      description: Output of `herdr --version`
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: herdr-inbox version
+      description: The version in `herdr-plugin.toml`, or the commit you installed
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 15 arm64 / Ubuntu 24.04 x86_64
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Remove anything private first.

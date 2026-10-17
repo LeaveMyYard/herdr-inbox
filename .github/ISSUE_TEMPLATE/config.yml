@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea to talk through
+    url: https://github.com/LeaveMyYard/herdr-inbox/discussions
+    about: Ask in Discussions. Use an issue for a bug or a concrete request.
+  - name: Security vulnerability
+    url: https://github.com/LeaveMyYard/herdr-inbox/security/advisories/new
+    about: Report it privately, not in a public issue. See SECURITY.md.
