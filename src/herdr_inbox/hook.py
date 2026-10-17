@@ -61,7 +61,9 @@ def _bounded(connect, work, timeout: float = PENDING_TIMEOUT):
                 db.close()
         except sqlite3.OperationalError as exc:
             code = getattr(exc, "sqlite_errorcode", None)
-            busy = code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) if code is not None else (
+            # the primary code: extended ones (BUSY_RECOVERY 261, BUSY_SNAPSHOT 517, LOCKED_SHAREDCACHE
+            # 262, ...) are busy too
+            busy = (code & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) if code is not None else (
                 "locked" in str(exc) or "busy" in str(exc))
             left = deadline - time.monotonic()
             if not busy or left <= 0:
