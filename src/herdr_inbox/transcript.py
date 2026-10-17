@@ -109,8 +109,10 @@ def continued_in(path: Path) -> str | None:
     Incremental: a growing transcript (every live session) is read only where it grew since
     the last look, never its whole tail again (review #41). The growth is read whole (up to
     MAX_READ), so the mark and its time survive any amount of bookkeeping between looks."""
-    if "subagents" in Path(path).parts:
-        return None  # a subagent's own transcript: only the main one moves the conversation
+    if "subagents" in Path(path).parts[-4:-1]:
+        # a subagent's own transcript (<session>/subagents/[workflows/<run>/]agent-<id>.jsonl):
+        # only the main one moves the conversation; folders above the session never count
+        return None
     key, n = str(path), size(path)
     cached = _follow_cache.get(key)
     if cached and cached[0] == n:
