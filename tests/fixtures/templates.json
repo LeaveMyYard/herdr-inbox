@@ -2619,5 +2619,15 @@
   "type": "mode",
   "mode": "normal",
   "sessionId": "00000000-0000-4000-8000-000000000000"
+ },
+ "file_history_snapshot": {
+  "type": "file-history-snapshot",
+  "messageId": "00000000-0000-4000-8000-000000000000",
+  "snapshot": {
+   "messageId": "00000000-0000-4000-8000-000000000000",
+   "trackedFileBackups": {},
+   "timestamp": "2026-01-01T00:00:00.000Z"
+  },
+  "isSnapshotUpdate": false
  }
 }
