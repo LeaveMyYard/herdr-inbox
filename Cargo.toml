@@ -17,8 +17,8 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-# MSRV, the same as herdr-agent-kit's. CI checks it; rust-toolchain.toml pins the
-# toolchain that develops and releases.
+# MSRV, the same as herdr-agent-kit's. It equals the toolchain pinned in
+# rust-toolchain.toml; bump both together.
 rust-version = "1.96"
 license = "MIT"
 repository = "https://github.com/LeaveMyYard/herdr-inbox"

@@ -58,9 +58,9 @@ def check(ledger: Path, collected: Path | None) -> tuple[list[str], Counter[str]
                 errors.append(f"line {lineno}: python_file {rec['python_file']!r} does not match {tid}")
             if status not in STATUSES:
                 errors.append(f"line {lineno}: status {status!r} not one of {STATUSES}")
-            elif status == "mapped" and not rec["rust_test"]:
+            elif status == "mapped" and not rec["rust_test"].strip():
                 errors.append(f"line {lineno}: mapped without rust_test")
-            elif status == "retired" and not rec["retired_reason"]:
+            elif status == "retired" and not rec["retired_reason"].strip():
                 errors.append(f"line {lineno}: retired without retired_reason")
             elif status == "todo" and (rec["rust_test"] or rec["retired_reason"]):
                 errors.append(f"line {lineno}: todo row has rust_test or retired_reason set")
@@ -69,6 +69,8 @@ def check(ledger: Path, collected: Path | None) -> tuple[list[str], Counter[str]
             if rec["phase"] not in PHASES:
                 errors.append(f"line {lineno}: phase {rec['phase']!r} not one of {sorted(PHASES)}")
             counts[status] += 1
+    if not seen:
+        errors.append("the ledger has no rows")
     if collected is not None:
         want = read_collected(collected)
         missing = sorted(set(want) - seen)
