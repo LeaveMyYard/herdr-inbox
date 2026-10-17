@@ -149,3 +149,99 @@ def test_bounded_gives_up_on_other_errors_and_at_the_deadline():
     with pytest.raises(sqlite3.OperationalError):  # busy every time: gives up at the deadline
         hook._bounded(lambda: sqlite3.connect(":memory:"), _raising([5] * 10_000), timeout=0.1)
     assert time.monotonic() - started < 5
+
+
+LOOKUP_BUDGET = 0.5  # what a locked DB may cost a delivery-hook lookup (hook.PENDING_TIMEOUT 0.2 s + slack)
+
+
+def _locked(mode: str):
+    """A connection holding the inbox DB in rollback-journal mode: BEGIN EXCLUSIVE blocks
+    readers and writers, BEGIN IMMEDIATE only writers."""
+    import os
+    import sqlite3
+
+    from herdr_inbox.store import Store
+
+    Store(migrate=True).close()
+    lock = sqlite3.connect(os.environ["HERDR_INBOX_DB"], isolation_level=None)
+    lock.execute("PRAGMA journal_mode=DELETE")
+    lock.execute(f"BEGIN {mode}")
+    return lock
+
+
+def _timed(fn, *args):
+    import time
+
+    started = time.monotonic()
+    result = fn(*args)
+    return result, time.monotonic() - started
+
+
+def test_touch_gives_up_quickly_on_a_locked_db(fake_herdr):
+    """Final pass #59 L: the delivery hook's liveness stamp is bounded by wall clock too,
+    both its read-only look (EXCLUSIVE: readers blocked) and its write (IMMEDIATE: the read
+    finds no stamp, the write is blocked)."""
+    import sqlite3
+
+    from herdr_inbox import hook
+
+    for mode in ("EXCLUSIVE", "IMMEDIATE"):
+        lock = _locked(mode)
+        try:
+            result, took = _timed(hook._touch, "s")
+        finally:
+            lock.execute("ROLLBACK")
+            lock.close()
+        assert result is None and took < LOOKUP_BUDGET, (mode, took)
+    ro = sqlite3.connect(f"file:{__import__('os').environ['HERDR_INBOX_DB']}?mode=ro", uri=True)
+    try:  # nothing was stamped while locked
+        assert ro.execute("SELECT hook_seen_at FROM sessions WHERE session_id = 's'").fetchone() is None
+    finally:
+        ro.close()
+
+
+def test_has_candidates_gives_up_quickly_on_a_locked_db(store, fake_herdr, monkeypatch):
+    """Final pass #59 L: the delivery hook's candidate check is bounded by wall clock: on a
+    locked DB it says "nothing" within the budget (the next firing looks again)."""
+    from herdr_inbox import hook
+
+    seed(store, monkeypatch)  # Q2 is answered and not yet seen: a candidate when unlocked
+    store.close()
+    assert hook._has_candidates("aaaaaaaa-0000-4000-8000-00000000000a")
+    lock = _locked("EXCLUSIVE")
+    try:
+        result, took = _timed(hook._has_candidates, "aaaaaaaa-0000-4000-8000-00000000000a")
+    finally:
+        lock.execute("ROLLBACK")
+        lock.close()
+    assert result is False and took < LOOKUP_BUDGET, took
+
+
+def test_bounded_closes_every_connection_it_opens():
+    """Each retry opens a fresh connection; none is left open, whether the work succeeds,
+    keeps failing busy until the deadline, or fails otherwise."""
+    import sqlite3
+
+    import pytest
+
+    from herdr_inbox import hook
+
+    def run(work, timeout=5):
+        opened = []
+
+        def connect():
+            opened.append(sqlite3.connect(":memory:"))
+            return opened[-1]
+
+        try:
+            hook._bounded(connect, work, timeout=timeout)
+        except sqlite3.OperationalError:
+            pass
+        for db in opened:
+            with pytest.raises(sqlite3.ProgrammingError):  # closed
+                db.execute("SELECT 1")
+        return len(opened)
+
+    assert run(_raising([5, 261])) == 3
+    assert run(_raising([5] * 10_000), timeout=0.05) > 1
+    assert run(_raising([1])) == 1
