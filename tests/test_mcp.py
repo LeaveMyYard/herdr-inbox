@@ -60,7 +60,7 @@ async def test_full_round_trip_through_registered_tools(fake_herdr, monkeypatch)
     # identity came from herdr, per call
     assert ["pane", "get", "w1:p1"] in fake_herdr.calls()
     assert ["tab", "get", "w1:t1"] in fake_herdr.calls()
-    assert Store().get(1).session_id == "sess-A"
+    assert Store().get(1).session_id == "aaaaaaaa-0000-4000-8000-00000000000a"
 
 
 async def test_withdraw_question(fake_herdr):
@@ -80,7 +80,7 @@ async def test_withdraw_question(fake_herdr):
 async def test_cannot_withdraw_another_sessions_question(fake_herdr, monkeypatch):
     async with Client(mcp) as client:
         await call(client, "ask_operator", {"question": "Which bucket?"})
-        monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-B")  # e.g. after /clear
+        monkeypatch.setenv("FAKE_HERDR_SESSION", "bbbbbbbb-0000-4000-8000-00000000000b")  # e.g. after /clear
         r = await call(client, "withdraw_question", {"id": 1, "reason": "x"})
         assert r["status"] == "error"
         assert (await call(client, "list_my_questions"))["questions"] == []
@@ -89,7 +89,7 @@ async def test_cannot_withdraw_another_sessions_question(fake_herdr, monkeypatch
 async def test_session_change_is_resolved_per_call(fake_herdr, monkeypatch):
     async with Client(mcp) as client:
         await call(client, "ask_operator", {"question": "Which bucket?"})
-        monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-B")
+        monkeypatch.setenv("FAKE_HERDR_SESSION", "bbbbbbbb-0000-4000-8000-00000000000b")
         r = await call(client, "ask_operator", {"question": "Which bucket?"})
         assert r["status"] == "open" and r["id"] == 2  # new conversation, not a repeat
 
@@ -120,5 +120,5 @@ async def test_stdio_server_end_to_end(fake_herdr, mode):
         mine = await call(client, "list_my_questions")
         assert mine["questions"][0]["question"] == "Over stdio?"
     q = Store().get(1)
-    assert (q.pane_id, q.tab_label, q.session_id, q.context) == ("w1:p1", "my-tab", "sess-A", "e2e test")
+    assert (q.pane_id, q.tab_label, q.session_id, q.context) == ("w1:p1", "my-tab", "aaaaaaaa-0000-4000-8000-00000000000a", "e2e test")
     assert fake_herdr.calls_of("notification", "show")

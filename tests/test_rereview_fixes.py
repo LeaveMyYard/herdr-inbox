@@ -7,7 +7,7 @@ from herdr_inbox import hook, proc, service
 from herdr_inbox.service import Caller
 
 
-def caller(session="sess-A", pane="w1:p1"):
+def caller(session="aaaaaaaa-0000-4000-8000-00000000000a", pane="w1:p1"):
     return Caller(pane_id=pane, tab_id="w1:t1", tab_label="my-tab", session_id=session, cwd="/repo")
 
 
@@ -51,12 +51,12 @@ def test_first_delivery_from_the_popup_ignores_focus(store, fake_herdr, monkeypa
 # -- Low: stale deliveries stop being retried --------------------------------------
 
 def test_retry_gives_up_on_a_changed_conversation(store, fake_herdr, monkeypatch):
-    qid = failed_answer(store, monkeypatch, ("FAKE_HERDR_SESSION", "sess-NEW"))
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-NEW")
+    qid = failed_answer(store, monkeypatch, ("FAKE_HERDR_SESSION", "eeeeeeee-0000-4000-8000-00000000000e"))
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "eeeeeeee-0000-4000-8000-00000000000e")
     for _ in range(30):
         service.retry_deliveries(store, "w1:p1")
     assert len(fake_herdr.calls_of("agent", "get")) <= service.MAX_STALE_RETRIES + 1
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]  # still for check_answers
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]  # still for check_answers
 
 
 def test_retry_keeps_trying_a_blocked_or_failing_agent(store, fake_herdr, monkeypatch):

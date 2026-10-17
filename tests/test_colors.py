@@ -4,7 +4,7 @@ from herdr_inbox import service
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import CC_COLORS, InboxApp, QuestionView, ReviewView
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 async def test_roles_follow_claude_code_in_dark_and_light(store, fake_herdr):
@@ -63,7 +63,7 @@ async def test_tick_glyph_and_boxes_match_claude_code(store, fake_herdr):
 
 async def test_list_title_row(store, fake_herdr):
     service.ask(store, A, "one?")
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r"), "two?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r"), "two?")
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await pilot.pause()

@@ -16,6 +16,7 @@ import os
 from collections import OrderedDict
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 
 MAX_READ = 8 * 1024 * 1024  # never read more than this from the tail
@@ -31,15 +32,16 @@ def find(session_id: str | None, known: str | None = None) -> Path | None:
     lookup by file name under Claude Code's projects directory."""
     if known and Path(known).is_file():
         return Path(known)
-    if not session_id or not _SESSION_CHARS.match(session_id):
-        return None  # never a glob pattern or a path: no `*?[`, slashes, backslashes or dots
+    sid = session_id_or_none(session_id)
+    if sid is None:
+        return None  # never a glob pattern or a path: only a canonical UUID is looked up
     base = projects_dir()
-    hit = _found.get((str(base), session_id))
+    hit = _found.get((str(base), sid))
     if hit and hit.is_file():
-        _found.move_to_end((str(base), session_id))
+        _found.move_to_end((str(base), sid))
         return hit  # every herdr agent lookup follows its session (see follow): no glob each time
-    for path in base.glob(f"*/{session_id}.jsonl"):
-        _remember(_found, (str(base), session_id), path)
+    for path in base.glob(f"*/{sid}.jsonl"):
+        _remember(_found, (str(base), sid), path)
         return path
     return None
 
@@ -53,34 +55,69 @@ def _remember(cache: OrderedDict, key, value) -> None:
     cache.move_to_end(key)
     while len(cache) > CACHE_MAX:
         cache.popitem(last=False)
-_SESSION_CHARS = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+# The ONE session-id validator (plan §1.3 row 4, shared with herdr-panorama): a canonical
+# 8-4-4-4-12 hex UUID, any case in, lowercase out; anything else is None. A session id reaches
+# us from herdr, the env, hook payloads and transcripts, and becomes part of a file path (find's
+# glob), so nothing else ("../x", "*", a slash, surrounding whitespace) is ever used.
+_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+
+def session_id_or_none(value) -> str | None:
+    return value.lower() if isinstance(value, str) and _UUID.fullmatch(value) else None
 
 
 # -- Claude Code session continuation ----------------------------------------------------
 # The conversation can move to a new session id in the same process: the old transcript then
 # ends with {"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW}, followed
-# only by bookkeeping records (captured on 2.1.301, 2026-10-16); nothing in NEW points back,
-# and herdr / the process env keep reporting OLD.
-FOLLOW_TAIL = 64 * 1024  # the record is near the end: only bookkeeping may follow it
-_BOOKKEEPING = {"last-prompt", "cost-state", "summary", "custom-title", "ai-title", "agent-name", "mode"}
-_follow_cache: "OrderedDict[str, tuple[int, str | None]]" = OrderedDict()  # path -> (size read, continued-in id)
-# a session id read from a transcript is only ever used as a canonical UUID: it becomes part of
-# a file path (find's glob), so anything else ("../x", "*", a slash) is ignored
-_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+# by bookkeeping records (captured on 2.1.301, 2026-10-16); nothing in NEW points back, and
+# herdr / the process env keep reporting OLD.
+#
+# The rule (plan D6, shared with herdr-panorama's scan/session.py): a continued-in record in the
+# MAIN transcript (never a subagent's file, never an isSidechain record) naming another valid
+# session id marks the session continued. Only a LATER conversation record (``user`` or
+# ``assistant`` whose timestamp is greater than the continued-in's) clears it: the old session
+# was resumed (``claude --resume``). Bookkeeping (last-prompt, cost-state, mode,
+# file-history-snapshot, any type Claude Code adds tomorrow) never does.
+FOLLOW_TAIL = 64 * 1024  # the record is near the end: a fresh read looks at the tail only
+_CONVERSATION = ("user", "assistant")
+# path -> (size read, continued-in id, its time, latest record time seen)
+_follow_cache: "OrderedDict[str, tuple[int, str | None, float | None, float | None]]" = OrderedDict()
+
+
+def _ts(value) -> float | None:
+    """A record's ``timestamp`` as epoch seconds (panorama's wire.ts): ISO-8601, or a number
+    (milliseconds above 1e11), or None."""
+    if value is None or isinstance(value, (bool, list, dict)):
+        return None
+    if isinstance(value, (int, float)):
+        return value / 1000.0 if value > 1e11 else float(value)
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (ValueError, TypeError, OverflowError):
+        try:
+            return _ts(int(value))
+        except (ValueError, TypeError, OverflowError):
+            return None
 
 
 def continued_in(path: Path) -> str | None:
-    """The session ``path``'s conversation continued in, or None. Only when nothing but
-    bookkeeping follows the record (an old session resumed and used again is not followed).
+    """The session ``path``'s conversation continued in, or None (never continued, or resumed
+    and used again since: see the rule above).
 
     Incremental: a growing transcript (every live session) is read only where it grew since
     the last look, never its whole tail again (review #41)."""
+    if "subagents" in Path(path).parts:
+        return None  # a subagent's own transcript: only the main one moves the conversation
     key, n = str(path), size(path)
     cached = _follow_cache.get(key)
     if cached and cached[0] == n:
         return cached[1]
-    start, nxt = (cached[0], cached[1]) if cached and cached[0] < n and n - cached[0] <= FOLLOW_TAIL \
-        else (max(0, n - FOLLOW_TAIL), None)
+    if cached and cached[0] < n and n - cached[0] <= FOLLOW_TAIL:
+        start, nxt, at, last = cached
+    else:
+        start, nxt, at, last = max(0, n - FOLLOW_TAIL), None, None, None
     try:
         with open(path, "rb") as fh:
             fh.seek(start)
@@ -90,27 +127,32 @@ def continued_in(path: Path) -> str | None:
     end = data.rfind(b"\n")  # only complete lines; a partial last line is read next time
     if end == -1:
         return cached[1] if cached else None
+    own = session_id_or_none(Path(path).stem)
     for raw in data[:end].split(b"\n"):
-        if not raw.strip():
-            continue
         if b'"type"' not in raw:
             continue
         try:
             record = json.loads(raw)
-        except ValueError:
+        except (ValueError, RecursionError):
             continue
         if not isinstance(record, dict):
             continue
-        if record.get("type") == "continued-in" and isinstance(record.get("continuedInSessionId"), str):
-            nxt = record["continuedInSessionId"] if _UUID.match(record["continuedInSessionId"]) else None
-        elif nxt and record.get("type") not in _BOOKKEEPING:
-            nxt = None  # the old conversation went on after the record
-    _remember(_follow_cache, key, (start + end + 1, nxt))
+        kind, when = record.get("type"), _ts(record.get("timestamp"))
+        if kind == "continued-in":
+            target = session_id_or_none(record.get("continuedInSessionId"))
+            if target is not None and target != own and record.get("isSidechain") is not True:
+                # an undated record takes the latest time read before it (panorama: f.last_ts)
+                nxt, at = target, when or last
+        elif nxt is not None and kind in _CONVERSATION and (at is None or (when is not None and when > at)):
+            nxt = at = None  # resumed: the old conversation went on after the record
+        if when:
+            last = when
+    _remember(_follow_cache, key, (start + end + 1, nxt, at, last))
     return nxt
 
 
 _targets_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
-_TARGET = re.compile(rb'"continuedInSessionId"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"')
+_TARGET = re.compile(rb'"continuedInSessionId"\s*:\s*"([^"\\]{0,64})"')  # candidates; session_id_or_none decides
 
 
 def continued_targets(path: Path) -> frozenset:
@@ -127,7 +169,8 @@ def continued_targets(path: Path) -> frozenset:
             fh.seek(start)
             for line in fh:  # whole lines: a record never splits across reads
                 if b"continued-in" in line:
-                    found.update(m.decode() for m in _TARGET.findall(line))
+                    found.update(sid for m in _TARGET.findall(line)
+                                 if (sid := session_id_or_none(m.decode("utf-8", "replace"))))
     except OSError:
         return frozenset()
     result = frozenset(found)

@@ -10,19 +10,19 @@ from herdr_inbox.service import Caller
 
 from . import compat_v04_store as v04
 
-A = Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def test_long_lived_v04_connection_survives_a_newer_open(tmp_path, fake_herdr):
     path = tmp_path / "inbox.db"
     old = v04.Store(path)  # a 0.4 popup or MCP server, connected before the update
-    qid = old.insert("Old?", pane_id="w1:p1", session_id="sess-A").id
+    qid = old.insert("Old?", pane_id="w1:p1", session_id="aaaaaaaa-0000-4000-8000-00000000000a").id
     new = current.Store(path)  # 0.5 opens (and migrates) the same DB
     service.ask_group(new, A, [{"question": "New one?"}, {"question": "Another?"}], title="Named")
     # the 0.4 connection keeps working: every query it makes goes through its own view
     assert sorted(q.id for q in old.list()) == [qid, 2, 3]
     assert old.get(2).question == "New one?" and old.group(2)[1].id == 3
-    assert old.set_answer(qid, "fine") and [q.id for q in old.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
+    assert old.set_answer(qid, "fine") and [q.id for q in old.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]
     views = {r[0] for r in new.db.execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
     assert {v04.VIEW, current.VIEW} <= views
 

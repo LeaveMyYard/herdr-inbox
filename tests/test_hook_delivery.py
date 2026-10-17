@@ -10,12 +10,12 @@ from herdr_inbox.service import Caller
 
 from .test_hook import run_hook
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 @pytest.fixture
 def tpath(tmp_path):
-    p = tmp_path / "sess-A.jsonl"
+    p = tmp_path / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     p.write_text("")
     return p
 
@@ -31,7 +31,7 @@ def answered_busy(store, monkeypatch, question="Merge it?", answer="squash"):
 
 
 def payload(tpath, **extra):
-    return {"session_id": "sess-A", "transcript_path": str(tpath), **extra}
+    return {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "transcript_path": str(tpath), **extra}
 
 
 def context(proc, event):
@@ -70,7 +70,7 @@ def test_several_answers_go_in_one_message(store, fake_herdr, monkeypatch, tpath
 def test_nothing_for_a_subagent_another_session_or_outside_herdr(store, fake_herdr, monkeypatch, tpath):
     qid = answered_busy(store, monkeypatch)
     assert context(run_hook("post-tool-batch", payload(tpath, agent_id="agent-1")), "PostToolBatch") is None
-    assert context(run_hook("post-tool-batch", {**payload(tpath), "session_id": "sess-B"}), "PostToolBatch") is None
+    assert context(run_hook("post-tool-batch", {**payload(tpath), "session_id": "bbbbbbbb-0000-4000-8000-00000000000b"}), "PostToolBatch") is None
     assert context(run_hook("post-tool-batch", payload(tpath), HERDR_PANE_ID=""), "PostToolBatch") is None
     assert store.get(qid).delivered_at is None
 
@@ -121,7 +121,7 @@ def test_an_unseen_hook_delivery_goes_back_to_pending_then_to_typing(store, fake
 
 
 def seen_at(store):
-    row = store.db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone()
+    row = store.db.execute("SELECT hook_seen_at FROM sessions WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'").fetchone()
     return row[0] if row else None
 
 
@@ -131,10 +131,10 @@ def test_only_the_delivery_hook_firing_marks_the_session_live_throttled(store, f
     run_hook("post-tool-batch", payload(tpath))
     first = seen_at(store)
     assert first
-    store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'sess-A'", (st.now(-st.timedelta(seconds=30)),))
+    store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'", (st.now(-st.timedelta(seconds=30)),))
     run_hook("post-tool-batch", payload(tpath))
     assert seen_at(store) < first  # within the minute: no write
-    store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'sess-A'", (st.now(-st.timedelta(minutes=2)),))
+    store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'", (st.now(-st.timedelta(minutes=2)),))
     run_hook("stop", payload(tpath))
     assert seen_at(store) >= first
 
@@ -147,7 +147,7 @@ def test_the_worker_never_types_into_a_working_session_whose_hook_is_live(store,
     run_hook("post-tool-batch", payload(tpath))  # the hook fired (nothing to deliver yet)
     qid = answered_busy(store, monkeypatch)
     past_grace(store, qid)
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a")
     worker.tick(store)
     assert not fake_herdr.calls_of("agent", "prompt")
     assert "next tool call or turn end" in store.get(qid).delivery_error
@@ -163,11 +163,11 @@ def test_a_session_whose_hook_never_fires_or_went_quiet_gets_0_8_busy_typing(sto
     run_hook("session-start", {**payload(tpath), "source": "startup"})
     if fired:
         run_hook("post-tool-batch", payload(tpath))
-        store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'sess-A'",
+        store.db.execute("UPDATE sessions SET hook_seen_at = ? WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'",
                          (st.now(-service.HOOK_LIVE - st.timedelta(minutes=1)),))
     qid = answered_busy(store, monkeypatch)
     past_grace(store, qid)
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a")
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
     worker.tick(store)
     assert fake_herdr.calls_of("agent", "prompt")  # the 0.8 busy grace, then typing
@@ -200,16 +200,16 @@ def test_rows_at_the_miss_cap_never_open_the_writable_store(store, fake_herdr, m
     qid = answered_busy(store, monkeypatch)
     store.db.execute("INSERT INTO question_ext (id, group_id, hook_misses) VALUES (?, ?, 2)"
                      " ON CONFLICT(id) DO UPDATE SET hook_misses = 2", (qid, qid))
-    assert not hook._has_candidates("sess-A")
+    assert not hook._has_candidates("aaaaaaaa-0000-4000-8000-00000000000a")
     store.db.execute("UPDATE question_ext SET hook_misses = 0, agent_gone_at = ? WHERE id = ?", (st.now(), qid))
-    assert not hook._has_candidates("sess-A")
+    assert not hook._has_candidates("aaaaaaaa-0000-4000-8000-00000000000a")
 
 
 def test_a_session_without_the_hook_keeps_the_busy_grace_typing(store, fake_herdr, monkeypatch):
     qid = answered_busy(store, monkeypatch)
     store.db.execute("UPDATE question_ext SET pending_since = ? WHERE id = ?",
                      (st.now(-st.timedelta(minutes=5)), qid))
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a")
     worker.tick(store)
     assert fake_herdr.calls_of("agent", "prompt")  # 0.8 behaviour for sessions without the hook
 
@@ -244,11 +244,11 @@ def test_a_fresh_liveness_stamp_is_checked_read_only(store, fake_herdr, monkeypa
 
     from herdr_inbox import hook
 
-    hook._touch("sess-A")  # stale/missing: one write
+    hook._touch("aaaaaaaa-0000-4000-8000-00000000000a")  # stale/missing: one write
     opened = []
     real = sqlite3.connect
     monkeypatch.setattr(sqlite3, "connect", lambda db, *a, **k: opened.append(str(db)) or real(db, *a, **k))
-    hook._touch("sess-A")
+    hook._touch("aaaaaaaa-0000-4000-8000-00000000000a")
     assert opened and all("mode=ro" in d for d in opened)
 
 
@@ -256,5 +256,5 @@ def test_hook_delivery_column_is_no_longer_written(store, fake_herdr, monkeypatc
     run_hook("session-start", {**payload(tpath), "source": "startup"})
     qid = answered_busy(store, monkeypatch)
     assert context(run_hook("post-tool-batch", payload(tpath)), "PostToolBatch")
-    assert store.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = 'sess-A'").fetchone()[0] is None
+    assert store.db.execute("SELECT hook_delivery FROM sessions WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'").fetchone()[0] is None
     assert store.get(qid).delivered_at

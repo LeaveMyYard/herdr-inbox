@@ -6,8 +6,8 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 from herdr_inbox.tui import InboxApp, ReviewView
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 async def submit_tab(app, pilot):
@@ -98,7 +98,7 @@ def test_error_paths_never_overwrite_someone_elses_claim(store, fake_herdr, monk
     monkeypatch.setenv("FAKE_HERDR_AGENT", "0")  # this process would record "no live agent"
     service.deliver(store, store.get(qid))
     monkeypatch.setenv("FAKE_HERDR_AGENT", "1")
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-other")  # ... or "conversation changed"
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "ffffffff-0000-4000-8000-00000000000f")  # ... or "conversation changed"
     service.deliver(store, store.get(qid))
     assert store.get(qid).delivery_error == claim
 

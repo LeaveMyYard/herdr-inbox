@@ -17,8 +17,8 @@ from herdr_inbox import service
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import FailedView, GroupListView, InboxApp
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r")
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +28,7 @@ def quick_verify(monkeypatch):
 
 @pytest.fixture
 def live_session(fake_herdr):
-    path = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "sess-A.jsonl"
+    path = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"type": "user", "message": {"content": "hello"}}) + "\n")
     return path

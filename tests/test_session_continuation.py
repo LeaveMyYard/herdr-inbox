@@ -222,7 +222,8 @@ def resumed_old(store):
     service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "In play before the switch?")
     continued()
     worker.tick(store)  # records OLD -> NEW
-    write(OLD, [{"type": "user", "message": {"role": "user", "content": "back in the old one"}}])
+    write(OLD, [{"type": "user", "timestamp": "2026-10-17T06:32:56.399Z",  # later than the continued-in (D6)
+                 "message": {"role": "user", "content": "back in the old one"}}])
 
 
 def test_final_a_resumed_old_sessions_answer_never_goes_to_new_by_hook(store, fake_herdr, monkeypatch):
