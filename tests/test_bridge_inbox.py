@@ -3,13 +3,14 @@ them: its process walk (proc.nested_claude / owning_claude), the incremental con
 the real shapes of continued-in transcripts captured on 2.1.301."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from herdr_inbox import proc, transcript
 
-from .bridge_scenario import BASE, Project, iso, tpl
-from .test_bridge_rules import NEXT, SID, bookkeeping, continued
+from .bridge_scenario import BASE, Project, tpl
+from .test_bridge_rules import INVALID, NEXT, SID, bookkeeping, continued
 
 VERSIONED = ("2.1.301", ["/home/u/.local/share/claude/versions/2.1.301"])
 NODE = ("node", ["node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"])
@@ -157,12 +158,17 @@ def test_a_session_deep_link_matches_in_any_case(store):
     assert deeplink.resolve(store, {"kind": "session", "value": "../" + LETTERS}) is None
 
 
-def test_an_uppercase_id_with_letters_finds_and_follows_its_lowercase_transcript(tmp_path, monkeypatch):
-    """The shared case uses an all-digit id (upper() == lower()); this one has hex letters."""
+@pytest.mark.parametrize("sid", INVALID)
+def test_a_bad_session_id_is_never_used_as_a_path(tmp_path, monkeypatch, sid):
+    """The id reaches find from herdr, the env, hook payloads and transcripts: anything but a
+    canonical UUID never reaches the file system (no glob, no stat, no open)."""
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
-    m = Project(tmp_path / "projects").main(LETTERS)
-    m.prompt(BASE, "work")
-    continued(m, BASE + 10)
-    m.write()
-    assert transcript.find(LETTERS.upper()) == m.path
-    assert transcript.follow(LETTERS.upper()) == NEXT
+    proj = Project(tmp_path / "projects")
+    proj.main(SID).write()
+    touched = []
+    for name in ("glob", "is_file", "exists", "stat"):
+        real = getattr(Path, name)
+        monkeypatch.setattr(Path, name, lambda self, *a, _real=real, **k: touched.append(str(self)) or _real(self, *a, **k))
+    assert transcript.find(sid) is None
+    assert transcript.chain(sid) in ([], [sid])  # itself only, never a continuation read
+    assert touched == []
