@@ -14,6 +14,7 @@ from .test_bridge_rules import NEXT, SID, bookkeeping, continued
 VERSIONED = ("2.1.301", ["/home/u/.local/share/claude/versions/2.1.301"])
 NODE = ("node", ["node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"])
 NATIVE = ("claude", ["claude"])
+LETTERS = "abcdef01-2345-4abc-8def-0123456789ab"
 SHELL = ("zsh", ["zsh"])
 
 
@@ -149,7 +150,19 @@ def test_a_session_deep_link_matches_in_any_case(store):
     from herdr_inbox import deeplink, service
     from herdr_inbox.service import Caller
 
-    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", SID, "/r"), "Linked?")["id"]
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", LETTERS.upper(), "/r"), "Linked?")["id"]
     group = store.get(qid).group
-    assert deeplink.resolve(store, {"kind": "session", "value": SID.upper()}) == (("group", group), None)
-    assert deeplink.resolve(store, {"kind": "session", "value": "../" + SID}) is None
+    assert deeplink.resolve(store, {"kind": "session", "value": LETTERS}) == (("group", group), None)
+    assert deeplink.resolve(store, {"kind": "session", "value": LETTERS.upper()}) == (("group", group), None)
+    assert deeplink.resolve(store, {"kind": "session", "value": "../" + LETTERS}) is None
+
+
+def test_an_uppercase_id_with_letters_finds_and_follows_its_lowercase_transcript(tmp_path, monkeypatch):
+    """The shared case uses an all-digit id (upper() == lower()); this one has hex letters."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    m = Project(tmp_path / "projects").main(LETTERS)
+    m.prompt(BASE, "work")
+    continued(m, BASE + 10)
+    m.write()
+    assert transcript.find(LETTERS.upper()) == m.path
+    assert transcript.follow(LETTERS.upper()) == NEXT
