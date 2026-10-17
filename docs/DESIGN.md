@@ -363,16 +363,27 @@ transcripts, read-only. Most of them had arrived.
    - Answers in the pile from the last 7 days that **landed** in a transcript of a related
      session, or of what the asking pane runs now, become delivered and verified. That needs
      our exact text, as before.
-   - Answers the conversation **saw** some other way become seen. The evidence is one record
-     holding the id (`Q7`, or the CLI's `answer 7`) plus the exact answer: the answer alone
-     if it is 12+ characters, otherwise also the question's opening. This is how the agent's
-     own `inbox answer` command and its output appear.
-   - A bare id mention never counts.
+   - Answers the conversation was **given** another way become seen (review #44: a false
+     "seen" loses an answer silently, so the evidence is narrow). It counts only from
+     `tool_result` blocks, i.e. what a tool handed the conversation, never what the agent
+     itself wrote, in the inbox's own output shapes:
+     - check_answers / list_my_questions JSON `{"id": 7, "answer": "<exact value>"}`;
+     - our CLI's own line `Q7 answered, …` / `Q7 answered by its own conversation`, which means
+       the conversation answered it itself.
+   - The record must come after `answered_at`, with no window before it. Agent text, a
+     substring, or a bare mention never counts.
+   - The pane's current conversation is read only if it is related to the question's session
+     (a reused pane's other conversation never is).
+   - Evidence is indexed per transcript incrementally and cached by file size, so an unchanged
+     transcript is never read again.
    - Seen answers lose any stale error; acknowledging always clears it.
 4. **No second delivery.** Before typing, delivery (Send now included) checks every related
    transcript for a landing and for "seen" evidence. If either is found, nothing is typed.
 5. **An agent answering its own question** (`inbox answer` run inside the asking conversation,
-   or a related one) is seen at once, with nothing to deliver.
+   or a related one) is seen at once, with nothing to deliver. "Inside" means the process has
+   `CLAUDE_CODE_SESSION_ID`, which the session's subagents inherit too. A subagent answering
+   its main thread's question therefore also skips delivery: the main thread does not get it
+   typed, but check_answers still returns it.
 6. **A moved pane.** A caller whose `HERDR_PANE_ID` no longer exists is filed under the one
    pane that runs its conversation now.
 7. **Truly gone answers (operator Q167: "Both").**

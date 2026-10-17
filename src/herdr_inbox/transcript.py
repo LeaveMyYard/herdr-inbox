@@ -358,49 +358,101 @@ def _strings(value):
             yield from _strings(v)
 
 
-def seen_answer(path: Path, qid: int, question: str, answer: str, since: str | None) -> bool:
-    """The conversation SAW this answer some other way than our delivery: one record (a tool
-    result of the agent reading the inbox, a quoted answer...) holds the id ``Q<qid>``, the
-    question's opening AND the exact answer, after the answer time. Live 2026-10-17: the
-    resumed agent read Q159-Q166 straight from the inbox database and acted on them."""
-    needles = (f"Q{qid}".encode(), f" {qid} ".encode())
-    head = _squash(question)[:40]
-    want = _squash(answer)
-    if not head or not want:
-        return False
-    # a long answer is evidence on its own next to the id (the agent's own `inbox answer Q7
-    # "..."` command precedes the recorded answer time by seconds); a short one also needs
-    # the question
-    strong = len(want) >= 12
-    floor = since
-    if since and strong:
-        try:
-            from datetime import datetime, timedelta
+OWN = object()  # evidence kind: the conversation itself answered (our CLI's output line)
+_CLI_ANSWERED = re.compile(r"(?<![A-Za-z0-9])Q(\d+) answered(?:, | by its own conversation)")
+_evidence_cache: "OrderedDict[str, tuple[int, dict]]" = OrderedDict()
 
-            floor = (datetime.fromisoformat(since) - timedelta(seconds=120)).isoformat(timespec="seconds")
-        except ValueError:
-            floor = since
-    # the id as we write it (Q7), or as the CLI takes it (`inbox answer 7 "..."`)
-    word = re.compile(rf"(?<![A-Za-z0-9])Q{qid}(?![0-9])|\banswer\s+Q?{qid}\b")
+
+def _tool_result_texts(record: dict):
+    """Text the conversation was GIVEN by a tool (tool_result blocks of user records): never
+    what the agent itself wrote (assistant text, tool_use input)."""
+    if record.get("type") != "user":
+        return
+    content = (record.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        inner = block.get("content")
+        if isinstance(inner, str):
+            yield inner
+        elif isinstance(inner, list):
+            for b in inner:
+                if isinstance(b, dict) and isinstance(b.get("text"), str):
+                    yield b["text"]
+
+
+def _answers_in(value, out: list):
+    """{"id": <int>, "answer": "<str>"} objects anywhere in parsed JSON (check_answers,
+    list_my_questions)."""
+    if isinstance(value, dict):
+        if isinstance(value.get("id"), int) and isinstance(value.get("answer"), str):
+            out.append((value["id"], value["answer"]))
+        for v in value.values():
+            _answers_in(v, out)
+    elif isinstance(value, list):
+        for v in value:
+            _answers_in(v, out)
+
+
+def evidence(path: Path) -> dict:
+    """qid -> [(timestamp, answer | OWN)] from the transcript's tool results, in the inbox's
+    own output shapes only: our CLI's `Q7 answered, …` / `Q7 answered by its own
+    conversation` line (the conversation answered it itself), and check_answers-style JSON
+    `{"id": 7, "answer": "<exact>"}`. Indexed incrementally (complete lines only), cached by
+    file size: an unchanged transcript is never read again (review #44)."""
+    key, n = str(path), size(path)
+    cached = _evidence_cache.get(key)
+    if cached and cached[0] == n:
+        return cached[1]
+    start, found = (cached[0], {k: list(v) for k, v in cached[1].items()}) if cached and cached[0] < n else (0, {})
     try:
         with open(path, "rb") as fh:
-            for raw in fh:
-                if not any(n in raw for n in needles):
-                    continue
+            fh.seek(start)
+            data = fh.read(n - start)
+    except OSError:
+        return {}
+    end = data.rfind(b"\n")
+    if end == -1:
+        return cached[1] if cached else {}
+    for raw in data[:end].split(b"\n"):
+        if b'"tool_result"' not in raw or b"answer" not in raw:
+            continue
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        ts = record.get("timestamp") if isinstance(record.get("timestamp"), str) else None
+        for text in _tool_result_texts(record):
+            for m in _CLI_ANSWERED.finditer(text):
+                found.setdefault(int(m.group(1)), []).append((ts, OWN))
+            if '"answer"' in text:
                 try:
-                    record = json.loads(raw)
+                    parsed = json.loads(text)
                 except ValueError:
                     continue
-                if not isinstance(record, dict):
-                    continue
-                ts = record.get("timestamp") if isinstance(record.get("timestamp"), str) else None
-                if not _after(ts, floor):
-                    continue
-                text = _squash(" ".join(_strings(record)).replace("\\n", " "))
-                if word.search(text) and want in text and (strong or head in text):
-                    return True
-    except OSError:
-        return False
+                pairs: list = []
+                _answers_in(parsed, pairs)
+                for qid, ans in pairs:
+                    found.setdefault(qid, []).append((ts, ans))
+    _remember(_evidence_cache, key, (start + end + 1, found))
+    return found
+
+
+def seen_answer(path: Path, qid: int, question: str, answer: str, since: str | None) -> bool:
+    """The conversation was GIVEN this answer by a tool, after the answer time: check_answers'
+    JSON with this exact answer value, or our CLI's own "Q7 answered" line (it answered it
+    itself). Never agent-written text, never a substring, no window before the answer
+    (review #44: a false "seen" loses an answer silently)."""
+    want = _squash(answer)
+    for ts, value in evidence(path).get(qid, []):
+        if not _after(ts, since):
+            continue
+        if value is OWN or _squash(value) == want:
+            return True
     return False
 
 
