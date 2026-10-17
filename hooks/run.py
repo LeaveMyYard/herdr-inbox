@@ -1,6 +1,7 @@
 """Claude Code hook entry point: stdlib only, always exits 0.
 
-hooks.json runs this as ``sh -c 'python3 -I run.py <event> 2>/dev/null; exit 0'``. Claude
+hooks.json runs this as ``sh -c 'sh run-hook.sh run.py <event> 2>/dev/null; exit 0'``, and
+run-hook.sh runs ``python3 -I run.py <event>`` (the interpreter behind python3, cached). Claude
 Code gives exit code 2 a meaning of its own: for SessionStart/SubagentStart it shows a
 "hook error" notice and the hook's additionalContext (the inbox rules) is lost. ``uv run``
 exits 2 on its own failures, e.g. two plugin versions sharing ${CLAUDE_PLUGIN_DATA}/venv
