@@ -371,7 +371,69 @@ class Question:
         return out
 
 
-MIGRATION_REVISION = 1  # used only if the migration's source cannot be read (no .py on disk)
+# The schema revision this code migrates to, stored as ``PRAGMA user_version`` (the P0b
+# bridge, docs/plans/rust-rewrite.md §2.3 / §5.4 in herdr-panorama). Bump it whenever the
+# schema or the migration changes; the Rust port shares the number.
+MIGRATION_REVISION = 1
+
+# Revision space. Releases up to 0.10.5 stamped ``crc32(schema + Store._migrate source) &
+# 0x7FFFFFFF``: always 0..2**31-1, never negative. A revision is stored with the sign bit set
+# (REVISION_BASE + revision, a negative int32), so a legacy crc32 -- however large -- can never
+# be read as a revision, let alone as a higher one. Anything that is not a revision (a crc32
+# left by a pre-bridge process, 0 on a fresh or pre-stamp database) is "unknown": the migrating
+# processes migrate forward (idempotent) and stamp their revision.
+REVISION_BASE = -(1 << 31)
+MAX_REVISION = (1 << 31) - 1
+
+
+def revision_stamp(revision: int | None = None) -> int:
+    """The ``user_version`` that says "migrated to ``revision``" (default: this code's)."""
+    revision = MIGRATION_REVISION if revision is None else revision
+    if not 0 < revision <= MAX_REVISION:
+        raise ValueError(f"revision out of range: {revision}")
+    return REVISION_BASE + revision
+
+
+def stamped_revision(user_version: int) -> int | None:
+    """The revision a ``user_version`` names, or None for a legacy crc32 stamp or 0."""
+    return user_version - REVISION_BASE if user_version < 0 else None
+
+
+class SchemaNotReady(sqlite3.DatabaseError):
+    """A non-migrating open found a database whose schema this code cannot use yet (not
+    migrated, or migrated by an older release): the caller does nothing -- a hook exits 0, an
+    MCP tool returns an "unavailable" receipt -- until the worker or the popup migrates it."""
+
+
+_SCHEMA_OBJECTS = re.compile(r"CREATE (TABLE|INDEX|TRIGGER|VIEW) IF NOT EXISTS (\w+)")
+_expected_cache: tuple[dict[str, set[str]], set[str]] | None = None
+
+
+def _expected_schema() -> tuple[dict[str, set[str]], set[str]]:
+    """(columns per table, names of every other schema object) this code reads and writes."""
+    global _expected_cache
+    if _expected_cache is None:
+        tables: dict[str, set[str]] = {}
+        for name, body in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+) \((.*?)\n\);", SCHEMA, re.S):
+            cols = {line.split()[0] for line in map(str.strip, body.splitlines())
+                    if line and not line.startswith(("--", "PRIMARY KEY"))}
+            tables[name] = cols | set(TABLE_ADDED_COLUMNS.get(name, {}))
+        others = {name for kind, name in _SCHEMA_OBJECTS.findall(SCHEMA + VIEW_SQL) if kind != "TABLE"}
+        _expected_cache = (tables, others)
+    return _expected_cache
+
+
+def schema_missing(db: sqlite3.Connection) -> list[str]:
+    """What of this code's schema the database lacks (tables, columns, indexes, triggers, the
+    view); [] when it has everything. Read-only: two SELECTs, no lock beyond a read."""
+    tables, others = _expected_schema()
+    have: dict[str, set[str]] = {}
+    for table, column in db.execute(
+            "SELECT m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p WHERE m.type = 'table'"):
+        have.setdefault(table, set()).add(column)
+    names = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type IN ('index', 'trigger', 'view')")}
+    missing = [f"{t}.{c}" for t, cols in sorted(tables.items()) for c in sorted(cols - have.get(t, set()))]
+    return missing + sorted(others - names)
 
 
 def _statements(script: str) -> list[str]:
@@ -387,23 +449,6 @@ def _statements(script: str) -> list[str]:
     if buf.strip():
         out.append(buf.strip())
     return out
-
-
-def _schema_stamp(migration_source: str | None = None) -> int:
-    """A stamp of this code's schema AND of the code that migrates to it (tables, added
-    columns, views, Store._migrate's source): a database carrying it needs no schema work on
-    open. Changing either changes the stamp."""
-    import inspect
-    import zlib
-
-    if migration_source is None:
-        try:
-            migration_source = inspect.getsource(Store._migrate)
-        except (OSError, TypeError):
-            migration_source = f"revision {MIGRATION_REVISION}"
-    text = (SCHEMA + VIEW_SQL + repr(sorted((t, sorted(c.items())) for t, c in TABLE_ADDED_COLUMNS.items()))
-            + migration_source)
-    return zlib.crc32(text.encode()) & 0x7FFFFFFF
 
 
 def family(db, session_id: str | None, known=lambda s: None, limit: int = 32) -> list[str]:
@@ -426,31 +471,52 @@ def family(db, session_id: str | None, known=lambda s: None, limit: int = 32) ->
 
 
 class Store:
-    def __init__(self, path: Path | str | None = None, timeout: float = 15.0, maintenance: bool = True):
+    def __init__(self, path: Path | str | None = None, timeout: float = 15.0, maintenance: bool = True,
+                 *, migrate: bool = False):
         """``maintenance=False`` (MCP tool calls): skip the reconcile pass -- the delivery
         worker runs it every tick -- so a tool call never contends for the write lock with
-        it. Schema work runs only when the database's stamp differs from this code's."""
+        it.
+
+        ``migrate=True`` only for the delivery worker and the popup: they bring an older
+        database forward to MIGRATION_REVISION (never lowering a higher one). Every other open
+        (hooks, the rewake watcher, MCP tools, the CLI, helper threads) never does schema work
+        and never writes the stamp: on a database not stamped with this revision or a higher
+        one it checks that the schema it uses is all there, read-only, and raises
+        SchemaNotReady if not."""
         self.path = Path(path) if path else db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(self.path, timeout=timeout, isolation_level=None)
         self.db.row_factory = sqlite3.Row
-        self.db.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
-        if self.db.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_STAMP:
-            with trace.step("store.schema"):
-                self._migrate()
-        if maintenance:
-            with trace.step("store.reconcile"):
-                self._reconcile_unverified()
+        try:
+            self.db.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+            revision = stamped_revision(self.db.execute("PRAGMA user_version").fetchone()[0])
+            if revision is None or revision < MIGRATION_REVISION:
+                if migrate:
+                    with trace.step("store.schema"):
+                        self._migrate()
+                else:
+                    with trace.step("store.schema_check"):
+                        if missing := schema_missing(self.db):
+                            raise SchemaNotReady(f"inbox database not migrated yet: lacks {', '.join(missing[:5])}")
+            if maintenance:
+                with trace.step("store.reconcile"):
+                    self._reconcile_unverified()
+        except BaseException:
+            self.db.close()
+            raise
 
     def _migrate(self) -> None:
-        """Bring the schema up to this code's, once, under the write lock: several servers
-        opening an old database together (an upgrade with many agent panes) serialize here,
-        and every one after the first finds the stamp already set and does nothing."""
+        """Bring the schema forward to MIGRATION_REVISION, once, under the write lock: several
+        processes opening an old database together serialize here, and every one after the
+        first finds the revision already stamped and does nothing. Idempotent (CREATE IF NOT
+        EXISTS, ADD COLUMN only when missing), so a pre-bridge process re-stamping its crc32
+        costs one more no-op pass, never data. A higher revision is left alone."""
         self.db.execute("PRAGMA journal_mode=WAL")  # cannot change inside a transaction
         self.db.execute("BEGIN IMMEDIATE")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_STAMP:
-                self.db.execute("COMMIT")  # someone else migrated while we waited
+            revision = stamped_revision(self.db.execute("PRAGMA user_version").fetchone()[0])
+            if revision is not None and revision >= MIGRATION_REVISION:
+                self.db.execute("COMMIT")  # someone migrated while we waited (or a newer release did)
                 return
             for statement in _statements(SCHEMA):
                 self.db.execute(statement)
@@ -469,7 +535,7 @@ class Store:
             for name, decl in ADDED_COLUMNS.items():  # databases from before the column existed
                 if name not in columns:
                     self.db.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
-            self.db.execute(f"PRAGMA user_version = {SCHEMA_STAMP}")
+            self.db.execute(f"PRAGMA user_version = {revision_stamp()}")
             self.db.execute("COMMIT")
         except BaseException:
             self.db.execute("ROLLBACK")
@@ -1138,5 +1204,3 @@ class Store:
         ).fetchall()
         return [Question.from_row(r) for r in rows]
 
-
-SCHEMA_STAMP = _schema_stamp()  # after Store: it covers Store._migrate's source
