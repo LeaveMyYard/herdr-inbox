@@ -92,6 +92,9 @@ def test_reconcile_finds_a_changed_conversation_answer_in_the_panes_current_sess
     """Q156: 'conversation changed in pane w6:p57', but it landed in what p57 runs now."""
     q = filed(store, "w6:p57", NEW, "PR ghost#1927: screenshots blocked, merge anyway?", "merge")
     as_stored(store, q.id, CHANGED_P57)
+    # captured relation: a58e3f68 -> 06acc80f, then herdr resumed a58e3f68 in p57
+    write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW}])
+    store.record_session(OLD, str(tdir() / f"{OLD}.jsonl"))
     write(OLD, [{"type": "user", "timestamp": st.now(),
                  "message": {"role": "user", "content": service.herdr.clean(service.delivery_text([store.get(q.id)]),
                                                                           limit=10**9)}}])
@@ -288,3 +291,70 @@ def test_a_retry_never_types_what_already_landed_in_a_resumed_old_session(store,
     service.deliver(store, store.get(q.id), retry=True, force=True)  # even Send now
     assert not fake_herdr.calls_of("agent", "prompt")
     assert store.get(q.id).acknowledged_at
+
+
+# -- review round 1 (#44): a false "seen" loses an answer silently ----------------------------
+
+def assistant(text, at=None):
+    return {"type": "assistant", "timestamp": at or st.now(),
+            "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}
+
+
+def tool_result(text, at=None):
+    return {"type": "user", "timestamp": at or st.now(),
+            "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t", "content": text}]}}
+
+
+def test_r1_b1_the_agent_echoing_the_options_is_not_evidence(store, fake_herdr, monkeypatch):
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    store.record_session("sess-A", str(tdir() / "sess-A.jsonl"))
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Merge mode?",
+                      options=["Squash and merge", "Rebase and merge"])["id"]
+    write("sess-A", [assistant(f"Filed Q{qid}. Options: Squash and merge / Rebase and merge.")])
+    service.answer(store, qid, "Squash and merge")
+    assert fake_herdr.calls_of("agent", "prompt")  # typed, not swallowed
+
+
+def test_r1_b2_a_short_answer_never_matches_inside_a_word(store, fake_herdr):
+    q = filed(store, "w6:p48", NEW, "Should we ship the hotfix today?", "Yes")
+    as_stored(store, q.id, GONE_P48)
+    write(NEW, [assistant(f"Q{q.id} (Should we ship the hotfix today?) is still open. Yesterday's build is green"),
+                tool_result(f"Q{q.id} Should we ship the hotfix today? Yesterday's build is green")])
+    worker.tick(store)
+    assert [r.id for r in store.failed_deliveries()] == [q.id]
+
+
+def test_r1_b3_reconcile_never_reads_an_unrelated_conversation_in_a_reused_pane(store, fake_herdr, monkeypatch):
+    q = filed(store, "w1:p1", "sess-A", "Merge mode for the release?", "Squash and merge")
+    as_stored(store, q.id, "agent gone: conversation changed in pane w1:p1")
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", "sess-B")))
+    write("sess-B", [tool_result(f"Operator answered Q{q.id}: Squash and merge."),
+                     {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content":
+                      service.herdr.clean(service.delivery_text([store.get(q.id)]), limit=10**9)}}])
+    worker.tick(store)
+    r = store.get(q.id)
+    assert r.acknowledged_at is None and [x.id for x in store.failed_deliveries()] == [q.id]
+
+
+def test_r1_check_answers_output_in_a_related_session_is_evidence(store, fake_herdr):
+    q = filed(store, "w6:p48", NEW, "Short one?", "yes")
+    as_stored(store, q.id, GONE_P48)
+    write(NEW, [tool_result(json.dumps({"answers": [{"id": q.id, "question": q.question, "answer": "yes"}]}))])
+    worker.tick(store)
+    assert store.get(q.id).acknowledged_at
+
+
+def test_r1_the_evidence_scan_reads_each_transcript_once(store, fake_herdr, monkeypatch):
+    path = write(NEW, [assistant("x" * 200_000) for _ in range(5)])
+    assert not transcript.seen_answer(path, 7, "q", "a long enough answer", None)
+    reads = []
+    real_open = open
+
+    def counting(p, mode="r", *a, **k):
+        fh = real_open(p, mode, *a, **k)
+        if str(p) == str(path):
+            reads.append(1)
+        return fh
+    monkeypatch.setattr("builtins.open", counting)
+    assert not transcript.seen_answer(path, 7, "q", "a long enough answer", None)
+    assert reads == []  # unchanged file: answered from the index, nothing read

@@ -725,7 +725,10 @@ def _relative_paths(store: Store, session: str | None, pane_sessions: list[str])
     still needs our exact text."""
     members = related_sessions(store, session)
     for s in pane_sessions:
-        members.update(transcript.chain(s))
+        # what the pane runs counts only if it is this conversation (a reused pane's other
+        # conversation never is: review #44)
+        if s in members or transcript.follow(s) in members:
+            members.update(transcript.chain(s))
     paths, seen = [], set()
     for m in members:
         p = transcript.find(m, store.session_transcript(m))
