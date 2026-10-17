@@ -59,7 +59,8 @@ process tree: walking up from the server or hook, the nearest `claude` is our
 own; a second `claude` further up means nested (verified on a real nested run).
 "`claude`" is `proc.is_claude`, shared with herdr-panorama: a process named `claude`, a
 versioned binary (`~/.local/share/claude/versions/<v>`, whose command name is the version) or
-node running the `@anthropic-ai/claude-code` package. An unreadable tree counts as not nested. A nested session is treated like one
+node running the package's entry script (`…/@anthropic-ai/claude-code/cli.js` or `cli.mjs`;
+the `npx` launcher above it, which names only the package, is not Claude). An unreadable tree counts as not nested. A nested session is treated like one
 outside herdr. (Comparing `CLAUDE_CODE_SESSION_ID` with the pane's session was
 rejected: the MCP server's environment is fixed at spawn, so it would misfire
 after `/clear`, and the SessionStart hook races herdr's own session report.)

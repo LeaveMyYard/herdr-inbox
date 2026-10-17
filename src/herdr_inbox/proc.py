@@ -55,16 +55,20 @@ def _cmdline(pid: int) -> list[str]:
         return []
 
 
+CLAUDE_ENTRY = ("/@anthropic-ai/claude-code/cli.js", "/@anthropic-ai/claude-code/cli.mjs")
+
+
 def is_claude(comm: str, argv: list[str]) -> bool:
     """A native install (``claude``, or ``~/.local/share/claude/versions/<v>``) or node
-    running the ``@anthropic-ai/claude-code`` package."""
+    running the ``@anthropic-ai/claude-code`` entry script (``.../cli.js`` or ``cli.mjs``). A bare
+    package name is not Claude: ``npx @anthropic-ai/claude-code`` is the launcher above it."""
     if comm == "claude":
         return True
     first = argv[0] if argv else ""
     if os.path.basename(first) == "claude" or "/claude/versions/" in first:
         return True
     if os.path.basename(first).startswith("node"):
-        return any("@anthropic-ai/claude-code" in a or a.endswith("/claude-code/cli.js") for a in argv[1:3])
+        return any(a.endswith(CLAUDE_ENTRY) for a in argv[1:3])
     return False
 
 
