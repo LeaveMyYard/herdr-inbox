@@ -19,10 +19,15 @@ FIX = ROOT / "tests" / "fixtures"
 
 
 def first_difference(want: dict, got: dict) -> str:
+    new = [n for n in got["screens"] if n not in want["screens"]]
+    if new:
+        return f"new screens {new!r}"
     for name in want["screens"]:
         a, b = want["screens"][name], got["screens"].get(name)
         if b is None:
             return f"screen {name!r} is gone"
+        if len(a) != len(b):
+            return f"screen {name!r} has {len(b)} rows, not {len(a)}"
         for y, (ra, rb) in enumerate(zip(a, b)):
             if ra != rb:
                 return (f"screen {name!r} row {y}:\n  want {''.join(r[0] for r in ra)!r}\n"

@@ -37,7 +37,9 @@ SID = "aaaaaaaa-0000-4000-8000-0000000000%02d"  # session ids: canonical, fixed
 def isolate(work: Path) -> None:
     """The process's environment: nothing of the operator's (tests/conftest.py's fake_herdr rules)."""
     for key in [k for k in os.environ if k.startswith("HERDR_") or k.startswith("FAKE_HERDR_")
-                or k.startswith("INBOX_") or k == "CLAUDE_CODE_SESSION_ID"]:
+                or k.startswith("INBOX_") or k.startswith("TEXTUAL")
+                or k in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PLUGIN_DATA", "NO_COLOR", "FORCE_COLOR", "COLORTERM",
+                         "TERM", "COLUMNS", "LINES")]:
         del os.environ[key]
     cfg = work / "plugin-config"
     cfg.mkdir(parents=True)
@@ -81,7 +83,9 @@ def hexcolor(c) -> str | None:
 
 
 def dump(app) -> list[list]:
-    """The screen as the terminal gets it (export_screenshot's own render), runs per row."""
+    """The screen as the terminal gets it (export_screenshot's own render), runs per row.
+    ``reverse`` is resolved (fg and bg swapped), the only attribute besides bold the popup
+    draws with; dim, italic and underline never reach its output."""
     update = app.screen._compositor.render_update(full=True, screen_stack=app._background_screens)
     rows = []
     for strips in update.strips:
@@ -91,8 +95,10 @@ def dump(app) -> list[list]:
                 if seg.control or not seg.text:
                     continue
                 st = seg.style
-                attrs = (hexcolor(st.color) if st else None, hexcolor(st.bgcolor) if st else None,
-                         bool(st and st.bold))
+                fg, bg = (hexcolor(st.color), hexcolor(st.bgcolor)) if st else (None, None)
+                if st and st.reverse:  # what the terminal shows: the selected tab, chips, cursors
+                    fg, bg = bg, fg
+                attrs = (fg, bg, bool(st and st.bold))
                 if row and tuple(row[-1][1:]) == attrs:
                     row[-1][0] += seg.text
                 else:
@@ -148,17 +154,18 @@ DB = [{"label": "Postgres", "description": "keeps the current ORM and migrations
 
 # The held instant: every row's age is shown as of this time (see hold_clock).
 HELD = "2026-10-17T12:00:00+00:00"
+FIRST = 10  # above every id a scenario creates: the newest row is the youngest
 
 
 def hold(store) -> None:
-    """Fixed ``created_at`` for every row: Q<n> was asked 7 * n minutes before HELD, alert A<n>
-    raised 3 * n hours before it."""
+    """Fixed ``created_at`` for every row, in id order as the real code assigns them: Q<n> was
+    asked 7 * (FIRST - n) minutes before HELD, alert A<n> raised 3 * (FIRST - n) hours before it."""
     from datetime import datetime, timedelta
 
     held = datetime.fromisoformat(HELD)
     for table, step in (("questions", timedelta(minutes=7)), ("alerts", timedelta(hours=3))):
         for (rid,) in store.db.execute(f"SELECT id FROM {table}").fetchall():
-            stamp = (held - step * rid).isoformat(timespec="seconds")
+            stamp = (held - step * (FIRST - rid)).isoformat(timespec="seconds")
             store.db.execute(f"UPDATE {table} SET created_at = ? WHERE id = ?", (stamp, rid))
 
 
@@ -349,13 +356,15 @@ def capture_screens(out: Path, work: Path) -> list[Path]:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES, help="write OUT/screens (default: %(default)s)")
-    p.add_argument("--only", choices=("screens",), help="one set (today the only one)")
+    p.add_argument("--only", choices=("screens",), help="one set (the decision table joins it in a later PR)")
     args = p.parse_args(argv)
     work = Path(tempfile.mkdtemp(prefix="inbox-goldens-"))
     try:
         isolate(work)
-        shutil.rmtree(args.out / "screens", ignore_errors=True)
-        written = capture_screens(args.out, work)
+        written = []
+        if args.only in (None, "screens"):
+            shutil.rmtree(args.out / "screens", ignore_errors=True)
+            written += capture_screens(args.out, work)
         size = sum(f.stat().st_size for f in written)
         print(f"{len(written)} files, {size // 1024} KiB under {args.out}")
     finally:
