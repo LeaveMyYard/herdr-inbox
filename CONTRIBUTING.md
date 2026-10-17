@@ -19,7 +19,7 @@ toolchain pinned in `rust-toolchain.toml`.
 dir), a test can reach your real session. Run this in the shell you test from:
 
 ```sh
-unset $(env | sed -n 's/^\(HERDR_[A-Za-z0-9_]*\)=.*/\1/p')
+unset $(env | sed -n 's/^\(HERDR_[A-Za-z0-9_]*\)=.*/\1/p') 2>/dev/null || true
 ```
 
 Then:

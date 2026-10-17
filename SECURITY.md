@@ -8,6 +8,6 @@ vulnerability** (or go to
 [github.com/LeaveMyYard/herdr-inbox/security/advisories/new](https://github.com/LeaveMyYard/herdr-inbox/security/advisories/new)).
 
 Say what you found, which version, and how to reproduce it. I will acknowledge the report, work on
-a fix with you in the private advisory, and credit you in the release notes if you want that.
+a fix with you in the private advisory, and credit you in the fix if you want that.
 
-Only the latest release is supported.
+The current `main` branch is supported.
