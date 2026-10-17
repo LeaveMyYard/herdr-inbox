@@ -1,6 +1,6 @@
 """The rules both plugins must share (herdr-panorama docs/plans/rust-rewrite.md §1.3 rows 3-5,
 D6), as the same tables as herdr-panorama's tests/test_bridge_rules.py (herdr-panorama#53,
-836be8a), case for case. Only the calls differ: panorama's discovery.is_uuid /
+f504b95), case for case. Only the calls differ: panorama's discovery.is_uuid /
 canonical_session_id / Session / hooks.is_claude are transcript.session_id_or_none /
 transcript.continued_in / proc.is_claude here.
 
@@ -19,7 +19,7 @@ import pytest
 
 from herdr_inbox import deeplink, proc, transcript
 
-from .bridge_scenario import BASE, Project, iso, tpl
+from .bridge_scenario import BASE, Project, iso, stamp, tpl
 
 SID = "55555555-5555-4555-8555-555555555555"
 NEXT = "66666666-6666-4666-8666-666666666666"
@@ -225,6 +225,18 @@ def test_a_continuation_to_its_own_id_in_another_case_is_ignored(tmp_path, own, 
     assert load(m).continued_in is None
 
 
+@pytest.mark.parametrize("kind", ["user", "assistant"])
+def test_an_undated_conversation_record_does_not_clear_a_dated_continuation(tmp_path, kind):
+    """A resume must be LATER than the continued-in: a record with no time is not."""
+    m = old_session(tmp_path)
+    continued(m, BASE + 10)
+    rec = stamp(tpl("user_prompt_human" if kind == "user" else "assistant_text"), BASE + 20, SID)
+    rec.pop("timestamp")
+    m.raw(json.dumps(rec, separators=(",", ":")))
+    m.write()
+    assert load(m).continued_in == NEXT
+
+
 def test_a_sidechain_continuation_is_ignored(tmp_path):
     """A continued-in record marked ``isSidechain: true`` is never the main conversation's, even
     in the main transcript."""
@@ -299,6 +311,38 @@ def test_an_undated_continuation_takes_a_dated_record_from_an_earlier_read(tmp_p
     assert (s.continued_in is None) == cleared
 
 
+@pytest.mark.parametrize("dt,cleared", [(+1, True), (0, False)])
+def test_a_nested_timestamp_does_not_date_a_record(tmp_path, dt, cleared):
+    """A captured file-history-snapshot: undated, with ``snapshot.timestamp`` inside. The undated
+    continued-in after it takes the prompt's time (BASE + 5), not the snapshot's."""
+    proj = Project(tmp_path / "projects")
+    m = proj.main(SID)
+    m.prompt(BASE + 5, "work")
+    snap = tpl("file_history_snapshot")
+    snap["snapshot"]["timestamp"] = iso(BASE + 100)
+    m.raw(json.dumps(snap, separators=(",", ":")))
+    undated_continued(m)
+    m.prompt(BASE + 5 + dt, "go on")
+    m.write()
+    assert (load(m).continued_in is None) == cleared
+
+
+@pytest.mark.parametrize("dt,cleared", [(+1, True), (0, False)])
+def test_a_record_with_two_timestamps_is_dated_by_its_own(tmp_path, dt, cleared):
+    """A captured queued_command attachment carries its own timestamp and one inside
+    ``attachment``; the record's own (BASE + 5) is the one that counts."""
+    proj = Project(tmp_path / "projects")
+    m = proj.main(SID)
+    m.prompt(BASE, "work")
+    att = stamp(tpl("attachment_queued_command"), BASE + 5, SID)
+    att["attachment"]["timestamp"] = iso(BASE + 100)
+    m.raw(json.dumps(att, separators=(",", ":")))
+    undated_continued(m)
+    m.prompt(BASE + 5 + dt, "go on")
+    m.write()
+    assert (load(m).continued_in is None) == cleared
+
+
 def test_an_undated_continuation_with_no_time_before_it_is_cleared_by_any_conversation(tmp_path):
     """Nothing dated before it: no time to compare with, so any later user/assistant record is a
     resume; bookkeeping still is not."""
@@ -369,6 +413,7 @@ NOT_CLAUDE = [
     ("node", ["node", "/home/u/src/claude-code/cli.js"]),  # some other claude-code checkout
     ("node", ["node", "/x/@anthropic-ai/claude-code/cli.js.map"]),
     ("node", ["node", "/x/@anthropic-ai/claude-code-router/cli.js"]),
+    ("node", ["node", "/x/foo@anthropic-ai/claude-code/cli.js"]),  # the scope is a whole path segment
     ("node", []),
     ("uv", ["uv", "run", "/x/@anthropic-ai/claude-code/cli.js"]),  # not node
     ("zsh", ["/home/u/.local/share/claude-versions/2.1.301"]),
@@ -411,5 +456,7 @@ def test_a_launcher_above_claude_gives_exactly_one_claude(monkeypatch):
     assert proc.owning_claude() == 90 and not proc.nested_claude()
 
 
-# panorama's test_herdr_claude_pid_skips_the_launcher has no inbox counterpart: the inbox has no
+# panorama's test_the_remote_mirror_names_sessions_in_lowercase_once,
+# test_an_events_file_is_named_by_the_canonical_id and test_herdr_claude_pid_skips_the_launcher
+# have no inbox counterpart: the inbox has no rsync mirror, no events file and no
 # herdr.claude_pid (it never reads the pane's foreground processes).
