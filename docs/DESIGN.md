@@ -325,6 +325,67 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## The failed pile: answers that did arrive (0.10.5)
+
+**Live, 2026-10-17.** The operator: "a huge amount of questions I have responded to long ago
+show as failed". 16 answers sat in the popup's ⚠ pile, read from the operator's database and
+transcripts, read-only. Most of them had arrived.
+
+- **6 × "not verified" (Q129–Q152).** Their questions were filed under session `c5240607`,
+  which had continued from `1cd70de7` (that transcript ends in `continued-in`). After a
+  restart herdr resumed the pane under the **old** id `1cd70de7`, and its transcript still
+  ended in `continued-in`. So the inbox followed it to `c5240607`, typed the batch, and
+  watched `c5240607`'s file. The batch landed as the first record of the resumed `1cd70de7`
+  file (06:32:56). The agent read it, but the inbox never saw it.
+- **Q156, "agent gone: conversation changed in pane w6:p57".** The same thing for
+  `a58e3f68 → 06acc80f`, with herdr resuming `a58e3f68`: typed, landed in the old file.
+- **8 × "agent gone: no live agent in pane w6:p48" (Q159–Q166).** The resumed agent
+  **answered its own questions** with `inbox answer 159 "…"`, relaying decisions from chat. It
+  had the answers, but the inbox tried to deliver them to the asking conversation's pane,
+  which was gone.
+  - These questions were also filed under the dead pane id: the MCP server's `HERDR_PANE_ID`
+    is the pane it started in, and herdr gives a moved pane a new id.
+- **Q158:** the operator answered after its conversation (`06acc80f`) had stopped running
+  anywhere. It is truly undelivered.
+- **Acknowledged answers kept their old error** (Q77–Q95, Q108, Q155). They were already
+  out of the pile, but still read as failures elsewhere.
+
+**Fixes.**
+1. **Verify where the text lands.** After typing, delivery watches the followed
+   conversation's transcript **and** the transcript of the session herdr reports for the
+   pane (`wait_landed_any`; the detached verify job gets the same list).
+2. **Related sessions** (`related_sessions`): a session's continuation chain, plus every known
+   session whose transcript **ever** continued into one of those. `continued_targets` scans
+   the whole file, cached and incremental, because a resumed old session keeps its record
+   mid-file. Only transcripts touched in the last 14 days are scanned. This is used to find
+   where an answer went, never for ownership.
+3. **Reconcile** (worker; first tick on start, then each answer at most every 5 min).
+   - Answers in the pile from the last 7 days that **landed** in a transcript of a related
+     session, or of what the asking pane runs now, become delivered and verified. That needs
+     our exact text, as before.
+   - Answers the conversation **saw** some other way become seen. The evidence is one record
+     holding the id (`Q7`, or the CLI's `answer 7`) plus the exact answer: the answer alone
+     if it is 12+ characters, otherwise also the question's opening. This is how the agent's
+     own `inbox answer` command and its output appear.
+   - A bare id mention never counts.
+   - Seen answers lose any stale error; acknowledging always clears it.
+4. **No second delivery.** Before typing, delivery (Send now included) checks every related
+   transcript for a landing and for "seen" evidence. If either is found, nothing is typed.
+5. **An agent answering its own question** (`inbox answer` run inside the asking conversation,
+   or a related one) is seen at once, with nothing to deliver.
+6. **A moved pane.** A caller whose `HERDR_PANE_ID` no longer exists is filed under the one
+   pane that runs its conversation now.
+7. **Truly gone answers (operator Q167: "Both").**
+   - When the popup opens with two or more, they show as **one** ⚠ row: "N answers for agents
+     that are gone · d hides them all". `d` hides exactly the answers that row showed;
+     check_answers still has them.
+   - One that turns gone while the popup is open keeps its own row: nothing joins the open
+     summary.
+   - After 24 h gone they leave the popup by themselves.
+
+Tests never reach a live herdr: conftest scrubs every `HERDR_*` and points `HERDR_BIN_PATH`
+at a path that does not exist, unless the fake is in use (`tests/test_isolation.py`).
+
 ## The asking agent's pane moved (0.10.4)
 
 Delivery is keyed by the pane a question was asked from. When that pane id has no agent any

@@ -109,6 +109,32 @@ def continued_in(path: Path) -> str | None:
     return nxt
 
 
+_targets_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
+_TARGET = re.compile(rb'"continuedInSessionId"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"')
+
+
+def continued_targets(path: Path) -> frozenset:
+    """Every session ``path``'s conversation EVER continued in, wherever the record sits (an
+    old session resumed afterwards keeps its record mid-file). For finding where a delivery
+    landed, never for ownership. Incremental and cached like continued_in."""
+    key, n = str(path), size(path)
+    cached = _targets_cache.get(key)
+    if cached and cached[0] == n:
+        return cached[1]
+    start, found = (cached[0], set(cached[1])) if cached and cached[0] < n else (0, set())
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(start)
+            for line in fh:  # whole lines: a record never splits across reads
+                if b"continued-in" in line:
+                    found.update(m.decode() for m in _TARGET.findall(line))
+    except OSError:
+        return frozenset()
+    result = frozenset(found)
+    _remember(_targets_cache, key, (n, result))
+    return result
+
+
 def chain(session_id: str | None, known: str | None = None, max_hops: int = 8) -> list[str]:
     """``session_id`` and every session its conversation continued in, in order (cycle-safe)."""
     out: list[str] = []
@@ -321,6 +347,63 @@ def landed_kinds(path: Path, expected: dict[int, tuple[list[str], str | None]]) 
     return found
 
 
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
+def seen_answer(path: Path, qid: int, question: str, answer: str, since: str | None) -> bool:
+    """The conversation SAW this answer some other way than our delivery: one record (a tool
+    result of the agent reading the inbox, a quoted answer...) holds the id ``Q<qid>``, the
+    question's opening AND the exact answer, after the answer time. Live 2026-10-17: the
+    resumed agent read Q159-Q166 straight from the inbox database and acted on them."""
+    needles = (f"Q{qid}".encode(), f" {qid} ".encode())
+    head = _squash(question)[:40]
+    want = _squash(answer)
+    if not head or not want:
+        return False
+    # a long answer is evidence on its own next to the id (the agent's own `inbox answer Q7
+    # "..."` command precedes the recorded answer time by seconds); a short one also needs
+    # the question
+    strong = len(want) >= 12
+    floor = since
+    if since and strong:
+        try:
+            from datetime import datetime, timedelta
+
+            floor = (datetime.fromisoformat(since) - timedelta(seconds=120)).isoformat(timespec="seconds")
+        except ValueError:
+            floor = since
+    # the id as we write it (Q7), or as the CLI takes it (`inbox answer 7 "..."`)
+    word = re.compile(rf"(?<![A-Za-z0-9])Q{qid}(?![0-9])|\banswer\s+Q?{qid}\b")
+    try:
+        with open(path, "rb") as fh:
+            for raw in fh:
+                if not any(n in raw for n in needles):
+                    continue
+                try:
+                    record = json.loads(raw)
+                except ValueError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                ts = record.get("timestamp") if isinstance(record.get("timestamp"), str) else None
+                if not _after(ts, floor):
+                    continue
+                text = _squash(" ".join(_strings(record)).replace("\\n", " "))
+                if word.search(text) and want in text and (strong or head in text):
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 def landed_since(path: Path, offset: int, qids: list[int], text: str | None = None) -> bool:
     """Whether a record appended after ``offset`` carries our message for ``qids`` (with
     ``text``, the exact message typed, also when it follows other text: see _tails)."""
@@ -338,6 +421,20 @@ def landed_since(path: Path, offset: int, qids: list[int], text: str | None = No
             if contains(record_text, qids, text):
                 return True
     return False
+
+
+def wait_landed_any(watch: list[tuple[Path, int]], qids: list[int], timeout: float, interval: float = 0.25,
+                    text: str | None = None) -> bool:
+    """wait_landed over several transcripts (each from its own offset): typed text lands in
+    whichever conversation the pane really runs -- after herdr resumed an older session id,
+    that is the OLD session's file, not the one its `continued-in` names (live 2026-10-17)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        if any(landed_since(p, off, qids, text) for p, off in watch):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(interval)
 
 
 def wait_landed(path: Path, offset: int, qids: list[int], timeout: float, interval: float = 0.25,

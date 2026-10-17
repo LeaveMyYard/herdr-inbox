@@ -193,6 +193,18 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
 
         worker.ensure()  # it retries whatever this cannot deliver right away
     if args.cmd == "answer":
+        asked = store.get(args.id)
+        if asked is not None and asked.status == "open" and service.answered_by_own_conversation(store, asked):
+            # the asking agent (or its continued/resumed conversation) answers itself, e.g.
+            # relaying the operator's decision from chat: it has the answer, nothing to deliver
+            # (live 2026-10-17: Q159-Q166 answered this way then showed as failed for days)
+            q = service.answer(store, args.id, " ".join(args.text), deliver=False)
+            if q is None:
+                print(f"Q{args.id} is not open", file=sys.stderr)
+                return 1
+            store.acknowledge([q.id])
+            print(f"{q.ref} answered by its own conversation: nothing to deliver")
+            return 0
         q = service.answer(store, args.id, " ".join(args.text))
         if q is None:
             print(f"Q{args.id} is not open", file=sys.stderr)
