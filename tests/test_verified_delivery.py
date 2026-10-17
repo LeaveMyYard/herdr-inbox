@@ -12,7 +12,7 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import RESET_KEY, Store
 from herdr_inbox.tui import GroupListView, InboxApp
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +23,7 @@ def quick_verify(monkeypatch):
 @pytest.fixture
 def live_session(fake_herdr):
     """The asking session's transcript already exists, as for any running Claude session."""
-    path = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "sess-A.jsonl"
+    path = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"type": "user", "message": {"content": "hello"}}) + "\n")
     return path
@@ -45,7 +45,7 @@ def test_prompt_that_never_lands_is_not_delivered_and_not_seen(store, fake_herdr
     assert prompts(fake_herdr)  # herdr accepted it
     assert q.delivered_at is None and q.acknowledged_at is None and q.verified_at is None
     assert q.delivery_error == service.NOT_VERIFIED
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]  # check_answers has it
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]  # check_answers has it
     assert [f.id for f in store.failed_deliveries()] == [qid]  # the popup shows it
 
 
@@ -86,18 +86,18 @@ def test_unknown_transcript_means_sent_but_unseen(store, fake_herdr, monkeypatch
     qid = ask(store)
     q = service.answer(store, qid, "yes")
     assert q.delivered_at and q.acknowledged_at is None and q.verified_at is None
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]
 
 
 def test_hook_records_the_transcript_path_used_for_verification(store, fake_herdr, monkeypatch, tmp_path, capsys):
-    path = tmp_path / "custom" / "sess-A.jsonl"
+    path = tmp_path / "custom" / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     path.parent.mkdir()
     path.write_text("")
     monkeypatch.setattr("sys.stdin", __import__("io").StringIO(json.dumps(
-        {"session_id": "sess-A", "source": "startup", "transcript_path": str(path)})))
+        {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "source": "startup", "transcript_path": str(path)})))
     assert hook.run("session-start") == 0
-    assert store.session_transcript("sess-A") == str(path)
-    assert transcript.find("sess-A", store.session_transcript("sess-A")) == path
+    assert store.session_transcript("aaaaaaaa-0000-4000-8000-00000000000a") == str(path)
+    assert transcript.find("aaaaaaaa-0000-4000-8000-00000000000a", store.session_transcript("aaaaaaaa-0000-4000-8000-00000000000a")) == path
 
 
 def test_transcript_parsing_is_lenient_and_exact(tmp_path):
@@ -134,7 +134,7 @@ async def test_receipt_mentions_check_answers(migrated_db, fake_herdr):
 
 async def test_popup_shows_pending_delivery(store, fake_herdr, monkeypatch):
     qid = ask(store)
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Other?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Other?")
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
     service.answer(store, qid, "yes")
     app = InboxApp(store, focus_pane="w1:p1")
@@ -168,7 +168,7 @@ def test_migration_uses_the_verifier(tmp_path, fake_herdr, live_session):
     store = Store(path)
     assert store.get(landed).acknowledged_at and store.get(landed).verified_at
     assert store.get(lost).acknowledged_at is None
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [lost]
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [lost]
 
 
 def test_old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop(store, fake_herdr, live_session):

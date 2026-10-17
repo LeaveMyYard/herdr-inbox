@@ -9,8 +9,8 @@ from herdr_inbox import herdr, service
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import GoneView, GroupListView, InboxApp, QuestionView
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 async def test_withdraw_mid_typing_never_answers_the_other_agent(store, fake_herdr):
@@ -122,7 +122,7 @@ async def test_failed_delivery_entry_retry_and_hide(store, fake_herdr, monkeypat
         await pilot.press("up")  # a deliberate move drops the placeholders
         assert ("failed", b) not in app.entries
     assert store.get(b).status == "answered" and store.get(b).delivered_at is None
-    assert [q.id for q in store.unacknowledged_answers("sess-A", "w1:p2")] == [b]  # still for check_answers
+    assert [q.id for q in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p2")] == [b]  # still for check_answers
 
 
 async def test_focus_pane_comes_from_the_plugin_context(store, fake_herdr, monkeypatch):

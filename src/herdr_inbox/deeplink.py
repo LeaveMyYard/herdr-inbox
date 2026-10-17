@@ -26,13 +26,14 @@ import uuid
 from pathlib import Path
 
 from .store import Question, Store, db_path
+from .transcript import session_id_or_none
 
 REQUEST_TTL = 5.0
 KINDS = ("question", "group", "pane", "session")
 NONCE_ENV = "INBOX_OPEN_NONCE"  # `inbox open` hands its request's nonce to the popup it opens
 # a question may name a remote machine: machine:Q12
 VALID = {"question": re.compile(r"(?:[A-Za-z0-9._-]{1,64}:)?[Qq]?\d+"), "group": re.compile(r"\d+"),
-         "pane": re.compile(r"\S+"), "session": re.compile(r"\S+")}
+         "pane": re.compile(r"\S+")}  # a session: transcript.session_id_or_none, the one validator
 
 
 def request_path() -> Path:
@@ -40,6 +41,8 @@ def request_path() -> Path:
 
 
 def valid(kind: str, value: str) -> bool:
+    if kind == "session":
+        return session_id_or_none(value) is not None
     return kind in KINDS and bool(VALID[kind].fullmatch(str(value)))
 
 
@@ -122,7 +125,8 @@ def resolve(store: Store, target: dict) -> tuple[tuple[str, int], int | None] | 
     if kind == "pane":
         return _oldest_group([q for q in open_qs if q.pane_id == value])
     if kind == "session":
-        return _oldest_group([q for q in open_qs if q.session_id == value])
+        sid = session_id_or_none(value)
+        return _oldest_group([q for q in open_qs if sid and session_id_or_none(q.session_id) == sid])
     return None
 
 

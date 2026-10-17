@@ -9,8 +9,8 @@ from herdr_inbox import service, tui
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import GroupListView, InboxApp, QuestionView
 
-A = Caller("w1:p1", "w1:t1", "8", "sess-A", "/r")  # asked while the tab was unnamed
-B = Caller("w1:p2", "w1:t2", "Other", "sess-B", "/r")
+A = Caller("w1:p1", "w1:t1", "8", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")  # asked while the tab was unnamed
+B = Caller("w1:p2", "w1:t2", "Other", "bbbbbbbb-0000-4000-8000-00000000000b", "/r")
 
 
 @pytest.fixture

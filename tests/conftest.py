@@ -25,7 +25,7 @@ cmd = " ".join(args[:2])
 if cmd in os.environ.get("FAKE_HERDR_FAIL", "").split(","):
     sys.stderr.write(json.dumps({{"error": {{"code": "boom", "message": "fake failure"}}}}))
     sys.exit(1)
-session = os.environ.get("FAKE_HERDR_SESSION", "sess-A")
+session = os.environ.get("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a")
 tabs_file = os.environ.get("FAKE_HERDR_TABS")  # JSON {{tab_id: label}}; renames persist there
 tabs = json.load(open(tabs_file)) if tabs_file and os.path.exists(tabs_file) else {{}}
 PANE_TAB = {{"w1:p1": "w1:t1", "w1:p2": "w1:t2", "w1:p3": "w1:t1"}}

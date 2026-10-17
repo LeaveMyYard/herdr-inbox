@@ -17,7 +17,7 @@ from herdr_inbox import herdr, service, tui
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import InboxApp
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ async def test_send_now_hands_off_with_force(store, fake_herdr, monkeypatch):
     spawned = []
     monkeypatch.setattr(tui, "spawn_delivery", lambda qids, force=False: spawned.append((qids, force)))
     qid = service.ask(store, A, "Late?", options=["yes"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Other?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Other?")
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
     service.answer(store, qid, "yes")  # pending: agent busy
     app = InboxApp(store, focus_pane="w1:p2")
@@ -115,7 +115,7 @@ async def test_go_to_agent_focuses_off_the_ui_thread(store, fake_herdr, monkeypa
     real = herdr.focus_agent
     monkeypatch.setattr(herdr, "focus_agent", lambda p: threads.append(threading.current_thread().name) or real(p))
     service.ask(store, A, "q1?")
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "q2?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "q2?")
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -155,7 +155,7 @@ from pathlib import Path as _Path
 
 @pytest.fixture
 def live_session(fake_herdr):
-    path = _Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "sess-A.jsonl"
+    path = _Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_json.dumps({"type": "user", "message": {"content": "hello"}}) + "\n")
     return path
@@ -278,7 +278,7 @@ def test_h1_a_landed_long_answer_reference_stays_unseen(store, fake_herdr, live_
     service.deliver(store, store.get(qid))
     q = store.get(qid)
     assert not fake_herdr.calls_of("agent", "prompt") and q.verified_at and q.acknowledged_at is None
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]
 
 
 def test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in(store, fake_herdr, live_session, monkeypatch):
@@ -331,7 +331,7 @@ async def test_l1_the_popup_drains_background_jobs_before_exit(store, fake_herdr
     drained = []
     monkeypatch.setattr(service, "drain", lambda timeout: drained.append(timeout) or True)
     service.ask(store, A, "q?")
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "q2?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "q2?")
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -368,7 +368,7 @@ async def test_l3_send_now_says_when_the_answer_is_already_being_delivered(store
     spawned, notes = [], []
     monkeypatch.setattr(tui, "spawn_delivery", lambda qids, force=False: spawned.append(qids))
     qid = service.ask(store, A, "Late?", options=["yes"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Other?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Other?")
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
     service.answer(store, qid, "yes")
     app = InboxApp(store, focus_pane="w1:p2")

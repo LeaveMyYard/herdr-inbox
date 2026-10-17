@@ -13,7 +13,7 @@ from herdr_inbox.service import Caller
 
 from .test_hook import run_hook
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 # captured on moneylust (Claude Code 2.1.301, 2026-10-16): the woken text's user record
 CAPTURED = ("<task-notification>\n<summary>Stop hook feedback</summary>\n</task-notification>\n<system-reminder>\n"
@@ -23,14 +23,14 @@ CAPTURED = ("<task-notification>\n<summary>Stop hook feedback</summary>\n</task-
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch, fake_herdr):
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a")
     monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
     monkeypatch.setattr(proc, "owning_claude", lambda: None)
 
 
 @pytest.fixture
 def tpath(tmp_path):
-    p = tmp_path / "sess-A.jsonl"
+    p = tmp_path / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     p.write_text("")
     return p
 
@@ -58,7 +58,7 @@ class Clock:
 
 def watch(tpath, clock=None):
     clock = clock or Clock()
-    return rewake.run({"session_id": "sess-A", "transcript_path": str(tpath)}, clock=clock, sleep=clock.sleep)
+    return rewake.run({"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "transcript_path": str(tpath)}, clock=clock, sleep=clock.sleep)
 
 
 def test_the_matcher_reads_the_captured_wake_record(tpath):
@@ -76,7 +76,7 @@ def test_an_idle_session_is_woken_with_its_answer_once(store, monkeypatch, tpath
     assert q.delivered_at and q.acknowledged_at is None
     assert store.db.execute("SELECT hook_sent_at FROM question_ext WHERE id = ?", (qid,)).fetchone()[0]
     assert not fake_herdr.calls_of("agent", "prompt")
-    assert not rewake.watcher_alive("sess-A")  # the lock goes with the watcher
+    assert not rewake.watcher_alive("aaaaaaaa-0000-4000-8000-00000000000a")  # the lock goes with the watcher
 
 
 def test_a_working_or_blocked_session_is_not_woken_until_it_rests(store, monkeypatch, tpath):
@@ -95,12 +95,12 @@ def test_a_working_or_blocked_session_is_not_woken_until_it_rests(store, monkeyp
 
 def test_a_pane_holding_another_conversation_ends_the_watch(store, monkeypatch, tpath):
     qid = pending_answer(store, monkeypatch)
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-OTHER")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "dddddddd-0000-4000-8000-00000000000d")
     assert watch(tpath) is None and store.get(qid).delivered_at is None
 
 
 def test_a_newer_watcher_supersedes_the_old_one(store, monkeypatch, tpath):
-    clock = Clock(lambda n: n == 2 and rewake._claim_ownership("sess-A"))
+    clock = Clock(lambda n: n == 2 and rewake._claim_ownership("aaaaaaaa-0000-4000-8000-00000000000a"))
     assert watch(tpath, clock) is None and clock.sleeps == 2
 
 
@@ -117,19 +117,19 @@ def test_the_watch_ends_with_its_claude_process_and_after_the_max_age(store, mon
 
 def test_nothing_for_a_subagent_or_outside_herdr(store, monkeypatch, tpath):
     pending_answer(store, monkeypatch)
-    assert rewake.run({"session_id": "sess-A", "agent_id": "a1"}) is None
+    assert rewake.run({"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "agent_id": "a1"}) is None
     monkeypatch.delenv("HERDR_PANE_ID")
-    assert rewake.run({"session_id": "sess-A"}) is None
+    assert rewake.run({"session_id": "aaaaaaaa-0000-4000-8000-00000000000a"}) is None
 
 
 def test_the_worker_leaves_an_idle_watched_session_to_its_watcher(store, monkeypatch, tpath, fake_herdr):
     qid = pending_answer(store, monkeypatch)
-    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('sess-A', ?)", (st.now(),))  # its stamp
+    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('aaaaaaaa-0000-4000-8000-00000000000a', ?)", (st.now(),))  # its stamp
     store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
     started, release = threading.Event(), threading.Event()
 
     def held():  # a live watcher: holds the session lock
-        lock = open(rewake._dir() / "sess-A.lock", "a")
+        lock = open(rewake._dir() / "aaaaaaaa-0000-4000-8000-00000000000a.lock", "a")
         import fcntl
 
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -140,13 +140,13 @@ def test_the_worker_leaves_an_idle_watched_session_to_its_watcher(store, monkeyp
     t.start()
     started.wait(5)
     try:
-        assert rewake.watcher_alive("sess-A")
+        assert rewake.watcher_alive("aaaaaaaa-0000-4000-8000-00000000000a")
         worker.tick(store)
         assert service.WATCHER_WAIT in store.get(qid).delivery_error
     finally:
         release.set()
         t.join()
-    assert not rewake.watcher_alive("sess-A")
+    assert not rewake.watcher_alive("aaaaaaaa-0000-4000-8000-00000000000a")
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
     assert not fake_herdr.calls_of("agent", "prompt")
     worker.tick(store)  # no watcher (e.g. past its max age): typed, as before
@@ -171,7 +171,7 @@ def launch_rewake(root, tpath, spec, path_prefix=None):
     if path_prefix:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
     argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(root)) for a in spec["args"])]
-    return subprocess.run(argv, input=json.dumps({"session_id": "sess-A", "transcript_path": str(tpath)}),
+    return subprocess.run(argv, input=json.dumps({"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "transcript_path": str(tpath)}),
                           capture_output=True, text=True, timeout=60, env=env, cwd=root)
 
 
@@ -193,9 +193,9 @@ def test_a_live_watcher_whose_session_hook_is_stale_does_not_hold_typing_back(st
 
     qid = pending_answer(store, monkeypatch)
     store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
-    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('sess-A', ?)",
+    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('aaaaaaaa-0000-4000-8000-00000000000a', ?)",
                      (st.now(-service.HOOK_LIVE - st.timedelta(minutes=1)),))
-    lock = open(rewake._dir() / "sess-A.lock", "a")
+    lock = open(rewake._dir() / "aaaaaaaa-0000-4000-8000-00000000000a.lock", "a")
     fcntl.flock(lock, fcntl.LOCK_EX)
     try:
         monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
@@ -209,8 +209,8 @@ def test_the_waiting_watcher_stamps_its_own_column_never_the_tool_hooks(store, m
     """#30 M1: the watcher's liveness is not evidence that PostToolBatch/Stop fire."""
     seen = []
     clock = Clock(lambda n: seen.append(tuple(store.db.execute(
-        "SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone() or ())) or n == 2
-        and rewake._claim_ownership("sess-A"))
+        "SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'").fetchone() or ())) or n == 2
+        and rewake._claim_ownership("aaaaaaaa-0000-4000-8000-00000000000a"))
     assert watch(tpath, clock) is None
     assert seen[0][0] is None and seen[0][1]
 
@@ -223,10 +223,10 @@ def test_m1_a_live_watcher_with_silent_tool_hooks_does_not_hold_a_working_sessio
     qid = pending_answer(store, monkeypatch)
     store.db.execute("UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?", (qid,))
     store.db.execute("UPDATE question_ext SET pending_since = ? WHERE id = ?", (st.now(-st.timedelta(minutes=5)), qid))
-    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('sess-A', ?)", (st.now(),))
+    store.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES ('aaaaaaaa-0000-4000-8000-00000000000a', ?)", (st.now(),))
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
-    lock = open(rewake._dir() / "sess-A.lock", "a")
+    lock = open(rewake._dir() / "aaaaaaaa-0000-4000-8000-00000000000a.lock", "a")
     fcntl.flock(lock, fcntl.LOCK_EX)
     try:
         worker.tick(store)
@@ -250,9 +250,9 @@ def test_l2_the_matcher_survives_a_reworded_wake_wrapper(tpath):
     assert transcript.landed_ids(tpath, [1]) == set()
 
 def test_m1_a_watch_left_behind_by_clear_ends_without_any_answer(store, monkeypatch, tpath, fake_herdr):
-    """#30 M1 (reviewer's repro): the pane now holds sess-NEW; the old watcher has nothing
+    """#30 M1 (reviewer's repro): the pane now holds eeeeeeee-0000-4000-8000-00000000000e; the old watcher has nothing
     pending, yet it checks the pane on a slow cadence and ends."""
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-NEW")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "eeeeeeee-0000-4000-8000-00000000000e")
     clock = Clock()
     assert watch(tpath, clock) is None
     assert rewake.PANE_CHECK_EVERY <= clock.t <= rewake.PANE_CHECK_EVERY + 2 * rewake.WATCH_POLL
@@ -272,7 +272,7 @@ def test_m1b_a_pane_without_a_session_is_never_woken_and_the_watch_ends(store, m
 def test_m1b_the_session_reappearing_resumes_the_watch(store, monkeypatch, tpath):
     qid = pending_answer(store, monkeypatch)
     monkeypatch.setenv("FAKE_HERDR_SESSION", "")
-    clock = Clock(lambda n: n == 5 and monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A"))
+    clock = Clock(lambda n: n == 5 and monkeypatch.setenv("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a"))
     assert watch(tpath, clock) and store.get(qid).delivered_at
 
 
@@ -281,7 +281,7 @@ def test_a_watcher_delivery_never_writes_hook_seen_at(store, monkeypatch, tpath)
     qid = pending_answer(store, monkeypatch)
     assert watch(tpath)
     assert store.get(qid).delivered_at
-    row = store.db.execute("SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'sess-A'").fetchone()
+    row = store.db.execute("SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'").fetchone()
     assert row is None or row[0] is None
 
 

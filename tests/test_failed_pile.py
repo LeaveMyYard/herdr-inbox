@@ -162,7 +162,7 @@ def gone_rows(store, n):
 
 async def test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all(store, fake_herdr):
     ids = gone_rows(store, 3)
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "A live question?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "A live question?")
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -178,7 +178,7 @@ async def test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all(stor
 
 async def test_q167_a_single_gone_answer_keeps_its_own_row(store, fake_herdr):
     gone_rows(store, 1)
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "A live question?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "A live question?")
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -188,7 +188,7 @@ async def test_q167_a_single_gone_answer_keeps_its_own_row(store, fake_herdr):
 
 async def test_q167_a_gone_answer_arriving_later_never_joins_the_open_summary(store, fake_herdr):
     gone_rows(store, 2)
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "A live question?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "A live question?")
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -313,10 +313,10 @@ def tool_result(text, at=None):
 
 def test_r1_b1_the_agent_echoing_the_options_is_not_evidence(store, fake_herdr, monkeypatch):
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
-    store.record_session("sess-A", str(tdir() / "sess-A.jsonl"))
-    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Merge mode?",
+    store.record_session("aaaaaaaa-0000-4000-8000-00000000000a", str(tdir() / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"))
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r"), "Merge mode?",
                       options=["Squash and merge", "Rebase and merge"])["id"]
-    write("sess-A", [assistant(f"Filed Q{qid}. Options: Squash and merge / Rebase and merge.")])
+    write("aaaaaaaa-0000-4000-8000-00000000000a", [assistant(f"Filed Q{qid}. Options: Squash and merge / Rebase and merge.")])
     service.answer(store, qid, "Squash and merge")
     assert fake_herdr.calls_of("agent", "prompt")  # typed, not swallowed
 
@@ -331,10 +331,10 @@ def test_r1_b2_a_short_answer_never_matches_inside_a_word(store, fake_herdr):
 
 
 def test_r1_b3_reconcile_never_reads_an_unrelated_conversation_in_a_reused_pane(store, fake_herdr, monkeypatch):
-    q = filed(store, "w1:p1", "sess-A", "Merge mode for the release?", "Squash and merge")
+    q = filed(store, "w1:p1", "aaaaaaaa-0000-4000-8000-00000000000a", "Merge mode for the release?", "Squash and merge")
     as_stored(store, q.id, "agent gone: conversation changed in pane w1:p1")
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", "sess-B")))
-    write("sess-B", [tool_result(f"Operator answered Q{q.id}: Squash and merge."),
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", "bbbbbbbb-0000-4000-8000-00000000000b")))
+    write("bbbbbbbb-0000-4000-8000-00000000000b", [tool_result(f"Operator answered Q{q.id}: Squash and merge."),
                      {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content":
                       service.herdr.clean(service.delivery_text([store.get(q.id)]), limit=10**9)}}])
     worker.tick(store)
@@ -462,9 +462,9 @@ def test_r3_the_live_pre_type_guard_never_uses_self_answer_evidence(store, fake_
     """KISS: live, `inbox answer` from the conversation marks the row seen itself (CLI);
     the transcript self-answer heuristic is only for reconciling old rows."""
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
-    store.record_session("sess-A", str(tdir() / "sess-A.jsonl"))
-    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Pre-type?")["id"]
-    write("sess-A", bash_and_result(f"inbox answer {qid} \"a long answer value here\"",
+    store.record_session("aaaaaaaa-0000-4000-8000-00000000000a", str(tdir() / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"))
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r"), "Pre-type?")["id"]
+    write("aaaaaaaa-0000-4000-8000-00000000000a", bash_and_result(f"inbox answer {qid} \"a long answer value here\"",
                                     f"Q{qid} answered, delivered to w1:p1", "u7"))
     service.answer(store, qid, "a long answer value here")
     assert fake_herdr.calls_of("agent", "prompt")

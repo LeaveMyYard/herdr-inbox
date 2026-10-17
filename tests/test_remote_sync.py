@@ -11,7 +11,7 @@ from herdr_inbox import remote, remote_api, service, worker
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 M = {"id": "m1", "label": "moneylust", "target": "moneylust", "session": "default", "enabled": True}
 
 
@@ -197,7 +197,7 @@ from herdr_inbox.tui import GroupListView, InboxApp, QuestionView  # noqa: E402
 
 async def test_popup_lists_and_answers_a_remote_question(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Ship it?", options=["yes", "no"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
@@ -222,7 +222,7 @@ async def test_popup_lists_and_answers_a_remote_question(store, remote_db, fake_
 
 async def test_popup_dismisses_a_remote_group_with_confirmation(store, remote_db, fake_herdr):
     service.ask(remote_db, A, "Drop?")
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
@@ -234,7 +234,7 @@ async def test_popup_dismisses_a_remote_group_with_confirmation(store, remote_db
 
 async def test_popup_shows_an_offline_machine_and_a_rejection(store, remote_db, fake_herdr, monkeypatch):
     q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     rid = remote.enqueue(store, "m1", shown(store, q), "hide")
     store.db.execute("UPDATE remote_outbox SET state = 'rejected', result = 'answered with no'")
@@ -252,7 +252,7 @@ async def test_popup_shows_an_offline_machine_and_a_rejection(store, remote_db, 
 
 async def test_remote_text_is_escaped(store, remote_db, fake_herdr):
     service.ask(remote_db, A, "[b]bold[/b] [link=x]x[/link]?")
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
@@ -348,7 +348,7 @@ def test_one_hung_machine_does_not_delay_the_others(migrated_db, fake_herdr, mon
 
 async def test_a_remote_question_closed_there_becomes_an_inert_placeholder(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Ship?", options=["yes"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
@@ -399,7 +399,7 @@ def test_l2_an_expiring_send_that_may_have_landed_is_worded_so(store, remote_db,
 
 async def test_m1_the_popup_shows_a_past_expiry_as_expired(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["yes"]})
     store.db.execute("UPDATE remote_outbox SET expires_at = '2000-01-01T00:00:00+00:00'")
@@ -436,7 +436,7 @@ def test_m2_an_answer_the_remote_cannot_deliver_shows_here_once(store, remote_db
 
 async def test_m2_the_popup_lists_it_and_d_clears_it(store, remote_db, fake_herdr):
     q = service.ask(remote_db, A, "Q?", options=["yes"])["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
     remote.pull(store, M)
     service.answer(remote_db, q, None, choices=["yes"], deliver=False)
     remote_db.mark_agent_gone(q, "no live agent in pane w1:p1")
@@ -650,8 +650,8 @@ async def test_popup_acknowledges_a_remote_alert(store, remote_db, fake_herdr):
     from herdr_inbox import alerts
 
     aid = alerts.raise_alert(remote_db, A, "[E2E TEST] remote alert")["id"]
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local?")
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r"), "Local 2?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Local 2?")
     remote.pull(store, M)
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:

@@ -16,8 +16,8 @@ def _fresh_scan(monkeypatch):
     monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.0)
 
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r")
 
 
 def test_raise_notifies_counts_in_the_badge_and_dedupes(store, fake_herdr):
@@ -115,7 +115,7 @@ async def test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane(store, fake_
 
 def blocked(pane="w1:p1", status="blocked"):
     return json.dumps([{"pane_id": pane, "tab_id": "w1:t1", "agent": "claude", "agent_status": status,
-                        "agent_session": {"value": "sess-A"}}])
+                        "agent_session": {"value": "aaaaaaaa-0000-4000-8000-00000000000a"}}])
 
 
 def test_an_agent_stuck_at_a_prompt_becomes_an_alert_and_clears_itself(store, fake_herdr, monkeypatch):

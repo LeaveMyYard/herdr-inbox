@@ -3,7 +3,7 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import normalize
 
 
-def caller(session="sess-A", pane="w1:p1"):
+def caller(session="aaaaaaaa-0000-4000-8000-00000000000a", pane="w1:p1"):
     return Caller(pane_id=pane, tab_id="w1:t1", tab_label="my-tab", session_id=session, cwd="/repo")
 
 
@@ -17,7 +17,7 @@ def test_new_question_is_recorded(store, fake_herdr):
     assert "Recorded as Q1" in out["message"] and "`[inbox]` that names Q1" in out["message"]
     q = store.get(out["id"])
     assert (q.session_id, q.pane_id, q.tab_label, q.options, q.asked_by) == (
-        "sess-A", "w1:p1", "my-tab", [{"label": "yes", "description": None, "preview": None}, {"label": "no", "description": None, "preview": None}],
+        "aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1", "my-tab", [{"label": "yes", "description": None, "preview": None}, {"label": "no", "description": None, "preview": None}],
         "reviewer",
     )
 
@@ -44,8 +44,8 @@ def test_answered_duplicate_returns_the_answer(store, fake_herdr):
 
 
 def test_different_session_is_not_deduped(store, fake_herdr):
-    a = service.ask(store, caller(session="sess-A"), "Which region?")
-    b = service.ask(store, caller(session="sess-B"), "Which region?")
+    a = service.ask(store, caller(session="aaaaaaaa-0000-4000-8000-00000000000a"), "Which region?")
+    b = service.ask(store, caller(session="bbbbbbbb-0000-4000-8000-00000000000b"), "Which region?")
     assert b["status"] == "open" and b["id"] != a["id"]
 
 
