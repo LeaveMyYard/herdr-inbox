@@ -101,8 +101,9 @@ def migrated(tmp_path):
 
 
 # The schema each revision migrates a fresh database to (store.reference_schema), hashed. A
-# change to SCHEMA, VIEW_SQL, OLD_VIEWS, TABLE_ADDED_COLUMNS or what _migrate does on a fresh
-# database changes it: bump MIGRATION_REVISION and add the new value. Without the bump every
+# change to SCHEMA, VIEW_SQL, TABLE_ADDED_COLUMNS or what _migrate does on a fresh database
+# changes it: bump MIGRATION_REVISION and add the new value. (OLD_VIEWS only drops views a
+# fresh database never had; a view rename shows through VIEW_SQL.) Without the bump every
 # installed database would silently never migrate again (review of #48, H1). Comment edits do
 # not change it. A migration step that only matters for older databases (a data fix) does not
 # show here: bump the revision for it by hand.
@@ -358,7 +359,6 @@ def test_the_worker_migrates_before_its_remote_thread_starts(fake_herdr, monkeyp
         loops.append(1)
         if len(loops) > 3:
             raise KeyboardInterrupt
-        return None
 
     monkeypatch.setattr(worker, "tick", tick)
     monkeypatch.setattr(worker, "installed_version", installed_version)
