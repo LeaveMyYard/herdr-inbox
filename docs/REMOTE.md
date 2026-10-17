@@ -94,7 +94,8 @@ Both commands read their request as JSON on stdin and print one JSON object on s
 - **Reply:** `{version, db_id, seq, full, ids?, questions: [...]}`, covering
   questions that changed since the cursor (or all, for a full snapshot), plus their
   delivery state.
-- **No data writes.** The remote's own code may still migrate its schema on open (Low).
+- **No data writes**, and no schema work: export and apply never migrate. A remote whose worker
+  has not migrated yet answers an error, and the pull backs off (DESIGN.md, "Schema revision").
 
 ### `apply`
 
