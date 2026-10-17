@@ -9,7 +9,12 @@ all), so answers to long-lived sessions could sit undelivered with nobody retryi
   ``ensure()`` starts it detached when it is not running, from herdr's ``[[startup]]``, the
   popup, the CLI and every 0.6.1+ MCP server; it exits after WORKER_IDLE_EXIT seconds
   with nothing pending, no enabled remote and no agent in herdr (0.8: it watches agents'
-  blocked state, so with agents running it does not idle out);
+  blocked state, so with agents running it does not idle out). It exits at once when
+  herdr says its server is not running: it is detached, so nothing else stops it, and
+  it must not outlive the server (and hold the lock) while herdr cleans up old installs;
+- after an update (the version under herdr's current plugin_root differs from its own)
+  it hands over to the new install: the Rust worker if one is installed there, else
+  the Python one (start_successor);
 - every TICK it re-checks unverified acknowledgements (``Store.reconcile``: an old
   server's "typed = seen" is un-seen and, if recent, requeued) and runs the delivery
   policy (service.deliver_batch: idle/done, busy grace, blocked, panel focus, transcript
@@ -23,6 +28,7 @@ from __future__ import annotations
 import fcntl
 import logging
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -38,6 +44,10 @@ watching = 0  # agents herdr reported on the last tick: their blocked state is w
 IDLE_EXIT = float(os.environ.get("HERDR_INBOX_WORKER_IDLE_EXIT", "600"))
 NOTIFY_AFTER = 300.0
 LEGACY_RECHECK = timedelta(seconds=60)
+# The worker exits once herdr has said "server_not_running" on every check for this long
+# (at least two checks): a server that is really gone costs one more tick, a socket path
+# that is missing only for a moment (a restart or handoff) does not end the worker.
+SERVER_GONE_EXIT = 10.0
 
 
 def _lock_path(server: str | None = None):
@@ -246,8 +256,9 @@ def running_version() -> str | None:
 
 
 def installed_version() -> str | None:
-    """The version on disk now (pyproject.toml of this checkout, else the package metadata)."""
-    root = herdr.plugin_root()
+    """The version installed now (pyproject.toml under herdr's current plugin_root, uncached,
+    else the package metadata)."""
+    root = herdr.current_plugin_root()
     if root:
         try:
             for line in open(os.path.join(root, "pyproject.toml"), encoding="utf-8"):
@@ -263,13 +274,81 @@ def installed_version() -> str | None:
         return None
 
 
+# The Rust worker (`herdr-inbox worker`, docs/plans/rust-rewrite.md in herdr-panorama, §4 and
+# §5.4), relative to the checkout, in the order looked at: a linked dev checkout's
+# `cargo build --release` first, then the release binary `install-bin.sh` puts in `bin/`.
+RUST_WORKER_BINARIES = ("target/release/herdr-inbox", "bin/herdr-inbox")
+# How long a handover waits for the Rust worker to hold worker-<key>.lock before it falls back
+# to the Python worker. A binary that has no `worker` yet (the hooks-only P2 release) exits
+# at once, so the wait is only paid in full by a binary that hangs before taking the lock.
+RUST_HANDOVER_WAIT = 5.0
+
+
+def rust_worker_binary(root: str) -> str | None:
+    """The installed Rust worker under ``root``: the first of RUST_WORKER_BINARIES that is a
+    regular file this user may execute (a symlink to one counts). None: no Rust worker."""
+    for rel in RUST_WORKER_BINARIES:
+        path = os.path.join(root, rel)
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def _start_rust_worker(binary: str, root: str) -> bool:
+    """Start ``binary worker`` detached; True once some worker holds this server's lock.
+
+    The caller has released the lock, so the lock is the proof: the Rust worker takes the
+    same worker-<key>.lock and exits when another worker holds it, so the two are never
+    both live. A binary that exits without the lock (no `worker` subcommand, a crash) or
+    has not taken it within RUST_HANDOVER_WAIT is not a successor: it is killed and the
+    caller starts the Python worker instead (which only runs if it then gets the lock).
+    Contract for the Rust worker (docs/DESIGN.md): the lock file is
+    ``dirname(db_path()) / "worker-" + sha1(server_id()).hexdigest()[:12] + ".lock"``; it
+    retries LOCK_EX|LOCK_NB for ~200 ms before it concludes another worker holds it (this
+    probe holds LOCK_SH for an instant every 50 ms), then exits 0."""
+    try:
+        proc = subprocess.Popen([binary, "worker"], cwd=root,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True, close_fds=True, env=_spawn_env())
+    except OSError:
+        return False
+    deadline = time.monotonic() + RUST_HANDOVER_WAIT
+    while True:
+        if is_running():
+            return True
+        if proc.poll() is not None:  # gone without (or after briefly holding) the lock
+            return is_running()
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.05)
+    if is_running():  # took it during the last sleep: never kill a worker that has the lock
+        return True
+    try:
+        # its whole group (it leads one): a launcher's child must not stay behind either;
+        # anything that took the lock since dies with it and releases it for the fallback
+        os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    return False
+
+
 def start_successor() -> bool:
-    """After an update: start the new code's worker from the checkout (uv, its own .venv).
-    False if it cannot (no checkout, no uv): then this worker keeps running -- respawning
-    this same interpreter would only loop."""
-    root = herdr.plugin_root()
+    """After an update: start the new code's worker from the checkout. The Rust worker when
+    one is installed there (rust_worker_binary) and it takes over the lock, otherwise the
+    Python worker (uv, the checkout's own .venv). False if neither can start (no checkout,
+    no uv): then this worker keeps running -- respawning this same interpreter would only
+    loop. The checkout is herdr's current plugin_root (uncached): after a herdr 0.9.4+
+    update that is the new install directory, not this worker's own."""
+    root = herdr.current_plugin_root()
     if not root:
         return False
+    binary = rust_worker_binary(root)
+    if binary and _start_rust_worker(binary, root):
+        return True
     try:
         subprocess.Popen(["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", root, "inbox", "worker"],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -318,7 +397,20 @@ def _loop(box: dict) -> int:
     handover_failed = False
     idle_since = time.monotonic()
     remote_started = False
+    herdr.follows_listed_root()  # decided now: is this worker herdr's install (update checks)
+    gone_since = None
     while True:
+        # detached, so nothing else stops it: never outlive the server (plan §4 item 5)
+        if herdr.server_gone():
+            now = time.monotonic()
+            if gone_since is None:
+                gone_since = now
+            elif now - gone_since >= SERVER_GONE_EXIT:
+                log.warning("herdr server %s is gone: worker exits", herdr.server_id())
+                return 0  # run() releases the lock
+            time.sleep(TICK)  # nothing can be delivered meanwhile: no tick, no error spam
+            continue
+        gone_since = None
         try:
             from . import remote
 

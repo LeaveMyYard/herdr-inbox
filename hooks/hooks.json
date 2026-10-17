@@ -9,8 +9,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "python3 -I \"$1\" \"$2\" 2>/dev/null; exit 0",
+              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
               "session-start"
             ],
@@ -27,8 +28,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "python3 -I \"$1\" \"$2\" 2>/dev/null; exit 0",
+              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
               "subagent-start"
             ],
@@ -45,8 +47,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "python3 -I \"$1\" \"$2\" 2>/dev/null; exit 0",
+              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
               "post-tool-batch"
             ],
@@ -63,8 +66,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "python3 -I \"$1\" \"$2\" 2>/dev/null; exit 0",
+              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
               "stop"
             ],
@@ -75,8 +79,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "python3 -I \"$1\" \"$2\" 2>/dev/null; [ $? -eq 3 ] && exit 2; exit 0",
+              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; [ $? -eq 3 ] && exit 2; exit 0",
               "herdr-inbox-hook",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
               "rewake-watch"
             ],
