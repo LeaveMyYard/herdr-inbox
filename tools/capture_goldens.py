@@ -1,0 +1,367 @@
+"""Capture the inbox's behaviour goldens of the Rust rewrite plan (herdr-panorama
+docs/plans/rust-rewrite.md §5.2) from the running Python code. Nothing in them is written by hand.
+
+- ``tests/fixtures/screens/*.json`` (item 2, app-screen goldens, the inbox popup's spec): the
+  popup (``InboxApp``) runs headless (``run_test``) through the scenarios below, taken from
+  ``tests/make_screenshots.py`` and ``tests/test_tui.py``; every screen is what Textual's
+  compositor sends to the terminal, as runs of ``[text, fg, bg, bold]`` per row (the shape of
+  panorama's ``design_*.json`` and ``screens/*.json``; ``null`` is the terminal's default colour).
+
+Deterministic: fixed sizes and data, TZ=UTC, every ``HERDR_*`` variable dropped, a temporary
+inbox database, the herdr binary the tests' fake (``tests/conftest.py``), the arming delays at
+0 (as in the tests), text cursors held on, and the operator's own inbox, config, transcripts and
+herdr never read. ``tests/test_goldens.py`` runs this into a temporary directory and compares.
+Regenerate after a deliberate behaviour change (and say why in the PR):
+
+    uv run python tools/capture_goldens.py              # rewrite tests/fixtures/screens/
+    uv run python tools/capture_goldens.py --out DIR    # write DIR/screens/ instead
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import shutil
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+FIXTURES = ROOT / "tests" / "fixtures"
+SID = "aaaaaaaa-0000-4000-8000-0000000000%02d"  # session ids: canonical, fixed
+
+
+def isolate(work: Path) -> None:
+    """The process's environment: nothing of the operator's (tests/conftest.py's fake_herdr rules)."""
+    for key in [k for k in os.environ if k.startswith("HERDR_") or k.startswith("FAKE_HERDR_")
+                or k.startswith("INBOX_") or k == "CLAUDE_CODE_SESSION_ID"]:
+        del os.environ[key]
+    cfg = work / "plugin-config"
+    cfg.mkdir(parents=True)
+    (cfg / "config.toml").write_text('tab_prefix = ""\n')
+    os.environ.update({
+        "TZ": "UTC",
+        "HERDR_INBOX_DB": str(work / "inbox.db"),
+        "HERDR_PANE_ID": "w1:p1",
+        "CLAUDE_CONFIG_DIR": str(work / "claude"),
+        "HERDR_INBOX_NO_WORKER": "1",
+        "HERDR_INBOX_HERDR_CONFIG": str(work / "herdr-config" / "config.toml"),
+        "HERDR_PLUGIN_CONFIG_DIR": str(cfg),
+        "FAKE_HERDR_CONFIG_DIR": str(cfg),
+        "FAKE_HERDR_SESSION": SID % 1,
+        "XDG_CONFIG_HOME": str(work / "xdg-config"),
+        "XDG_STATE_HOME": str(work / "xdg-state"),
+    })
+    time.tzset()
+    sys.path.insert(0, str(ROOT))
+
+
+def write(path: Path, doc: dict) -> None:
+    """One screen row per line: small diffs when behaviour changes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    parts = []
+    for name, rows in doc["screens"].items():
+        body = ",\n".join("    " + json.dumps(r, ensure_ascii=False, separators=(",", ":")) for r in rows)
+        parts.append(f"  {json.dumps(name)}: [\n{body}\n  ]")
+    head = {k: v for k, v in doc.items() if k != "screens"}
+    text = json.dumps(head, ensure_ascii=False)[:-1] + ', "screens": {\n' + ",\n".join(parts) + "\n}}\n"
+    json.loads(text)  # well-formed
+    path.write_text(text)
+
+
+# -- item 2: the popup's screens ------------------------------------------------------------
+
+def hexcolor(c) -> str | None:
+    if c is None or c.is_default:
+        return None
+    return c.get_truecolor().hex.lower()
+
+
+def dump(app) -> list[list]:
+    """The screen as the terminal gets it (export_screenshot's own render), runs per row."""
+    update = app.screen._compositor.render_update(full=True, screen_stack=app._background_screens)
+    rows = []
+    for strips in update.strips:
+        row: list[list] = []
+        for strip in strips:
+            for seg in strip:
+                if seg.control or not seg.text:
+                    continue
+                st = seg.style
+                attrs = (hexcolor(st.color) if st else None, hexcolor(st.bgcolor) if st else None,
+                         bool(st and st.bold))
+                if row and tuple(row[-1][1:]) == attrs:
+                    row[-1][0] += seg.text
+                else:
+                    row.append([seg.text, *attrs])
+        rows.append(row)
+    return rows
+
+
+def no_blink(app) -> None:
+    """A text input's cursor blinks on a wall-clock timer: held on."""
+    from textual.widgets import Input
+
+    for w in app.query(Input):
+        w.cursor_blink = False
+    for screen in app.screen_stack:
+        for w in screen.query(Input):
+            w.cursor_blink = False
+
+
+class Shots:
+    def __init__(self):
+        self.files: dict[str, dict] = {}
+
+    async def add(self, file: str, source: str, size: tuple[int, int], name: str, app, pilot) -> None:
+        await pilot.pause()
+        no_blink(app)
+        await pilot.pause()
+        doc = self.files.setdefault(file, {"source": source, "size": list(size), "screens": {}})
+        assert doc["size"] == list(size) and name not in doc["screens"], (file, name)
+        doc["screens"][name] = dump(app)
+
+
+def fresh_store(work: Path, name: str):
+    """A new, empty inbox database for one scenario (migrated, as the popup leaves it)."""
+    from herdr_inbox.store import Store
+
+    os.environ["HERDR_INBOX_DB"] = str(work / f"{name}.db")
+    return Store(migrate=True)
+
+
+def callers():
+    from herdr_inbox.service import Caller
+
+    billing = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="Billing API", session_id=SID % 1, cwd="/r")
+    search = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="Search refactor", session_id=SID % 2, cwd="/r")
+    docs = Caller(pane_id="w1:p3", tab_id="w1:t3", tab_label="Docs site", session_id=SID % 3, cwd="/r")
+    return billing, search, docs
+
+
+DB = [{"label": "Postgres", "description": "keeps the current ORM and migrations"},
+      {"label": "SQLite", "description": "single file, no server"}, {"label": "DuckDB"}]
+
+
+# The held instant: every row's age is shown as of this time (see hold_clock).
+HELD = "2026-10-17T12:00:00+00:00"
+
+
+def hold(store) -> None:
+    """Fixed ``created_at`` for every row: Q<n> was asked 7 * n minutes before HELD, alert A<n>
+    raised 3 * n hours before it."""
+    from datetime import datetime, timedelta
+
+    held = datetime.fromisoformat(HELD)
+    for table, step in (("questions", timedelta(minutes=7)), ("alerts", timedelta(hours=3))):
+        for (rid,) in store.db.execute(f"SELECT id FROM {table}").fetchall():
+            stamp = (held - step * rid).isoformat(timespec="seconds")
+            store.db.execute(f"UPDATE {table} SET created_at = ? WHERE id = ?", (stamp, rid))
+
+
+def hold_clock() -> None:
+    """The popup shows ages (``tui._age``, cli._age's formatting) as of HELD: the real code
+    formats them, only the instant it measures from is held (shifted by now - HELD)."""
+    from datetime import datetime, timezone
+
+    from herdr_inbox import cli, tui
+
+    held = datetime.fromisoformat(HELD)
+
+    def age(iso: str) -> str:
+        shift = datetime.now(timezone.utc) - held
+        return cli._age((datetime.fromisoformat(iso) + shift).isoformat())
+
+    tui._age = age
+
+
+def populate(store) -> None:
+    """tests/make_screenshots.py's demo data: three agents, one of them with a two-question group."""
+    from herdr_inbox import service
+
+    billing, search, docs = callers()
+    service.ask(store, search, "Merge PR #42 with a merge commit or squash?", options=["merge commit", "squash"],
+                header="Merge mode", asked_by="reviewer")                                              # Q1
+    service.ask_group(store, billing, [
+        {"question": "Which database should the invoice store use?", "header": "DB choice", "options": DB},
+        {"question": "Which caches should the API warm on deploy?", "header": "Cache", "multi_select": True,
+         "options": ["redis", "in-process", "CDN"]}], context="Invoice rows ~1M/day", asked_by="planner",
+        title="Invoice storage and caching")                                                            # Q2, Q3
+    service.ask(store, docs, "Publish the v2 docs now or after the release?", options=["now", "after"],
+                header="Rollout")                                                                       # Q4
+
+
+async def popup_screens(shots: Shots, work: Path) -> None:
+    from herdr_inbox import alerts, service
+    from herdr_inbox.tui import InboxApp
+
+    billing, search, docs = callers()
+    size = (110, 30)
+    src = "InboxApp (the popup) over tests/make_screenshots.py's demo data, focus pane w1:p1"
+
+    store = fresh_store(work, "empty")
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add("popup", src, size, "empty", app, pilot)
+    store.close()
+
+    store = fresh_store(work, "demo")
+    populate(store)
+    # an earlier answer that could not be delivered: its own ⚠ entry in the list
+    late = service.ask(store, docs, "Bump the docs build timeout to 90 s?", options=["yes", "no"],
+                       header="Timeout")["id"]                                                         # Q5
+    store.set_answer(late, "yes", {"choices": ["yes"]})
+    store.record_delivery(late, "no live agent in the pane")
+    service.save_draft(store, 2, {"choices": ["SQLite"]})
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add("popup", src, size, "list", app, pilot)
+        await pilot.press("down")
+        await shots.add("popup", src, size, "list, cursor on the second row", app, pilot)
+        await pilot.press("up", "enter", "left")  # opens on the first blank (Cache); back to DB choice
+        await shots.add("popup", src, size, "group: DB choice tab (drafted)", app, pilot)
+        await pilot.press("right")
+        await shots.add("popup", src, size, "group: Cache tab (multi-select)", app, pilot)
+        await pilot.press("space", "down", "space")
+        await shots.add("popup", src, size, "group: Cache, two picked", app, pilot)
+        await pilot.press("tab")
+        await shots.add("popup", src, size, "group: Submit tab", app, pilot)
+        await pilot.press("shift+tab", "shift+tab")
+        await pilot.press("n", *"no server to run")
+        await shots.add("popup", src, size, "group: note box open", app, pilot)
+        await pilot.press("escape")
+        await pilot.press("d")
+        await shots.add("popup", src, size, "dismiss confirmation", app, pilot)
+        await pilot.press("escape", "escape")
+        await shots.add("popup", src, size, "back on the list", app, pilot)
+        await pilot.press("down", "down", "down")
+        await shots.add("popup", src, size, "list, cursor on the ⚠ entry", app, pilot)
+        await pilot.press("enter")
+        await shots.add("popup", src, size, "⚠ entry opened", app, pilot)
+    store.close()
+
+    src = "InboxApp, one agent's lone question (opens straight into it)"
+    store = fresh_store(work, "single")
+    service.ask(store, billing, "Which database should the invoice store use?", options=DB, header="DB choice",
+                context="Invoice rows ~1M/day", asked_by="planner")
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add("popup", src, size, "single", app, pilot)
+        await pilot.press("down")
+        await shots.add("popup", src, size, "single, cursor on SQLite", app, pilot)
+        await pilot.press("4", "enter", *"MariaDB")
+        await shots.add("popup", src, size, "single, typing something else", app, pilot)
+    store.close()
+
+    src = "InboxApp, a question whose options carry previews"
+    store = fresh_store(work, "preview")
+    opts = [{"label": "Small", "description": "2 workers", "preview": '[worker]\nthreads = 2\nmemory = "1Gi"\ncpu = "500m"'},
+            {"label": "Large", "description": "8 workers", "preview": '[worker]\nthreads = 8\nmemory = "4Gi"\ncpu = "2"'},
+            {"label": "Custom"}]
+    service.ask(store, billing, "Which worker profile for the invoice exporter?", options=opts, header="Profile")
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add("popup", src, size, "preview", app, pilot)
+        await pilot.press("down", "down")
+        await shots.add("popup", src, size, "preview, no preview for Custom", app, pilot)
+    store.close()
+
+    src = "InboxApp, an alert next to a question"
+    store = fresh_store(work, "alerts")
+    alerts.raise_alert(store, search, "Deploy needs your eyes", "prod rollout paused at 50%", "urgent", "deployer")
+    service.ask(store, docs, "Publish the v2 docs now or after the release?", options=["now", "after"],
+                header="Rollout")
+    service.ask(store, search, "Keep the old query syntax as an alias?", options=["yes", "no"], header="Syntax")
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add("popup", src, size, "alert and questions", app, pilot)
+        await pilot.press("up", "enter")
+        await shots.add("popup", src, size, "alert opened", app, pilot)
+    store.close()
+
+    src = "InboxApp, questions arriving while the list is open (one poll)"
+    store = fresh_store(work, "arrivals")
+    populate(store)
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add("popup", src, size, "before arrivals", app, pilot)
+        service.ask(store, search, "Keep the old query syntax as an alias?", options=["yes", "no"], header="Syntax")
+        service.ask(store, docs, "Which landing page copy do you prefer?", options=["A", "B"], header="Copy")
+        hold(store)
+        app.poll()
+        await shots.add("popup", src, size, "after one poll", app, pilot)
+        service.close(store, 1, "withdrawn")
+        app.poll()
+        await shots.add("popup", src, size, "a row withdrawn by its agent", app, pilot)
+    store.close()
+
+    narrow = (40, 20)
+    src = "InboxApp at 40x20, a group of four questions (the tab row scrolls)"
+    store = fresh_store(work, "narrow")
+    service.ask_group(store, billing, [{"question": f"Question number {i}?", "header": f"Head{i}",
+                                        "options": ["yes", "no"]} for i in range(1, 5)], title="Four at once")
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=narrow) as pilot:
+        await shots.add("popup-narrow", src, narrow, "first tab", app, pilot)
+        await pilot.press("right", "right", "right")
+        await shots.add("popup-narrow", src, narrow, "fourth tab", app, pilot)
+        await pilot.press("right")
+        await shots.add("popup-narrow", src, narrow, "submit tab", app, pilot)
+    store.close()
+
+
+def capture_screens(out: Path, work: Path) -> list[Path]:
+    from tests.conftest import FakeHerdr
+
+    fake = FakeHerdr(work)
+    os.environ.update(HERDR_BIN_PATH=str(fake.bin), FAKE_HERDR_LOG=str(fake.log))
+    from herdr_inbox import tabs, tui
+
+    # as tests/conftest.py: logic tests press keys at once; the popup sends in its own thread
+    tui.ARM_SECONDS = 0.0
+    tui.ROW_ARM_SECONDS = 0.0
+    tui.LIVE_TAB_LABELS = False
+    tui.DETACHED_SEND = False
+    tui.ENABLE_BACKGROUND = False
+    tui._tab_labels.clear()
+    tabs._config_dir.cache_clear()
+    hold_clock()
+    shots = Shots()
+    asyncio.run(popup_screens(shots, work))
+    written = []
+    for name, doc in shots.files.items():
+        doc["source"] += "; TZ=UTC; tools/capture_goldens.py"
+        path = out / "screens" / f"{name}.json"
+        write(path, doc)
+        written.append(path)
+    return written
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--out", type=Path, default=FIXTURES, help="write OUT/screens (default: %(default)s)")
+    p.add_argument("--only", choices=("screens",), help="one set (today the only one)")
+    args = p.parse_args(argv)
+    work = Path(tempfile.mkdtemp(prefix="inbox-goldens-"))
+    try:
+        isolate(work)
+        shutil.rmtree(args.out / "screens", ignore_errors=True)
+        written = capture_screens(args.out, work)
+        size = sum(f.stat().st_size for f in written)
+        print(f"{len(written)} files, {size // 1024} KiB under {args.out}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
