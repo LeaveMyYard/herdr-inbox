@@ -9,12 +9,14 @@
 - On start, and then every few minutes, the inbox re-checks the failed pile:
   - an answer found in any transcript of the conversation (its continuations, and older
     sessions resumed since) counts as delivered;
-  - one the agent saw another way, for example by answering it itself with `inbox answer`,
-    counts as seen.
+  - one the agent was given another way counts as seen. Only two things count: the result of its
+    own check_answers / list_my_questions call, or its own successful `inbox answer` run. Its
+    own text never counts.
   - Seen answers never show an error.
-- **Never twice:** before typing, including Send now, the inbox checks all those transcripts, so
-  an answer that already arrived is not typed again.
-- `inbox answer` run by the asking agent itself marks the answer seen at once.
+- **Never twice:** before typing, including Send now, the inbox checks all those transcripts for
+  our delivered text, so an answer that already arrived is not typed again.
+- `inbox answer` run by the asking agent itself (or its subagent) types nothing and never shows as
+  failed. The main thread still gets the answer from check_answers.
 - A question asked from a pane that has since moved is filed under the pane it runs in now.
 - **Answers for agents that are gone (your choice "Both"):** two or more show as one ⚠ row,
   `d` hides them all (check_answers still has them), and they leave the popup by themselves

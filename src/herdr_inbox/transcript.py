@@ -390,9 +390,16 @@ def own_answer_qids(command: str) -> set[int]:
         else:
             current.append(tok)
     segments.append(current)
-    inbox_vars, out = set(), set()
+    inbox_vars, out, elsewhere = set(), set(), False
     for tokens in segments:
         tokens = [t for t in (tokens[:1] and [tokens[0].lstrip("\n")]) + tokens[1:] if t]  # "&&\n$B" glues
+        # a CLI pointed at another database (a copy being replayed) answers THAT database's
+        # question: from such a setting on, nothing counts (final pass #44 L1)
+        sets = [_ASSIGN.match(t).group(1) for t in tokens if _ASSIGN.match(t)]
+        if any(name in ("HERDR_INBOX_DB", "XDG_STATE_HOME") for name in sets):
+            elsewhere = True
+        if elsewhere:
+            continue
         if len(tokens) == 1 and _ASSIGN.match(tokens[0]):
             name, value = _ASSIGN.match(tokens[0]).groups()
             if value == "inbox" or value.endswith("/inbox"):

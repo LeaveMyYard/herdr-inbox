@@ -202,7 +202,10 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
             if q is None:
                 print(f"Q{args.id} is not open", file=sys.stderr)
                 return 1
-            store.acknowledge([q.id])
+            # nothing to type and never a failure, but NOT seen: a subagent shares this
+            # session id, and the main thread must still get it from check_answers or the
+            # compact/resume listing (final pass #44 H1)
+            store.mark_landed(q.id, acknowledge=False)
             print(f"{q.ref} answered by its own conversation: nothing to deliver")
             return 0
         q = service.answer(store, args.id, " ".join(args.text))

@@ -265,7 +265,13 @@ def test_the_cli_answer_from_the_asking_conversation_is_seen_at_once(store, fake
     fake_herdr.reset()
     assert main(["answer", str(qid), "Keep as built, decided in chat"]) == 0
     q = store.get(qid)
-    assert q.status == "answered" and q.acknowledged_at and q.delivery_error is None
+    # final pass H1: delivered (nothing to type, never a failure) but NOT seen: a subagent
+    # (same CLAUDE_CODE_SESSION_ID) relaying it must not hide it from the main thread
+    assert q.status == "answered" and q.delivered_at and q.verified_at and q.delivery_error is None
+    assert q.acknowledged_at is None
+    assert [x.id for x in store.unacknowledged_answers(NEW, None)] == [qid]  # check_answers returns it
+    assert store.failed_deliveries() == [] and not fake_herdr.calls_of("agent", "prompt")
+    worker.tick(store)
     assert not fake_herdr.calls_of("agent", "prompt")
 
 
@@ -473,3 +479,15 @@ def test_r3_the_captured_multi_answer_command_counts_every_question():
            '$B answer 165 "(a) as built (allowance / week); log it" &&\n'
            '$B answer 166 "x | y"')
     assert transcript.own_answer_qids(cmd) == {159, 160, 165, 166}
+
+
+
+@pytest.mark.parametrize("command", [
+    'HERDR_INBOX_DB=~/copy.db inbox answer {n} "x"',
+    'XDG_STATE_HOME=/tmp/s ~/.venv/bin/inbox answer {n} "x"',
+    'export HERDR_INBOX_DB=~/copy.db\ninbox answer {n} "x"',
+    'HERDR_INBOX_DB=~/copy.db && inbox answer {n} "x"',
+])
+def test_final_an_answer_against_another_database_is_not_own(command):
+    """Final pass L1: replaying against a copied DB prints `Q<n> answered` for the copy."""
+    assert transcript.own_answer_qids(command.format(n=158)) == set()
