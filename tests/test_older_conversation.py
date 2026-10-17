@@ -188,6 +188,7 @@ def test_the_cli_answer_from_a_resumed_older_session_is_not_the_askers_own(store
 
     continued_then_resumed()
     write(OLD, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": "back"}}])
+    store.record_session(OLD, str(tdir() / f"{OLD}.jsonl"))  # its SessionStart hook ran
     qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", NEW, "/r"), "Relay the operator's call?")["id"]
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", OLD)
     monkeypatch.setenv("FAKE_HERDR_SESSION", NEW)  # the asker runs in its pane
