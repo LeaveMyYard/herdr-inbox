@@ -79,6 +79,49 @@ argument carries the agent's own description of itself (e.g. "reviewer PR 42").
 (`open` | `answered` | `dismissed` | `withdrawn`), `answer`, `answered_at`,
 `delivered_at`, `delivery_error`, `acknowledged_at`, `repeat_count`.
 
+### Schema revision
+
+`PRAGMA user_version` holds the schema revision, `store.MIGRATION_REVISION`, as
+`REVISION_BASE + revision` (`REVISION_BASE` = -2^31). Bump the revision whenever the schema or
+`Store._migrate` changes; the Rust port shares the number. CI enforces the bump:
+`test_schema_migrations.py` pins a fingerprint of the schema each revision migrates a fresh
+database to (`store.reference_schema()`), so a schema change without a bump fails the suite
+instead of leaving every installed database unmigrated. Comment edits do not change it. A step
+that only matters for older databases (a data fix) needs a bump by hand.
+
+- **Why the sign bit.** Releases up to 0.10.5 stamped `crc32(schema + Store._migrate source)
+  & 0x7FFFFFFF`, always 0 to 2^31-1. A revision is negative, so no legacy crc32 can read as a
+  revision, let alone as a higher one.
+- **Only the delivery worker and the popup migrate** (`Store(migrate=True)`), and only forward:
+  - any stamp that is not a revision (a legacy crc32, or 0 on a fresh or pre-stamp database)
+    is migrated forward, idempotently, under `BEGIN IMMEDIATE` with the re-check;
+  - a stamp of a higher revision is never lowered and never migrated again.
+- **Every other open never migrates and never writes the stamp:** hooks (including hook
+  delivery), the asyncRewake watcher, MCP tools, the CLI, export/apply and helper threads.
+  On a stamp below this revision (or a legacy one) they check read-only that every table,
+  column, index, trigger and the view exist. If anything is missing, the open raises
+  `SchemaNotReady`, and the caller does nothing:
+  - a hook prints nothing and exits 0 (SessionStart still prints the rules);
+  - the watcher keeps watching;
+  - an MCP tool starts the worker, retries for about 3 s, then returns
+    `{"status": "unavailable"}`;
+  - a CLI command starts the worker and exits 1, `sync-tokens` (herdr's startup command)
+    exits 0;
+  - export/apply start that machine's worker and answer an error that the pulling worker
+    backs off on.
+- The non-migrating check compares against `reference_schema()`: the schema this code's own
+  migration produces in an in-memory database, built once per process (about 2 ms), and only
+  on a stale stamp.
+- **Pre-bridge processes** (0.10.5 MCP servers still running) re-stamp their crc32 on every
+  open. Each such stamp costs the worker one idempotent pass at its next tick. The bridge's
+  hooks and tools do not care, because the schema is all there.
+- The worker migrates once before it starts its remote thread.
+- **A stamp can still go down, harmlessly.** A higher revision overwritten by a pre-bridge
+  crc32 is "unknown" again, and a lower-revision worker or popup then migrates forward and
+  stamps its own revision. That pass is idempotent and drops nothing. The higher-revision
+  worker re-stamps on its next tick. Before P5 Rust never raises the revision beyond what this
+  bridge knows (plan §5.4), so the case does not arise in practice.
+
 ## MCP tools
 
 All tools are non-blocking and return immediately.
@@ -825,11 +868,12 @@ change:
   background tab-label job, opened a `Store` that re-ran the schema script and the reconcile
   pass. Those are write transactions, so several connections in one process, plus the
   freshly spawned worker, waited on SQLite's busy handler for up to ~1 s.
-  - The database is now stamped (`PRAGMA user_version` = a hash of the schema and of
-    `Store._migrate`'s source), so a reopen does no schema work. The migration runs under
+  - The database is now stamped, so a reopen does no schema work. The migration runs under
     `BEGIN IMMEDIATE`, checks the stamp again once it holds the lock, and stamps in the
-    same transaction. Several servers opening an old database together (an upgrade with
-    many agent panes) serialize, and only the first one migrates.
+    same transaction. Several processes opening an old database together serialize, and
+    only the first one migrates.
+  - Since the P0b bridge the stamp is an integer revision, not a hash (see "Schema
+    revision" below).
   - Tool calls and background jobs open with `maintenance=False` and skip reconcile; the
     worker reconciles every tick.
   - Bench, `ask_operator` ms, before → after:
