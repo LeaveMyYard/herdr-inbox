@@ -221,3 +221,15 @@ def test_rewake_files_use_the_canonical_id(store, fake_herdr):
 
     hex_id = "abcdef01-2345-4abc-8def-0123456789ab"
     assert rewake._owner_path(hex_id.upper()).name == f"{hex_id}.owner"
+
+
+def test_chain_keeps_the_known_path_for_an_id_in_another_case(tmp_path, monkeypatch):
+    """Review #47 L5: the recorded transcript path (outside the projects dir here) belongs to the
+    first session whatever the case of its id."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "elsewhere"))
+    hex_id = "abcdef01-2345-4abc-8def-0123456789ab"
+    m = Project(tmp_path / "projects").main(hex_id)
+    m.prompt(BASE, "work")
+    continued(m, BASE + 10)
+    m.write()
+    assert transcript.chain(hex_id.upper(), str(m.path)) == [hex_id, NEXT]
