@@ -666,3 +666,18 @@ async def test_popup_acknowledges_a_remote_alert(store, remote_db, fake_herdr):
         assert app.mode == "list"
     assert store.db.execute("SELECT action, state FROM remote_outbox").fetchone()[:] == ("ack_alert", "queued")
     assert not fake_herdr.calls_of("agent", "focus") and not fake_herdr.calls_of("agent", "prompt")
+
+
+def test_issue_55_a_machine_whose_name_starts_with_q_is_deep_linked(store, remote_db, fake_herdr, monkeypatch):
+    """`inbox open --question qnap:Q12` wrote `nap:Q12` (lstrip("Qq")): the machine was never found."""
+    from herdr_inbox import cli, deeplink
+
+    qm = {**M, "label": "qnap"}
+    monkeypatch.setattr(remote, "machines", lambda: [qm])
+    q = service.ask(remote_db, A, "Remote?", options=["yes"])["id"]
+    remote.pull(store, qm)
+    monkeypatch.setattr(remote, "enabled_machines", lambda ttl=60.0: [qm])
+    assert cli.main(["open", "--question", f"qnap:Q{q}"]) == 0
+    value = json.loads(deeplink.request_path().read_text())["value"]
+    assert value == f"qnap:{q}"
+    assert deeplink.resolve(store, {"kind": "question", "value": value})[0][0] == "remote"
