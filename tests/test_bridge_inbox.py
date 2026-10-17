@@ -296,7 +296,9 @@ def test_without_procfs_a_walk_reads_the_process_table_once(monkeypatch):
 
     chain = [(100, 101, "python3", "python3 -I hooks.py"), (101, 102, "zsh", "zsh"),
              (102, 103, "2.1.301", "/Users/u/.local/share/claude/versions/2.1.301 -p"),
-             (103, 104, "bash", "bash -c x"), (104, 105, "/Users/u/.local/bin/claude", "/Users/u/.local/bin/claude"),
+             (103, 104, "bash", "bash -c x"),
+             # a command name with a space: only the comm column (the rest of its line) names it
+             (104, 105, "/Users/u/My Tools/claude", "/Users/u/My Tools/claude"),
              (105, 1, "/bin/zsh", "-zsh")]
     calls = []
 
