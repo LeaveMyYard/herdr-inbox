@@ -336,10 +336,19 @@ def test_r1_b3_reconcile_never_reads_an_unrelated_conversation_in_a_reused_pane(
     assert r.acknowledged_at is None and [x.id for x in store.failed_deliveries()] == [q.id]
 
 
+def tool_use(name, inp, use_id="t", at=None):
+    return {"type": "assistant", "timestamp": at or st.now(), "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "id": use_id, "name": name, "input": inp}]}}
+
+
+CHECK_ANSWERS = "mcp__plugin_herdr-inbox_herdr-inbox__check_answers"
+
+
 def test_r1_check_answers_output_in_a_related_session_is_evidence(store, fake_herdr):
     q = filed(store, "w6:p48", NEW, "Short one?", "yes")
     as_stored(store, q.id, GONE_P48)
-    write(NEW, [tool_result(json.dumps({"answers": [{"id": q.id, "question": q.question, "answer": "yes"}]}))])
+    write(NEW, [tool_use(CHECK_ANSWERS, {}),
+                tool_result(json.dumps({"answers": [{"id": q.id, "question": q.question, "answer": "yes"}]}))])
     worker.tick(store)
     assert store.get(q.id).acknowledged_at
 
@@ -358,3 +367,47 @@ def test_r1_the_evidence_scan_reads_each_transcript_once(store, fake_herdr, monk
     monkeypatch.setattr("builtins.open", counting)
     assert not transcript.seen_answer(path, 7, "q", "a long enough answer", None)
     assert reads == []  # unchanged file: answered from the index, nothing read
+
+
+
+# -- review round 2 (#44): evidence only from the conversation's OWN inbox tool calls ---------
+
+def test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence(store, fake_herdr):
+    """The agent reads the operator's terminal / a log that shows `Q12 answered, …`."""
+    q = filed(store, "w6:p48", NEW, "Quoted elsewhere?", "a long answer value here")
+    as_stored(store, q.id, GONE_P48)
+    write(NEW, [tool_use("Bash", {"command": "herdr pane read w6:p3F --source recent"}, "u1"),
+                {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": "u1",
+                     "content": f"$ inbox answer {q.id} x\nQ{q.id} answered, pending: busy: the agent is working"}]}}])
+    worker.tick(store)
+    assert [r.id for r in store.failed_deliveries()] == [q.id]
+
+
+def test_r2_json_the_agent_printed_itself_is_not_evidence(store, fake_herdr):
+    q = filed(store, "w6:p48", NEW, "Echoed json?", "yes")
+    as_stored(store, q.id, GONE_P48)
+    body = json.dumps({"id": q.id, "answer": "yes"})
+    write(NEW, [tool_use("Bash", {"command": f"echo '{body}'"}, "u2"),
+                {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": "u2", "content": body}]}}])
+    worker.tick(store)
+    assert [r.id for r in store.failed_deliveries()] == [q.id]
+
+
+def test_r2_a_same_size_rewrite_is_re_indexed(fake_herdr):
+    path = tdir() / "rewrite.jsonl"
+    a = tool_use(CHECK_ANSWERS, {}, "u3", "2026-10-17T10:00:00Z")
+    r1 = {"type": "user", "timestamp": "2026-10-17T10:00:01Z", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "u3", "content": json.dumps({"answers": [{"id": 7, "answer": "aaaa"}]})}]}}
+    path.write_text(json.dumps(a) + "\n" + json.dumps(r1) + "\n")
+    assert transcript.seen_answer(path, 7, "q", "aaaa", None)
+    import os
+    import time
+
+    text = path.read_text().replace("aaaa", "bbbb")
+    time.sleep(0.01)
+    path.write_text(text)  # same size, other content
+    os.utime(path)
+    assert not transcript.seen_answer(path, 7, "q", "aaaa", None)
+    assert transcript.seen_answer(path, 7, "q", "bbbb", None)
