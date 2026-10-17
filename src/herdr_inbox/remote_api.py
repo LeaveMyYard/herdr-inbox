@@ -14,7 +14,7 @@ import uuid
 from datetime import timedelta
 
 from . import service
-from .store import Question, Store, VIEW, now
+from .store import Question, SchemaNotReady, Store, VIEW, now
 
 EXPORT_VERSION = 1
 RECENT = timedelta(days=7)
@@ -209,8 +209,12 @@ def run_cli(command: str, raw: str) -> tuple[int, dict]:
             raise ValueError("not an object")
     except ValueError as exc:
         return 1, {"error": f"bad request: {exc}"}
-    if command == "export":
-        with Store(timeout=5, maintenance=False) as store:  # no data writes from a pull
-            return 0, export(store, request)
-    with Store(timeout=5, maintenance=False) as store:
-        return 0, apply(store, request)
+    try:  # never migrates (store.py): this machine's worker does
+        if command == "export":
+            with Store(timeout=5, maintenance=False) as store:  # no data writes from a pull
+                return 0, export(store, request)
+        with Store(timeout=5, maintenance=False) as store:
+            return 0, apply(store, request)
+    except SchemaNotReady as exc:
+        service._ensure_worker()  # this machine's worker migrates; the next pull gets through
+        return 1, {"error": f"not ready: {exc}"}

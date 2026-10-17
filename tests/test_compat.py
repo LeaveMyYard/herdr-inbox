@@ -15,7 +15,7 @@ def test_v01_reads_and_writes_after_v02_migrated_and_wrote(tmp_path, fake_herdr)
     path = tmp_path / "inbox.db"
     old = v01.Store(path)
     legacy = old.insert("Old question?", options=["yes", "no"], pane_id="w1:p1", session_id="aaaaaaaa-0000-4000-8000-00000000000a")
-    new = store_v02.Store(path)  # 0.2 opens (and migrates) the same DB
+    new = store_v02.Store(path, migrate=True)  # 0.2's worker opens (and migrates) the same DB
     group = service.ask_group(new, A, [{"question": "DB?", "header": "DB", "options": [{"label": "pg", "description": "x"}],
                                         "multi_select": True}, {"question": "Cache?"}])
     ids = [q["id"] for q in group["questions"]]
@@ -41,13 +41,13 @@ def test_questions_table_keeps_the_v01_column_set(tmp_path, fake_herdr):
     path = tmp_path / "inbox.db"
     v01.Store(path).close()
     before = [r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(questions)")]
-    store_v02.Store(path).close()
+    store_v02.Store(path, migrate=True).close()
     after = [r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(questions)")]
     assert after == before
 
 
 def test_from_row_ignores_columns_it_does_not_know(tmp_path, fake_herdr):
-    s = store_v02.Store(tmp_path / "inbox.db")
+    s = store_v02.Store(tmp_path / "inbox.db", migrate=True)
     s.db.execute("ALTER TABLE questions ADD COLUMN added_in_v03 TEXT")  # a future version
     qid = service.ask(s, A, "Still readable?")["id"]
     assert s.get(qid).question == "Still readable?"
@@ -63,7 +63,7 @@ def test_views_are_versioned_and_older_ones_left_alone(tmp_path, fake_herdr):
     db.execute("CREATE VIEW questions_v2 AS SELECT id FROM questions")  # a pre-release definition
     db.commit()
     db.close()
-    store_v02.Store(path).close()
+    store_v02.Store(path, migrate=True).close()
     db = sqlite3.connect(path)
     views = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
     assert views == {store_v02.VIEW, "questions_v2"}

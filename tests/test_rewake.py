@@ -283,3 +283,35 @@ def test_a_watcher_delivery_never_writes_hook_seen_at(store, monkeypatch, tpath)
     assert store.get(qid).delivered_at
     row = store.db.execute("SELECT hook_seen_at, watch_seen_at FROM sessions WHERE session_id = 'aaaaaaaa-0000-4000-8000-00000000000a'").fetchone()
     assert row is None or row[0] is None
+
+
+# -- P0b: the watcher never migrates (store.py, MIGRATION_REVISION) ---------------------------
+
+from .compat_prebridge import (  # noqa: E402
+    CURRENT_PRE_BRIDGE, columns, make_older_head, schema_statements, set_stamp, stamp_of, traced)
+
+
+def test_the_watcher_on_a_pre_bridge_stamp_wakes_without_any_schema_work(store, monkeypatch, tpath):
+    qid = pending_answer(store, monkeypatch)
+    set_stamp(store.path, CURRENT_PRE_BRIDGE)
+    statements = traced(monkeypatch)
+    assert watch(tpath) == f"[inbox] Q{qid} answered — Which colour?: amber"
+    assert stamp_of(store.path) == CURRENT_PRE_BRIDGE
+    assert schema_statements(statements) == []
+
+
+def test_the_watcher_on_an_older_schema_waits_for_the_worker_to_migrate(store, monkeypatch, tpath):
+    """It neither migrates nor ends the watch: it wakes once the worker has migrated."""
+    from herdr_inbox.store import Store
+
+    qid = pending_answer(store, monkeypatch)
+    make_older_head(store.path)
+    seen = []
+
+    def on_sleep(n):
+        seen.append((stamp_of(store.path), "sending_at" in columns(store.path, "remote_outbox")))
+        if n == 3:
+            Store(store.path, migrate=True).close()  # the worker's next tick
+
+    assert watch(tpath, Clock(on_sleep)) == f"[inbox] Q{qid} answered — Which colour?: amber"
+    assert seen[:3] == [(CURRENT_PRE_BRIDGE, False)] * 3

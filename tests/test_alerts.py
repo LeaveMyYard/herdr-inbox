@@ -332,7 +332,7 @@ async def test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7(tmp_pat
     results = []
     for with_alert in (False, True):
         fake_herdr.reset()
-        with Store(tmp_path / f"{with_alert}.db") as store:
+        with Store(tmp_path / f"{with_alert}.db", migrate=True) as store:  # the popup migrates
             results.append(await _sequence(store, fake_herdr, keys, with_alert))
     assert results[0] == results[1]  # the same answer and the same focus, alert or not
     assert "w1:p1" not in results[1][1]  # never the blocked agent's pane

@@ -151,7 +151,7 @@ def test_a_remote_answer_in_flight_survives_the_continuation(store, fake_herdr, 
     from herdr_inbox import remote, remote_api
     from herdr_inbox.store import Store
 
-    remote_db = Store(tmp_path / "remote.db")
+    remote_db = Store(tmp_path / "remote.db", migrate=True)  # the remote's worker migrated it
     qid = service.ask(remote_db, Caller("w1:p1", "w1:t1", "tab", OLD, "/r"), "Remote, before the switch?")["id"]
     key = remote_api.qkey(remote_db, remote_db.get(qid))
     continued()

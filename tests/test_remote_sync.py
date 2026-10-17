@@ -45,7 +45,7 @@ sys.exit(subprocess.run([sys.executable, "-m", "herdr_inbox.cli", sub], env=env,
     script.chmod(0o755)
     monkeypatch.setenv("INBOX_SSH", str(script))
     monkeypatch.setattr(remote, "machines", lambda: [M])
-    store = Store(db)
+    store = Store(db, migrate=True)  # the remote machine's worker migrated it
     yield store
     store.close()
 
@@ -325,7 +325,7 @@ def test_bidi_overrides_and_line_separators_are_stripped():
     assert row["question"] == "pay evil ok next end" and row["options"][0]["label"] == "yes"
 
 
-def test_one_hung_machine_does_not_delay_the_others(fake_herdr, monkeypatch):
+def test_one_hung_machine_does_not_delay_the_others(migrated_db, fake_herdr, monkeypatch):
     import threading
     import time as _t
 
@@ -572,7 +572,7 @@ def test_l1_only_terminal_remote_failures_show_or_notify(store, remote_db, fake_
     assert len(fake_herdr.calls_of("notification", "show")) == 1
 
 
-def test_l2_the_sync_loop_runs_the_expiry_sweep(fake_herdr, monkeypatch):
+def test_l2_the_sync_loop_runs_the_expiry_sweep(migrated_db, fake_herdr, monkeypatch):
     swept = []
     monkeypatch.setattr(remote, "expire_sweep", lambda store: swept.append(1))
     monkeypatch.setattr(remote, "enabled_machines", lambda ttl=60.0: [])

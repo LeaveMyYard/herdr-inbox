@@ -28,7 +28,7 @@ async def test_tools_are_registered_with_guidance():
     assert set(tools["ask_operator"].input_schema["properties"]) == {"question", "options", "context", "asked_by", "header", "multi_select", "questions", "title"}
 
 
-async def test_full_round_trip_through_registered_tools(fake_herdr, monkeypatch):
+async def test_full_round_trip_through_registered_tools(migrated_db, fake_herdr, monkeypatch):
     async with Client(mcp) as client:
         r = await call(client, "ask_operator", {"question": "Deploy to prod?", "options": ["yes", "no"],
                                                 "asked_by": "release agent"})
@@ -63,7 +63,7 @@ async def test_full_round_trip_through_registered_tools(fake_herdr, monkeypatch)
     assert Store().get(1).session_id == "aaaaaaaa-0000-4000-8000-00000000000a"
 
 
-async def test_withdraw_question(fake_herdr):
+async def test_withdraw_question(migrated_db, fake_herdr):
     async with Client(mcp) as client:
         await call(client, "ask_operator", {"question": "Which bucket?"})
         r = await call(client, "withdraw_question", {"id": 1, "reason": "found it in terraform"})
@@ -77,7 +77,7 @@ async def test_withdraw_question(fake_herdr):
     assert fake_herdr.calls_of("pane", "report-metadata")[-1][-2:] == ["--clear-token", "inbox_q"]
 
 
-async def test_cannot_withdraw_another_sessions_question(fake_herdr, monkeypatch):
+async def test_cannot_withdraw_another_sessions_question(migrated_db, fake_herdr, monkeypatch):
     async with Client(mcp) as client:
         await call(client, "ask_operator", {"question": "Which bucket?"})
         monkeypatch.setenv("FAKE_HERDR_SESSION", "bbbbbbbb-0000-4000-8000-00000000000b")  # e.g. after /clear
@@ -86,7 +86,7 @@ async def test_cannot_withdraw_another_sessions_question(fake_herdr, monkeypatch
         assert (await call(client, "list_my_questions"))["questions"] == []
 
 
-async def test_session_change_is_resolved_per_call(fake_herdr, monkeypatch):
+async def test_session_change_is_resolved_per_call(migrated_db, fake_herdr, monkeypatch):
     async with Client(mcp) as client:
         await call(client, "ask_operator", {"question": "Which bucket?"})
         monkeypatch.setenv("FAKE_HERDR_SESSION", "bbbbbbbb-0000-4000-8000-00000000000b")
@@ -94,7 +94,7 @@ async def test_session_change_is_resolved_per_call(fake_herdr, monkeypatch):
         assert r["status"] == "open" and r["id"] == 2  # new conversation, not a repeat
 
 
-async def test_claude_session_env_is_the_fallback(fake_herdr, monkeypatch):
+async def test_claude_session_env_is_the_fallback(migrated_db, fake_herdr, monkeypatch):
     monkeypatch.setenv("FAKE_HERDR_SESSION", "")  # herdr knows the pane but not the session
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "claude-sess")
     async with Client(mcp) as client:
@@ -103,7 +103,7 @@ async def test_claude_session_env_is_the_fallback(fake_herdr, monkeypatch):
 
 
 @pytest.mark.parametrize("mode", ["legacy", "auto"])
-async def test_stdio_server_end_to_end(fake_herdr, mode):
+async def test_stdio_server_end_to_end(migrated_db, fake_herdr, mode):
     """Spawn `inbox mcp` as a real subprocess and talk MCP over its stdin/stdout."""
     env = {k: os.environ[k] for k in ("HERDR_BIN_PATH", "FAKE_HERDR_LOG", "HERDR_INBOX_DB", "HERDR_PANE_ID", "PATH")}
     params = StdioServerParameters(command=sys.executable, args=["-m", "herdr_inbox.cli", "mcp"], env=env)
@@ -122,3 +122,50 @@ async def test_stdio_server_end_to_end(fake_herdr, mode):
     q = Store().get(1)
     assert (q.pane_id, q.tab_label, q.session_id, q.context) == ("w1:p1", "my-tab", "aaaaaaaa-0000-4000-8000-00000000000a", "e2e test")
     assert fake_herdr.calls_of("notification", "show")
+
+
+# -- P0b: MCP tools never migrate (store.py, MIGRATION_REVISION) ------------------------------
+
+from herdr_inbox import server  # noqa: E402
+
+from .compat_prebridge import (  # noqa: E402
+    CURRENT_PRE_BRIDGE, columns, make_older_head, schema_statements, set_stamp, stamp_of, traced)
+
+
+async def test_tools_on_a_pre_bridge_stamp_work_without_any_schema_work(migrated_db, fake_herdr, monkeypatch):
+    path = Store().path
+    set_stamp(path, CURRENT_PRE_BRIDGE)
+    statements = traced(monkeypatch)
+    async with Client(mcp) as client:
+        assert (await call(client, "ask_operator", {"question": "Stale stamp?"}))["status"] == "open"
+        assert (await call(client, "list_my_questions"))["questions"][0]["question"] == "Stale stamp?"
+        assert (await call(client, "alert_operator", {"title": "Look"}))["status"] == "open"
+    assert stamp_of(path) == CURRENT_PRE_BRIDGE
+    assert statements and schema_statements(statements) == []
+
+
+async def test_tools_on_an_older_schema_return_the_unavailable_receipt(migrated_db, fake_herdr, monkeypatch):
+    path = Store().path
+    make_older_head(path)
+    monkeypatch.setattr(server, "BUSY_BACKOFF", (0.0, 0.0, 0.0))
+    started = []
+    monkeypatch.setattr(server, "_ensure_worker", lambda: started.append(1))
+    async with Client(mcp) as client:
+        for name, args in (("ask_operator", {"question": "Too early?"}), ("check_answers", {}),
+                           ("list_my_questions", {}), ("withdraw_question", {"id": 1, "reason": "x"}),
+                           ("alert_operator", {"title": "Look"}), ("withdraw_alert", {"id": 1})):
+            assert await call(client, name, args) == service.NOT_MIGRATED, name
+    assert started == [1] * 6  # once per call: the worker migrates
+    assert stamp_of(path) == CURRENT_PRE_BRIDGE
+    assert "sending_at" not in columns(path, "remote_outbox")
+    assert Store(path, migrate=True).list(include_closed=True) == []  # nothing was filed
+
+
+async def test_a_tool_waits_briefly_for_the_worker_it_started(migrated_db, fake_herdr, monkeypatch):
+    """A fresh install: the first ask_operator can come before the worker's first tick."""
+    path = Store().path
+    make_older_head(path)
+    monkeypatch.setattr(server, "BUSY_BACKOFF", (0.0, 0.0, 0.0))
+    monkeypatch.setattr(server, "_ensure_worker", lambda: Store(path, migrate=True).close())
+    async with Client(mcp) as client:
+        assert (await call(client, "ask_operator", {"question": "Just in time?"}))["status"] == "open"

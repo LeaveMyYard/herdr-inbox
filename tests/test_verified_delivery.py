@@ -122,7 +122,7 @@ def test_receipt_and_hook_mention_check_answers():
     assert "If one seems overdue, call check_answers" in SESSION_RULES and len(SESSION_RULES.split()) < 250
 
 
-async def test_receipt_mentions_check_answers(fake_herdr):
+async def test_receipt_mentions_check_answers(migrated_db, fake_herdr):
     from mcp import Client
 
     from herdr_inbox.server import mcp
@@ -156,7 +156,7 @@ def test_migration_uses_the_verifier(tmp_path, fake_herdr, live_session):
     """M1 (review of #9): only answers missing from the transcript are un-seen; the ones that
     did land (like Q22/Q26 in the live transcript) are marked verified instead."""
     path = tmp_path / "old.db"
-    store = Store(path)
+    store = Store(path, migrate=True)
     landed, lost = ask(store, "Landed?"), ask(store, "Lost?")
     for qid in (landed, lost):
         store.set_answer(qid, "yes")
@@ -253,7 +253,7 @@ def test_seven_day_sweep_continues_past_one_batch(tmp_path, fake_herdr, live_ses
 
     monkeypatch.setattr(store_mod, "RECONCILE_BATCH", 2)
     path = tmp_path / "old.db"
-    store = Store(path)
+    store = Store(path, migrate=True)
     ids = [ask(store, f"Q{i}?") for i in range(5)]
     for qid in ids:
         store.set_answer(qid, "yes")

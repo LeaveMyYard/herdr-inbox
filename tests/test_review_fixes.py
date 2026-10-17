@@ -113,7 +113,7 @@ def test_delivery_worker_retries_in_the_background(store, fake_herdr, monkeypatc
 
 # -- H2: outside herdr nothing is filed into an unwatched inbox ------------------
 
-async def test_ask_outside_herdr_says_ask_in_chat(fake_herdr, monkeypatch):
+async def test_ask_outside_herdr_says_ask_in_chat(migrated_db, fake_herdr, monkeypatch):
     monkeypatch.delenv("HERDR_PANE_ID")
     async with Client(mcp) as client:
         r = (await client.call_tool("ask_operator", {"question": "Outside herdr?"})).structured_content
