@@ -17,6 +17,13 @@ def _age(iso: str) -> str:
     return f"{max(secs, 0)}s"
 
 
+
+def _question_id(value: str) -> int:
+    """argparse type for ``Q12``/``q12``/``12`` (deeplink.question_id, #55)."""
+    from .deeplink import question_id
+
+    return question_id(value)
+
 RADAR_MESSAGES = {
     "changed": "$inbox_q {verb} herdr-radar's sidebar rows in {path} (backup: config.toml.inbox-bak); herdr reloaded",
     "unchanged": "nothing to change: herdr-radar's sidebar rows in {path} are already as asked",
@@ -47,12 +54,12 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
     p = sub.add_parser("list", help="print questions")
     p.add_argument("--all", action="store_true", help="include answered and closed questions")
     p = sub.add_parser("answer", help="answer a question and deliver it")
-    p.add_argument("id", type=lambda s: int(s.lstrip("Qq")))
+    p.add_argument("id", type=_question_id)
     p.add_argument("text", nargs="+")
     p = sub.add_parser("dismiss", help="close a question without answering")
-    p.add_argument("id", type=lambda s: int(s.lstrip("Qq")))
+    p.add_argument("id", type=_question_id)
     p = sub.add_parser("redeliver", help="deliver answered questions again (and make them unseen for check_answers)")
-    p.add_argument("ids", nargs="+", type=lambda s: int(s.lstrip("Qq")))
+    p.add_argument("ids", nargs="+", type=_question_id)
     p = sub.add_parser("sync-tokens", help="recompute sidebar tokens and tab-label counts")
     p.add_argument("--remove-prefixes", action="store_true", help="strip every tab prefix (before uninstalling)")
     p = sub.add_parser("radar-sidebar", help="show the ❓N count ($inbox_q) in herdr-radar's sidebar rows")
@@ -60,7 +67,7 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
     p = sub.add_parser("clean-venvs", help="remove old versions' MCP venvs, including ones from before 0.5.3")
     p.add_argument("--data", help="the plugin data dir (default: $CLAUDE_PLUGIN_DATA or ~/.claude/plugins/data/herdr-inbox-herdr-inbox)")
     p = sub.add_parser("deliver", help="deliver answered questions now (the popup's detached sender)")
-    p.add_argument("ids", nargs="+", type=lambda s: int(s.lstrip("Qq")))
+    p.add_argument("ids", nargs="+", type=_question_id)
     p.add_argument("--force", action="store_true", help="the operator's Send now: skip the busy grace and focus wait")
     p = sub.add_parser("verify", help="(internal) check a typed message landed and record it under its claims")
     p.add_argument("job")
@@ -189,7 +196,7 @@ def _command(args: argparse.Namespace, parser: argparse.ArgumentParser, stdin: s
                     print("the inbox popup is already open; close it and run this again", file=sys.stderr)
                     return 3
                 env[deeplink.NONCE_ENV] = deeplink.write_request(
-                    kind, value.lstrip("Qq") if kind == "question" else value, hold=not args.no_hold)
+                    kind, deeplink.question_ref(value) if kind == "question" else value, hold=not args.no_hold)
         err = herdr.open_popup(env)
         if err:
             print(f"could not open the inbox popup: {err}", file=sys.stderr)
