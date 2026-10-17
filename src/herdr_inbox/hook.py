@@ -37,6 +37,36 @@ If you need a decision from the human operator and can keep working without it, 
 # up after these and the hook prints what it has.
 PENDING_TIMEOUT = 0.2
 RECORD_TIMEOUT = 0.5
+BUSY_STEP = 0.01  # the wall-clock bounded retry's sleep between attempts (_bounded)
+
+
+def _bounded(connect, work, timeout: float = PENDING_TIMEOUT):
+    """``work(db)`` on a fresh ``connect()`` (opened with sqlite's own busy timeout at 0),
+    retried on a busy / locked DB until ``timeout`` seconds of WALL CLOCK have passed, then
+    the last sqlite3.Error is raised.
+
+    Not sqlite's busy timeout: that adds up the sleeps it asked for, not the time they took.
+    On macOS runners a 0.2 s busy timeout held the rules ~0.9 s on a locked DB (issue #45).
+    ``work`` may run more than once; everything it does must be safe to repeat."""
+    import sqlite3
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            db = connect()
+            try:
+                return work(db)
+            finally:
+                db.close()
+        except sqlite3.OperationalError as exc:
+            code = getattr(exc, "sqlite_errorcode", None)
+            busy = code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) if code is not None else (
+                "locked" in str(exc) or "busy" in str(exc))
+            left = deadline - time.monotonic()
+            if not busy or left <= 0:
+                raise
+            time.sleep(min(BUSY_STEP, left))
 
 
 def _pending(session_id: str) -> list[str]:
@@ -50,15 +80,11 @@ def _pending(session_id: str) -> list[str]:
     if not path.exists():
         return []
     try:
-        db = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
-        try:
-            rows = db.execute(
-                "SELECT id, status, question, answer FROM questions WHERE session_id = ?"
-                " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL)) ORDER BY id",
-                (session_id,),
-            ).fetchall()
-        finally:
-            db.close()
+        rows = _bounded(lambda: sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=0), lambda db: db.execute(
+            "SELECT id, status, question, answer FROM questions WHERE session_id = ?"
+            " AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL)) ORDER BY id",
+            (session_id,),
+        ).fetchall())
     except sqlite3.Error:
         return []
     lines = []
@@ -112,23 +138,20 @@ def _touch(session_id: str, column: str = "hook_seen_at") -> None:
         return
     stamp = datetime.now(timezone.utc)
     cutoff = (stamp - timedelta(seconds=LIVENESS_EVERY)).isoformat(timespec="seconds")
+    assert column in ("hook_seen_at", "watch_seen_at")
+
+    def stamp_it(db) -> None:  # an upsert of the same stamp: safe to repeat (_bounded)
+        with db:
+            db.execute(f"INSERT INTO sessions (session_id, {column}) VALUES (?, ?) ON CONFLICT(session_id)"
+                       f" DO UPDATE SET {column} = excluded.{column}",
+                       (session_id, stamp.isoformat(timespec="seconds")))
+
     try:  # the common case is a read-only look: the stamp is under a minute old
-        ro = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
-        try:
-            assert column in ("hook_seen_at", "watch_seen_at")
-            row = ro.execute(f"SELECT {column} FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
-        finally:
-            ro.close()
+        row = _bounded(lambda: sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=0), lambda ro: ro.execute(
+            f"SELECT {column} FROM sessions WHERE session_id = ?", (session_id,)).fetchone())
         if row and row[0] and row[0] >= cutoff:
             return  # fresh enough: no write, no writable connection
-        db = sqlite3.connect(str(path), timeout=PENDING_TIMEOUT)
-        try:
-            with db:
-                db.execute(f"INSERT INTO sessions (session_id, {column}) VALUES (?, ?) ON CONFLICT(session_id)"
-                           f" DO UPDATE SET {column} = excluded.{column}",
-                           (session_id, stamp.isoformat(timespec="seconds")))
-        finally:
-            db.close()
+        _bounded(lambda: sqlite3.connect(str(path), timeout=0), stamp_it)
     except sqlite3.Error:
         pass  # locked or not migrated yet: the next firing tries again
 
@@ -145,25 +168,24 @@ def _has_candidates(session_id: str) -> bool:
     path = db_path()
     if not path.exists():
         return False
+    from .store import MAX_HOOK_MISSES  # stdlib-light: not .service
+
+    # the same filter as Store.hook_candidates: rows at the miss cap or whose agent is
+    # gone never open the writable store (review #26 L2)
+    from .store import family
+
+    def look(db) -> bool:  # reads only: safe to repeat (_bounded)
+        # this session and those it continued, while their transcripts still say so
+        fam = family(db, session_id, lambda s: (db.execute(
+            "SELECT transcript_path FROM sessions WHERE session_id = ?", (s,)).fetchone() or [None])[0])
+        return db.execute(
+            f"SELECT 1 FROM questions WHERE session_id IN ({','.join('?' * len(fam))}) AND status = 'answered'"
+            " AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
+            " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1",
+            (*fam, MAX_HOOK_MISSES)).fetchone() is not None
+
     try:
-        db = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=PENDING_TIMEOUT)
-        try:
-            from .store import MAX_HOOK_MISSES  # stdlib-light: not .service
-
-            # the same filter as Store.hook_candidates: rows at the miss cap or whose agent is
-            # gone never open the writable store (review #26 L2)
-            from .store import family
-
-            # this session and those it continued, while their transcripts still say so
-            fam = family(db, session_id, lambda s: (db.execute(
-                "SELECT transcript_path FROM sessions WHERE session_id = ?", (s,)).fetchone() or [None])[0])
-            return db.execute(
-                f"SELECT 1 FROM questions WHERE session_id IN ({','.join('?' * len(fam))}) AND status = 'answered'"
-                " AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext"
-                " WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1",
-                (*fam, MAX_HOOK_MISSES)).fetchone() is not None
-        finally:
-            db.close()
+        return _bounded(lambda: sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=0), look)
     except sqlite3.Error:
         return False
 
