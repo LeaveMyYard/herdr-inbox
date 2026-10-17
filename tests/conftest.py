@@ -155,8 +155,11 @@ class FakeHerdr:
 def leaked_workers(root: Path) -> list[int]:
     """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
 
-    Cheap when nothing was spawned: worker.ensure() writes worker.log next to the database
-    before it starts one, so without that file there is nothing to look for."""
+    Covers the Python workers worker.ensure() starts (``python -m herdr_inbox.cli worker``),
+    not a successor started through uv or a Rust binary. Cheap when nothing was spawned:
+    ensure() writes worker.log next to the database before it starts one, so without that file
+    there is nothing to look for (tests/test_isolation.py spawns through ensure() to keep the
+    two tied)."""
     if not (root / "worker.log").exists():
         return []
     marker = f"HERDR_INBOX_DB={root}{os.sep}"

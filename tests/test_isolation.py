@@ -19,26 +19,33 @@ def test_the_fake_replaces_it(fake_herdr):
     assert "HERDR_SOCKET_PATH" not in os.environ
 
 
-def test_a_worker_left_running_is_found_by_the_teardown_guard(fake_herdr, tmp_path):
+
+def test_a_worker_left_running_is_found_by_the_teardown_guard(fake_herdr, tmp_path, monkeypatch):
     """fake_herdr's teardown fails a test whose real `inbox worker` outlives it
-    (test_stdio_server_end_to_end once left two per run): the guard finds exactly that one."""
-    import subprocess
-    import sys
+    (test_stdio_server_end_to_end once left two per run): a worker started the real way,
+    worker.ensure(), is found by the guard, exactly that one."""
+    import signal
     import time
+
+    from herdr_inbox import worker
 
     from .conftest import leaked_workers
 
     assert leaked_workers(tmp_path) == []
-    (tmp_path / "worker.log").touch()  # what worker.ensure() writes before it starts one
-    proc = subprocess.Popen([sys.executable, "-m", "herdr_inbox.cli", "worker"], stdin=subprocess.DEVNULL,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            env={**os.environ, "HERDR_INBOX_WORKER_IDLE_EXIT": "60"})
+    monkeypatch.delenv("HERDR_INBOX_NO_WORKER")
+    monkeypatch.setenv("HERDR_INBOX_WORKER_IDLE_EXIT", "60")
+    assert worker.ensure() is True
+    found, deadline = [], time.monotonic() + 10
     try:
-        deadline = time.monotonic() + 10
-        while leaked_workers(tmp_path) != [proc.pid]:
-            assert proc.poll() is None and time.monotonic() < deadline, leaked_workers(tmp_path)
+        while not found:
+            assert time.monotonic() < deadline, "the worker ensure() started was never found"
             time.sleep(0.05)
+            found = leaked_workers(tmp_path)
+        assert len(found) == 1
     finally:
-        proc.terminate()
-        proc.wait(timeout=10)
-    assert leaked_workers(tmp_path) == []
+        for pid in found:
+            os.kill(pid, signal.SIGTERM)
+    deadline = time.monotonic() + 10
+    while leaked_workers(tmp_path):
+        assert time.monotonic() < deadline, "the worker did not stop"
+        time.sleep(0.05)
