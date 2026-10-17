@@ -11,6 +11,10 @@ import json
 import os
 import sys
 
+from . import decision_trace  # stdlib only; inert outside tests
+
+_obs = decision_trace.note
+
 SESSION_RULES = """<herdr-inbox>
 You have a non-blocking question inbox to the human operator: the `ask_operator` MCP tool (server herdr-inbox).
 - Whenever you would ask the operator something in chat and can keep working meanwhile, call ask_operator instead. Make the question self-contained (the operator reads it without this chat). Like AskUserQuestion: choices in `options` (strings or `{label, description}`), a short `header`, `multi_select`, or up to 4 related questions at once via `questions` (then give the call a short `title`).
@@ -170,47 +174,61 @@ def deliver(payload: dict, liveness: bool = True) -> str | None:
     Same text as typing (``[inbox] Q7 answered — …``), one message per firing. Each row is
     claimed (CAS) and recorded as hook-sent BEFORE the text is printed; the delivery worker
     verifies it in the transcript, or puts it back to pending (DESIGN.md, "Hook delivery")."""
-    session = payload.get("session_id")
-    if not session or payload.get("agent_id"):
-        return None  # a subagent's or teammate's hook: the answer belongs to the session that asked
-    if liveness:  # the PostToolBatch/Stop hooks only; the rewake watcher stamps its own column
-        _touch(session)
-    if not _has_candidates(session):
-        return None
-    from . import herdr, service, transcript
-    from .store import SchemaNotReady, Store
+    frame = decision_trace.begin("hook", liveness=liveness)
+    try:
+        session = payload.get("session_id")
+        if not _obs(frame, "own_session", bool(session) and not payload.get("agent_id")):
+            return None  # a subagent's or teammate's hook: the answer belongs to the session that asked
+        if liveness:  # the PostToolBatch/Stop hooks only; the rewake watcher stamps its own column
+            _touch(session)
+        if not _obs(frame, "has_candidates", _has_candidates(session)):
+            return None
+        from . import herdr, service, transcript
+        from .store import SchemaNotReady, Store
 
-    try:  # never migrates: an older schema waits for the worker or the popup (store.py)
-        store = Store(timeout=RECORD_TIMEOUT, maintenance=False)
-    except SchemaNotReady:
-        return None
-    with store:
-        store.record_session(session, payload.get("transcript_path"))
-        qs = store.hook_candidates(session, service.MAX_HOOK_MISSES)
-        claims = {q.id: c for q in qs if (c := store.claim_delivery(q.id))}
-        qs = [q for q in qs if q.id in claims]
-        if not qs:
+        try:  # never migrates: an older schema waits for the worker or the popup (store.py)
+            store = Store(timeout=RECORD_TIMEOUT, maintenance=False)
+        except SchemaNotReady:
+            _obs(frame, "schema_ready", False)
             return None
-        path = transcript.find(session, payload.get("transcript_path"))
-        # a late landing, in any transcript of the conversation: recorded, never sent twice
-        landed = service.landed_across(store, qs, [path])
-        for q in qs:
-            if q.id in landed:
-                store.record_delivery(q.id, None, acknowledge=bool(landed[q.id] - {service.REFERENCE_INDEX}),
-                                      claim=claims[q.id], verified=True)
-        qs = [q for q in qs if q.id not in landed]
-        if not qs:
-            return None
-        text, batch, _ = service.delivery_messages(qs)[0]
-        for q in qs:
-            if q not in batch:  # the next firing carries it
-                store.release_claim(q.id, claims[q.id], q.delivery_error)
-        sent = [q for q in batch if store.record_hook_delivery(q.id, claims[q.id])]
-        if not sent:
-            return None
-        if len(sent) != len(batch):
-            text = service.delivery_messages(sent)[0][0]
-    return herdr.clean(text, limit=10**9)
+        with store:
+            store.record_session(session, payload.get("transcript_path"))
+            qs = store.hook_candidates(session, service.MAX_HOOK_MISSES)
+            decision_trace.track(frame, store, qs)
+            claims = {q.id: c for q in qs if (c := store.claim_delivery(q.id))}
+            if frame is not None:
+                for q in qs:
+                    frame.note("claimed", q.id in claims, [q.id])
+            qs = [q for q in qs if q.id in claims]
+            if not qs:
+                return None
+            path = transcript.find(session, payload.get("transcript_path"))
+            # a late landing, in any transcript of the conversation: recorded, never sent twice
+            landed = service.landed_across(store, qs, [path])
+            if frame is not None:
+                frame.note("transcript_known", path is not None)
+                for q in qs:
+                    frame.note("landed", landed.get(q.id), [q.id])
+            for q in qs:
+                if q.id in landed:
+                    store.record_delivery(q.id, None, acknowledge=bool(landed[q.id] - {service.REFERENCE_INDEX}),
+                                          claim=claims[q.id], verified=True)
+            qs = [q for q in qs if q.id not in landed]
+            if not qs:
+                return None
+            text, batch, _ = service.delivery_messages(qs)[0]
+            for q in qs:
+                _obs(frame, "in_this_message", q in batch, [q.id])
+                if q not in batch:  # the next firing carries it
+                    store.release_claim(q.id, claims[q.id], q.delivery_error)
+            sent = [q for q in batch if _obs(frame, "recorded", store.record_hook_delivery(q.id, claims[q.id]), [q.id])]
+            if not sent:
+                return None
+            if len(sent) != len(batch):
+                text = service.delivery_messages(sent)[0][0]
+        return herdr.clean(text, limit=10**9)
+    finally:
+        decision_trace.end(frame)
 
 
 def run(event: str) -> int:
