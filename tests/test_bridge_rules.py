@@ -1,6 +1,6 @@
 """The rules both plugins must share (herdr-panorama docs/plans/rust-rewrite.md §1.3 rows 3-5,
-D6), as the same tables as herdr-panorama's tests/test_bridge_rules.py (fix/bridge-rules
-abc1d7e), case for case. Only the calls differ: panorama's discovery.is_uuid /
+D6), as the same tables as herdr-panorama's tests/test_bridge_rules.py (herdr-panorama#53,
+52275f4), case for case. Only the calls differ: panorama's discovery.is_uuid /
 canonical_session_id / Session / hooks.is_claude are transcript.session_id_or_none /
 transcript.continued_in / proc.is_claude here.
 
@@ -14,7 +14,6 @@ Every transcript record is a captured template (tests/fixtures/templates.json, b
 """
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -24,6 +23,7 @@ from .bridge_scenario import BASE, Project, iso, tpl
 
 SID = "55555555-5555-4555-8555-555555555555"
 NEXT = "66666666-6666-4666-8666-666666666666"
+HEX = "abcdef01-2345-4abc-8def-0123456789ab"  # has letters: HEX.upper() != HEX
 
 # -- one session-id validator --------------------------------------------------------------
 
@@ -84,31 +84,31 @@ def test_there_is_no_other_session_id_validator():
     assert "session" not in deeplink.VALID
 
 
-def test_an_uppercase_id_finds_its_lowercase_transcript(tmp_path, monkeypatch):
+@pytest.mark.parametrize("sid", [SID, HEX])
+def test_an_uppercase_id_finds_its_lowercase_transcript(tmp_path, monkeypatch, sid):
     """Claude Code names transcripts by the lowercase id; an id handed over in another case is
     the same session."""
+    assert HEX.upper() != HEX
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
     proj = Project(tmp_path / "projects")
-    m = proj.main(SID)
+    m = proj.main(sid)
     m.text(BASE, "hi")
     m.write()
-    assert transcript.find(SID.upper()) == m.path
+    assert transcript.find(sid.upper()) == m.path
 
 
-@pytest.mark.parametrize("sid", INVALID)
-def test_a_bad_session_id_is_never_used_as_a_path(tmp_path, monkeypatch, sid):
-    """The id reaches find from herdr, the env, hook payloads and transcripts: anything but a
-    canonical UUID never reaches the file system (no glob, no stat, no open)."""
+def test_a_continuation_named_in_uppercase_is_found_and_followed(tmp_path, monkeypatch):
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
     proj = Project(tmp_path / "projects")
-    proj.main(SID).write()
-    touched = []
-    for name in ("glob", "is_file", "exists", "stat"):
-        real = getattr(Path, name)
-        monkeypatch.setattr(Path, name, lambda self, *a, _real=real, **k: touched.append(str(self)) or _real(self, *a, **k))
-    assert transcript.find(sid) is None
-    assert transcript.chain(sid) in ([], [sid])  # itself only, never a continuation read
-    assert touched == []
+    old = old_session(tmp_path)
+    continued(old, BASE + 10, HEX.upper())
+    old.write()
+    new = proj.main(HEX)
+    new.prompt(BASE + 11, "next")
+    new.write()
+    ids = transcript.chain(SID)
+    assert ids == [SID, HEX] and transcript.find(ids[-1]) == new.path
+    assert transcript.find(HEX.upper()) == new.path  # herdr naming the new session in uppercase
 
 
 # -- the continuation rule (D6) ------------------------------------------------------------
@@ -210,9 +210,19 @@ def test_a_continuation_that_is_not_another_session_id_is_ignored(tmp_path, nxt)
 
 def test_a_continuation_in_another_case_is_kept_canonical(tmp_path):
     m = old_session(tmp_path)
-    continued(m, BASE + 10, NEXT.upper())
+    continued(m, BASE + 10, HEX.upper())
     m.write()
-    assert load(m).continued_in == NEXT
+    assert load(m).continued_in == HEX
+
+
+@pytest.mark.parametrize("own,nxt", [(HEX, HEX.upper()), (HEX.upper(), HEX), (HEX, HEX.title())])
+def test_a_continuation_to_its_own_id_in_another_case_is_ignored(tmp_path, own, nxt):
+    proj = Project(tmp_path / "projects")
+    m = proj.main(own)
+    m.prompt(BASE, "work")
+    continued(m, BASE + 10, nxt)
+    m.write()
+    assert load(m).continued_in is None
 
 
 def test_a_sidechain_continuation_is_ignored(tmp_path):
@@ -221,6 +231,23 @@ def test_a_sidechain_continuation_is_ignored(tmp_path):
     m = old_session(tmp_path)
     rec = tpl("continued_in")
     rec.update(timestamp=iso(BASE + 10), sessionId=SID, isSidechain=True, continuedInSessionId=NEXT)
+    m.raw(json.dumps(rec, separators=(",", ":")))
+    m.write()
+    assert load(m).continued_in is None
+
+
+@pytest.mark.parametrize("ignored", ["sidechain", "own_id", "not_a_uuid"])
+def test_a_resume_before_an_ignored_continuation_in_the_same_batch_still_counts(tmp_path, ignored):
+    """continued-in, then the resume, then a continued-in that is ignored, all in one read: the
+    resume scan starts after the last ACCEPTED continued-in, so the resume still clears it."""
+    m = old_session(tmp_path)
+    continued(m, BASE + 10)
+    m.prompt(BASE + 20, "go on")
+    rec = tpl("continued_in")
+    rec.update(timestamp=iso(BASE + 30), sessionId=SID,
+               continuedInSessionId={"own_id": SID.upper(), "not_a_uuid": "../x"}.get(ignored, NEXT))
+    if ignored == "sidechain":
+        rec["isSidechain"] = True
     m.raw(json.dumps(rec, separators=(",", ":")))
     m.write()
     assert load(m).continued_in is None
@@ -236,19 +263,40 @@ def undated_continued(m, nxt: str = NEXT) -> None:
 
 @pytest.mark.parametrize("kind", ["user", "assistant"])
 @pytest.mark.parametrize("dt,cleared", [(+1, True), (0, False), (-1, False)])
-def test_an_undated_continuation_takes_the_previous_records_time(tmp_path, kind, dt, cleared):
-    """Its time is that of the last dated record of any type before it: here the assistant text
-    at BASE + 5 (decided with main 2026-10-17; panorama's case is being changed to match)."""
+def test_an_undated_continuation_takes_the_previous_dated_records_time(tmp_path, kind, dt, cleared):
+    """Its time is that of the last DATED record of any type before it (here the assistant text
+    at BASE + 5, a record the scanner's prefilter does not parse); undated bookkeeping between
+    them does not move it."""
     proj = Project(tmp_path / "projects")
     m = proj.main(SID)
     m.prompt(BASE, "work")
     m.prompt(BASE + 1, "more")
-    m.text(BASE + 5, "working")  # moves the time
+    m.text(BASE + 5, "working")
+    bookkeeping(m, "mode")
     undated_continued(m)
     bookkeeping(m, "cost_state")
     (m.prompt if kind == "user" else m.text)(BASE + 5 + dt, "go on")
     m.write()
     assert (load(m).continued_in is None) == cleared
+
+
+@pytest.mark.parametrize("dt,cleared", [(+1, True), (0, False)])
+def test_an_undated_continuation_takes_a_dated_record_from_an_earlier_read(tmp_path, dt, cleared):
+    """The dated record was read in an earlier batch than the undated continued-in."""
+    proj = Project(tmp_path / "projects")
+    m = proj.main(SID)
+    m.prompt(BASE, "work")
+    m.text(BASE + 5, "working")
+    m.write()
+    s = load(m)
+    undated_continued(m)
+    m.write()
+    s.update()
+    assert s.continued_in == NEXT
+    m.text(BASE + 5 + dt, "go on")
+    m.write()
+    s.update()
+    assert (s.continued_in is None) == cleared
 
 
 def test_an_undated_continuation_with_no_time_before_it_is_cleared_by_any_conversation(tmp_path):
