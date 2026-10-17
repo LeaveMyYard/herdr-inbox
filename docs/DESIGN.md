@@ -223,7 +223,41 @@ The agent resolved it itself; status `withdrawn`, removed from the operator's vi
   hands over to the new code (`uv run --project <root> inbox worker`). "Changed" means
   the checkout's `pyproject.toml` version differs from the running code's own package
   version. If no successor can be started (no checkout, no uv), the worker keeps serving
-  rather than respawning itself in a loop. The plugin root is cached.
+  rather than respawning itself in a loop. For this check and for the successor, the
+  root of herdr's own install is herdr's current `plugin_root` (`herdr plugin list
+  --json`, asked every time, never cached). herdr 0.9.4+ builds every `plugin update`
+  in a new directory and leaves running processes their old one, so the worker's own
+  checkout never shows an update; a linked checkout is listed at its own path, so there
+  nothing changes. "herdr's own install" means this code runs from no checkout, or its
+  checkout was the listed root on herdr's first answer to this process (the worker asks
+  at start). Any other copy (a dev worktree, a Claude-cache copy) talking to a server
+  that lists another checkout keeps its own checkout, as before: it never hands over to
+  other code, which could be older. Elsewhere the plugin root is cached.
+- **The worker exits when its herdr server is gone.** It is detached, so it holds no
+  herdr install lease, and nothing could be delivered anyway. Before every tick it
+  asks herdr (`workspace list`); only herdr's own `server_not_running` error counts
+  (a missing herdr binary, a timeout or any other error keeps it running; herdr 0.9.3
+  gives that code for a missing, stale or non-socket path, while a wedged server times
+  out). A gone reading skips the tick; the worker exits once every reading for
+  `SERVER_GONE_EXIT` (10 s, at least two) said gone, so a socket path missing for a
+  moment (a restart or handoff) does not end it. Before this, workers of exited servers
+  looped on that error and grew `worker.log` past 12 MB.
+- **Handover to the Rust worker (P0b of the Rust rewrite).** When the checkout has a Rust
+  binary, the successor is `<binary> worker` (cwd: the checkout) instead of uv. "Installed"
+  means an executable regular file (a symlink to one counts) at
+  `<root>/target/release/herdr-inbox` (a linked checkout's `cargo build --release`), else
+  `<root>/bin/herdr-inbox` (the release binary). It takes the same `worker-<key>.lock`.
+  The handover counts only once some worker holds that lock: a binary that exits without
+  it (a hooks-only build with no `worker` yet) falls back to the Python worker at once,
+  and one that has not taken it within 5 s is killed first (its whole process group,
+  after one last look at the lock). Either way the lock decides who runs, so the two
+  are never both live. Without a binary nothing changes.
+  **Contract for the Rust worker (P5):** the lock file is
+  `dirname(<db path>)/worker-<key>.lock`, where the DB path honours `HERDR_INBOX_DB` and
+  `<key>` is `sha1(<server>).hexdigest()[:12]`, `<server>` being `HERDR_SOCKET_PATH`, else
+  `${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`. It takes `LOCK_EX|LOCK_NB`, retrying
+  for about 200 ms (the handover probes the lock with an instant `LOCK_SH` every 50 ms)
+  before it concludes another worker runs, and then exits 0.
 - **Notification:** an answer still unseen 5 min after it was answered, or out of idle
   tries, raises one herdr notification per pane, once per answer (`notified_at`):
   - normally "Q49–Q52 not delivered to <tab>", which says the agent can fetch them
@@ -1181,8 +1215,9 @@ Code plugin.
   Other non-zero codes are non-blocking errors too. `uv run` exits 2 on its own
   failures: in a sibling plugin's review, 9 of 48 concurrent runs did so with two
   versions sharing one venv. The hooks are therefore exec-form
-  `sh -c 'python3 -I "$1" "$2" 2>/dev/null; exit 0' herdr-inbox-hook
-  ${CLAUDE_PLUGIN_ROOT}/hooks/run.py <event>`. `hooks/run.py` imports the
+  `sh -c 'sh "$1" "$2" "$3" 2>/dev/null; exit 0' herdr-inbox-hook
+  ${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/run.py <event>`,
+  and `run-hook.sh` runs `python3 -I run.py <event>` (see the next point). `hooks/run.py` imports the
   package from `src/`; the hook's import chain is stdlib only. `-I` keeps out
   user site, PYTHONPATH and the cwd. Only a python3 older than 3.11 hands over to
   `uv run` (with the version's venv), forwarding output only on success.
@@ -1190,6 +1225,18 @@ Code plugin.
   bad arguments, the old-Python fallback and two versions' hooks running
   concurrently. The fallback runs uv in its own process group and kills the
   whole group on timeout, so a grandchild holding stdout cannot outlive it.
+- **The interpreter is resolved once (P0b).** `python3` is often a version
+  manager's shim: pyenv's is a bash script that cost 60-75 ms on every
+  PostToolBatch and Stop here. `hooks/run-hook.sh` asks `python3` once for
+  `sys.executable`, caches it in `${CLAUDE_PLUGIN_DATA}/python-interpreter` and
+  runs it directly afterwards (one file read on the hot path). Only a 3.11+
+  interpreter is cached: pyenv chooses per directory, and a project pinned to an
+  older Python must not send every later session to the uv fallback. A cached
+  path that is not absolute, not named `python*`, or no longer an executable
+  file is re-resolved, so an uninstalled interpreter heals itself. No data dir,
+  an unwritable one, or a broken `python3` all end in plain `python3 -I run.py`.
+  The resolution reads no stdin and prints nothing; run.py's exit status passes
+  through (`exec`), so rewake's 3 still maps to 2. `tests/test_hook_interp.py`.
 - **The rules come out first.** The SessionStart hook builds its context and
   prints it before anything that writes. The compact/resume pending-question
   lookup is a read-only connection with a 0.2 s timeout; if it fails, the hook

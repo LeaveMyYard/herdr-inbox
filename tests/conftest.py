@@ -221,6 +221,9 @@ def _no_live_herdr(monkeypatch):
     for var in [v for v in os.environ if v.startswith("HERDR_")]:
         monkeypatch.delenv(var)
     monkeypatch.setenv("HERDR_BIN_PATH", NO_HERDR)
+    from herdr_inbox import herdr
+
+    monkeypatch.setattr(herdr, "_is_herdrs_install", None)  # decided per process: per test here
 
 
 @pytest.fixture(autouse=True)

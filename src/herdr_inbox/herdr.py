@@ -276,19 +276,87 @@ def server_id() -> str:
     return os.path.join(base, "herdr", "herdr.sock")
 
 
-@functools.cache
-def plugin_root() -> str | None:
-    """This inbox's own checkout (where herdr-plugin.toml is), never the caller's: `inbox
-    open` may run from another plugin's action, whose HERDR_PLUGIN_ROOT/ID are its own."""
+def _own_checkout() -> str | None:
+    """The checkout this code runs from (where herdr-plugin.toml is), if it runs from one."""
     here = Path(__file__).resolve()
     for parent in here.parents:
         if (parent / "herdr-plugin.toml").is_file() and (parent / "src" / "herdr_inbox").is_dir():
             return str(parent)
-    res, _ = call("plugin", "list", "--json")  # an installed (non-editable) copy
+    return None
+
+
+def _listed_root() -> str | None:
+    """The inbox's plugin_root as this herdr server lists it now (None: not listed, or no answer)."""
+    res, _ = call("plugin", "list", "--json")
     for p in (res or {}).get("plugins", []):
         if p.get("plugin_id") == INBOX_PLUGIN_ID and p.get("plugin_root"):
             return p["plugin_root"]
     return None
+
+
+@functools.cache
+def plugin_root() -> str | None:
+    """This inbox's own checkout (where herdr-plugin.toml is), never the caller's: `inbox
+    open` may run from another plugin's action, whose HERDR_PLUGIN_ROOT/ID are its own."""
+    return _own_checkout() or _listed_root()  # else an installed (non-editable) copy
+
+
+_is_herdrs_install: bool | None = None  # decided once herdr has answered (follows_listed_root)
+
+
+def _same_path(a: str, b: str) -> bool:
+    return os.path.realpath(a) == os.path.realpath(b)
+
+
+def follows_listed_root() -> bool:
+    """Whether this process is herdr's own install of the inbox, so it should follow the
+    root herdr lists. True when this code runs from no checkout (an installed copy), or
+    when its checkout was the listed root the first time herdr listed one. A dev worktree
+    or a Claude-cache copy talking to a server that lists another checkout never follows
+    it (no handover to other code, no downgrade). Decided once, on herdr's first answer
+    (the worker asks at start); until then: no."""
+    global _is_herdrs_install
+    own = _own_checkout()
+    if own is None:
+        return True
+    if _is_herdrs_install is None:
+        listed = _listed_root()
+        if listed is None:
+            return False
+        _is_herdrs_install = _same_path(listed, own)
+    return _is_herdrs_install
+
+
+def current_plugin_root() -> str | None:
+    """Where the inbox is installed NOW, for the worker's update check and its successor.
+    herdr 0.9.4+ builds every `plugin update` in a new directory and leaves running
+    processes their old one, so herdr's install cannot see an update in its own checkout
+    (plugin_root, cached for the process): for it this asks herdr every time, never cached.
+    A linked checkout is listed at its own path, so there it is the same directory as
+    before. Any other copy (follows_listed_root False), or no answer from herdr: this
+    code's own checkout, as before."""
+    own = _own_checkout()
+    if follows_listed_root():
+        return _listed_root() or own
+    return own
+
+
+SERVER_GONE = "server_not_running"
+
+
+def server_gone() -> bool:
+    """True only when herdr says this process's server is not running (error code
+    ``server_not_running``). Any other failure (no herdr binary, a timeout, another error)
+    is not proof that the server is gone, so it is False."""
+    _, err = call("workspace", "list")
+    if not err:
+        return False
+    try:
+        data = json.loads(err)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    error = data.get("error") if isinstance(data, dict) else None
+    return isinstance(error, dict) and error.get("code") == SERVER_GONE
 
 
 def open_popup(env: dict[str, str] | None = None) -> str | None:
