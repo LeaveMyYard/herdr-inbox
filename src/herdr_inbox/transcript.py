@@ -183,11 +183,11 @@ def chain(session_id: str | None, known: str | None = None, max_hops: int = 8) -
     """``session_id`` and every session its conversation continued in, in order (cycle-safe)."""
     out: list[str] = []
     current = session_id_or_none(session_id) or session_id  # canonical when it is a session id
-    for _ in range(max_hops):
+    for hop in range(max_hops):
         if not current or current in out:
             break
         out.append(current)
-        path = find(current, known if current == session_id else None)
+        path = find(current, known if hop == 0 else None)  # ``known`` is the first session's path
         current = continued_in(path) if path else None
     return out
 
