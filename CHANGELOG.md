@@ -1,19 +1,114 @@
 # Changelog
 
-## Unreleased
+## 0.10.6
 
-- **Fix: answers went to an older conversation and were called delivered.**
+Bridge release for the Rust rewrite (herdr-panorama `docs/plans/rust-rewrite.md`, P0b). The
+inbox now follows the same session rules as herdr-panorama. Its database stamp, worker handover
+and hooks are ready to be shared with a Rust worker.
+
+- **Fix: answers went to an older conversation and were called delivered** (#53).
   - Live: Q129–Q152. herdr resumed a pane under an **older** session id, one that had
     continued into the asking session. The inbox typed the answers there. That agent did not
     have the asker's context and ignored them, and 0.10.5's reconcile marked them verified.
   - Answers now go only to the asking session or a session it continued into. They are
     verified only there.
   - A pane running an older session gets nothing typed, even with Send now. The popup shows
-    why and which session to resume. When that session runs again, the answer is delivered
-    there once.
+    it as ⚠ `older conversation: pane <pane> runs <old>, an older session than the asking
+    <asker>; resume <asker> to deliver`, with one notification. It is retried, never "agent
+    gone". When the asker runs again, in that pane or another, the answer is delivered there
+    once.
   - The SessionStart hook records each resume and its pane (`<state dir>/starts/`), so a
-    resumed older id is recognised before anything is typed.
+    resumed older id is recognised before anything is typed. Without a marker (an older hook),
+    the inbox types once; an answer that lands only in the older session is recorded as `older
+    conversation: typed into <old> …`, never as delivered, and is never typed there again.
   - `inbox answer` run from an older session no longer counts as the asker's own answer.
+- **Fix: question refs lose one `Q` before the number, not every leading `q`** (#57).
+  `inbox open --question qnap:Q12` now finds the remote machine `qnap` (it looked for `nap`),
+  and `QQ12` is refused instead of read as Q12 by `answer`, `dismiss`, `redeliver` and
+  `deliver`.
+- **Database stamp: an integer migration revision** (#48).
+  - `PRAGMA user_version` is now `-2^31 + MIGRATION_REVISION` (revision 1). Before, it was a
+    crc32 of the schema and the `_migrate` source, so any edit to `_migrate` re-migrated.
+  - Every old stamp is non-negative, so it reads as "unknown" and is migrated forward once,
+    idempotently. No column is added or dropped. A higher revision is never lowered or migrated
+    again.
+  - Only the delivery worker and the popup migrate; `Store()` no longer migrates by default.
+    Hooks, MCP tools and CLI commands no longer take the write lock for schema work. On a stale
+    stamp they check, read-only, that the whole schema exists (about 0.4 ms).
+  - If the schema is not all there (a fresh install before the worker's first tick, or a newer
+    schema needed):
+    - hooks exit 0 and deliver nothing; the rewake watcher keeps waiting;
+    - MCP tools start the worker and retry for about 3 s, then return
+      `{"status": "unavailable"}` saying the inbox is being upgraded;
+    - CLI commands start the worker and exit 1 with "run this again in a few seconds", except
+      `sync-tokens` (herdr's startup command), which exits 0;
+    - a remote's export/apply answers "not ready", and the pull backs off.
+  - The worker migrates before it starts its remote thread.
+  - Processes still running 0.10.5 code (MCP servers, hooks, `inbox answer`) keep
+    re-stamping their crc32. The new worker's re-migration is a no-op, and new hooks and tools
+    go ahead without writing. Nothing is lost.
+- **Continuation rule (D6), the same as herdr-panorama's** (#47).
+  - A `continued-in` record counts only in the main transcript, when it names a valid session
+    id other than the file's own and is not `isSidechain`. Subagent transcripts never count.
+  - Only a later `user` or `assistant` record (timestamp after the continued-in's) ends it.
+    Bookkeeping records (`file-history-snapshot`, `last-prompt`, `cost-state`, any unknown
+    type) no longer do. So a resumed old session (`claude --resume`) is live again at its
+    first new prompt or reply, not at the first snapshot.
+  - An undated continued-in takes the time of the last dated record before it.
+  - A transcript that grew by more than 64 KiB since the last look is read on from where the
+    last read stopped (up to 8 MiB), not only its last 64 KiB, so the mark survives a burst of
+    bookkeeping.
+- **One session-id validator** (#47): a canonical UUID in any case, used in lowercase. It
+  replaces five separate checks.
+  - Uppercase ids work: a continued-in naming one is followed, `inbox open --session` matches
+    in any case, and follow/chain return the id in lowercase.
+  - A non-UUID id never reaches the file system. The transcript search no longer globs for it;
+    such a session is still found through the path its SessionStart hook recorded.
+    `inbox open --session <non-UUID>` exits with the usage error. A hook payload whose
+    `session_id` is not a UUID starts no rewake watcher.
+- **`is_claude`, the same as herdr-panorama's** (#47): a process is Claude when it is named
+  `claude`, or when it is node running `@anthropic-ai/claude-code/cli.js` (or `cli.mjs`).
+  - Versioned installs (`~/.local/share/claude/versions/<v>`) and node installs are
+    recognised: a nested `claude -p` under one is seen as nested, and a hook finds its owning
+    Claude instead of falling back to the grandparent.
+  - An `npx @anthropic-ai/claude-code` launcher no longer reads as a second Claude above the
+    real one.
+  - Cost: one `/proc/<pid>/cmdline` read per non-claude ancestor on Linux. On macOS a walk
+    makes two `ps` calls in all instead of one or two per ancestor.
+- **Worker handover can go to a Rust worker** (#49). On an update the worker first tries
+  `<root>/target/release/herdr-inbox worker`, then `<root>/bin/herdr-inbox worker`.
+  - The handover counts only once that worker holds the worker lock. A binary that exits
+    without it falls back to the Python successor at once; one that has not taken it within
+    5 s is killed, then Python starts.
+  - Without a binary nothing changes. The current stub binary (#46) takes no lock, so Python
+    takes over as before.
+- **The worker finds herdr's current install, and exits with its server** (#49).
+  - herdr's own install looks up its plugin root through `herdr plugin list` at every check,
+    uncached, so a long-running worker sees an update that herdr 0.9.4+ installs into a new
+    directory. A dev worktree or any other copy keeps its own checkout.
+  - The worker exits after its herdr server has been gone (herdr's `server_not_running`) for
+    10 s. Any other error keeps it running. Workers of dead herdr servers no longer loop on
+    that error and fill `worker.log`. Cost: two herdr calls per 5 s tick.
+- **Faster hooks** (#49). `hooks/run-hook.sh` caches the resolved Python interpreter in
+  `$CLAUDE_PLUGIN_DATA/python-interpreter` and skips the pyenv shim: about 100 ms → 37 ms per
+  hook on the dev machine.
+  - The cached interpreter is used in every project, whatever pyenv would pick there. Only
+    Python 3.11+ is cached; an older one, or an unwritable data dir, runs the resolved
+    interpreter directly for that call. A cached path that is gone or invalid is resolved
+    again. With no plugin data dir or a broken `python3`, the hook runs `python3` as before.
+- Rust workspace skeleton, its CI workflows and a test ledger for the port (#46). The
+  Python plugin does not use them. Tests: popup screen goldens (#52); the stdio MCP test no
+  longer leaves two delivery workers running per suite run (#54).
+- **Updating: restart the worker.** A running 0.10.5 worker keeps its code until it hands over
+  or is stopped, and it hands over only when its own checkout is updated in place (a `git
+  pull`). After `herdr plugin update` on herdr 0.9.4+, which installs into a new directory, it
+  never sees the update. Stop it with `pkill -f 'inbox(\.cli)? worker'` (it runs as `python -m
+  herdr_inbox.cli worker` or `uv run … inbox worker`); the next answer sent from the popup, or
+  the next herdr start, starts the new one. The Claude Code side is a separate install: the new
+  hooks (including the resume markers of #53) and MCP server reach Claude sessions only after
+  `claude plugin marketplace update herdr-inbox` and `claude plugin update
+  herdr-inbox@herdr-inbox`, and then only in sessions started afterwards. Until then sessions
+  keep their old MCP server and hook command; both keep working.
 
 ## 0.10.5
 
