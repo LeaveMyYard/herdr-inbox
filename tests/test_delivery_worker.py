@@ -19,8 +19,8 @@ from herdr_inbox import service, worker
 from herdr_inbox.service import Caller
 from herdr_inbox.store import Store, now
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +30,7 @@ def quick_verify(monkeypatch):
 
 @pytest.fixture
 def live_session(fake_herdr):
-    path = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "sess-A.jsonl"
+    path = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-fake-project" / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"type": "user", "message": {"content": "hello"}}) + "\n")
     return path
@@ -402,7 +402,7 @@ def test_m1_legacy_rows_need_a_matching_session(store, fake_herdr, monkeypatch, 
     worker.tick(store)
     q = store.get(qid)
     assert prompts(fake_herdr) == [] and q.delivery_attempts == 0  # no caps burnt
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-A")
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "aaaaaaaa-0000-4000-8000-00000000000a")
     store.db.execute("UPDATE question_ext SET legacy_checked_at = NULL WHERE id = ?", (qid,))  # backoff over
     worker.tick(store)
     assert store.get(qid).verified_at

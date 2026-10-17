@@ -31,6 +31,8 @@ import time
 import uuid
 from pathlib import Path
 
+from . import transcript  # stdlib only
+
 WATCH_POLL = 2.0  # database look (read-only); the wake follows within one poll
 PANE_CHECK_EVERY = 45.0  # herdr look even with nothing pending: a /clear or /resume ends the watch (#30 M1)
 UNKNOWN_SESSION_END = 180.0  # herdr names no session for the pane this long: the watch ends (#30 M1b)
@@ -48,12 +50,17 @@ def _dir() -> Path:
 
 
 def _safe(session_id: str) -> str:
-    return "".join(c for c in session_id if c.isalnum() or c in "-_")[:80]
+    """The lock / owner file name of a session: only ever its canonical id (run and
+    watcher_alive never get this far with anything else)."""
+    sid = transcript.session_id_or_none(session_id)
+    if sid is None:
+        raise ValueError(f"not a session id: {session_id!r}")
+    return sid
 
 
 def watcher_alive(session_id: str | None) -> bool:
     """Is a watcher for ``session_id`` alive (holding its lock)?"""
-    if not session_id:
+    if transcript.session_id_or_none(session_id) is None:
         return False
     path = _dir() / f"{_safe(session_id)}.lock"
     if not path.exists():
@@ -112,8 +119,8 @@ def run(payload: dict, clock=time.monotonic, sleep=time.sleep) -> str | None:
 
     session = payload.get("session_id")
     pane = os.environ.get("HERDR_PANE_ID")
-    if not session or not pane or payload.get("agent_id"):
-        return None
+    if transcript.session_id_or_none(session) is None or not pane or payload.get("agent_id"):
+        return None  # the one session-id validator: the id names the lock and owner files
     owner = proc.owning_claude()
     token = _claim_ownership(session)
     lock = open(_dir() / f"{_safe(session)}.lock", "a")

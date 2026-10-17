@@ -15,8 +15,8 @@ from herdr_inbox import cli, deeplink, service
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import GroupListView, InboxApp, QuestionView
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r")
 
 
 def three_groups(store):
@@ -93,7 +93,7 @@ def test_targets_resolve_to_a_group_and_question(store, fake_herdr):
     assert deeplink.resolve(store, {"kind": "question", "value": "Q4"}) == (("group", g2), 4)
     assert deeplink.resolve(store, {"kind": "group", "value": str(g2)}) == (("group", g2), None)
     assert deeplink.resolve(store, {"kind": "pane", "value": "w1:p2"}) == (("group", g2), None)  # oldest
-    assert deeplink.resolve(store, {"kind": "session", "value": "sess-A"}) == (("group", g1), None)
+    assert deeplink.resolve(store, {"kind": "session", "value": "aaaaaaaa-0000-4000-8000-00000000000a"}) == (("group", g1), None)
     service.close(store, 4, "dismissed")
     assert deeplink.resolve(store, {"kind": "question", "value": "4"}) is None  # gone
     assert deeplink.resolve(store, {"kind": "pane", "value": "w9:p9"}) is None
@@ -122,7 +122,7 @@ async def test_popup_opens_on_the_requested_question(store, fake_herdr, monkeypa
         assert app.mode == "list" and app.is_running
 
 
-@pytest.mark.parametrize("kind,value", [("group", "3"), ("pane", "w1:p2"), ("session", "sess-B")])
+@pytest.mark.parametrize("kind,value", [("group", "3"), ("pane", "w1:p2"), ("session", "bbbbbbbb-0000-4000-8000-00000000000b")])
 async def test_popup_opens_on_the_group_for_each_target_kind(store, fake_herdr, kind, value):
     g1, g2, g3 = three_groups(store)
     assert g2 == 3
@@ -162,7 +162,7 @@ async def test_no_request_keeps_the_normal_start(store, fake_herdr):
     (["--question", "Q12"], {"kind": "question", "value": "12"}),
     (["--group", "5"], {"kind": "group", "value": "5"}),
     (["--pane", "w6:p3A"], {"kind": "pane", "value": "w6:p3A"}),
-    (["--session", "f3740b1a"], {"kind": "session", "value": "f3740b1a"}),
+    (["--session", "f3740b1a-0000-4000-8000-000000000001"], {"kind": "session", "value": "f3740b1a-0000-4000-8000-000000000001"}),
 ])
 def test_open_command_writes_the_request_then_opens_the_popup(fake_herdr, args, expected):
     assert cli.main(["open", *args]) == 0
@@ -193,7 +193,8 @@ def test_open_from_another_plugins_action_opens_the_inbox(fake_herdr, monkeypatc
 
 
 def test_cli_rejects_a_malformed_target(fake_herdr):
-    for bad in (["--question", "abc"], ["--question", "Q"], ["--group", "x"], ["--group", "Q3"]):
+    for bad in (["--question", "abc"], ["--question", "Q"], ["--group", "x"], ["--group", "Q3"],
+                ["--session", "f3740b1a"], ["--session", "../x"], ["--session", "*"]):  # the one session-id validator
         with pytest.raises(SystemExit):
             cli.main(["open", *bad])
     assert not deeplink.request_path().exists() and not fake_herdr.calls_of("plugin", "pane", "open")

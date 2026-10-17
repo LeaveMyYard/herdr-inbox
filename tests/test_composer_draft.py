@@ -12,7 +12,7 @@ from herdr_inbox import herdr, service, store as st, transcript, worker
 from herdr_inbox.service import Caller
 
 FIX = Path(__file__).parent / "fixtures" / "composer"
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def screen(name):
@@ -135,9 +135,9 @@ def test_send_now_after_a_merged_landing_records_it_instead_of_typing_again(stor
     """The incident's second half: Send now ran the pre-check, but the anchored matcher
     missed the merged record, so it typed Q124/Q125 again."""
     qs = two_answers(store)
-    path = tmp_path / "sess-A.jsonl"
+    path = tmp_path / "aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
     path.write_text(merged_record(st.now(), herdr.clean(service.delivery_text(qs), limit=10**9)))
-    store.record_session("sess-A", str(path))
+    store.record_session("aaaaaaaa-0000-4000-8000-00000000000a", str(path))
     monkeypatch.setenv("FAKE_HERDR_SCREEN_ANSI", screen("empty"))
     service.deliver_batch(store, [store.get(q.id) for q in qs], retry=True, force=True)
     assert not fake_herdr.calls_of("agent", "prompt")

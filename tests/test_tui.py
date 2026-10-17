@@ -7,8 +7,8 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 from herdr_inbox.tui import CHAT, OTHER, GroupListView, InboxApp, QuestionView, ReviewView, tab_order
 
-A = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="tab-A", session_id="sess-A", cwd="/r")
-B = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="tab-B", session_id="sess-A", cwd="/r")
+A = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="tab-A", session_id="aaaaaaaa-0000-4000-8000-00000000000a", cwd="/r")
+B = Caller(pane_id="w1:p2", tab_id="w1:t2", tab_label="tab-B", session_id="aaaaaaaa-0000-4000-8000-00000000000a", cwd="/r")
 
 DB = [{"label": "Postgres", "description": "keeps the current ORM"}, {"label": "SQLite", "description": "single file"},
       {"label": "DuckDB"}]
@@ -141,7 +141,7 @@ async def test_chat_about_this_and_escape(store, fake_herdr):
 
 async def test_old_string_only_options(store, fake_herdr):
     store.db.execute("INSERT INTO questions (created_at, question, norm, options, pane_id, session_id, status)"
-                     " VALUES ('2026-10-14T00:00:00+00:00', 'Legacy?', 'legacy', '[\"yes\", \"no\"]', 'w1:p1', 'sess-A', 'open')")
+                     " VALUES ('2026-10-14T00:00:00+00:00', 'Legacy?', 'legacy', '[\"yes\", \"no\"]', 'w1:p1', 'aaaaaaaa-0000-4000-8000-00000000000a', 'open')")
     app = InboxApp(store)
     async with app.run_test() as pilot:
         await opened(app, pilot)

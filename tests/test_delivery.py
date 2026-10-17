@@ -3,7 +3,7 @@ from herdr_inbox.service import Caller
 
 
 def ask(store, question="Merge PR 42 now?", pane="w1:p1"):
-    c = Caller(pane_id=pane, tab_id="w1:t1", tab_label="my-tab", session_id="sess-A", cwd="/repo")
+    c = Caller(pane_id=pane, tab_id="w1:t1", tab_label="my-tab", session_id="aaaaaaaa-0000-4000-8000-00000000000a", cwd="/repo")
     return service.ask(store, c, question)["id"]
 
 
@@ -37,7 +37,7 @@ def test_failed_prompt_records_delivery_error(store, fake_herdr, monkeypatch):
     assert q.status == "answered" and q.delivered_at is None
     assert "fake failure" in q.delivery_error
     # still retrievable by the agent
-    assert [a.id for a in store.unacknowledged_answers("sess-A", "w1:p1")] == [qid]
+    assert [a.id for a in store.unacknowledged_answers("aaaaaaaa-0000-4000-8000-00000000000a", "w1:p1")] == [qid]
 
 
 def test_no_live_agent_skips_prompt(store, fake_herdr, monkeypatch):

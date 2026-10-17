@@ -26,11 +26,11 @@ def _fresh_backoff():
 def moved(fake_herdr, monkeypatch):
     """The question's pane w1:p1 is gone; the conversation now runs in w1:p7."""
     monkeypatch.setenv("FAKE_HERDR_GONE_PANES", "w1:p1")
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p7", "sess-A"), ("w1:p8", "sess-B")))
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p7", "aaaaaaaa-0000-4000-8000-00000000000a"), ("w1:p8", "bbbbbbbb-0000-4000-8000-00000000000b")))
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
 
 
-def answered(store, session="sess-A"):
+def answered(store, session="aaaaaaaa-0000-4000-8000-00000000000a"):
     qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", session, "/r"), "Where now?")["id"]
     service.answer(store, qid, "here")
     return qid
@@ -47,13 +47,13 @@ def test_an_answer_follows_its_agent_to_the_pane_it_moved_to(store, moved, fake_
 
 
 def test_no_agent_with_that_session_anywhere_is_still_no_agent(store, moved, monkeypatch):
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p8", "sess-B")))
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p8", "bbbbbbbb-0000-4000-8000-00000000000b")))
     q = store.get(answered(store))
     assert q.pane_id == "w1:p1" and q.delivery_error.startswith(service.NO_AGENT)
 
 
 def test_two_panes_with_the_session_are_ambiguous_and_never_chosen(store, moved, monkeypatch):
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p7", "sess-A"), ("w1:p9", "sess-A")))
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p7", "aaaaaaaa-0000-4000-8000-00000000000a"), ("w1:p9", "aaaaaaaa-0000-4000-8000-00000000000a")))
     q = store.get(answered(store))
     assert q.pane_id == "w1:p1" and q.delivery_error.startswith(service.NO_AGENT)
 
@@ -83,9 +83,9 @@ def test_an_answer_already_marked_gone_is_revived_when_its_agent_turns_up(store,
 def test_a_pane_now_holding_another_conversation_sends_the_answer_after_its_own(store, fake_herdr, monkeypatch):
     """The pane id was reused by another conversation (CHANGED); ours runs in w1:p7."""
     monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
-    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Still me?")["id"]
-    monkeypatch.setenv("FAKE_HERDR_SESSION", "sess-OTHER")  # w1:p1 now runs another conversation
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", "sess-OTHER"), ("w1:p7", "sess-A")))
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r"), "Still me?")["id"]
+    monkeypatch.setenv("FAKE_HERDR_SESSION", "dddddddd-0000-4000-8000-00000000000d")  # w1:p1 now runs another conversation
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", "dddddddd-0000-4000-8000-00000000000d"), ("w1:p7", "aaaaaaaa-0000-4000-8000-00000000000a")))
     service.answer(store, qid, "yes")
     assert store.get(qid).pane_id == "w1:p7"
     assert not fake_herdr.calls_of("agent", "prompt")  # never typed into the other conversation
@@ -120,7 +120,7 @@ def test_42_a_hidden_answer_is_never_revived(store, moved, fake_herdr):
 
 
 def test_42_a_dismissed_question_is_never_revived(store, moved):
-    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "sess-A", "/r"), "Dismissed?")["id"]
+    qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r"), "Dismissed?")["id"]
     store.mark_agent_gone(qid, "x")
     service.close(store, qid, "dismissed")
     service.revive_moved(store)
@@ -136,7 +136,7 @@ def test_42_a_send_in_flight_is_not_revived_under_it(store, moved):
 
 
 def test_42_revival_backs_off_per_answer(store, moved, fake_herdr, monkeypatch):
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p8", "sess-B")))  # really gone
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p8", "bbbbbbbb-0000-4000-8000-00000000000b")))  # really gone
     qid = answered(store)
     gone(store, qid)
     fake_herdr.reset()

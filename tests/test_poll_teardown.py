@@ -8,8 +8,8 @@ from herdr_inbox import service
 from herdr_inbox.service import Caller
 from herdr_inbox.tui import InboxApp
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-B", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "bbbbbbbb-0000-4000-8000-00000000000b", "/r")
 
 
 async def test_poll_after_the_widgets_are_gone_is_a_no_op(store, fake_herdr):

@@ -12,8 +12,8 @@ from herdr_inbox.tui import GroupListView, InboxApp
 
 from . import compat_v01_store as v01
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
-B = Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+B = Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
 
 def test_title_is_stored_per_group_in_the_side_table(store, fake_herdr, tmp_path):

@@ -13,7 +13,7 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 from herdr_inbox.tui import InboxApp, QuestionView
 
-A = Caller("w1:p1", "w1:t1", "tab-A", "sess-A", "/r")
+A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 LONG = "a fairly long description that wraps in a narrow popup " * 2
 
 
@@ -60,7 +60,7 @@ async def test_send_runs_in_the_background(store, fake_herdr, monkeypatch):
         return real_answer(s, *args, **kwargs)
 
     monkeypatch.setattr(service, "answer", slow_answer)
-    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "sess-A", "/r"), "Other?")
+    service.ask(store, Caller("w1:p2", "w1:t2", "tab-B", "aaaaaaaa-0000-4000-8000-00000000000a", "/r"), "Other?")
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
         await pilot.pause()

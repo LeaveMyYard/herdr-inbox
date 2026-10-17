@@ -32,13 +32,13 @@ def context_of(proc, event="SessionStart"):
 
 
 def seed(store, monkeypatch):
-    c = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="t", session_id="sess-A", cwd="/r")
+    c = Caller(pane_id="w1:p1", tab_id="w1:t1", tab_label="t", session_id="aaaaaaaa-0000-4000-8000-00000000000a", cwd="/r")
     service.ask(store, c, "Which region?")
     answered = service.ask(store, c, "Squash or merge?")["id"]
     monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")  # delivered answers count as seen
     service.answer(store, answered, "squash")
     monkeypatch.delenv("FAKE_HERDR_FAIL")
-    service.ask(store, Caller("w1:p2", None, None, "sess-B", "/r"), "Other session question?")
+    service.ask(store, Caller("w1:p2", None, None, "bbbbbbbb-0000-4000-8000-00000000000b", "/r"), "Other session question?")
 
 
 def test_rules_are_short():
@@ -46,7 +46,7 @@ def test_rules_are_short():
 
 
 def test_startup_injects_rules(fake_herdr):
-    ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "startup"}))
+    ctx = context_of(run_hook("session-start", {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "source": "startup"}))
     assert ctx == SESSION_RULES
     for phrase in ("ask_operator", "Ask once", "`[inbox]` messages naming the Q ids", "list_my_questions",
                    "destructive", "subagent", "herdr-inbox:operator-questions"):
@@ -55,13 +55,13 @@ def test_startup_injects_rules(fake_herdr):
 
 def test_startup_does_not_list_questions(store, fake_herdr, monkeypatch):
     seed(store, monkeypatch)
-    ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "startup"}))
+    ctx = context_of(run_hook("session-start", {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "source": "startup"}))
     assert "Q1" not in ctx
 
 
 def test_compact_lists_this_sessions_pending_questions(store, fake_herdr, monkeypatch):
     seed(store, monkeypatch)
-    ctx = context_of(run_hook("session-start", {"session_id": "sess-A", "source": "compact"}))
+    ctx = context_of(run_hook("session-start", {"session_id": "aaaaaaaa-0000-4000-8000-00000000000a", "source": "compact"}))
     assert ctx.startswith(SESSION_RULES)
     assert "Q1 (open): Which region?" in ctx
     assert "Q2 (answered, not yet seen): Squash or merge? -> squash" in ctx
