@@ -393,12 +393,19 @@ transcripts, read-only. Most of them had arrived.
      before typing.
    - Seen answers lose any stale error; acknowledging always clears it.
 4. **No second delivery.** Before typing, delivery (Send now included) checks every related
-   transcript for a landing and for "seen" evidence. If either is found, nothing is typed.
+   transcript for a landing of our exact text. If found, it records instead of typing. No
+   "seen another way" evidence is used here (see 3).
 5. **An agent answering its own question** (`inbox answer` run inside the asking conversation,
-   or a related one) is seen at once, with nothing to deliver. "Inside" means the process has
-   `CLAUDE_CODE_SESSION_ID`, which the session's subagents inherit too. A subagent answering
-   its main thread's question therefore also skips delivery: the main thread does not get it
-   typed, but check_answers still returns it.
+   or a related one, decided by the process's `CLAUDE_CODE_SESSION_ID`): nothing is typed and
+   it is never a failure. It is recorded delivered and verified, but **not seen** (final pass
+   #44 H1).
+   - The session's subagents inherit that id, and a subagent relaying a decision must not
+     hide it from the main thread.
+   - check_answers and the compact/resume listing still return it once. In the real
+     self-answer case that is a harmless echo of the agent's own text.
+   - A diverged resume (X continued into Y, then `claude --resume X` elsewhere while Y still
+     runs) also makes X and Y "related". This is rare, needs a manual resume, and is covered
+     by the same rule: nothing is acknowledged on the strength of it.
 6. **A moved pane.** A caller whose `HERDR_PANE_ID` no longer exists is filed under the one
    pane that runs its conversation now.
 7. **Truly gone answers (operator Q167: "Both").**
