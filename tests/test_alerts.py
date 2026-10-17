@@ -341,16 +341,18 @@ async def test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7(tmp_pat
 async def test_m1_an_agent_alerts_pane_turned_blocked_needs_a_deliberate_g(store, fake_herdr, monkeypatch):
     """An agent alert (and a question) whose agent now waits at a prompt: a g typed right
     after another key goes nowhere; a g after a pause does."""
-    import asyncio
-
     monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.5)
     monkeypatch.setenv("FAKE_HERDR_STATUS", "blocked")
     service.ask(store, A, "Q from the blocked agent?")
     service.ask(store, B, "Other?")
     alerts.raise_alert(store, A, "Check the deploy")
+    # the pause runs on tui._go_clock, moved only by the test: keys sent together are 0 s
+    # apart however loaded the machine is (a full-run flake, review #44 r3)
+    offset = [0.0]
+    monkeypatch.setattr(tui, "_go_clock", lambda: 1000.0 + offset[0])
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test() as pilot:
-        await asyncio.sleep(0.6)
+        offset[0] += 0.6
         await pilot.press("1", "g")  # a question of the blocked pane: refused (live status)
         await pilot.pause()
         await app.workers.wait_for_complete()
@@ -358,7 +360,7 @@ async def test_m1_an_agent_alerts_pane_turned_blocked_needs_a_deliberate_g(store
         await pilot.pause()
         await app.workers.wait_for_complete()
         assert app.mode == "alert" and not fake_herdr.calls_of("agent", "focus")
-        await asyncio.sleep(0.6)
+        offset[0] += 0.6
         await pilot.press("g")
         await fake_herdr.went_to_agent(app)
     assert [c[2] for c in fake_herdr.calls_of("agent", "focus")] == ["w1:p1"]
@@ -385,8 +387,6 @@ async def test_h1_the_only_question_still_opens_directly_with_an_alert_open(stor
 
 async def _g_presses(store, fake_herdr, monkeypatch, gaps):
     """An alert view open (reached after a pause), then g presses `gaps` seconds apart."""
-    import asyncio
-
     monkeypatch.setattr(tui, "ALERT_GO_GRACE", 0.5)
     service.ask(store, B, "Q?")
     service.ask(store, B, "Q2?")
@@ -397,9 +397,16 @@ async def _g_presses(store, fake_herdr, monkeypatch, gaps):
         await pilot.press("up", "enter")
         await pilot.pause()
         assert app.mode == "alert"
+        # the pause runs on tui._go_clock: advanced exactly by `gap`, so a loaded machine's
+        # scheduling delays never decide the outcome (a full-run flake, review #44 r3)
+        base, offset = __import__("time").monotonic(), [0.0]
+        monkeypatch.setattr(tui, "_go_clock", lambda: base + offset[0])
+        app.view_at = base  # the alert view opened "now" on that clock
+        app.last_key_at = base
         for gap in gaps:
-            await asyncio.sleep(gap)
+            offset[0] += gap
             await pilot.press("g")
+            await pilot.pause()
         await pilot.pause()
         await fake_herdr.focus_settled(app)
     return [c[2] for c in fake_herdr.calls_of("agent", "focus")]

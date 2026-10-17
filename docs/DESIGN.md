@@ -363,21 +363,32 @@ transcripts, read-only. Most of them had arrived.
    - Answers in the pile from the last 7 days that **landed** in a transcript of a related
      session, or of what the asking pane runs now, become delivered and verified. That needs
      our exact text, as before.
-   - Answers the conversation was **given** another way become seen (review #44: a false
-     "seen" loses an answer silently, so the evidence is narrow). A tool result counts only
-     through the **conversation's own call** it answers, paired by `tool_use_id`. Quoted
-     output never counts: a terminal read, a log, a PR comment, an `echo`.
-     - Its Bash `tool_use` running `inbox answer <n> …`, whose result carries our CLI's
-       `Q<n> answered…` line, means the conversation answered n itself.
-     - Its herdr-inbox `check_answers` / `list_my_questions` call, whose result holds
-       `{"id": n, "answer": "<exact value>"}`.
+   - **Reconcile only** (old rows; review #44 r3): answers the conversation was **given**
+     another way become seen. A tool result counts only through the conversation's **own**
+     call it answers, paired by `tool_use_id`. Quoted output never counts (a terminal read,
+     a log, a PR comment, an `echo`).
+     - **Self-answer:** its Bash `tool_use` must **invoke** the CLI as `inbox answer <n>` at
+       the start of a command segment (`[path/]inbox`, `$VAR` set to an inbox path earlier
+       in the command, `uv run … inbox`, `python -m herdr_inbox.cli`). Segments are split
+       quote-aware on `;`, `&&`, `||`, `|` and newlines. A path, a repo name, a grep pattern
+       or a comment body never invokes it. Its result must hold our CLI's **success line**
+       `Q<n> answered…` at the start of a line, and must not say `Q<n> is not open`.
+     - **check_answers / list_my_questions:** a herdr-inbox call whose result holds
+       `{"id": n, "answer": "<exact value>"}`. A subagent's call in the same session file
+       counts too, matching what the server does (check_answers acknowledges for the whole
+       session).
+   - **Live** (the pre-type guard) uses **no** "seen another way" evidence. `inbox answer`
+     run from the asking conversation marks the row seen itself (5. below), and check_answers
+     acknowledges in the database. Only our exact delivered text counts there.
    - The record must come after `answered_at`, with no window before it. Agent text, a
      substring, or a bare mention never counts.
    - The pane's current conversation is read only if it is related to the question's session
      (a reused pane's other conversation never is).
    - Evidence is indexed per transcript incrementally. The cache is keyed on size, mtime and
      inode, and an append is told from a rewrite by the bytes before the indexed offset.
-     An unchanged transcript is never read again. A cold index of a big transcript costs
+     An unchanged transcript is never read again. Two cases would keep stale evidence: a
+     rewrite within the same mtime tick, or a truncate-and-regrow with the same 64 bytes at
+     the edge. Transcripts are append-only, so both are theoretical. A cold index of a big transcript costs
      about 1 s, once per process: the worker's first pass, or a popup Send now that checks
      before typing.
    - Seen answers lose any stale error; acknowledging always clears it.
