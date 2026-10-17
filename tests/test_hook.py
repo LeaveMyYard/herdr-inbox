@@ -103,3 +103,49 @@ def test_plugin_hook_and_mcp_config_point_at_the_cli():
     server = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["mcpServers"]["herdr-inbox"]
     assert server["args"][-2:] == ["inbox", "mcp"] and "${CLAUDE_PLUGIN_ROOT}" in server["args"]
     assert (ROOT / "skills/operator-questions/SKILL.md").exists()
+
+
+def _raising(codes):
+    """A ``work`` for hook._bounded: raises an OperationalError with each extended code in
+    ``codes`` in turn, then returns how many times it ran."""
+    import sqlite3
+
+    calls = []
+
+    def work(db):
+        calls.append(1)
+        if len(calls) <= len(codes):
+            exc = sqlite3.OperationalError("database is locked")
+            exc.sqlite_errorcode = codes[len(calls) - 1]
+            raise exc
+        return len(calls)
+
+    return work
+
+
+def test_bounded_retries_extended_busy_codes():
+    """Review #59 M: BUSY_RECOVERY (261, a reader's usual BUSY in WAL mode), BUSY_SNAPSHOT
+    (517) and LOCKED_SHAREDCACHE (262) are busy too: retried, not given up on."""
+    import sqlite3
+
+    from herdr_inbox import hook
+
+    for code in (sqlite3.SQLITE_BUSY, 261, 517, sqlite3.SQLITE_LOCKED, 262):
+        assert hook._bounded(lambda: sqlite3.connect(":memory:"), _raising([code]), timeout=5) == 2, code
+
+
+def test_bounded_gives_up_on_other_errors_and_at_the_deadline():
+    import sqlite3
+    import time
+
+    import pytest
+
+    from herdr_inbox import hook
+
+    work = _raising([1])  # SQLITE_ERROR: not busy, raised at once
+    with pytest.raises(sqlite3.OperationalError):
+        hook._bounded(lambda: sqlite3.connect(":memory:"), work, timeout=5)
+    started = time.monotonic()
+    with pytest.raises(sqlite3.OperationalError):  # busy every time: gives up at the deadline
+        hook._bounded(lambda: sqlite3.connect(":memory:"), _raising([5] * 10_000), timeout=0.1)
+    assert time.monotonic() - started < 5
