@@ -125,34 +125,72 @@ def test_old_python_falls_back_to_uv_and_still_exits_0(tmp_path, fake_herdr, mon
 # -- review of #11 -------------------------------------------------------------------------
 
 
+# What a locked inbox DB may add to the time the rules take to print: the pending-question
+# lookup's own timeout (hook.PENDING_TIMEOUT, 0.2 s) plus slack. A fixed number on purpose:
+# a hook that waits longer on the lock fails here, whatever the constant says.
+LOCK_BUDGET = 0.5
+ROUNDS = 3
+LAUNCH_DEADLINE = 15.0  # a hook blocked on the lock for good fails here instead of hanging
+
+
+def _launch_until_rules(source: str) -> tuple[float, str]:
+    """Run the SessionStart hook as Claude Code does; seconds until its first line, and the
+    line. A hook that prints nothing within LAUNCH_DEADLINE is killed and the test fails (the
+    caller still holds the lock, so a plain readline would wait forever)."""
+    import threading
+    import time
+
+    spec = HOOKS["SessionStart"][0]["hooks"][0]
+    argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)) for a in spec["args"])]
+    started = time.monotonic()
+    proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                            start_new_session=True)
+    proc.stdin.write(json.dumps({"session_id": "s", "source": source, "transcript_path": "/x/s.jsonl"}))
+    proc.stdin.close()
+    got: list = []
+    reader = threading.Thread(target=lambda: got.append((proc.stdout.readline(), time.monotonic())), daemon=True)
+    reader.start()
+    reader.join(LAUNCH_DEADLINE)
+    if not got:
+        os.killpg(proc.pid, 9)  # the sh wrappers and python: the whole group
+        proc.wait()
+        pytest.fail(f"the hook printed nothing within {LAUNCH_DEADLINE} s")
+    line, at = got[0]
+    assert proc.wait(timeout=LAUNCH_DEADLINE) == 0
+    proc.stdout.close()
+    return at - started, line
+
+
 @pytest.mark.parametrize("source", ["startup", "compact"])
 def test_a_locked_inbox_db_still_gets_the_rules_out_fast(tmp_path, fake_herdr, source):
     """M1: the rules are printed first; the pending-question lookup and the transcript
-    record each give up quickly on a locked DB and never cost the rules."""
+    record each give up quickly on a locked DB and never cost the rules.
+
+    Measured against the same launch on the same DB, unlocked, interleaved: a slow runner's
+    interpreter start-up is in both and cancels out (best of ROUNDS unlocked), and the
+    MEDIAN locked launch is held to it + LOCK_BUDGET, so a wait on the lock that happens
+    only now and then still fails. Issue #45: on macOS runners sqlite's own busy timeout
+    (0.2 s of requested sleeps) held the rules ~0.9 s; the hook now bounds it by wall clock
+    (hook._bounded)."""
     import sqlite3
-    import time
 
     from herdr_inbox.store import Store
 
     Store(migrate=True).close()  # schema exists (the worker migrated it)
-    lock = sqlite3.connect(os.environ["HERDR_INBOX_DB"], isolation_level=None)
-    lock.execute("PRAGMA journal_mode=DELETE")
-    lock.execute("BEGIN EXCLUSIVE")
-    try:
-        spec = HOOKS["SessionStart"][0]["hooks"][0]
-        argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)) for a in spec["args"])]
-        started = time.monotonic()
-        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-        proc.stdin.write(json.dumps({"session_id": "s", "source": source, "transcript_path": "/x/s.jsonl"}))
-        proc.stdin.close()
-        line = proc.stdout.readline()
-        printed = time.monotonic() - started
-        assert proc.wait(timeout=10) == 0
-    finally:
-        lock.execute("ROLLBACK")
-        lock.close()
-    assert "<herdr-inbox>" in json.loads(line)["hookSpecificOutput"]["additionalContext"]
-    assert printed < 1.0, printed  # python start (~0.1-0.2 s) + at most the short lookup timeout
+    free, locked = [], []
+    for _ in range(ROUNDS):
+        free.append(_launch_until_rules(source)[0])
+        lock = sqlite3.connect(os.environ["HERDR_INBOX_DB"], isolation_level=None)
+        lock.execute("PRAGMA journal_mode=DELETE")
+        lock.execute("BEGIN EXCLUSIVE")
+        try:
+            printed, line = _launch_until_rules(source)
+        finally:
+            lock.execute("ROLLBACK")
+            lock.close()
+        assert "<herdr-inbox>" in json.loads(line)["hookSpecificOutput"]["additionalContext"]
+        locked.append(printed)
+    assert sorted(locked)[ROUNDS // 2] - min(free) < LOCK_BUDGET, (locked, free)
 
 
 def test_old_python_fallback_kills_the_whole_group_on_timeout(tmp_path, fake_herdr, monkeypatch):
