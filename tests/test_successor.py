@@ -362,7 +362,7 @@ def test_server_gone_without_a_herdr_binary_is_not_gone(herdr_cli, monkeypatch, 
 
 
 def test_the_worker_exits_when_its_server_is_gone(herdr_cli, monkeypatch):
-    """worker.log grew to 11 MB from workers looping on server_not_running for servers that
+    """worker.log grew past 12 MB from workers looping on server_not_running for servers that
     had long exited. A detached worker must not outlive its server: it exits and releases
     the lock, without ticking."""
     monkeypatch.setenv("FAKE_HERDR_STATE", "gone")
