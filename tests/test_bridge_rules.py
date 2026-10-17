@@ -1,6 +1,6 @@
 """The rules both plugins must share (herdr-panorama docs/plans/rust-rewrite.md §1.3 rows 3-5,
 D6), as the same tables as herdr-panorama's tests/test_bridge_rules.py (herdr-panorama#53,
-52275f4), case for case. Only the calls differ: panorama's discovery.is_uuid /
+836be8a), case for case. Only the calls differ: panorama's discovery.is_uuid /
 canonical_session_id / Session / hooks.is_claude are transcript.session_id_or_none /
 transcript.continued_in / proc.is_claude here.
 
@@ -338,8 +338,23 @@ CLAUDE = [
     ("node", ["node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"]),
     ("node", ["/usr/bin/node", "/home/u/.npm-global/lib/node_modules/@anthropic-ai/claude-code/cli.js", "-p"]),
     ("node", ["node", "--no-warnings", "/opt/x/@anthropic-ai/claude-code/cli.js"]),  # one option before it
-    ("node", ["/home/u/.nvm/versions/node/v22.0.0/bin/node", "/home/u/src/claude-code/cli.js"]),
     ("node22", ["node22", "/x/@anthropic-ai/claude-code/cli.mjs"]),
+    # under npx: the package's own entry script, below the launcher
+    ("node", ["/home/u/.nvm/versions/node/v24.12.0/bin/node",
+              "/home/u/.npm/_npx/0123456789abcdef/node_modules/@anthropic-ai/claude-code/cli.js"]),
+    # Claude Code sets its process title: captured as comm "claude", cmdline "claude"
+    ("claude", ["claude"]),
+]
+
+# The npx launcher: node running npm's npx-cli.js with the package NAME (the path is the real
+# one, `readlink -f $(which npx)`); after start-up npm retitles it, captured from a running
+# `npx <pkg>` as comm "npm exec @model" (15 bytes) and cmdline "npm exec <pkg>" plus empty
+# padding args. The package name here is substituted (derived, no claude-code npx run here).
+NPX = "/home/u/.nvm/versions/node/v24.12.0/lib/node_modules/npm/bin/npx-cli.js"
+NPX_LAUNCHER = [
+    ("node", ["/home/u/.nvm/versions/node/v24.12.0/bin/node", NPX, "@anthropic-ai/claude-code"]),
+    ("node", ["node", NPX, "-y", "@anthropic-ai/claude-code"]),
+    ("npm exec @anthr", ["npm exec @anthropic-ai/claude-code", "", "", ""]),
 ]
 
 NOT_CLAUDE = [
@@ -349,6 +364,11 @@ NOT_CLAUDE = [
     ("claudette", ["/usr/bin/claudette"]),
     ("node", ["node", "server.js"]),
     ("node", ["node", "a", "b", "/x/@anthropic-ai/claude-code/cli.js"]),  # only the first two args
+    ("node", ["node", "@anthropic-ai/claude-code"]),  # a bare package name is not the entry script
+    ("node", ["node", "/x/@anthropic-ai/claude-code"]),
+    ("node", ["node", "/home/u/src/claude-code/cli.js"]),  # some other claude-code checkout
+    ("node", ["node", "/x/@anthropic-ai/claude-code/cli.js.map"]),
+    ("node", ["node", "/x/@anthropic-ai/claude-code-router/cli.js"]),
     ("node", []),
     ("uv", ["uv", "run", "/x/@anthropic-ai/claude-code/cli.js"]),  # not node
     ("zsh", ["/home/u/.local/share/claude-versions/2.1.301"]),
@@ -361,6 +381,35 @@ def test_is_claude(comm, argv):
     assert proc.is_claude(comm, argv)
 
 
-@pytest.mark.parametrize("comm,argv", NOT_CLAUDE)
+@pytest.mark.parametrize("comm,argv", NOT_CLAUDE + NPX_LAUNCHER)
 def test_is_not_claude(comm, argv):
     assert not proc.is_claude(comm, argv)
+
+
+def test_a_launcher_above_claude_gives_exactly_one_claude(monkeypatch):
+    """npx above the real cli: walking up from a hook finds the cli, and the whole chain holds
+    one Claude (the launcher is not a second, outer one). The inbox's walk is proc.owning_claude /
+    nested_claude (panorama: hooks.claude_process); with no Claude above, owning_claude falls back
+    to the grandparent (panorama: None)."""
+    import os
+    tree = {100: (90, "python3", "s1", ["python3", "-I", "hooks.py"]),
+            90: (80, "sh", "s2", ["sh", "-c", "..."]),
+            80: (70, "node", "s3", ["/home/u/.nvm/versions/node/v24.12.0/bin/node",
+                                     "/home/u/.npm/_npx/0123456789abcdef/node_modules/@anthropic-ai/claude-code/cli.js"]),
+            70: (60, "sh", "s4", ["sh", "-c", "claude"]),
+            60: (50, "node", "s5", ["/home/u/.nvm/versions/node/v24.12.0/bin/node", NPX, "@anthropic-ai/claude-code"]),
+            50: (1, "zsh", "s6", ["-zsh"])}
+    monkeypatch.setattr(proc, "_parent", lambda pid: tree[pid][:2] if pid in tree else None)
+    monkeypatch.setattr(proc, "_cmdline", lambda pid: tree[pid][3] if pid in tree else [])
+    monkeypatch.setattr(os, "getppid", lambda: 100)
+    assert proc.owning_claude() == 80 and not proc.nested_claude()
+    assert [pid for pid, (_, comm, _, argv) in tree.items() if proc.is_claude(comm, argv)] == [80]
+    tree[60] = (50, "npm exec @anthr", "s5", ["npm exec @anthropic-ai/claude-code", "", ""])  # retitled
+    assert [pid for pid, (_, comm, _, argv) in tree.items() if proc.is_claude(comm, argv)] == [80]
+    assert not proc.nested_claude()
+    tree[80] = (70, "bash", "s3", ["bash"])  # no cli below the launcher: no Claude at all
+    assert proc.owning_claude() == 90 and not proc.nested_claude()
+
+
+# panorama's test_herdr_claude_pid_skips_the_launcher has no inbox counterpart: the inbox has no
+# herdr.claude_pid (it never reads the pane's foreground processes).
