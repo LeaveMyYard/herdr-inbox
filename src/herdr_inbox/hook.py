@@ -227,6 +227,14 @@ def run(event: str) -> int:
         if event == "session-start":
             name = "SessionStart"
             try:
+                # first, and cheap: a resumed OLD session id runs itself from now on, not
+                # the session its transcript once continued in (store.live_session)
+                from .store import record_start
+
+                record_start(payload.get("session_id"))
+            except BaseException:  # noqa: BLE001
+                pass
+            try:
                 context = session_start_context(payload)
             except BaseException:  # noqa: BLE001 - the rules alone, rather than nothing
                 context = SESSION_RULES

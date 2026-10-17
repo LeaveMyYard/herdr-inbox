@@ -145,13 +145,18 @@ def notify_stuck(store: Store, rows: list[Question]) -> None:
         out_of_tries = (q.delivery_error == service.NOT_VERIFIED
                         and q.delivery_attempts >= service.MAX_UNVERIFIED_ATTEMPTS)
         if (out_of_tries or _gone(q) or _age(q.answered_at) >= NOTIFY_AFTER) and not store.notified(q.id):
-            kind = "gone" if _gone(q) else "blocked" if _blocked(q) else "stuck"
+            kind = "gone" if _gone(q) else "blocked" if _blocked(q) \
+                else "older" if (q.delivery_error or "").startswith(service.OLDER) else "stuck"
             stuck.setdefault((q.pane_id or "-", kind), []).append(q)
     for (_, kind), items in stuck.items():
         ids, where = _ids([q.id for q in items]), _where(items[0], lookup=kind != "gone")
         if kind == "gone":
             herdr.notify(f"{ids}: the agent in {where} is gone",
                          "The answer is kept; a new session can fetch it with check_answers.")
+        elif kind == "older":
+            herdr.notify(f"{ids}: {where} runs an older conversation",
+                         "herdr resumed an earlier session of the asking agent; resume the asking "
+                         "session to deliver (the inbox shows its id), or fetch with check_answers.")
         elif kind == "blocked":
             herdr.notify(f"waiting: {where} is at a prompt ({ids})",
                          "Answer the prompt in that pane; the inbox delivers right after.")
