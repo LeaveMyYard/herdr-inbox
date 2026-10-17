@@ -416,6 +416,7 @@ tests/test_final_review.py::test_marker_failure_never_fails_ask,tests/test_final
 tests/test_final_review.py::test_mcp_ask_returns_the_open_receipt_when_markers_fail,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_closing_the_popup_waits_for_an_in_flight_send,tests/test_final_review.py,,todo,,
+tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,,todo,,
 tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,,todo,,
 tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,,todo,,
 tests/test_group_list.py::test_cursor_target_vanishing_from_a_return_parks_inert,tests/test_group_list.py,,todo,,
