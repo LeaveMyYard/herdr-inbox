@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: a locked inbox DB held the session rules ~0.9 s on macOS** (#45). The hook's DB
+  lookups (pending questions at SessionStart, and the delivery hook's liveness stamp and
+  answer check) used sqlite's busy timeout, which adds up the sleeps it asked for, not the
+  time they took. On macOS runners a 0.2 s timeout cost ~0.9 s. They now retry on a busy or
+  locked DB until a 0.2 s wall-clock deadline.
+
 ## 0.10.6
 
 Bridge release for the Rust rewrite (herdr-panorama `docs/plans/rust-rewrite.md`, P0b). The
