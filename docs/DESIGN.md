@@ -405,6 +405,90 @@ escape or key sequences into a prompt, notification or token.
 Known PoC risk: the prompt is typed into the pane, so it would merge with
 anything the operator is half-way through typing in that pane.
 
+## Older conversations are never delivery targets
+
+**Live, 2026-10-17.** Session `1cd70de7` continued in `c5240607` (11:22:22Z), and
+`c5240607` asked Q129, Q141, Q143, Q144, Q151 and Q152. herdr later resumed the pane under
+the **older** id `1cd70de7`. That conversation has nothing `c5240607` said after the fork.
+The inbox typed the six answers there (06:32:56Z). The agent replied "they belong to another
+session's questions … I'm leaving them alone". Then the 0.10.5 reconcile marked them delivered
+and verified, because the text was in `1cd70de7`'s transcript. The asking conversation never
+got its answers.
+
+An **ancestor** (a session that continued into the asker) is a different conversation, without
+the asker's context. 0.10.5's "related sessions" (fixes 1, 2, 4 and 5 below) treated it as the
+same conversation. That was the bug.
+
+- **The forward family** (`service.forward_family`): the asking session plus every session it
+  continued into, transitively. That is its D6 chain, plus every `continued-in` its transcript
+  **ever** wrote (`continued_edges`; a resumed session keeps its record mid-file).
+  - **Bounded by the question** (`question_family`, review #53 B1). A past continuation counts
+    only if its record is dated **at or after** the question's `created_at`, so the question
+    was in the conversation when it moved. Consider a session that was resumed and used on its
+    own branch after continuing elsewhere: its later questions never reached that old
+    continuation.
+  - The current chain always counts. The asker's transcript still ends in that record, so
+    nothing was asked after it.
+  - An **undated** past record never counts. That is conservative: the worst case is that the
+    row stays failed. Every captured record is dated.
+  - The bound is the record's own time, not when the new session started: a compaction
+    continuation's file begins with history copied from earlier (`c5240607`'s first records
+    are dated 10-15, its `continued-in` 10-16 11:22).
+  - Both times come from the same machine's clock (a remote's rows are delivered by its own
+    worker, against its own transcripts). `created_at` is whole seconds, rounded down, so a
+    question filed in the same second as the move still counts.
+
+  Nothing else is a delivery target or a place where delivery is verified. Typing, Send now, the
+  pre-type "already landed?" check, verification after typing (also the detached
+  `inbox verify`), hook verification and the reconcile all use it. The hook and the rewake
+  watcher only ever carry answers of their own session and its live predecessors (`family`),
+  which is the same direction.
+- **What a pane runs** (`store.live_session`): herdr's reported id, followed by the D6 rule,
+  **except** when a Claude process (re)started that id **after** its `continued-in` record.
+  Then the pane runs that older session itself. Until its first prompt, a resumed old
+  transcript still ends in `continued-in`, so D6 alone cannot tell.
+  - The inbox's SessionStart hook writes `<state dir>/starts/<session>`, holding the herdr
+    pane id, **only for `source == "resume"`**. A resume is the one start that re-runs an id
+    that may have continued elsewhere: startup, clear and fork run a fresh id.
+  - Compaction is not a resume. The captured `c5240607` was created by a compaction at 10-15
+    18:22 that fired `SessionStart:compact`, while `1cd70de7`'s `continued-in` record is
+    dated 10-16 11:22, written about 17 h later. A compact marker could therefore post-date
+    nothing and flip a pane that runs the newer session (review #53 final M1).
+  - It is a file, not a column: no schema change, no database lock in the hook, and older
+    versions ignore it.
+  - **Per pane** (review #53 final L3): a marker counts only for the pane its resume ran in.
+    One pane can run OLD's in-process continuation (herdr still reports OLD) while another
+    runs OLD resumed. Only the second runs OLD. A moved pane's new id does not match, so it
+    falls back to D6 plus the typed-once path below. A caller that knows no pane (a process
+    without `HERDR_PANE_ID`) trusts the marker.
+  - `live_agent`, the caller's own session, the moved-pane lookup, the rewake watcher's pane
+    check and the `inbox answer` own-conversation check all read it.
+  - **Window (review #53 L1):** herdr can report the resumed id, idle, before our hook
+    process has written the marker (several SessionStart hooks run in parallel). A worker
+    pass in that window falls back to the no-marker path below: typed once, recorded as
+    typed into an older session, never verified, never typed there again.
+  - The worker drops markers older than 30 days, at most hourly (`prune_starts`). A
+    resumed session idle for longer than that just falls back the same way.
+- **A pane running an older session gets nothing typed**, Send now included. The row shows a
+  failure: `older conversation: pane <pane> runs <old>, an older session than the asking
+  <asker>; resume <asker> to deliver`. It is retried every pass, never called "agent gone",
+  and notified once ("<pane> runs an older conversation"). When the asker runs again, in that
+  pane or another one (moved as before), the answer is delivered there exactly once. Ancestor
+  transcripts are never evidence, so nothing blocks it.
+- **Without the marker** (an older plugin, or a hook that did not run), the inbox types once
+  into what looks like the asker. Where the text landed is judged **per question** (a batch
+  can mix an OLD asker, for which the reported OLD file counts, with a NEW one, for which it
+  does not). If the text lands in the older session's transcript and not
+  in the forward family, the row says `older conversation: typed into <old> in pane <pane>, an
+  older session than the asking <asker>, which never got it; resume <asker> to deliver`. It is
+  not delivered, verified or seen, and it is never typed into that session again (pre-type
+  check of the reported session's transcript).
+- **`inbox answer` from an older session** is not the asker's own answer. It is delivered to
+  the asker like any other answer. In 0.10.5 that was Q159–Q166.
+- **Rows already marked by 0.10.5** (Q129–Q152 verified from `1cd70de7`'s transcript;
+  Q159–Q166 seen from `a58e3f68`'s CLI answers) are not rewritten by this code. Only the
+  failed pile is reconciled, and it never verifies from an ancestor any more.
+
 ## The failed pile: answers that did arrive (0.10.5)
 
 **Live, 2026-10-17.** The operator: "a huge amount of questions I have responded to long ago
@@ -430,7 +514,8 @@ transcripts, read-only. Most of them had arrived.
 - **Acknowledged answers kept their old error** (Q77–Q95, Q108, Q155). They were already
   out of the pile, but still read as failures elsewhere.
 
-**Fixes.**
+**Fixes** (1, 2, 4 and 5 counted an older session as the asking conversation. That is
+superseded by "Older conversations are never delivery targets" above.)
 1. **Verify where the text lands.** After typing, delivery watches the followed
    conversation's transcript **and** the transcript of the session herdr reports for the
    pane (`wait_landed_any`; the detached verify job gets the same list).

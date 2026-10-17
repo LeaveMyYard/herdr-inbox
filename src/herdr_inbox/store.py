@@ -277,6 +277,102 @@ def db_path() -> Path:
     return Path(state) / "herdr-inbox" / "inbox.db"
 
 
+def _starts_dir() -> Path:
+    return db_path().parent / "starts"
+
+
+def record_start(session_id: str | None, pane_id: str | None = None) -> None:
+    """A Claude process RESUMED ``session_id`` now, in herdr pane ``pane_id``: the SessionStart
+    hook (source "resume" only, see hook.run) writes ``<state>/starts/<session>``, holding the
+    pane id; its mtime is the time. A file, not a column: no schema change, no database lock
+    on the hook's path, and older versions simply ignore it."""
+    from . import transcript  # stdlib only; local so the store has no import cycle
+
+    sid = transcript.session_id_or_none(session_id)
+    if sid is None:
+        return
+    d = _starts_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    tmp = d / f".{sid}.{os.getpid()}.tmp"
+    tmp.write_text(pane_id or "")
+    os.replace(tmp, d / sid)  # atomic; a new mtime every time
+
+
+def start_pane(session_id: str | None) -> str | None:
+    """The herdr pane the last resume of ``session_id`` ran in (record_start), or None."""
+    from . import transcript
+
+    sid = transcript.session_id_or_none(session_id)
+    if sid is None:
+        return None
+    try:
+        return (_starts_dir() / sid).read_text().strip() or None
+    except OSError:
+        return None
+
+
+STARTS_KEEP = 30 * 86400  # a start marker older than this is dropped (a missing one falls back)
+
+
+def prune_starts(keep: float = STARTS_KEEP, clock=None) -> int:
+    """Drop start markers older than ``keep`` seconds (the worker, at most hourly). A marker
+    only matters while it is newer than its session's continued-in record; a session idle for
+    longer than ``keep`` with its marker gone falls back to D6 plus the typed-once path."""
+    import time as _time
+
+    cutoff = (clock or _time.time)() - keep
+    n = 0
+    try:
+        entries = list(_starts_dir().iterdir())
+    except OSError:
+        return 0
+    for path in entries:
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                n += 1
+        except OSError:
+            continue
+    return n
+
+
+def started_at(session_id: str | None) -> float | None:
+    """When a Claude process last started ``session_id`` (record_start), or None."""
+    from . import transcript
+
+    sid = transcript.session_id_or_none(session_id)
+    if sid is None:
+        return None
+    try:
+        return (_starts_dir() / sid).stat().st_mtime
+    except OSError:
+        return None
+
+
+def live_session(reported: str | None, known: str | None = None, pane: str | None = None) -> str | None:
+    """The session a Claude process reported as ``reported`` (by herdr, or its own
+    CLAUDE_CODE_SESSION_ID) runs now: ``transcript.follow``, except that a session a Claude
+    process (re)started AFTER its continued-in record runs ITSELF. herdr resumes a pane under
+    the OLD id, and until its first prompt the old transcript still ends in continued-in, so
+    the D6 rule alone takes the older conversation for the newer one (live 2026-10-17: Q129-
+    Q152 were typed into 1cd70de7, an ancestor of the asking c5240607).
+
+    ``pane``: the herdr pane asking about (when known). A marker written by a resume in ANOTHER
+    pane never applies here: one pane can run OLD's in-process continuation while another runs
+    OLD resumed (review #53 final L3)."""
+    from . import transcript
+
+    if not reported:
+        return reported
+    path = transcript.find(reported, known)
+    if path is not None and transcript.continued_in(path) is not None:
+        started, at = started_at(reported), transcript.continued_at(path)
+        marked = start_pane(reported)
+        if started is not None and at is not None and started > at and not (pane and marked and marked != pane):
+            return transcript.session_id_or_none(reported) or reported
+    return transcript.follow(reported, known)
+
+
 def now(delta: timedelta = timedelta()) -> str:
     return (datetime.now(timezone.utc) + delta).isoformat(timespec="seconds")
 

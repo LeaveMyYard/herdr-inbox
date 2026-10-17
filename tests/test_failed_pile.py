@@ -61,18 +61,25 @@ def as_stored(store, qid, error, acknowledged=False):
                          " ON CONFLICT(id) DO UPDATE SET agent_gone_at = excluded.agent_gone_at", (qid, qid, st.now()))
 
 
-def test_typed_into_a_resumed_old_session_is_verified_at_once(store, fake_herdr, monkeypatch):
-    """The cause of the 6 'not verified': watch the reported session's transcript too."""
+def test_typed_into_a_resumed_old_session_is_an_older_conversation_not_a_delivery(store, fake_herdr, monkeypatch):
+    """The 6 'not verified' (Q129-Q152): the typed batch landed in the resumed OLD session, an
+    ANCESTOR of the asking NEW. #44 called that verified; it never reached the asker (the agent
+    there said "they belong to another session's questions"). Without our SessionStart marker
+    the inbox cannot tell before typing, so it types once, sees where it went, and says so."""
     continued_then_resumed()
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)  # herdr reports the resumed OLD id
     monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)  # and the typed text lands there
     q = filed(store, "w1:p1", NEW, "Three big prod analytics columns: views?", "yes, masked")
     service.deliver(store, q)
     q = store.get(q.id)
-    assert q.delivery_error is None and q.acknowledged_at and q.verified_at
+    assert not q.delivered_at and not q.acknowledged_at and not q.verified_at
+    assert q.delivery_error.startswith(service.OLDER) and OLD[:8] in q.delivery_error and NEW[:8] in q.delivery_error
+    assert [r.id for r in store.failed_deliveries()] == [q.id]
 
 
-def test_reconcile_verifies_the_not_verified_answers_that_landed(store, fake_herdr):
+def test_reconcile_never_verifies_answers_that_landed_only_in_an_older_session(store, fake_herdr):
+    """#44 verified these (the batch is in the resumed OLD transcript); OLD is an ancestor of
+    the asking NEW, so they stay failed."""
     q1 = filed(store, "w6:p3R", NEW, "Three big prod analytics columns: views?", "yes")
     q2 = filed(store, "w6:p3R", NEW, "Where do the keys live?", "Secrets Manager")
     for q in (q1, q2):
@@ -82,14 +89,15 @@ def test_reconcile_verifies_the_not_verified_answers_that_landed(store, fake_her
     store.record_session(OLD, str(tdir() / f"{OLD}.jsonl"))
     assert {q.id for q in store.failed_deliveries()} == {q1.id, q2.id}
     worker.tick(store)
-    assert store.failed_deliveries() == []
+    assert {q.id for q in store.failed_deliveries()} == {q1.id, q2.id}
     for q in (q1, q2):
         r = store.get(q.id)
-        assert r.acknowledged_at and r.verified_at and r.delivery_error is None
+        assert not r.acknowledged_at and not r.verified_at and not r.delivered_at
 
 
-def test_reconcile_finds_a_changed_conversation_answer_in_the_panes_current_session(store, fake_herdr, monkeypatch):
-    """Q156: 'conversation changed in pane w6:p57', but it landed in what p57 runs now."""
+def test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session(store, fake_herdr, monkeypatch):
+    """Q156: 'conversation changed in pane w6:p57'; it landed in what p57 runs now, the resumed
+    OLD, an ancestor of the asking NEW. #44 counted it; it is no delivery."""
     q = filed(store, "w6:p57", NEW, "PR ghost#1927: screenshots blocked, merge anyway?", "merge")
     as_stored(store, q.id, CHANGED_P57)
     # captured relation: a58e3f68 -> 06acc80f, then herdr resumed a58e3f68 in p57
@@ -101,7 +109,7 @@ def test_reconcile_finds_a_changed_conversation_answer_in_the_panes_current_sess
     monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w6:p57", OLD)))
     worker.tick(store)
     r = store.get(q.id)
-    assert r.verified_at and r.acknowledged_at and not store.agent_gone(q.id)
+    assert not r.verified_at and not r.acknowledged_at and [x.id for x in store.failed_deliveries()] == [q.id]
 
 
 def test_an_acknowledged_answer_never_keeps_a_failure(store, fake_herdr):
@@ -137,10 +145,12 @@ def test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in(store, 
 def test_reconcile_backs_off_per_answer(store, fake_herdr, monkeypatch):
     q = filed(store, "w6:p48", NEW, "Backoff?", "x")
     as_stored(store, q.id, GONE_P48)
-    fake_herdr.reset()
+    looked = []
+    real = service._relative_paths
+    monkeypatch.setattr(service, "_relative_paths", lambda store, q: looked.append(q.session_id) or real(store, q))
     service.reconcile_failed(store)
     service.reconcile_failed(store)
-    assert len(fake_herdr.calls_of("agent", "list")) == 1
+    assert looked == [NEW]  # the transcripts were read once; the second pass backed off
 
 
 # -- operator Q167 ("Both"): one collapsed row with d-hides-all, and auto-archive after 24 h --
@@ -226,7 +236,10 @@ def own_cli_answer_records(qid, answer, at):
     ]
 
 
-def test_reconcile_counts_an_answer_the_agent_gave_itself_as_seen(store, fake_herdr):
+def test_reconcile_never_counts_an_answer_an_older_session_gave_itself(store, fake_herdr):
+    """#44 counted this as seen (Q159-Q166 shape). The CLI answer came from the resumed OLD, an
+    ancestor of the asking NEW: NEW never got it, so it stays failed. (The asking session's
+    own CLI answer still counts: test_r3_* below.)"""
     q = filed(store, "w6:p48", NEW, "P7 domains: v1 whitelisted/blacklisted pages are placeholders; port?",
               "Keep as built (already merged in #1943): faithful empty placeholder")
     as_stored(store, q.id, GONE_P48)
@@ -238,8 +251,7 @@ def test_reconcile_counts_an_answer_the_agent_gave_itself_as_seen(store, fake_he
     write(NEW, [{"type": "ai-title", "aiTitle": "x"}])
     worker.tick(store)
     r = store.get(q.id)
-    assert r.acknowledged_at and r.delivery_error is None and not store.agent_gone(q.id)
-    assert store.failed_deliveries() == []
+    assert not r.acknowledged_at and [x.id for x in store.failed_deliveries()] == [q.id]
 
 
 def test_a_mere_id_mention_with_a_short_answer_is_not_evidence(store, fake_herdr):
@@ -252,11 +264,13 @@ def test_a_mere_id_mention_with_a_short_answer_is_not_evidence(store, fake_herdr
 
 
 def test_the_cli_answer_from_the_asking_conversation_is_seen_at_once(store, fake_herdr, monkeypatch):
-    """`inbox answer` run by the asking agent itself (even from its resumed older session)."""
+    """`inbox answer` run by the asking agent itself: here OLD's process after it continued in
+    NEW (the env keeps OLD; the conversation is NEW's). A RESUMED OLD is another conversation:
+    test_older_conversation.py."""
     from herdr_inbox.cli import main
 
-    write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW},
-                {"type": "user", "message": {"role": "user", "content": "back"}}])
+    write(OLD, [{"type": "user", "message": {"role": "user", "content": "before"}},
+                {"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW}])
     store.record_session(OLD, str(tdir() / f"{OLD}.jsonl"))
     write(NEW, [{"type": "ai-title", "aiTitle": "x"}])
     qid = service.ask(store, Caller("w1:p1", "w1:t1", "tab", NEW, "/r"), "Relay the operator's call?")["id"]
@@ -286,17 +300,24 @@ def test_the_cli_answer_from_another_agent_still_delivers(store, fake_herdr, mon
     assert fake_herdr.calls_of("agent", "prompt")
 
 
-def test_a_retry_never_types_what_already_landed_in_a_resumed_old_session(store, fake_herdr, monkeypatch):
-    """The no-double-delivery guard: the pre-type check reads every related transcript."""
+def test_a_retry_delivers_to_the_asker_what_only_landed_in_a_resumed_old_session(store, fake_herdr, monkeypatch):
+    """#44 refused to type this (it had landed in the resumed OLD), so the asking NEW never got
+    it. The pre-type guard reads only the asker's forward family: NEW, running again in the
+    pane, gets it exactly once."""
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
     q = filed(store, "w1:p1", NEW, "Landed in the resumed old one?", "yes it did")
     as_stored(store, q.id, NOT_VERIFIED)
     continued_then_resumed(service.herdr.clean(service.delivery_text([store.get(q.id)]), limit=10**9))
     store.record_session(OLD, str(tdir() / f"{OLD}.jsonl"))
     monkeypatch.setenv("FAKE_HERDR_SESSION", NEW)
     fake_herdr.reset()
-    service.deliver(store, store.get(q.id), retry=True, force=True)  # even Send now
-    assert not fake_herdr.calls_of("agent", "prompt")
-    assert store.get(q.id).acknowledged_at
+    service.deliver(store, store.get(q.id), retry=True, force=True)  # Send now
+    assert len(fake_herdr.calls_of("agent", "prompt")) == 1
+    r = store.get(q.id)
+    assert r.acknowledged_at and r.verified_at and r.delivery_error is None
+    worker.tick(store)
+    service.deliver(store, store.get(q.id), retry=True, force=True)
+    assert len(fake_herdr.calls_of("agent", "prompt")) == 1  # never twice
 
 
 # -- review round 1 (#44): a false "seen" loses an answer silently ----------------------------

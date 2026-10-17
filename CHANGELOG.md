@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: answers went to an older conversation and were called delivered.**
+  - Live: Q129–Q152. herdr resumed a pane under an **older** session id, one that had
+    continued into the asking session. The inbox typed the answers there. That agent did not
+    have the asker's context and ignored them, and 0.10.5's reconcile marked them verified.
+  - Answers now go only to the asking session or a session it continued into. They are
+    verified only there.
+  - A pane running an older session gets nothing typed, even with Send now. The popup shows
+    why and which session to resume. When that session runs again, the answer is delivered
+    there once.
+  - The SessionStart hook records each resume and its pane (`<state dir>/starts/`), so a
+    resumed older id is recognised before anything is typed.
+  - `inbox answer` run from an older session no longer counts as the asker's own answer.
+
 ## 0.10.5
 
 - **Fix: answers that did arrive were shown as failed.** Live, 16 rows in the ⚠ pile; most had

@@ -154,6 +154,15 @@ def continued_in(path: Path) -> str | None:
     return nxt
 
 
+def continued_at(path: Path) -> float | None:
+    """The time of the continued-in record that makes ``path``'s session continued (see
+    continued_in), or None: not continued, or the record (and everything before it) undated."""
+    if continued_in(path) is None:
+        return None
+    cached = _follow_cache.get(str(path))
+    return cached[2] if cached else None
+
+
 _targets_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
 _TARGET = re.compile(rb'"continuedInSessionId"\s*:\s*"([^"\\]{0,64})"')  # candidates; session_id_or_none decides
 
@@ -178,6 +187,49 @@ def continued_targets(path: Path) -> frozenset:
         return frozenset()
     result = frozenset(found)
     _remember(_targets_cache, key, (n, result))
+    return result
+
+
+_edges_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
+
+
+def continued_edges(path: Path) -> frozenset:
+    """(target, record time or None) for every continued-in record ``path`` EVER holds (main
+    conversation only: never an isSidechain record, never a subagent's file). Lets a caller
+    follow only the continuations made after a given moment (service.forward_family).
+    Incremental over complete lines and cached, like continued_in."""
+    if "subagents" in Path(path).parts[-4:-1]:
+        return frozenset()
+    key, n = str(path), size(path)
+    cached = _edges_cache.get(key)
+    if cached and cached[0] == n:
+        return cached[1]
+    start, found = (cached[0], set(cached[1])) if cached and cached[0] < n else (0, set())
+    own = session_id_or_none(Path(path).stem)
+    done = start
+    try:
+        with open(path, "rb") as fh:  # streamed line by line: a cold read of a big file stays small
+            fh.seek(start)
+            for raw in fh:
+                if not raw.endswith(b"\n"):
+                    break  # a partial last line is read next time
+                done += len(raw)
+                if b"continued-in" not in raw:
+                    continue
+                try:
+                    record = json.loads(raw)
+                except (ValueError, RecursionError):
+                    continue
+                if not isinstance(record, dict) or record.get("type") != "continued-in" \
+                        or record.get("isSidechain") is True:
+                    continue
+                target = session_id_or_none(record.get("continuedInSessionId"))
+                if target is not None and target != own:
+                    found.add((target, _ts(record.get("timestamp"))))
+    except OSError:
+        return frozenset()
+    result = frozenset(found)
+    _remember(_edges_cache, key, (done, result))
     return result
 
 
