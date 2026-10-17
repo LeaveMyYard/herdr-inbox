@@ -109,6 +109,32 @@ def continued_in(path: Path) -> str | None:
     return nxt
 
 
+_targets_cache: "OrderedDict[str, tuple[int, frozenset]]" = OrderedDict()
+_TARGET = re.compile(rb'"continuedInSessionId"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"')
+
+
+def continued_targets(path: Path) -> frozenset:
+    """Every session ``path``'s conversation EVER continued in, wherever the record sits (an
+    old session resumed afterwards keeps its record mid-file). For finding where a delivery
+    landed, never for ownership. Incremental and cached like continued_in."""
+    key, n = str(path), size(path)
+    cached = _targets_cache.get(key)
+    if cached and cached[0] == n:
+        return cached[1]
+    start, found = (cached[0], set(cached[1])) if cached and cached[0] < n else (0, set())
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(start)
+            for line in fh:  # whole lines: a record never splits across reads
+                if b"continued-in" in line:
+                    found.update(m.decode() for m in _TARGET.findall(line))
+    except OSError:
+        return frozenset()
+    result = frozenset(found)
+    _remember(_targets_cache, key, (n, result))
+    return result
+
+
 def chain(session_id: str | None, known: str | None = None, max_hops: int = 8) -> list[str]:
     """``session_id`` and every session its conversation continued in, in order (cycle-safe)."""
     out: list[str] = []
@@ -321,6 +347,246 @@ def landed_kinds(path: Path, expected: dict[int, tuple[list[str], str | None]]) 
     return found
 
 
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
+OWN = object()  # evidence kind: the conversation itself answered (our CLI's output line)
+_evidence_cache: "OrderedDict[str, tuple]" = OrderedDict()  # path -> (stat, offset, edge, found, uses)
+
+
+_ASSIGN = re.compile(r"^([A-Za-z_]\w*)=(\S+)$")
+_QID = re.compile(r"^Q?(\d+)$")
+_VALUE_FLAGS = {"--project", "--directory", "--python", "--with", "--from", "-p"}
+
+
+def own_answer_qids(command: str) -> set[int]:
+    """The question ids a shell command ANSWERS with the inbox CLI: only an actual
+    invocation at the start of a command segment (start, newline, `;`, `&&`, `||`, `|`):
+    `[path/]inbox answer [Q]<n>`, `$VAR answer <n>` with VAR set to an inbox path earlier in
+    the command, `uv run [flags] inbox answer <n>`, `python[3] -m herdr_inbox.cli answer <n>`.
+    A path, a repo name, a grep pattern or a comment body never counts (review #44 r3)."""
+    import shlex
+
+    try:  # quote-aware: `;`, `&`, `|` and newlines inside a quoted answer are text, not separators
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|\n")
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        tokens_all = list(lexer)
+    except ValueError:
+        return set()
+    segments, current = [], []
+    for tok in tokens_all:
+        if tok and set(tok) <= set(";&|\n"):
+            segments.append(current)
+            current = []
+        else:
+            current.append(tok)
+    segments.append(current)
+    inbox_vars, out, elsewhere = set(), set(), False
+    for tokens in segments:
+        tokens = [t for t in (tokens[:1] and [tokens[0].lstrip("\n")]) + tokens[1:] if t]  # "&&\n$B" glues
+        # a CLI pointed at another database (a copy being replayed) answers THAT database's
+        # question: from such a setting on, nothing counts (final pass #44 L1)
+        sets = [_ASSIGN.match(t).group(1) for t in tokens if _ASSIGN.match(t)]
+        if any(name in ("HERDR_INBOX_DB", "XDG_STATE_HOME") for name in sets):
+            elsewhere = True
+        if elsewhere:
+            continue
+        if len(tokens) == 1 and _ASSIGN.match(tokens[0]):
+            name, value = _ASSIGN.match(tokens[0]).groups()
+            if value == "inbox" or value.endswith("/inbox"):
+                inbox_vars.add(name)
+            continue
+        while tokens and _ASSIGN.match(tokens[0]):  # leading env assignments
+            tokens = tokens[1:]
+        if not tokens:
+            continue
+        head, rest = tokens[0], None
+        if head == "inbox" or head.endswith("/inbox"):
+            rest = tokens[1:]
+        elif head.startswith("$") and head.strip("${}") in inbox_vars:
+            rest = tokens[1:]
+        elif head == "uv" and len(tokens) > 2 and tokens[1] == "run":
+            i, n = 2, len(tokens)
+            while i < n and tokens[i].startswith("-"):
+                i += 2 if tokens[i] in _VALUE_FLAGS else 1
+            if i < n and (tokens[i] == "inbox" or tokens[i].endswith("/inbox")):
+                rest = tokens[i + 1:]
+        elif head.split("/")[-1] in ("python", "python3") and tokens[1:3] == ["-m", "herdr_inbox.cli"]:
+            rest = tokens[3:]
+        if rest and len(rest) >= 2 and rest[0] == "answer":
+            qm = _QID.match(rest[1])
+            if qm:
+                out.add(int(qm.group(1)))
+    return out
+
+
+def own_answer_succeeded(output: str, qid: int) -> bool:
+    """Our CLI's own success line for ``qid`` starts a line of the output, and it did not
+    say the question was not open."""
+    lines = [line.strip() for line in output.splitlines()]
+    if any(line.startswith(f"Q{qid} is not open") for line in lines):
+        return False
+    return any(line.startswith((f"Q{qid} answered, ", f"Q{qid} answered by its own conversation"))
+               for line in lines)
+_INBOX_READS = ("check_answers", "list_my_questions")
+
+
+def _stat_key(path: Path) -> tuple | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns, st.st_ino)
+
+
+def _tool_uses(record: dict):
+    """(id, kind, qids) of the inbox calls this assistant record makes: `own` for a Bash
+    command running `inbox answer <n>` (the conversation answers itself), `read` for
+    herdr-inbox's check_answers / list_my_questions MCP tools."""
+    if record.get("type") != "assistant":
+        return
+    content = (record.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use" or not isinstance(block.get("id"), str):
+            continue
+        name = block.get("name") or ""
+        inp = block.get("input") if isinstance(block.get("input"), dict) else {}
+        if name == "Bash" and isinstance(inp.get("command"), str) and "inbox" in inp["command"]:
+            qids = own_answer_qids(inp["command"])
+            if qids:
+                yield block["id"], "own", qids
+        elif "herdr-inbox" in name and name.endswith(_INBOX_READS):
+            yield block["id"], "read", set()
+
+
+def _tool_results(record: dict):
+    """(tool_use_id, text) of the tool results this user record carries."""
+    if record.get("type") != "user":
+        return
+    content = (record.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        inner, use = block.get("content"), block.get("tool_use_id")
+        if isinstance(inner, str):
+            yield use, inner
+        elif isinstance(inner, list):
+            for b in inner:
+                if isinstance(b, dict) and isinstance(b.get("text"), str):
+                    yield use, b["text"]
+
+
+def _answers_in(value, out: list):
+    """{"id": <int>, "answer": "<str>"} objects anywhere in parsed JSON."""
+    if isinstance(value, dict):
+        if isinstance(value.get("id"), int) and isinstance(value.get("answer"), str):
+            out.append((value["id"], value["answer"]))
+        for v in value.values():
+            _answers_in(v, out)
+    elif isinstance(value, list):
+        for v in value:
+            _answers_in(v, out)
+
+
+def evidence(path: Path) -> dict:
+    """qid -> [(timestamp, answer | OWN)]: what the conversation's OWN inbox calls gave it
+    (review #44 rounds 1-2). A tool result counts only through the tool_use it answers:
+    - the conversation's Bash `inbox answer <n> ...` and our CLI's `Q<n> answered` line in
+      its result: the conversation answered n itself (OWN);
+    - herdr-inbox's check_answers / list_my_questions: `{"id": n, "answer": "<exact>"}`.
+    Quoted output (a terminal read, a log, an echo) never counts. Indexed incrementally;
+    the cache is keyed on size, mtime and inode (a rewrite is re-indexed)."""
+    key, stat = str(path), _stat_key(path)
+    if stat is None:
+        return {}
+    cached = _evidence_cache.get(key)
+    if cached and cached[0] == stat:
+        return cached[3]
+    try:
+        with open(path, "rb") as fh:
+            grow = False
+            if cached and cached[0][2] == stat[2] and cached[1] < stat[0]:
+                # an append keeps everything up to the indexed offset: check its last bytes
+                fh.seek(max(0, cached[1] - len(cached[2])))
+                grow = fh.read(len(cached[2])) == cached[2]
+            start, uses, found = (cached[1], dict(cached[4]), {k: list(v) for k, v in cached[3].items()}) if grow \
+                else (0, {}, {})
+            fh.seek(start)
+            data = fh.read(stat[0] - start)
+            end = data.rfind(b"\n")
+            offset = start + end + 1 if end != -1 else start
+            fh.seek(max(0, offset - 64))
+            edge = fh.read(min(64, offset))
+    except OSError:
+        return {}
+    if end == -1:
+        _remember(_evidence_cache, key, (stat, offset, edge, found, uses))
+        return found
+    for raw in data[:end].split(b"\n"):
+        if b'"tool_use"' in raw and (b"inbox" in raw):
+            kind = "use"
+        elif b'"tool_result"' in raw and raw.count(b"answer"):
+            kind = "result"
+        else:
+            continue
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if kind == "use":
+            for use_id, what, qids in _tool_uses(record):
+                uses[use_id] = (what, frozenset(qids))
+            continue
+        ts = record.get("timestamp") if isinstance(record.get("timestamp"), str) else None
+        for use_id, text in _tool_results(record):
+            what, qids = uses.get(use_id, (None, frozenset()))
+            if what == "own":
+                for qid in qids:
+                    if own_answer_succeeded(text, qid):
+                        found.setdefault(qid, []).append((ts, OWN))
+            elif what == "read" and '"answer"' in text:
+                try:
+                    parsed = json.loads(text)
+                except ValueError:
+                    continue
+                pairs: list = []
+                _answers_in(parsed, pairs)
+                for qid, ans in pairs:
+                    found.setdefault(qid, []).append((ts, ans))
+    # a hit needs the exact (size, mtime, inode); growth continues from the indexed offset
+    _remember(_evidence_cache, key, (stat, offset, edge, found, uses))
+    return found
+
+
+def seen_answer(path: Path, qid: int, question: str, answer: str, since: str | None) -> bool:
+    """The conversation was GIVEN this answer by a tool, after the answer time: check_answers'
+    JSON with this exact answer value, or our CLI's own "Q7 answered" line (it answered it
+    itself). Never agent-written text, never a substring, no window before the answer
+    (review #44: a false "seen" loses an answer silently)."""
+    want = _squash(answer)
+    for ts, value in evidence(path).get(qid, []):
+        if not _after(ts, since):
+            continue
+        if value is OWN or _squash(value) == want:
+            return True
+    return False
+
+
 def landed_since(path: Path, offset: int, qids: list[int], text: str | None = None) -> bool:
     """Whether a record appended after ``offset`` carries our message for ``qids`` (with
     ``text``, the exact message typed, also when it follows other text: see _tails)."""
@@ -338,6 +604,20 @@ def landed_since(path: Path, offset: int, qids: list[int], text: str | None = No
             if contains(record_text, qids, text):
                 return True
     return False
+
+
+def wait_landed_any(watch: list[tuple[Path, int]], qids: list[int], timeout: float, interval: float = 0.25,
+                    text: str | None = None) -> bool:
+    """wait_landed over several transcripts (each from its own offset): typed text lands in
+    whichever conversation the pane really runs -- after herdr resumed an older session id,
+    that is the OLD session's file, not the one its `continued-in` names (live 2026-10-17)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        if any(landed_since(p, off, qids, text) for p, off in watch):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(interval)
 
 
 def wait_landed(path: Path, offset: int, qids: list[int], timeout: float, interval: float = 0.25,

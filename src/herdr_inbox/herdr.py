@@ -75,6 +75,7 @@ def pane_identity(pane_id: str) -> dict:
     out = {"tab_id": None, "tab_label": None, "session_id": None}
     res, _ = call("pane", "get", pane_id)
     pane = (res or {}).get("pane") or {}
+    out["exists"] = bool(pane)
     out["tab_id"] = pane.get("tab_id")
     out["session_id"] = (pane.get("agent_session") or {}).get("value")
     if out["tab_id"]:
