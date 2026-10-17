@@ -11,8 +11,8 @@
   - A pane running an older session gets nothing typed, even with Send now. The popup shows
     why and which session to resume. When that session runs again, the answer is delivered
     there once.
-  - The SessionStart hook records each session's start (`<state dir>/starts/`), so a resumed
-    older id is recognised before anything is typed.
+  - The SessionStart hook records each resume and its pane (`<state dir>/starts/`), so a
+    resumed older id is recognised before anything is typed.
   - `inbox answer` run from an older session no longer counts as the asker's own answer.
 
 ## 0.10.5
