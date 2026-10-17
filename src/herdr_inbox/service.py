@@ -135,6 +135,14 @@ UNAVAILABLE = {
     "your caller, instead.",
 }
 
+# The same receipt when this code's schema is not in the database yet: MCP tools never migrate
+# (store.py); the worker or the popup does, within seconds of starting.
+NOT_MIGRATED = {
+    "status": "unavailable",
+    "message": "The operator inbox is being upgraded (its delivery worker migrates the database); "
+    "call this tool again in a few seconds, or ask in chat if it stays unavailable.",
+}
+
 
 def ask(
     store: Store,

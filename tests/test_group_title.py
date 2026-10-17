@@ -45,7 +45,7 @@ def test_fallback_name_for_untitled_groups(store, fake_herdr):
     assert service.group_name(store.group(3)) == "One?"            # old-style group without a title
 
 
-async def test_mcp_title_parameter(fake_herdr):
+async def test_mcp_title_parameter(migrated_db, fake_herdr):
     async with Client(mcp) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
         desc = tools["ask_operator"].description

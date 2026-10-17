@@ -98,6 +98,24 @@ def main(argv: list[str] | None = None, stdin: str | None = None) -> int:
         return 0
 
     logging.basicConfig(level=logging.WARNING, format="inbox: %(message)s")
+    from .store import SchemaNotReady
+
+    try:
+        return _command(args, parser, stdin)
+    except SchemaNotReady:
+        # the CLI never migrates (store.py): the worker and the popup do; start the worker
+        from . import service
+
+        service._ensure_worker()
+        if args.cmd == "sync-tokens":
+            return 0  # herdr's startup command: nothing to count before the worker migrates
+        print("inbox: the inbox database is not migrated to this version yet; the delivery worker "
+              "(started now) migrates it: run this again in a few seconds", file=sys.stderr)
+        return 1
+
+
+def _command(args: argparse.Namespace, parser: argparse.ArgumentParser, stdin: str | None) -> int:
+    """The commands that open the store. Every open here is non-migrating."""
     from . import herdr, service
     from .store import Store
 

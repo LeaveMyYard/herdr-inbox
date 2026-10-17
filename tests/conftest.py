@@ -188,9 +188,18 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
 def store(fake_herdr):
     from herdr_inbox.store import Store
 
-    s = Store()
+    s = Store(migrate=True)  # as the worker (or the popup) leaves it: only they migrate
     yield s
     s.close()
+
+
+@pytest.fixture
+def migrated_db(fake_herdr):
+    """The inbox DB as the worker (or the popup) leaves it: only they migrate (store.py), so a
+    test of a non-migrating process (MCP tool, hook, CLI) starts from this."""
+    from herdr_inbox.store import Store
+
+    Store(migrate=True).close()
 
 
 def subprocess_env(**extra: str) -> dict[str, str]:
