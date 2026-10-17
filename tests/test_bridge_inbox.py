@@ -233,3 +233,49 @@ def test_chain_keeps_the_known_path_for_an_id_in_another_case(tmp_path, monkeypa
     continued(m, BASE + 10)
     m.write()
     assert transcript.chain(hex_id.upper(), str(m.path)) == [hex_id, NEXT]
+
+
+def test_a_workflow_agents_transcript_is_a_subagents_too(tmp_path):
+    m = Project(tmp_path / "projects")
+    wf = tmp_path / "projects" / "-home-user-project" / SID / "subagents" / "workflows" / "run1"
+    wf.mkdir(parents=True)
+    path = wf / "agent-a1.jsonl"
+    rec = tpl("continued_in")
+    rec.update(sessionId=SID, continuedInSessionId=NEXT)
+    path.write_text(json.dumps(rec) + "\n")
+    assert transcript.continued_in(path) is None
+    assert m  # the project dir exists either way
+
+
+def test_a_config_dir_under_a_folder_named_subagents_still_follows(tmp_path, monkeypatch):
+    """Final pass L1: only the transcript's own place decides, never a folder above the projects dir."""
+    root = tmp_path / "subagents" / "claude"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(root))
+    m = Project(root / "projects").main(SID)
+    m.prompt(BASE, "work")
+    continued(m, BASE + 10)
+    m.write()
+    assert transcript.chain(SID) == [SID, NEXT]
+
+
+def test_a_transcript_that_shrank_is_read_again_from_its_tail(tmp_path):
+    """Final pass L2: a rewritten (shorter) file is never read from the old cached offset."""
+    m = Project(tmp_path / "projects").main(SID)
+    m.prompt(BASE, "work")
+    for _ in range(40):
+        bookkeeping(m, "cost_state")
+    m.write()
+    assert transcript.continued_in(m.path) is None
+    m.lines = m.lines[:1]
+    continued(m, BASE + 10)
+    m.write()
+    assert transcript.continued_in(m.path) == NEXT
+
+
+def test_a_bad_session_link_never_matches_questions_without_a_session(store):
+    """Final pass N1: an invalid link canonicalises to None, as does a question with no session."""
+    from herdr_inbox import deeplink, service
+    from herdr_inbox.service import Caller
+
+    service.ask(store, Caller("w1:p1", "w1:t1", "tab", None, "/r"), "No session?")
+    assert deeplink.resolve(store, {"kind": "session", "value": "not-a-session"}) is None
