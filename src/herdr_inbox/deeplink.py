@@ -147,7 +147,8 @@ def resolve(store: Store, target: dict) -> tuple[tuple[str, int], int | None] | 
 def describe(target: dict) -> str:
     kind, value = target.get("kind"), target.get("value")
     if kind == "question":
-        return f"Q{str(value).lstrip('Qq')}"
+        machine, colon, ref = question_ref(str(value)).rpartition(":")
+        return f"{machine}{colon}Q{ref}"  # qnap:12 -> qnap:Q12 (#55: was "Qnap:12")
     return f"{kind} {value}"
 
 

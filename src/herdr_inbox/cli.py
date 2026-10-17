@@ -17,12 +17,15 @@ def _age(iso: str) -> str:
     return f"{max(secs, 0)}s"
 
 
-
 def _question_id(value: str) -> int:
     """argparse type for ``Q12``/``q12``/``12`` (deeplink.question_id, #55)."""
     from .deeplink import question_id
 
     return question_id(value)
+
+
+_question_id.__name__ = "question id"  # argparse: "invalid question id value: 'QQ12'"
+
 
 RADAR_MESSAGES = {
     "changed": "$inbox_q {verb} herdr-radar's sidebar rows in {path} (backup: config.toml.inbox-bak); herdr reloaded",
