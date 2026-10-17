@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -152,6 +153,11 @@ class FakeHerdr:
             await asyncio.sleep(0.01)
 
 
+# leaked_workers runs in fake_herdr's teardown, before monkeypatch undoes a test's patches: a
+# test that replaced subprocess.Popen (worker.subprocess IS subprocess) must not break it
+_REAL_POPEN = subprocess.Popen
+
+
 def leaked_workers(root: Path) -> list[int]:
     """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
 
@@ -177,9 +183,9 @@ def leaked_workers(root: Path) -> list[int]:
                     and any(e.decode(errors="replace").startswith(marker) for e in env):
                 found.append(int(d.name))
     else:  # macOS: ps -E shows the environment of the user's own processes
-        import subprocess
-
-        out = subprocess.run(["ps", "-Aww", "-E", "-o", "pid=,command="], capture_output=True, text=True).stdout
+        with _REAL_POPEN(["ps", "-Aww", "-E", "-o", "pid=,command="], stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, text=True) as ps:
+            out = ps.communicate()[0]
         for line in out.splitlines():
             pid, _, command = line.strip().partition(" ")
             if "herdr_inbox.cli worker" in command and marker in command and pid.isdigit():
