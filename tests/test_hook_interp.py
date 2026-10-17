@@ -162,16 +162,16 @@ def test_an_interpreter_that_disappears_is_re_resolved(tmp_path, fake_herdr):
 
 def test_an_old_python_is_never_cached(tmp_path, fake_herdr):
     """pyenv picks the version per directory: a session in a project pinned to Python 3.9
-    must not pin every later session onto run.py's uv fallback. Nothing is cached; the hook
-    runs through python3 as before (here the shim's interpreter is really new enough, so the
-    rules still print)."""
+    must not pin every later session onto run.py's uv fallback. Nothing is cached, but the
+    resolved interpreter still runs the hook directly (review L5: no second trip through the
+    shim). Here it is really new enough, so the rules still print."""
     path, log = shim(tmp_path, version=(3, 9, 6))
     data = tmp_path / "data"
     env = env_for(fake_herdr, path, data)
     for _ in range(2):
         assert rules(run(env))
     assert not (data / CACHE).exists()
-    assert calls(log) == 4  # resolution + the hook, each time
+    assert calls(log) == 2  # the resolution only, each time
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")

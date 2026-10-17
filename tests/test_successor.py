@@ -277,11 +277,14 @@ def listed_install(tmp_path: Path, name: str, version: str) -> Path:
     return root
 
 
-def test_current_plugin_root_asks_herdr_every_time(tmp_path, herdr_cli):
-    """herdr 0.9.4+ installs each update in a new directory: the lookup is herdr-first and
-    uncached, so a long-lived worker sees the new root."""
+def test_herdrs_own_install_follows_the_listed_root_uncached(tmp_path, herdr_cli):
+    """herdr 0.9.4+ installs each update in a new directory: herdr's install (its checkout
+    was the listed root) asks herdr every time and sees the new root."""
     own = herdr._own_checkout()
-    assert own and herdr.current_plugin_root() == own  # not listed: this code's checkout
+    assert own and herdr.current_plugin_root() == own  # herdr lists nothing: this checkout
+    assert herdr._is_herdrs_install is None  # no answer from herdr yet: undecided
+    herdr_cli["root_file"].write_text(own)
+    assert herdr.current_plugin_root() == own and herdr.follows_listed_root()
     first, second = listed_install(tmp_path, "a", "1.0.0"), listed_install(tmp_path, "b", "1.1.0")
     herdr_cli["root_file"].write_text(str(first))
     assert herdr.current_plugin_root() == str(first)  # herdr wins over __file__
@@ -290,17 +293,48 @@ def test_current_plugin_root_asks_herdr_every_time(tmp_path, herdr_cli):
     assert worker.installed_version() == "1.1.0"
 
 
+def test_another_checkout_never_follows_the_listed_root(tmp_path, herdr_cli, monkeypatch):
+    """Review M1: a dev worktree (or a Claude-cache copy) whose server lists another
+    checkout keeps its own root: no handover to other code, no downgrade."""
+    other = listed_install(tmp_path, "main", "0.1.0")
+    herdr_cli["root_file"].write_text(str(other))
+    own = herdr._own_checkout()
+    assert not herdr.follows_listed_root() and herdr.current_plugin_root() == own
+    assert worker.installed_version() == worker.running_version()
+    monkeypatch.setattr(worker, "tick", bounded_tick(limit=3))
+    monkeypatch.setattr(worker, "TICK", 0.0)
+    monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
+    successors = []
+    monkeypatch.setattr(worker, "start_successor", lambda: successors.append(1) or True)
+    with pytest.raises(StillLooping):
+        worker.run()
+    assert successors == []
+
+
+def test_an_installed_copy_without_a_checkout_follows_herdr(tmp_path, herdr_cli, monkeypatch):
+    listed = listed_install(tmp_path, "x", "2.0.0")
+    herdr_cli["root_file"].write_text(str(listed))
+    monkeypatch.setattr(herdr, "_own_checkout", lambda: None)
+    assert herdr.follows_listed_root() and herdr.current_plugin_root() == str(listed)
+
+
 def test_the_worker_hands_over_to_the_new_install_directory(tmp_path, herdr_cli, monkeypatch):
-    """The update landed in a new directory with a Rust binary: the worker sees the version
-    there and starts that directory's binary, from that directory."""
+    """herdr's install (listed at its own checkout when the worker started) is updated into a
+    new directory with a Rust binary: the worker sees the version there and starts that
+    directory's binary, from that directory."""
+    herdr_cli["root_file"].write_text(herdr._own_checkout())
     new = listed_install(tmp_path, "0.11.0", "0.11.0")
     install(new, "bin/herdr-inbox")
-    herdr_cli["root_file"].write_text(str(new))
+
+    def update(n):
+        if n == 1:
+            herdr_cli["root_file"].write_text(str(new))  # `herdr plugin update` lands
+
     rust_log = tmp_path / "rust.log"
     monkeypatch.setenv("FAKE_RUST_LOG", str(rust_log))
     monkeypatch.setenv("FAKE_RUST_LOCK", str(worker._lock_path()))
     monkeypatch.setattr(worker, "running_version", lambda: "0.10.5")
-    monkeypatch.setattr(worker, "tick", bounded_tick())
+    monkeypatch.setattr(worker, "tick", bounded_tick(each=update))
     monkeypatch.setattr(worker, "TICK", 0.0)
     real_popen = subprocess.Popen
     procs = []
@@ -334,6 +368,7 @@ def test_the_worker_exits_when_its_server_is_gone(herdr_cli, monkeypatch):
     monkeypatch.setenv("FAKE_HERDR_STATE", "gone")
     monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
     monkeypatch.setattr(worker, "TICK", 0.0)
+    monkeypatch.setattr(worker, "SERVER_GONE_EXIT", 0.0)
     tick = bounded_tick()  # answers pending
     monkeypatch.setattr(worker, "tick", tick)
     assert worker.run() == 0
@@ -343,6 +378,7 @@ def test_the_worker_exits_when_its_server_is_gone(herdr_cli, monkeypatch):
 def test_the_worker_exits_once_the_server_goes_away(herdr_cli, monkeypatch):
     monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
     monkeypatch.setattr(worker, "TICK", 0.0)
+    monkeypatch.setattr(worker, "SERVER_GONE_EXIT", 0.0)
     monkeypatch.setenv("FAKE_HERDR_STATE", "up")
 
     def server_exits(n):
@@ -372,3 +408,66 @@ def test_other_herdr_failures_keep_the_worker_running(herdr_cli, monkeypatch, st
     with pytest.raises(KeyboardInterrupt):
         worker.run()
     assert len(ticks) == 3
+
+
+def test_a_moment_without_the_server_does_not_end_the_worker(herdr_cli, monkeypatch):
+    """Review M2: a lone server_not_running reading (a restart or handoff blip) is not
+    "gone", even with no grace at all: the worker skips that tick and carries on once herdr
+    answers again. It takes consecutive readings spanning SERVER_GONE_EXIT."""
+    monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
+    monkeypatch.setattr(worker, "TICK", 0.0)
+    monkeypatch.setattr(worker, "SERVER_GONE_EXIT", 0.0)
+    readings = iter([True, False, True, False, True, False])
+    seen = []
+    monkeypatch.setattr(herdr, "server_gone", lambda: seen.append(1) or next(readings, False))
+    tick = bounded_tick(limit=6)
+    monkeypatch.setattr(worker, "tick", tick)
+    with pytest.raises(StillLooping):
+        worker.run()
+    assert len(tick.ticks) == 7 and len(seen) == 10  # the 3 gone readings skipped their tick
+
+
+def test_gone_for_the_whole_grace_ends_the_worker(herdr_cli, monkeypatch):
+    monkeypatch.setattr(worker, "IDLE_EXIT", 3600.0)
+    monkeypatch.setattr(worker, "TICK", 0.01)
+    monkeypatch.setattr(worker, "SERVER_GONE_EXIT", 0.2)
+    monkeypatch.setenv("FAKE_HERDR_STATE", "gone")
+    tick = bounded_tick()
+    monkeypatch.setattr(worker, "tick", tick)
+    started = time.monotonic()
+    assert worker.run() == 0
+    assert time.monotonic() - started >= 0.2 and tick.ticks == [] and not worker.is_running()
+
+
+def test_a_worker_that_takes_the_lock_at_the_deadline_is_not_killed(checkout, monkeypatch):
+    """Review L1: the lock is re-checked right before the kill."""
+    install(checkout["root"])
+    monkeypatch.setenv("FAKE_RUST_MODE", "hang")
+    monkeypatch.setattr(worker, "RUST_HANDOVER_WAIT", 0.0)
+    answers = iter([False])
+    monkeypatch.setattr(worker, "is_running", lambda server=None: next(answers, True))
+    assert worker.start_successor() is True
+    [proc] = checkout["procs"]
+    assert proc.poll() is None and checkout["uv"] == []  # still alive: it holds the lock
+
+
+def test_the_kill_takes_the_whole_process_group(checkout, monkeypatch, tmp_path):
+    """Review L2: a launcher-style binary whose child hangs without the lock leaves nothing."""
+    monkeypatch.setattr(worker, "RUST_HANDOVER_WAIT", 0.5)
+    pidfile = tmp_path / "child.pid"
+    binary = checkout["root"] / "target/release/herdr-inbox"
+    binary.parent.mkdir(parents=True)
+    binary.write_text(f"#!/bin/sh\nsleep 60 &\necho $! > {pidfile}\nwait\n")
+    binary.chmod(0o755)
+    assert worker.start_successor() is True and len(checkout["uv"]) == 1
+    child = int(pidfile.read_text())
+    for _ in range(100):
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            break
+        if Path(f"/proc/{child}/stat").exists() and Path(f"/proc/{child}/stat").read_text().split()[2] == "Z":
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the launcher's child survived the kill")

@@ -13,7 +13,8 @@
 #   (pyenv uninstall, brew upgrade) invalidates itself.
 # - Only an interpreter run.py can use directly (3.11+) is cached. pyenv picks the version
 #   per directory (.python-version), so a project pinned to an older Python must not pin
-#   every session onto run.py's uv fallback; such a call just runs `python3` as before.
+#   every session onto run.py's uv fallback. An older one is still run directly for this
+#   call (run.py hands it to uv), so it never pays the shim twice.
 # - The cache is written to a per-process temp file and renamed into place: concurrent
 #   hooks only ever read a whole file, and they all write the same answer.
 # - No CLAUDE_PLUGIN_DATA, an unwritable dir, or a broken `python3` all end in plain
@@ -39,15 +40,21 @@ if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
 	if usable "$py"; then
 		exec "$py" -I "$hook" "$@"
 	fi
-	py=$(python3 -I -c 'import sys; print(sys.executable if sys.version_info >= (3, 11) else "")' 2>/dev/null </dev/null)
-	if usable "$py"; then
-		tmp=$cache.$$.tmp
-		if [ ! -d "$cache" ] && mkdir -p "$CLAUDE_PLUGIN_DATA" 2>/dev/null && printf '%s\n' "$py" >"$tmp" 2>/dev/null; then
-			mv -f "$tmp" "$cache" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-		else
-			rm -f "$tmp" 2>/dev/null
-		fi
-		exec "$py" -I "$hook" "$@"
+	# "1 <path>" for 3.11+, "0 <path>" for an older one
+	out=$(python3 -I -c 'import sys; print(int(sys.version_info >= (3, 11)), sys.executable)' 2>/dev/null </dev/null)
+	py=${out#[01] }
+	if [ "$py" != "$out" ] && usable "$py"; then
+		case $out in
+		1\ *)
+			tmp=$cache.$$.tmp
+			if [ ! -d "$cache" ] && mkdir -p "$CLAUDE_PLUGIN_DATA" 2>/dev/null && printf '%s\n' "$py" >"$tmp" 2>/dev/null; then
+				mv -f "$tmp" "$cache" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+			else
+				rm -f "$tmp" 2>/dev/null
+			fi
+			;;
+		esac
+		exec "$py" -I "$hook" "$@" # resolved either way: no second trip through the shim
 	fi
 fi
 exec python3 -I "$hook" "$@"

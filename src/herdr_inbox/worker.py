@@ -28,6 +28,7 @@ from __future__ import annotations
 import fcntl
 import logging
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -43,6 +44,10 @@ watching = 0  # agents herdr reported on the last tick: their blocked state is w
 IDLE_EXIT = float(os.environ.get("HERDR_INBOX_WORKER_IDLE_EXIT", "600"))
 NOTIFY_AFTER = 300.0
 LEGACY_RECHECK = timedelta(seconds=60)
+# The worker exits once herdr has said "server_not_running" on every check for this long
+# (at least two checks): a server that is really gone costs one more tick, a socket path
+# that is missing only for a moment (a restart or handoff) does not end the worker.
+SERVER_GONE_EXIT = 10.0
 
 
 def _lock_path(server: str | None = None):
@@ -296,7 +301,11 @@ def _start_rust_worker(binary: str, root: str) -> bool:
     same worker-<key>.lock and exits when another worker holds it, so the two are never
     both live. A binary that exits without the lock (no `worker` subcommand, a crash) or
     has not taken it within RUST_HANDOVER_WAIT is not a successor: it is killed and the
-    caller starts the Python worker instead (which only runs if it then gets the lock)."""
+    caller starts the Python worker instead (which only runs if it then gets the lock).
+    Contract for the Rust worker (docs/DESIGN.md): the lock file is
+    ``dirname(db_path()) / "worker-" + sha1(server_id()).hexdigest()[:12] + ".lock"``; it
+    retries LOCK_EX|LOCK_NB for ~200 ms before it concludes another worker holds it (this
+    probe holds LOCK_SH for an instant every 50 ms), then exits 0."""
     try:
         proc = subprocess.Popen([binary, "worker"], cwd=root,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -312,10 +321,17 @@ def _start_rust_worker(binary: str, root: str) -> bool:
         if time.monotonic() >= deadline:
             break
         time.sleep(0.05)
+    if is_running():  # took it during the last sleep: never kill a worker that has the lock
+        return True
     try:
-        proc.kill()  # if it took the lock just now, its death releases it for the fallback
+        # its whole group (it leads one): a launcher's child must not stay behind either;
+        # anything that took the lock since dies with it and releases it for the fallback
+        os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
         proc.wait(timeout=5)
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
         pass
     return False
 
@@ -377,10 +393,20 @@ def _loop(box: dict) -> int:
     handover_failed = False
     idle_since = time.monotonic()
     remote_started = False
+    herdr.follows_listed_root()  # decided now: is this worker herdr's install (update checks)
+    gone_since = None
     while True:
-        if herdr.server_gone():  # detached: never outlive the server (plan §4 item 5)
-            log.warning("herdr server %s is gone: worker exits", herdr.server_id())
-            return 0  # run() releases the lock
+        # detached, so nothing else stops it: never outlive the server (plan §4 item 5)
+        if herdr.server_gone():
+            now = time.monotonic()
+            if gone_since is None:
+                gone_since = now
+            elif now - gone_since >= SERVER_GONE_EXIT:
+                log.warning("herdr server %s is gone: worker exits", herdr.server_id())
+                return 0  # run() releases the lock
+            time.sleep(TICK)  # nothing can be delivered meanwhile: no tick, no error spam
+            continue
+        gone_since = None
         try:
             from . import remote
 
