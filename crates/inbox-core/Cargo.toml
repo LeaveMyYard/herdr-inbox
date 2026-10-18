@@ -10,5 +10,9 @@ publish.workspace = true
 
 [dependencies]
 
+[dev-dependencies]
+# Reads the decision table golden (tests/decisions.rs).
+serde_json.workspace = true
+
 [lints]
 workspace = true
