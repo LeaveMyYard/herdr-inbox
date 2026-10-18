@@ -34,6 +34,13 @@ inbox_version_of() {
 	"$1" 2>/dev/null </dev/null | sed -n 's/^herdr-inbox \([0-9][0-9.]*\)$/\1/p' | head -n 1
 }
 
+# Removes inbox_fetch's temporary directory and its traps; returns $1.
+_inbox_drop() {
+	rm -rf "$_tmp"
+	trap - EXIT HUP INT TERM
+	return "$1"
+}
+
 # inbox_fetch <release.toml> <dest binary>: download this machine's tarball of the release,
 # check it against release.toml's sha256, and move the binary into <dest> atomically.
 # Returns 1 when there is nothing to fetch (no release.toml, no tag, an unsupported target),
@@ -51,26 +58,30 @@ inbox_fetch() {
 	_dir=$(dirname "$_dest")
 	mkdir -p "$_dir" || return 2
 	_tmp=$(mktemp -d "$_dir/.fetch.XXXXXX") || return 2
+	# an interrupted fetch leaves no temporary directory behind
+	trap 'rm -rf "$_tmp"' EXIT
+	trap 'rm -rf "$_tmp"; exit 1' HUP INT TERM
 	if ! curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 300 --retry 2 \
 		-o "$_tmp/t.tar.gz" "$INBOX_RELEASES/$_tag/herdr-inbox-$_tag-$_target.tar.gz"; then
-		rm -rf "$_tmp"
-		return 2
+		_inbox_drop 2
+		return
 	fi
 	_got=$(inbox_sha256 "$_tmp/t.tar.gz")
 	if [ -z "$_got" ]; then
-		rm -rf "$_tmp"
-		return 4
+		_inbox_drop 4
+		return
 	fi
 	if [ "$_got" != "$_want" ]; then
-		rm -rf "$_tmp"
-		return 3
+		_inbox_drop 3
+		return
 	fi
 	if ! tar -C "$_tmp" -xzf "$_tmp/t.tar.gz" herdr-inbox || [ ! -f "$_tmp/herdr-inbox" ]; then
-		rm -rf "$_tmp"
-		return 2
+		_inbox_drop 2
+		return
 	fi
+	# a rename: whoever runs the old file keeps its inode; the new one appears whole
 	chmod 0755 "$_tmp/herdr-inbox" && mv -f "$_tmp/herdr-inbox" "$_dest"
 	_rc=$?
-	rm -rf "$_tmp"
+	_inbox_drop 0
 	[ "$_rc" -eq 0 ] || return 2
 }
