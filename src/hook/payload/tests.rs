@@ -33,3 +33,32 @@ fn a_lone_surrogate_escape_does_not_reject_the_payload() {
     let p = Payload::parse(raw).expect("parsed like Python");
     assert_eq!(p.session_id.as_deref(), Some("s"));
 }
+
+#[test]
+fn a_payload_deeper_than_128_levels_is_still_read() {
+    // Python's json.loads reads it; a deep MCP structuredContent in tool_response
+    let deep = format!("{}{}", "[".repeat(5000), "]".repeat(5000));
+    let raw = format!(
+        r#"{{"session_id":"s","tool_response":{deep},"agent_id":[[[]]],"source":"resume"}}"#
+    );
+    let p = Payload::parse(&raw).expect("read");
+    assert_eq!(
+        (p.session_id.as_deref(), p.source.as_deref(), p.agent_id),
+        (Some("s"), Some("resume"), true)
+    );
+    let broken = format!(r#"{{"session_id":"s","tool_response":{deep}"#);
+    assert_eq!(Payload::parse(&broken), None, "still JSON or nothing");
+    let not_object = format!("[{deep}]");
+    assert_eq!(
+        Payload::parse(&not_object),
+        None,
+        "a deep non-object is not read (documented)"
+    );
+}
+
+#[test]
+fn a_field_holding_a_lone_surrogate_reads_as_absent() {
+    // Python could not write such an id to SQLite and raised before writing anything
+    let p = Payload::parse(r#"{"session_id":"s\ud83d","transcript_path":"/t\udc00"}"#).unwrap();
+    assert_eq!((p.session_id, p.transcript_path), (None, None));
+}

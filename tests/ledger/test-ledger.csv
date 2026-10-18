@@ -124,12 +124,12 @@ tests/test_bridge_inbox.py::test_a_bad_session_id_is_never_used_as_a_path[None],
 tests/test_bridge_inbox.py::test_a_bad_session_id_is_never_used_as_a_path[123],tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_bookkeeping_over_64_kib_between_reads_keeps_the_mark,tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_chain_and_follow_return_the_canonical_id,tests/test_bridge_inbox.py,,todo,,
-tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[../../x],tests/test_bridge_inbox.py,,todo,,
-tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[*],tests/test_bridge_inbox.py,,todo,,
-tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[a/b],tests/test_bridge_inbox.py,,todo,,
-tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[55555555-5555-4555-8555-555555555555 ],tests/test_bridge_inbox.py,,todo,,
-tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[agent-a1],tests/test_bridge_inbox.py,,todo,,
-tests/test_bridge_inbox.py::test_rewake_files_use_the_canonical_id,tests/test_bridge_inbox.py,,todo,,
+tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[../../x],tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::a_bad_session_id_never_names_a_file,mapped,,P2
+tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[*],tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::a_bad_session_id_never_names_a_file,mapped,,P2
+tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[a/b],tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::a_bad_session_id_never_names_a_file,mapped,,P2
+tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[55555555-5555-4555-8555-555555555555 ],tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::a_bad_session_id_never_names_a_file,mapped,,P2
+tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[agent-a1],tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::a_bad_session_id_never_names_a_file,mapped,,P2
+tests/test_bridge_inbox.py::test_rewake_files_use_the_canonical_id,tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::the_files_use_the_canonical_id,mapped,,P2
 tests/test_bridge_inbox.py::test_chain_keeps_the_known_path_for_an_id_in_another_case,tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_a_workflow_agents_transcript_is_a_subagents_too,tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_a_config_dir_under_a_folder_named_subagents_still_follows,tests/test_bridge_inbox.py,,todo,,
