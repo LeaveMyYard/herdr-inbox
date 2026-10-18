@@ -18,7 +18,7 @@ pub struct Owner<'a> {
 
 impl Store {
     /// The SQL condition and its arguments for `owner`'s questions.
-    pub(super) fn owner_clause(
+    pub(crate) fn owner_clause(
         &self,
         owner: Owner<'_>,
         files: &impl Continuations,

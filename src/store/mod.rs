@@ -13,6 +13,7 @@
 //!
 //! The SQL is Python's (`store.py`, `hook.py`), statement for statement.
 
+pub mod alerts;
 pub mod busy;
 pub mod candidates;
 pub mod claims;

@@ -16,5 +16,6 @@ pub mod pyjson;
 pub mod rewake;
 pub mod starts;
 pub mod store;
+pub mod tabs;
 pub mod text;
 pub mod token;

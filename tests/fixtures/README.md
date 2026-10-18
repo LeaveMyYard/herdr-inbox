@@ -113,3 +113,9 @@ say why in the PR:
   continuations and liveness. Tables `questions`, `question_ext` and `sessions` after each
   step. `"$claim:N"` stands for the last claim on question N; `<x>_s` arguments are seconds.
   `tests/store/delivery_golden.rs` replays it.
+- `store-alerts.json` (`--only store`): `alerts.py` over `STORE_ALERT_OPS`: agent alerts
+  (raise, already open, withdraw, acknowledge, report) and the blocked-prompt scan. herdr is
+  stubbed at its function boundary (`server_id`, `agent list`, `tab_label`,
+  `time.monotonic`). What `alerts.py` does to herdr is recorded per step as `effects`
+  (`notify`, `markers`). Tables `alerts` and `blocked_panes` after each step.
+  `tests/store/alerts_golden.rs` replays it.
