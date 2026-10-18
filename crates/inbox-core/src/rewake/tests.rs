@@ -129,3 +129,18 @@ fn the_constants_are_pythons() {
     assert_eq!(Ready::Unknown.name(), "unknown");
     assert_eq!(Verdict::KeepWatching.name(), "keep watching");
 }
+
+#[test]
+fn a_go_verdict_also_resets_the_unknown_session_clock() {
+    let mut w = Watch::new(0.0);
+    assert_eq!(
+        w.after_look(false, Ready::Unknown, 10.0),
+        Verdict::KeepWatching
+    );
+    assert_eq!(w.after_look(false, Ready::Go, 100.0), Verdict::KeepWatching);
+    // without the reset the clock would date from 10.0 and end here
+    assert_eq!(
+        w.after_look(false, Ready::Unknown, 11.0 + UNKNOWN_SESSION_END),
+        Verdict::KeepWatching
+    );
+}
