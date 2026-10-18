@@ -15,12 +15,25 @@ def _toml(rel):
     return tomllib.loads((ROOT / rel).read_text())
 
 
+def _v(version: str) -> tuple[int, ...]:
+    return tuple(int(p) for p in version.split("."))
+
+
 def test_versions_match_everywhere():
+    """The release flow (.github/workflows/release.yml): the release PR bumps pyproject.toml and
+    Cargo.toml together; the manifests (what installs and updates fetch) follow in the bot's PR
+    once vX.Y.Z is published, together with release.toml. So the manifests always agree with each
+    other (and with release.toml's tag), and the code may lead them by the release in flight."""
     plugin = _json(".claude-plugin/plugin.json")["version"]
-    market = _json(".claude-plugin/marketplace.json")["plugins"][0]["version"]
+    market = [p for p in _json(".claude-plugin/marketplace.json")["plugins"] if p["name"] == "herdr-inbox"]
     herdr = _toml("herdr-plugin.toml")["version"]
     project = _toml("pyproject.toml")["project"]["version"]
-    assert plugin == market == herdr == project
+    cargo = _toml("Cargo.toml")["workspace"]["package"]["version"]
+    assert len(market) == 1 and plugin == market[0]["version"] == herdr
+    assert project == cargo
+    assert _v(project) >= _v(plugin)
+    if (ROOT / "release.toml").exists():
+        assert _toml("release.toml")["tag"] == f"v{plugin}"
 
 
 def test_claude_plugin_required_fields():
