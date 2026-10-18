@@ -7,5 +7,6 @@ mod common;
 mod family;
 mod liveness;
 mod pending;
+mod questions_golden;
 mod readiness;
 mod sessions;

@@ -14,6 +14,7 @@ fn question(id: i64, session: &str, created: &str) -> Question {
         answer: Some("eu".into()),
         answered_at: Some("2026-10-17T10:00:00+00:00".into()),
         delivery_error: None,
+        ..Question::default()
     }
 }
 

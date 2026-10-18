@@ -15,6 +15,7 @@ fn question(id: i64, question: &str, answer: &str) -> Question {
         answer: Some(answer.into()),
         answered_at: Some("2026-10-17T10:00:00+00:00".into()),
         delivery_error: None,
+        ..Question::default()
     }
 }
 
