@@ -4,5 +4,6 @@
 
 mod fallback;
 mod install;
+mod manifest;
 mod pick;
 mod world;

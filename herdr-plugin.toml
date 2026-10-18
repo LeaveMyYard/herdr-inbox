@@ -11,6 +11,13 @@ platforms = ["linux", "macos"]
 [[build]]
 command = ["uv", "sync", "--frozen", "--no-dev"]
 
+# The Rust binary (hooks and the rewake watcher): the release named in release.toml, checked
+# against its sha256, else built with cargo (scripts/install-bin.sh). It also records a copy
+# for the Claude Code side, whose hooks run it through scripts/launch (the Python hooks when
+# there is none).
+[[build]]
+command = ["sh", "scripts/install-bin.sh"]
+
 # Runtime commands run with the plugin directory as cwd, so `--project .` is
 # this checkout. uv must be on PATH for the herdr server.
 
