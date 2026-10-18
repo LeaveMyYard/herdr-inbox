@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fix: an older worker could keep a newer release "not ready"** (#50). Only the worker and the
+  popup migrate the database, and `ensure()` starts nobody while a worker holds the lock. A
+  worker of an older revision (its handover failed) kept it, so after a schema change the newer
+  hooks delivered nothing and its MCP tools answered "unavailable" until the popup was opened.
+  The newer processes now leave a `revision-wanted` marker, and an older worker that sees it
+  makes way at its next tick. Needed before the first `MIGRATION_REVISION` bump.
 - **Fix: a locked inbox DB held the session rules ~0.9 s on macOS** (#45). The hook's DB
   lookups (pending questions at SessionStart, and the delivery hook's liveness stamp and
   answer check) used sqlite's busy timeout, which adds up the sleeps it asked for, not the

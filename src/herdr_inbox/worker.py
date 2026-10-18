@@ -364,6 +364,28 @@ def start_successor() -> bool:
     return True
 
 
+def outranked() -> bool:
+    """A newer release wants the database migrated to a revision above this code's, and nobody
+    has done it yet (herdr-inbox#50): this worker must let go of the lock so the newer worker
+    can start and migrate. A stale marker (REVISION_WANTED_TTL) does not count."""
+    from . import revision_wanted, store as st
+
+    want = revision_wanted.wanted(db_path())
+    if want is None or want <= st.MIGRATION_REVISION:
+        return False
+    try:
+        import sqlite3
+
+        db = sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True, timeout=5)
+        try:
+            stamped = st.stamped_revision(db.execute("PRAGMA user_version").fetchone()[0])
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001 - unreadable: the marker alone decides
+        stamped = None
+    return stamped is None or stamped < want
+
+
 def _pending_now() -> int:
     with Store(timeout=5, migrate=True) as store:  # the worker migrates (store.py)
         return sum(len(items) for items in served(store).values())
@@ -417,6 +439,9 @@ def _loop(box: dict) -> int:
             time.sleep(TICK)  # nothing can be delivered meanwhile: no tick, no error spam
             continue
         gone_since = None
+        if outranked():  # a newer release waits for its worker to migrate (#50): make way
+            log.warning("a newer release wants the database at a higher revision: worker exits")
+            return 0  # run() releases the lock; the newer release's ensure() starts its worker
         try:
             from . import remote
 
