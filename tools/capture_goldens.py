@@ -756,6 +756,28 @@ STORE_DELIVERY_OPS = [
     ("claim_delivery", {"qid": 10}),
     ("set_pending", {"qid": 10, "claim": "$claim:10", "reason": "idle: later"}),
     ("failed_pile", {"within_s": 3600}),  # pending: waiting, not failed
+    # the guards that keep a seen or delivered answer from being sent again (#82 review M1)
+    ("mark_landed", {"qid": 5, "acknowledge": False}),  # 5 is seen: it stays seen
+    ("sql", {"sql": "UPDATE question_ext SET hook_sent_at = ? WHERE id = 8", "params": [STORE_FIXED]}),
+    ("hook_unseen", {"qid": 8, "sent_at": STORE_FIXED, "reason": "x"}),  # 8 is seen: stays delivered
+    ("move_to_pane", {"qid": 5, "pane_id": "w1:p9", "tab_id": None, "reason": "moved"}),  # seen: no
+    ("mark_agent_gone", {"qid": 7, "reason": "x"}),  # 7 is delivered: no error
+    ("mark_agent_gone", {"qid": 10, "reason": "a"}),
+    ("sql", {"sql": "UPDATE question_ext SET agent_gone_at = ? WHERE id = 10", "params": [STORE_FIXED]}),
+    ("mark_agent_gone", {"qid": 10, "reason": "b"}),  # keeps the first gone time
+    ("gone_candidates", {"prefixes": ["agent gone: "], "cap": 0}),  # 10 is gone already
+    ("insert", {"question": "No session?", "pane_id": "w1:p4"}),  # 11
+    ("set_answer", {"qid": 11, "answer": "a11", "detail": None}),
+    ("mark_agent_gone", {"qid": 11, "reason": "x"}),
+    ("gone_recent", {"within_s": 3600}),  # no session: never moved
+    ("acknowledge", {"qids": [10]}),
+    ("archive_gone", {"after_s": 3600}),  # 10 is seen: not archived
+    ("sql", {"sql": "UPDATE questions SET delivery_error = 'herdr: x' WHERE id = 7", "params": []}),
+    ("insert", {"question": "Late?", "session_id": S2, "pane_id": "w1:p2"}),  # 12
+    ("set_answer", {"qid": 12, "answer": "a12", "detail": None}),
+    ("sql", {"sql": "UPDATE questions SET delivered_at = ?, delivery_error = 'herdr: late' WHERE id = 12",
+             "params": [STORE_FIXED]}),
+    ("stuck_answers", {}),  # 7 is verified: not stuck; 12 was delivered with an error: stuck
 ]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.
