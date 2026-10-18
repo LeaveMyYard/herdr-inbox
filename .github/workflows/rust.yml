@@ -51,6 +51,8 @@ jobs:
               - 'src/main.rs'
               - 'src/**/*.rs'
               - '.github/workflows/rust.yml'
+              - '.github/scripts/structure-check.py'
+              - '.github/structure-allowlist.txt'
             ledger:
               - 'tests/**'
               - 'src/herdr_*/**'
@@ -99,6 +101,28 @@ jobs:
                 ;;
             esac
           done
+
+  structure:
+    # COMMON.md "Code structure": <= 300 non-test lines per Rust source file and
+    # no inline test modules or test functions (tests live in separate files);
+    # exceptions only in .github/structure-allowlist.txt, which may only shrink.
+    name: structure
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/structure-check.py --self-test
+      - name: Structure check (on a PR, the allowlist may not gain an entry over the base branch)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            python3 .github/scripts/structure-check.py --base FETCH_HEAD
+          else
+            python3 .github/scripts/structure-check.py
+          fi
 
   build:
     # The Linux release targets (§4 item 1; darwin builds run in `check`).
@@ -165,7 +189,7 @@ jobs:
 
   rust-ok:
     name: rust ok
-    needs: [changes, check, build, ledger]
+    needs: [changes, check, structure, build, ledger]
     if: always()
     runs-on: ubuntu-latest
     steps:

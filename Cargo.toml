@@ -4,11 +4,9 @@
 # `src/main.rs` do not collide with `src/herdr_inbox/`. The Python code is
 # deleted at cutover (§5.3, P8).
 #
-# The shared kit (https://github.com/LeaveMyYard/herdr-agent-kit) joins as a git
-# dependency pinned by tag once its first tag exists, in this form (one line, so
-# .github/workflows/kit-bump.yml can bump it):
-#
-#   herdr-agent-kit = { git = "https://github.com/LeaveMyYard/herdr-agent-kit", tag = "vX.Y.Z" }
+# The shared kit (https://github.com/LeaveMyYard/herdr-agent-kit) is a git
+# dependency pinned by tag (§2.1). Its line in [workspace.dependencies] stays one
+# inline table on one line, so .github/workflows/kit-bump.yml can bump it.
 
 [workspace]
 members = ["crates/inbox-core"]
@@ -32,6 +30,7 @@ all = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 inbox-core = { path = "crates/inbox-core" }
+herdr-agent-kit = { git = "https://github.com/LeaveMyYard/herdr-agent-kit", tag = "v0.1.0" }
 
 # The `herdr-inbox` binary: one binary, subcommands keep today's CLI names (§2.2).
 # Its version is the Rust binary's own; pyproject.toml versions the Python
@@ -51,6 +50,7 @@ name = "herdr-inbox"
 path = "src/main.rs"
 
 [dependencies]
+herdr-agent-kit.workspace = true
 
 [lints]
 workspace = true
