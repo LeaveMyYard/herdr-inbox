@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "herdr-inbox"
-version = "0.1.0"
+version = "0.10.6"
 dependencies = [
  "herdr-agent-kit",
  "inbox-core",
@@ -160,7 +160,7 @@ dependencies = [
 
 [[package]]
 name = "inbox-core"
-version = "0.1.0"
+version = "0.10.6"
 dependencies = [
  "serde_json",
 ]

@@ -1,0 +1,277 @@
+# Release flow (plan docs/plans/rust-rewrite.md §4 item 2, in herdr-panorama): main only ever
+# names assets that already exist.
+#
+#   1. The release PR bumps Cargo.toml and pyproject.toml to X.Y.Z; the manifests still name
+#      the previous release.
+#   2. Tag vX.Y.Z on that main commit: this workflow builds the 4 targets from the tag and
+#      publishes herdr-inbox-vX.Y.Z-<target>.tar.gz plus SHA256SUMS.
+#   3. It then opens a PR that writes release.toml (tag + sha256 per target) and bumps the
+#      manifests (tools/release_manifest.py). Its merge points installs at vX.Y.Z.
+#
+# A failed build leaves main naming the previous release, so installs keep working.
+#
+# On a pull request that touches this flow, the build and packaging run as a dry run (nothing
+# is published) and step 3's tool runs against the dry run's SHA256SUMS on a scratch copy.
+#
+# Least privilege: `verify`, `build`, `sums` and `manifest` run repo code with a read-only
+# token that is not persisted; `publish` and `manifest-pr` hold the write token and run no repo
+# code (`manifest-pr` only copies the files `manifest` wrote, commits and opens the PR).
+#
+# release.toml records only what was built: `manifest` checks that the published SHA256SUMS
+# equals the one computed from this run's build artifacts and that every published tarball
+# hashes to it, before the tool reads it.
+#
+# Versions: the tag must equal Cargo.toml's and pyproject.toml's version (bumped together by the
+# release PR); the manifests may lag them by the release in flight (tests/test_manifests.py).
+#
+# Secrets: RELEASE_BOT_TOKEN (optional; Contents and Pull requests: write on this repo). With
+# GITHUB_TOKEN instead, "Allow GitHub Actions to create and approve pull requests" must be on in
+# the repo's Actions settings, and GitHub starts no CI for the bot's PR: close and reopen it.
+# A rerun after the PR was opened finds it and does nothing.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/package-release.sh"
+      - "tools/release_manifest.py"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    name: tag matches the versions and is on main
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cargo_v=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          py_v=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -1)
+          if [ "$TAG" != "v$cargo_v" ] || [ "$TAG" != "v$py_v" ]; then
+            echo "::error::tag $TAG must equal v<Cargo.toml version> (v$cargo_v) and v<pyproject version> (v$py_v)"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::tag $TAG points at $GITHUB_SHA, which is not on main"
+            exit 1
+          fi
+          echo "version=$cargo_v" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: verify
+    if: always() && (needs.verify.result == 'success' || github.event_name == 'pull_request')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, run: true }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, run: true }
+          - { target: x86_64-apple-darwin, os: macos-latest, run: false }  # cross build on arm64
+          - { target: aarch64-apple-darwin, os: macos-latest, run: true }
+    env:
+      CC_x86_64_unknown_linux_musl: musl-gcc
+      CC_aarch64_unknown_linux_musl: musl-gcc
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install musl-tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -yq musl-tools
+      - name: Install the pinned toolchain and the target
+        run: rustup toolchain install && rustup target add "$TARGET"
+      - run: cargo build --release --locked --target "$TARGET"
+      - name: Package
+        env:
+          VERSION: ${{ needs.verify.outputs.version || '0.0.0-dryrun' }}
+          RUN: ${{ matrix.run }}
+        run: |
+          set -euo pipefail
+          tarball=$(sh scripts/package-release.sh "$TARGET" "$VERSION" dist)
+          again=$(sh scripts/package-release.sh "$TARGET" "$VERSION" "$RUNNER_TEMP/again")
+          cmp "$tarball" "$again"  # reproducible: the same binary packs the same bytes
+          tar -tzf "$tarball" | LC_ALL=C sort | tr '\n' ' ' | grep -qx 'LICENSE herdr-inbox '
+          mkdir unpacked && tar -C unpacked -xzf "$tarball"
+          file unpacked/herdr-inbox
+          case "$TARGET" in
+            *-linux-musl) file unpacked/herdr-inbox | grep -Eq 'static-pie linked|statically linked' ;;
+          esac
+          if [ "$RUN" = true ]; then
+            line=$(unpacked/herdr-inbox)
+            echo "$line"
+            case "$VERSION" in
+              *-dryrun) echo "$line" | grep -q '^herdr-inbox ' ;;
+              *) [ "$line" = "herdr-inbox $VERSION" ] ;;  # the tag's version was built
+            esac
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  sums:
+    name: SHA256SUMS
+    needs: build
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tarball-*
+          merge-multiple: true
+          path: dist
+      - run: cd dist && sha256sum herdr-inbox-v*.tar.gz | tee SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: dist/
+          if-no-files-found: error
+
+  dry-run-manifest:
+    name: release.toml from the dry run
+    needs: sums
+    # always(): sums ran after a skipped verify (pull requests have no tag to verify)
+    if: always() && github.event_name == 'pull_request' && needs.sums.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist
+      - name: Step 3's tool on a scratch copy
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/repo"
+          mkdir -p "$scratch/.claude-plugin"
+          cp herdr-plugin.toml "$scratch/"
+          cp .claude-plugin/plugin.json .claude-plugin/marketplace.json "$scratch/.claude-plugin/"
+          python3 tools/release_manifest.py v0.0.0-dryrun dist/SHA256SUMS "$scratch" && exit 1 || true  # not a release tag
+          sed 's/-dryrun-/-/' dist/SHA256SUMS > "$RUNNER_TEMP/sums"
+          python3 tools/release_manifest.py v0.0.0 "$RUNNER_TEMP/sums" "$scratch"
+          cat "$scratch/release.toml"
+          grep -c '^[a-z0-9_-]* = "[0-9a-f]\{64\}"$' "$scratch/release.toml" | grep -qx 4
+          grep -qx 'version = "0.0.0"' "$scratch/herdr-plugin.toml"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["version"]=="0.0.0" and d["mcpServers"]["herdr-inbox"]["env"]["UV_PROJECT_ENVIRONMENT"].endswith("/venv-0.0.0")' "$scratch/.claude-plugin/plugin.json"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); v={p["name"]: p["version"] for p in d["plugins"]}; assert v["herdr-inbox"]=="0.0.0" and v["herdr-inbox-ui"]!="0.0.0", v' "$scratch/.claude-plugin/marketplace.json"
+          head -n 3 "$RUNNER_TEMP/sums" > "$RUNNER_TEMP/short"
+          if python3 tools/release_manifest.py v0.0.0 "$RUNNER_TEMP/short" "$scratch"; then exit 1; fi  # a missing target fails
+
+  publish:
+    name: publish the release
+    needs: [verify, sums]
+    if: github.event_name == 'push' && needs.sums.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: release
+          path: dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --generate-notes dist/*
+
+  manifest:
+    name: release.toml (read-only)
+    needs: [verify, sums, publish]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: built
+      - name: The published release is what this run built
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D published
+          cmp built/SHA256SUMS published/SHA256SUMS
+          (cd published && sha256sum -c --strict SHA256SUMS)
+      - name: Write release.toml and bump the manifests
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 tools/release_manifest.py "$TAG" published/SHA256SUMS .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest
+          path: |
+            release.toml
+            herdr-plugin.toml
+            .claude-plugin/plugin.json
+            .claude-plugin/marketplace.json
+          include-hidden-files: true
+          if-no-files-found: error
+
+  manifest-pr:
+    name: open the release.toml PR
+    needs: manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: manifest
+          path: ${{ runner.temp }}/manifest
+      - name: Commit, push and open the PR (no repo code runs here)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for f in release.toml herdr-plugin.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+            cp "$RUNNER_TEMP/manifest/$f" "$f"  # exactly the four files, nothing else from the artifact
+          done
+          branch="release-manifest/$TAG"
+          if [ "$(gh pr list -R "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq length)" != 0 ]; then
+            echo "A PR from $branch exists: nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add release.toml herdr-plugin.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json
+          git commit -m "Point installs at $TAG (release.toml, manifests)"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
+          gh pr create -R "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Point installs at $TAG" \
+            --body "Writes release.toml (the sha256 of each target's tarball of [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG), checked against this run's build and the published assets) and bumps the plugin version in herdr-plugin.toml, plugin.json and marketplace.json. Until this merges, installs fetch the previous release. Opened by .github/workflows/release.yml."
