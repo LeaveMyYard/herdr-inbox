@@ -1,7 +1,7 @@
 id = "leavemyyard.herdr-inbox"
 name = "herdr inbox"
 version = "0.10.6"
-min_herdr_version = "0.9.0"
+min_herdr_version = "0.9.4"
 description = "Non-blocking question inbox: agents file questions once through an MCP tool, you answer them from one popup, answers go back into the asking pane."
 platforms = ["linux", "macos"]
 
