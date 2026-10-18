@@ -1,25 +1,55 @@
 //! The delivery hook's policy (Python `hook.deliver`): a session's waiting
-//! answers handed to it as hook context at its next tool batch or turn end,
-//! or by its rewake watcher.
+//! answers handed to it by the session's own hook, or by its rewake watcher.
+//! Today's only caller is the Claude Code hook (`herdr-inbox hook`).
 //!
 //! The order of the steps, each deciding before the next lookup is made:
 //!
-//! 1. [`own_session`]: only the session's own hook carries its answers.
-//! 2. The candidates check (read-only), then the schema check: either one
-//!    failing means nothing to do.
-//! 3. Per candidate, once claimed and checked against every transcript of its
+//! 1. [`gate`]: the session's own hook, an answer waiting (read-only), a
+//!    usable schema; any one failing means nothing to do.
+//! 2. Per candidate, once claimed and checked against every transcript of its
 //!    conversation: [`carry`].
-//! 4. [`message`]: what is printed, from what was recorded as sent.
+//! 3. [`message`]: what is handed over, from what was recorded as sent.
 
 use std::collections::BTreeSet;
 
 use crate::REFERENCE_INDEX;
 
-/// Does this firing belong to the session that asked? Not a subagent's or a
-/// teammate's hook (the payload names an `agent_id`), and a session id is
-/// known.
+/// Does this firing belong to the session that asked? A session id is known
+/// and it is not a subagent's or a teammate's hook. `agent_id`: the payload's
+/// `agent_id` is present and truthy as Python reads it (`""`, `null`, `0`
+/// count as none).
 pub fn own_session(session_id: Option<&str>, agent_id: bool) -> bool {
     session_id.is_some_and(|s| !s.is_empty()) && !agent_id
+}
+
+/// Where the hook stopped before any claim, or that it goes on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gate {
+    /// Not the asking session's own hook.
+    NotOwnSession,
+    /// No answer of the session's family is waiting (read-only check).
+    NothingWaiting,
+    /// The database is not migrated to a schema this code can use.
+    SchemaNotReady,
+    /// Claim and carry the candidates.
+    Carry,
+}
+
+/// The gates in order; each lookup runs only when the gates before it passed.
+pub fn gate(
+    own_session: bool,
+    has_candidates: impl FnOnce() -> bool,
+    schema_ready: impl FnOnce() -> bool,
+) -> Gate {
+    if !own_session {
+        Gate::NotOwnSession
+    } else if !has_candidates() {
+        Gate::NothingWaiting
+    } else if !schema_ready() {
+        Gate::SchemaNotReady
+    } else {
+        Gate::Carry
+    }
 }
 
 /// What became of one candidate answer at this firing.

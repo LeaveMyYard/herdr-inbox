@@ -1,39 +1,63 @@
-//! The asyncRewake watcher's policy (Python `rewake.run`, `rewake._ready`).
+//! The rewake watcher's policy (Python `rewake.run`, `rewake._ready`): when a
+//! watcher for an idle session starts, looks at its pane, delivers or ends.
 //!
-//! Claude Code runs the watcher in the background after every `Stop`. It
-//! polls for an answer this session has not seen; while herdr reports the
-//! pane's agent at rest with this very session it delivers the answers as
-//! hook text, which the launcher turns into the wake exit. A working session
-//! gets them from its PostToolBatch/Stop hooks instead; a blocked one is not
-//! disturbed.
+//! A watcher polls for an answer its session has not seen. While herdr
+//! reports the pane's agent at rest with this very session, it delivers the
+//! answers (the caller then wakes the session); a working session gets them
+//! another way, and a blocked one is not disturbed. Today's only caller is
+//! the Claude Code asyncRewake hook (`herdr-inbox hook rewake-watch`).
 //!
-//! [`Watch`] holds the poll's two clocks; times are seconds on a monotonic
-//! clock the caller reads.
+//! [`Watch`] holds the poll's clocks; times are seconds on a monotonic clock
+//! the caller reads.
 
-/// Seconds between database looks (read-only).
-pub const WATCH_POLL: f64 = 2.0;
-/// Seconds between herdr looks even with nothing pending: a `/clear` or
-/// `/resume` in the pane ends the watch (#30 M1).
+/// Seconds between herdr looks even with nothing pending: the pane switching
+/// conversation ends the watch (#30 M1).
 pub const PANE_CHECK_EVERY: f64 = 45.0;
 /// herdr names no session for the pane this long: the watch ends (#30 M1b).
 pub const UNKNOWN_SESSION_END: f64 = 180.0;
-/// The watch ends after this, under the hooks.json timeout (43200 s) that
-/// Claude Code enforces.
+/// The watch ends after this (under the 12 h its caller may run for).
 pub const WATCH_MAX_SECONDS: f64 = 12.0 * 3600.0 - 300.0;
-/// Seconds to wait for a superseded watcher to let go of the lock.
+/// Seconds a new watcher waits for the one it supersedes to let go.
 pub const LOCK_WAIT: f64 = 5.0;
-/// The watcher's private "wake" exit code; the hooks.json wrapper maps it,
-/// and only it, to Claude Code's exit 2.
-pub const WAKE_EXIT: i32 = 3;
+
+/// Does a watcher start at all? Only for a valid session id, in a herdr
+/// pane, and not for a subagent's or teammate's firing (`agent_id` present
+/// and truthy, as Python reads it).
+pub fn start(valid_session_id: bool, in_pane: bool, agent_id: bool) -> bool {
+    valid_session_id && in_pane && !agent_id
+}
+
+/// While waiting for the superseded watcher's lock: try again, or give up
+/// (the wait is over, or a newer watcher took ownership meanwhile).
+pub fn keep_waiting_for_lock(started: f64, now: f64, still_owner: bool) -> bool {
+    now < started + LOCK_WAIT && still_owner
+}
+
+/// The pane agent's status, as herdr reports it (the caller maps herdr's
+/// strings). TODO(kit AgentStatus): use the kit's neutral status type once
+/// it carries `done`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Status {
+    /// `idle`.
+    Idle,
+    /// `done`.
+    Done,
+    /// `working`.
+    Working,
+    /// `blocked`.
+    Blocked,
+    /// Anything else, or none reported.
+    Other,
+}
 
 /// The pane, as herdr reports it, for this session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ready {
-    /// At rest (`idle` or `done`) with this very session: may be woken.
+    /// At rest (idle or done) with this very session: may be delivered to.
     Go,
-    /// Working, blocked or an unknown status: not now.
+    /// Working, blocked or another status: not now.
     Wait,
-    /// herdr names no session for the pane: never a wake (#30 M1b).
+    /// herdr names no session for the pane: never a delivery (#30 M1b).
     Unknown,
     /// The agent is gone, or the pane holds another conversation now.
     End,
@@ -51,14 +75,14 @@ impl Ready {
     }
 }
 
-/// The pane's agent as herdr reports it: the session it runs (the live one,
-/// continuations followed) and its status.
+/// The pane's agent: the session it runs (the live one, continuations
+/// followed) and its status.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PaneAgent<'a> {
     /// The live session, if herdr names one.
     pub session_id: Option<&'a str>,
-    /// herdr's status (`idle`, `done`, `working`, `blocked`, ...).
-    pub status: Option<&'a str>,
+    /// Its status.
+    pub status: Status,
 }
 
 /// [`Ready`] for `session_id` from the pane's agent (`None`: no agent).
@@ -69,7 +93,7 @@ pub fn ready(agent: Option<PaneAgent<'_>>, session_id: &str) -> Ready {
     match agent.session_id.filter(|s| !s.is_empty()) {
         None => Ready::Unknown,
         Some(s) if s != session_id => Ready::End,
-        Some(_) if matches!(agent.status, Some("idle" | "done")) => Ready::Go,
+        Some(_) if matches!(agent.status, Status::Idle | Status::Done) => Ready::Go,
         Some(_) => Ready::Wait,
     }
 }
@@ -77,14 +101,14 @@ pub fn ready(agent: Option<PaneAgent<'_>>, session_id: &str) -> Ready {
 /// What a poll decided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
-    /// The watch is over: exit without a wake.
+    /// The watch is over: exit without waking.
     End,
-    /// Nothing to do now: stamp liveness, sleep [`WATCH_POLL`], poll again.
+    /// Nothing to do now: poll again later.
     KeepWatching,
     /// Pending answers and the pane at rest with this session: run the
     /// delivery hook's path now.
     Deliver,
-    /// The delivery produced text: print it and exit [`WAKE_EXIT`].
+    /// The delivery produced text: hand it over and wake the session.
     Wake,
 }
 
@@ -100,30 +124,34 @@ impl Verdict {
     }
 }
 
-/// One watcher's poll state: when herdr was last asked, and since when it
-/// names no session for the pane.
+/// One watcher's poll state: its deadline, when herdr was last asked, and
+/// since when herdr names no session for the pane.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Watch {
+    end: f64,
     last_check: f64,
     unknown_since: Option<f64>,
 }
 
 impl Watch {
-    /// A watch started at `now`.
+    /// A watch started at `now` (once it holds its lock), ending at the
+    /// latest [`WATCH_MAX_SECONDS`] later.
     pub fn new(now: f64) -> Watch {
         Watch {
+            end: now + WATCH_MAX_SECONDS,
             last_check: now,
             unknown_since: None,
         }
     }
 
-    /// The first check of every poll: a newer watcher took over
-    /// (`still_owner` false) or the Claude process is gone (`alive` false).
-    pub fn owner(still_owner: bool, alive: bool) -> Verdict {
-        if still_owner && alive {
-            Verdict::KeepWatching
-        } else {
+    /// The first check of every poll: the watch's time is up, a newer
+    /// watcher took over (`still_owner` false), or the agent's process is
+    /// gone (`alive` false).
+    pub fn begin_poll(&self, now: f64, still_owner: bool, alive: bool) -> Verdict {
+        if now >= self.end || !still_owner || !alive {
             Verdict::End
+        } else {
+            Verdict::KeepWatching
         }
     }
 
@@ -156,7 +184,7 @@ impl Watch {
         }
     }
 
-    /// The verdict after a [`Verdict::Deliver`]: the hook path produced text
+    /// The verdict after a [`Verdict::Deliver`]: the delivery produced text
     /// (`hook_sent`) or not (claims lost, landed meanwhile).
     pub fn after_delivery(hook_sent: bool) -> Verdict {
         if hook_sent {
