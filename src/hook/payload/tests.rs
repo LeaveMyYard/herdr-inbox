@@ -62,3 +62,23 @@ fn a_field_holding_a_lone_surrogate_reads_as_absent() {
     let p = Payload::parse(r#"{"session_id":"s\ud83d","transcript_path":"/t\udc00"}"#).unwrap();
     assert_eq!((p.session_id, p.transcript_path), (None, None));
 }
+
+#[test]
+fn a_payload_deeper_than_python_reads_is_not_read() {
+    let too_deep = format!(
+        r#"{{"session_id":"s","x":{}{}}}"#,
+        "[".repeat(200_000),
+        "]".repeat(200_000)
+    );
+    assert_eq!(Payload::parse(&too_deep), None);
+    assert_eq!(
+        super::deep::depth(r#"{"a":"[[[{{","b":[[1]]}"#),
+        3,
+        "brackets in strings do not count"
+    );
+    assert_eq!(
+        super::deep::depth(r#"{"a":"\"[[["}"#),
+        1,
+        "an escaped quote does not end the string"
+    );
+}
