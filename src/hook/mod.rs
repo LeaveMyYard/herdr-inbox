@@ -22,15 +22,6 @@ use output::hook_output;
 use payload::Payload;
 use rules::SUBAGENT_RULES;
 
-/// The events, as hooks.json names them.
-pub const EVENTS: [&str; 5] = [
-    "session-start",
-    "subagent-start",
-    "post-tool-batch",
-    "stop",
-    "rewake-watch",
-];
-
 /// What a hook run ends with.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Outcome {

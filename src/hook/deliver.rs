@@ -31,10 +31,17 @@ const NO_LIMIT: usize = 1_000_000_000;
 
 /// The text to print, or `None`. Every send is committed
 /// (`record_hook_delivery`, its own transaction) before this returns, so the
-/// text is printed only after the database says it was sent. `liveness`: stamp `hook_seen_at` (the
-/// PostToolBatch and Stop hooks; the rewake watcher stamps its own column).
-/// A database error anywhere means nothing is printed, as when Python's
-/// hook raised; a claim taken before it expires after 60 s.
+/// text is printed only after the database says it was sent. `liveness`:
+/// stamp `hook_seen_at` (the PostToolBatch and Stop hooks; the rewake
+/// watcher stamps its own column).
+///
+/// A claim that fails (the database busy past its 0.5 s timeout) ends the
+/// claiming: the answers claimed so far are carried, the rest wait for the
+/// next firing or the worker (Python raised there and carried none; one busy
+/// wait per firing either way). Any other database error means nothing is
+/// printed, as when Python's hook raised; a claim already taken expires
+/// after 60 s. The database file is never created (Python's SessionStart
+/// could create an empty one).
 pub fn deliver(
     db_path: &Path,
     files: &Transcripts,
@@ -82,9 +89,11 @@ fn carry(
     record_session(store.db(), session, transcript)?;
     let mut claimed: Vec<(Question, Claim)> = Vec::new();
     for q in store.hook_candidates(session, MAX_HOOK_MISSES, files)? {
-        // a claim that fails (busy past the timeout) is not ours: another process may hold it
-        if let Ok(Some(claim)) = store.claim_delivery(q.id) {
-            claimed.push((q, claim));
+        match store.claim_delivery(q.id) {
+            Ok(Some(claim)) => claimed.push((q, claim)),
+            Ok(None) => {} // another process holds it
+            // busy past the timeout: stop here, so a held database costs one wait, not one per answer
+            Err(_) => break,
         }
     }
     if claimed.is_empty() {
