@@ -111,3 +111,22 @@ fn a_hook_store_waits_its_busy_timeout() {
         .unwrap();
     assert_eq!(ms, 500);
 }
+
+#[test]
+fn foreign_keys_are_not_enforced_as_in_python() {
+    // Python's sqlite3 leaves foreign_keys off; the bundled SQLite defaults it on
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), std::time::Duration::ZERO).unwrap();
+    let on: i64 = store
+        .db()
+        .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(on, 0);
+    store
+        .db()
+        .execute(
+            "INSERT INTO question_ext (id, hook_misses) VALUES (999, 1)",
+            [],
+        )
+        .unwrap();
+}
