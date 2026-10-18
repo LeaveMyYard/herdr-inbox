@@ -3,24 +3,30 @@
 #   sh scripts/install-bin.sh
 #
 # Run by `herdr plugin install` / `plugin update` in the new install directory. Puts the binary
-# at <plugin dir>/bin/herdr-inbox:
-# - the release named in release.toml, for this machine's target, checked against its sha256
-#   (release.toml was committed after the release was published, so an asset replaced later
-#   fails the install);
-# - with no matching asset (an unsupported target, a failed download), `cargo build --release
-#   --locked` when cargo exists; otherwise a clear error;
-# - before the first release (no release.toml), the same build when cargo exists; otherwise
-#   nothing, with a notice: the Claude Code hooks then run the Python hooks (scripts/launch).
-# A checksum mismatch is an error, never a reason to build instead.
+# at <plugin dir>/bin/herdr-inbox and records a hard copy for the Claude Code side, outside any
+# install directory (herdr deletes old ones after an update):
+# ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin/herdr-inbox-<version>, where scripts/launch
+# looks.
 #
-# Then it records a hard copy for the Claude Code side, outside any install directory (herdr
-# deletes old ones after an update): ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin/
-# herdr-inbox-<version>, where scripts/launch looks.
+# - Before the first release (no release.toml) it does nothing: the Python hooks stay in use.
+# - Otherwise the release named in release.toml, for this machine's target, checked against its
+#   sha256 (release.toml was committed after the release was published, so an asset replaced
+#   later fails the install). A checksum mismatch, or no sha256 tool to check with, fails the
+#   install: nothing unverified is ever installed, and nothing is built around it.
+# - A failed download installs nothing (the Python hooks stay in use; the next update retries).
+# - Only with no asset for this machine at all (a target the release does not build) does it
+#   build this commit with `cargo build --release --locked`. No cargo, or a build that fails, is
+#   never an error: the Python hooks stay in use.
 set -u
-here=$(cd "$(dirname "$0")/.." && pwd) || exit 1
-cd "$here" || exit 1
+here=$(cd "$(dirname "$0")/.." && pwd) || exit 0
+cd "$here" || exit 0
 # shellcheck source=scripts/release-lib.sh
 . "$here/scripts/release-lib.sh"
+
+if [ ! -f "$here/release.toml" ]; then
+	echo "herdr-inbox: no Rust release yet: the Python hooks stay in use" >&2
+	exit 0
+fi
 
 bin="$here/bin/herdr-inbox"
 inbox_fetch "$here/release.toml" "$bin"
@@ -30,26 +36,37 @@ case $? in
 	echo "herdr-inbox: the downloaded release does not match release.toml's sha256; refusing it" >&2
 	exit 1
 	;;
+4)
+	echo "herdr-inbox: no sha256sum or shasum to verify the release with; refusing to install it unverified" >&2
+	exit 1
+	;;
+2)
+	echo "herdr-inbox: the release download failed: the Python hooks stay in use (run 'herdr plugin update' to retry)" >&2
+	exit 0
+	;;
 *)
+	why="no release binary for this machine ($(uname -s) $(uname -m))"
 	if ! command -v cargo >/dev/null 2>&1; then
-		if [ ! -f "$here/release.toml" ]; then
-			echo "herdr-inbox: no Rust release yet and no cargo: the Python hooks stay in use" >&2
-			exit 0
-		fi
-		echo "herdr-inbox: no release binary for this machine ($(uname -s) $(uname -m)) and no cargo to build one; install Rust (https://rustup.rs) and run 'herdr plugin update'" >&2
-		exit 1
+		echo "herdr-inbox: $why and no cargo to build one: the Python hooks stay in use" >&2
+		exit 0
 	fi
-	cargo build --release --locked || exit 1
-	mkdir -p "$here/bin" || exit 1
-	built="${CARGO_TARGET_DIR:-target}/release/herdr-inbox"
-	cp "$built" "$bin.tmp.$$" && mv -f "$bin.tmp.$$" "$bin" || exit 1
+	# the build's own target directory (a global build.target-dir or CARGO_TARGET_DIR included)
+	target_dir=$(cargo metadata --format-version 1 --no-deps 2>/dev/null | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')
+	if ! cargo build --release --locked || [ ! -x "${target_dir:-target}/release/herdr-inbox" ]; then
+		echo "herdr-inbox: $why and the build failed: the Python hooks stay in use" >&2
+		exit 0
+	fi
+	if ! { mkdir -p "$here/bin" && cp "${target_dir:-target}/release/herdr-inbox" "$bin.tmp.$$" && mv -f "$bin.tmp.$$" "$bin"; }; then
+		rm -f "$bin.tmp.$$"
+		exit 0
+	fi
 	;;
 esac
 
 version=$(inbox_version_of "$bin")
 if [ -z "$version" ]; then
-	echo "herdr-inbox: $bin does not run" >&2
-	exit 1
+	echo "herdr-inbox: $bin does not run: the Python hooks stay in use" >&2
+	exit 0
 fi
 state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-inbox/bin"
 if mkdir -p "$state" && cp "$bin" "$state/.herdr-inbox-$version.$$" && mv -f "$state/.herdr-inbox-$version.$$" "$state/herdr-inbox-$version"; then

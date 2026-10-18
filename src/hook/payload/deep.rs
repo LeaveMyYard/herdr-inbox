@@ -14,6 +14,37 @@ const FIELDS: [&str; 4] = ["session_id", "transcript_path", "source", "agent_id"
 /// committed.
 const STACK: usize = 512 << 20;
 
+/// Deeper than this is not read at all, as Python's parser gives up (about 100k
+/// levels); it also bounds the stack the parse below needs.
+pub const MAX_DEPTH: usize = 100_000;
+
+/// The deepest nesting of arrays and objects in `raw`, strings skipped.
+/// A count, never a parse: no recursion, whatever the input.
+pub fn depth(raw: &str) -> usize {
+    let (mut now, mut max, mut in_string, mut escaped) = (0usize, 0usize, false, false);
+    for b in raw.bytes() {
+        if in_string {
+            match (escaped, b) {
+                (true, _) => escaped = false,
+                (false, b'\\') => escaped = true,
+                (false, b'"') => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_string = true,
+            b'[' | b'{' => {
+                now += 1;
+                max = max.max(now);
+            }
+            b']' | b'}' => now = now.saturating_sub(1),
+            _ => {}
+        }
+    }
+    max
+}
+
 /// serde_json gave up on the depth, not on the syntax.
 pub fn too_deep(e: &serde_json::Error) -> bool {
     e.to_string().starts_with("recursion limit exceeded")
@@ -23,6 +54,9 @@ pub fn too_deep(e: &serde_json::Error) -> bool {
 /// not a JSON object. Parsed with no depth limit on a thread with a large
 /// stack (parsing and dropping a deep value both recurse).
 pub fn top_level(raw: &str) -> Option<Map<String, Value>> {
+    if depth(raw) > MAX_DEPTH {
+        return None; // Python gives up too (RecursionError: the hook exits 0, prints nothing)
+    }
     let raw = raw.to_owned();
     let parse = move || {
         let mut de = serde_json::Deserializer::from_str(&raw);

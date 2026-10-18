@@ -143,10 +143,20 @@ fn without_a_binary_the_python_hooks_run_then_the_static_rules() {
     let rules =
         std::fs::read_to_string(crate::world::repo().join("hooks/fallback/session-start.json"))
             .unwrap();
+    let pane = [("HERDR_PANE_ID", std::path::Path::new("w1:p1"))];
     assert_eq!(
-        stdout(&bare.sh("launch", &["hook", "session-start"], "{}", &[])),
+        stdout(&bare.sh("launch", &["hook", "session-start"], "{}", &pane)),
         rules
     );
+    // the hooks' first gate: outside a herdr pane nobody watches the inbox (Python prints nothing)
+    for event in ["session-start", "subagent-start"] {
+        let out = bare.sh("launch", &["hook", event], "{}", &[]);
+        assert_eq!(
+            (out.status.code(), stdout(&out).as_str()),
+            (Some(0), ""),
+            "{event} outside herdr"
+        );
+    }
     for event in ["stop", "post-tool-batch", "rewake-watch", "nonsense"] {
         let out = bare.sh("launch", &["hook", event], "{}", &[]);
         assert_eq!(
