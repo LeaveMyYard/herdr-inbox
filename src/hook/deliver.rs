@@ -29,7 +29,9 @@ pub const RECORD_TIMEOUT: Duration = Duration::from_millis(500);
 /// No cap on the printed text: `herdr.clean(text, limit=10**9)`.
 const NO_LIMIT: usize = 1_000_000_000;
 
-/// The text to print, or `None`. `liveness`: stamp `hook_seen_at` (the
+/// The text to print, or `None`. Every send is committed
+/// (`record_hook_delivery`, its own transaction) before this returns, so the
+/// text is printed only after the database says it was sent. `liveness`: stamp `hook_seen_at` (the
 /// PostToolBatch and Stop hooks; the rewake watcher stamps its own column).
 /// A database error anywhere means nothing is printed, as when Python's
 /// hook raised; a claim taken before it expires after 60 s.
@@ -80,7 +82,8 @@ fn carry(
     record_session(store.db(), session, transcript)?;
     let mut claimed: Vec<(Question, Claim)> = Vec::new();
     for q in store.hook_candidates(session, MAX_HOOK_MISSES, files)? {
-        if let Some(claim) = store.claim_delivery(q.id)? {
+        // a claim that fails (busy past the timeout) is not ours: another process may hold it
+        if let Ok(Some(claim)) = store.claim_delivery(q.id) {
             claimed.push((q, claim));
         }
     }
