@@ -6,5 +6,6 @@
 #[path = "../store/common.rs"]
 mod common;
 mod delivery;
+mod rewake;
 mod run;
 mod session_start;

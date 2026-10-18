@@ -488,3 +488,17 @@ fn a_deep_tool_response_still_delivers() {
         Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
     );
 }
+
+#[test]
+fn any_nesting_depth_exits_0_without_output() {
+    // the binary alone, without the sh wrapper: 4M levels used to abort (exit 134)
+    let w = World::new();
+    let open_brackets = "[".repeat(4_000_000);
+    for event in ["session-start", "post-tool-batch", "stop", "rewake-watch"] {
+        let r = w.hook(
+            event,
+            &format!(r#"{{"session_id":"{A}","tool_response":{open_brackets}"#),
+        );
+        assert_eq!((r.code, r.stdout.as_str()), (0, ""), "{event}");
+    }
+}

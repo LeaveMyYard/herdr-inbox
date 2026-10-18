@@ -42,6 +42,17 @@ impl World {
 
     /// The hook with `stdin`; `pane`: HERDR_PANE_ID (None: outside herdr).
     pub fn hook_in(&self, event: &str, stdin: &str, pane: Option<&str>) -> Ran {
+        self.hook_env(event, stdin, pane, &[])
+    }
+
+    /// [`World::hook_in`] with extra environment variables.
+    pub fn hook_env(
+        &self,
+        event: &str,
+        stdin: &str,
+        pane: Option<&str>,
+        extra: &[(&str, &Path)],
+    ) -> Ran {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
         cmd.args(["hook", event])
             .env_clear()
@@ -55,6 +66,9 @@ impl World {
             .stderr(Stdio::piped());
         if let Some(pane) = pane {
             cmd.env("HERDR_PANE_ID", pane);
+        }
+        for (k, v) in extra {
+            cmd.env(k, v);
         }
         let mut child = cmd.spawn().unwrap();
         // a hook that decides before reading stdin (outside herdr, nested) exits first: EPIPE

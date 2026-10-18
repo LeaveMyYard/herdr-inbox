@@ -7,8 +7,10 @@ pub mod continued;
 pub mod edges;
 pub mod find;
 pub mod landed;
+pub mod live;
 
 pub use chain::chain;
-pub use continued::continued_in;
+pub use continued::{continuation, continued_in};
 pub use edges::{Edge, continued_edges};
 pub use find::Transcripts;
+pub use live::live_session;
