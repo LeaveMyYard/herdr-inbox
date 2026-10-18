@@ -89,13 +89,24 @@ fn after(ts_text: Option<&str>, since: Option<&str>) -> bool {
     ) else {
         return true;
     };
-    match (
-        ts(&Value::String(at.to_owned())),
-        ts(&Value::String(since.to_owned())),
-    ) {
-        (Some(a), Some(b)) => a.secs() >= b.secs(),
+    match (iso_ts(at), iso_ts(since)) {
+        (Some(a), Some(b)) => a >= b,
         _ => true,
     }
+}
+
+/// An ISO-8601 time in epoch seconds. A bare number is not one: Python's
+/// `datetime.fromisoformat` raises on it (`_after` then counts the record
+/// as newer), while the kit's `ts` would read it as epoch seconds.
+fn iso_ts(text: &str) -> Option<f64> {
+    if text
+        .bytes()
+        .all(|b| b.is_ascii_digit() || b == b'.' || b == b'-' || b == b'+')
+        && !text.contains(':')
+    {
+        return None;
+    }
+    ts(&Value::String(text.to_owned())).map(|t| t.secs())
 }
 
 /// The last [`MAX_READ`] bytes of the file.
