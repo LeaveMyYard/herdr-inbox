@@ -112,6 +112,39 @@ that only matters for older databases (a data fix) needs a bump by hand.
     exits 0;
   - export/apply start that machine's worker and answer an error that the pulling worker
     backs off on.
+- **An older worker hands over, never to nobody (#50).** The worker lock means `ensure()` starts
+  nobody while any worker runs, and a worker of an older revision can keep running (its version
+  handover failed, or it never sees the update). The handover (`worker_handover.py`):
+  - the worker holding the lock writes `worker-<key>.lock.holder` (`<revision> <pid> <start>`,
+    `<start>` the process start time, so a reused pid never passes for the holder) and removes it
+    when it lets go; a worker without one, 0.10.6 and older, counts as revision 1;
+  - a newer worker that cannot get the lock **stands by**: it writes `worker-<key>.lock.standby`
+    (`<revision> <pid> <unix seconds>`), refreshes it every second and retries the lock every
+    0.1 s, for up to 30 minutes; one standby is enough, and a standby leaves once the holder is
+    of its revision or newer;
+  - the holder hands over at the start of each loop iteration when a live standby (fresh
+    heartbeat, process alive) has a higher revision: it releases the lock and the standby takes it
+    within 0.1 s, then migrates. An older worker that an older `ensure()` starts meanwhile sees
+    the same standby and hands over before its first tick;
+  - who starts the standby: the newer release's `ensure()` (its hooks, MCP tools and CLI call it
+    on `SchemaNotReady`; MCP tools retry for longer than a tick), when the holder is older and
+    nobody stands by. A process that cannot start a worker (the Rust hooks) writes
+    `<database>.revision-wanted` (`<revision> <unix seconds>`, never lowered, counted for
+    10 minutes; both fields plain ASCII digits, `tests/vectors/revision_wanted.json` pins both
+    readers; `revision_wanted.py` and `src/store/revision_wanted.rs`); the holder then starts
+    the worker of the install herdr lists now (at most once a minute; also when the holder runs
+    from a copy herdr does not list, such as the Claude-cache copy an MCP server or a hook
+    started it from), which stands by if it is newer:
+    its Rust worker only if that one stands by within 5 s (a release's `bin/herdr-inbox` has no
+    worker before P5 and exits), else its Python worker.
+  - Every Python worker is started as `<python> -I -c <run herdr_inbox.cli> <src> worker`
+    (`worker.python_worker_argv`): the package's `src` is an argument, never `PYTHONPATH`, so a
+    hook's ensure() (the system python3, no package installed) starts a worker that can import
+    it, and nothing leaks into what that worker starts. A worker without package metadata reads
+    its version from its checkout's `pyproject.toml`.
+  - The release that brings this must be live (old workers handed over by version) before any
+    release that bumps `MIGRATION_REVISION`: a 0.10.6 worker does not know the standby. The Rust
+    worker (P5) keeps the same records.
 - The non-migrating check compares against `reference_schema()`: the schema this code's own
   migration produces in an in-memory database, built once per process (about 2 ms), and only
   on a stale stamp.

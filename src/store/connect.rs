@@ -83,6 +83,12 @@ impl Store {
         let db = with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE, timeout)?;
         let missing = readiness::missing(&db)?;
         if !missing.is_empty() {
+            // the worker holding the lock must hear about it: it starts the newer worker (#50)
+            super::revision_wanted::want(
+                path,
+                super::revision::MIGRATION_REVISION,
+                super::revision_wanted::unix_now(),
+            );
             return Err(OpenError::NotReady(missing));
         }
         Ok(Store { db })

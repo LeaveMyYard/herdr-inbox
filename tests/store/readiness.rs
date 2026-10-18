@@ -130,3 +130,26 @@ fn foreign_keys_are_not_enforced_as_in_python() {
         )
         .unwrap();
 }
+
+#[test]
+fn a_hook_store_on_an_older_schema_asks_for_its_revision() {
+    // #75 review M2: the Rust hooks write the same revision-wanted marker as Python's opens
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("old.db");
+    let old = open(&path);
+    old.execute_batch("CREATE TABLE questions (id INTEGER PRIMARY KEY, question TEXT)")
+        .unwrap();
+    drop(old);
+    assert!(matches!(
+        Store::open(&path, std::time::Duration::ZERO),
+        Err(OpenError::NotReady(_))
+    ));
+    let marker = std::fs::read_to_string(dir.path().join("old.db.revision-wanted")).unwrap();
+    assert!(
+        marker.starts_with(&format!(
+            "{} ",
+            herdr_inbox::store::revision::MIGRATION_REVISION
+        )),
+        "{marker}"
+    );
+}

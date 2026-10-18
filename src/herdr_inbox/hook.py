@@ -214,6 +214,12 @@ def deliver(payload: dict, liveness: bool = True) -> str | None:
             store = Store(timeout=RECORD_TIMEOUT, maintenance=False)
         except SchemaNotReady:
             _obs(frame, "schema_ready", False)
+            try:  # an older worker holds the lock: start this revision's, which stands by (#50)
+                from . import worker
+
+                worker.ensure()
+            except Exception:  # noqa: BLE001
+                pass
             return None
         with store:
             store.record_session(session, payload.get("transcript_path"))

@@ -73,6 +73,9 @@ class QuestionItem(TypedDict):
 
 
 BUSY_BACKOFF = (0.3, 1.0, 2.0)
+# Waits for a database not migrated yet: together longer than a worker TICK (5 s) plus a handover
+# and a migration, so the first tool call after an upgrade normally gets through (#50).
+NOT_READY_BACKOFF = (0.3, 1.0, 2.0, 3.0, 3.0)
 TOOL_BUSY_TIMEOUT = 3.0  # per attempt; busy_safe retries, so a tool never hangs for minutes
 
 
@@ -87,17 +90,23 @@ def busy_safe(fn):
 
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        started_worker = False
+        not_ready = iter((*NOT_READY_BACKOFF, None))
         for delay in (*BUSY_BACKOFF, None):
             try:
                 return fn(*args, **kwargs)
             except SchemaNotReady:  # raised by the store open, before any write: safe to retry
-                if not started_worker:
-                    _ensure_worker()  # it migrates on start (a fresh install, an upgrade); never fatal
-                    started_worker = True
-                if delay is None:
-                    return dict(service.NOT_MIGRATED)
-                time.sleep(delay)
+                # every attempt: one flock probe; it migrates on start, or (an older worker holds
+                # the lock) stands by until that worker hands over (#50); never fatal
+                _ensure_worker()
+                wait = next(not_ready)
+                while wait is not None:
+                    time.sleep(wait)
+                    try:
+                        return fn(*args, **kwargs)
+                    except SchemaNotReady:
+                        _ensure_worker()
+                        wait = next(not_ready)
+                return dict(service.NOT_MIGRATED)
             except sqlite3.OperationalError as exc:
                 if "locked" not in str(exc) and "busy" not in str(exc):
                     raise
