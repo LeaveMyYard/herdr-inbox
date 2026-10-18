@@ -64,10 +64,13 @@ def checkout(tmp_path, fake_herdr, monkeypatch):
     state = {"root": root, "log": log, "uv": uv, "procs": procs}
     yield state
     for proc in procs:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError:
-            pass
+        # only a child not reaped yet: its pid (and so its process group) is still ours; a reaped
+        # one's pid may already name another process's group (#85 final pass M1)
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                pass
         proc.wait(timeout=5)
 
 
