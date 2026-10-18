@@ -254,12 +254,14 @@ def is_own_worker(pid: int, root: Path) -> bool:
 
 def _pidfd_calls():
     """(open(pid) -> fd, send(fd, sig)) on Linux, else None. The os/signal functions when this
-    Python has them; otherwise the system calls themselves (pidfd_open 434, pidfd_send_signal
-    424: one number on every Linux architecture), as some builds lack the wrappers."""
+    Python has them; otherwise, on x86_64 and aarch64, the system calls themselves (pidfd_open
+    434, pidfd_send_signal 424 there), as some builds lack the wrappers."""
     if not sys.platform.startswith("linux"):
         return None
     if hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal"):
         return os.pidfd_open, signal.pidfd_send_signal
+    if os.uname().machine not in ("x86_64", "aarch64"):
+        return None
     import ctypes
 
     libc = ctypes.CDLL(None, use_errno=True)
@@ -289,20 +291,17 @@ def signal_verified(pid: int, sig: int, verify) -> bool:
         open_fd, send = calls
         try:
             fd = open_fd(pid)
+        except OSError:  # gone, or no pidfd after all: never the unpinned check-then-kill
+            return False
+        try:
+            if not verify(pid):  # read AFTER the pidfd pinned it: this process, not a successor
+                return False
+            send(fd, sig)
+            return True
         except ProcessLookupError:
             return False
-        except OSError:  # no pidfd support here: the check-then-kill fallback below
-            fd = None
-        if fd is not None:
-            try:
-                if not verify(pid):  # read AFTER the pidfd pinned it: this process, not a successor
-                    return False
-                send(fd, sig)
-                return True
-            except ProcessLookupError:
-                return False
-            finally:
-                os.close(fd)
+        finally:
+            os.close(fd)
     if not verify(pid):
         return False
     try:
