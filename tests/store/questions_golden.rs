@@ -4,7 +4,7 @@
 //! database built from the captured schema and must leave the same rows.
 
 use herdr_inbox::store::Store;
-use herdr_inbox::store::question::{QOption, Question, normalize_options};
+use herdr_inbox::store::question::{OptionsError, QOption, Question, normalize_options};
 use herdr_inbox::store::questions::{NewQuestion, Owner};
 use rusqlite::types::ValueRef;
 use serde_json::{Map, Value, json};
@@ -13,19 +13,22 @@ use crate::common::migrated;
 use crate::family::Fake;
 
 const GOLDEN: &str = include_str!("../fixtures/store-questions.json");
+/// A time a step sets (capture_goldens `STORE_FIXED`): never masked.
+const FIXED: &str = "2001-01-01T00:00:00+00:00";
 
-/// An ISO time as Python's capture masked it.
+/// A time as Python's capture masked it.
 fn mask(s: &str) -> Value {
-    let b = s.as_bytes();
-    let iso = b.len() >= 19
-        && b[4] == b'-'
-        && b[7] == b'-'
-        && b[10] == b'T'
-        && s[11..]
-            .trim_end_matches("+00:00")
-            .bytes()
-            .all(|c| c.is_ascii_digit() || c == b':' || c == b'.');
-    if iso {
+    // exactly YYYY-MM-DDTHH:MM:SS+00:00, as Python's capture masks it: the format is pinned too
+    let shape = "dddd-dd-ddTdd:dd:dd+00:00";
+    let iso = s.len() == shape.len()
+        && s.bytes().zip(shape.bytes()).all(|(c, want)| {
+            if want == b'd' {
+                c.is_ascii_digit()
+            } else {
+                c == want
+            }
+        });
+    if iso && s != FIXED {
         return Value::String("<time>".into());
     }
     if let Some(rest) = s.strip_prefix("sending:") {
@@ -129,7 +132,7 @@ fn run(store: &Store, op: &str, a: &Value) -> Value {
         "insert" => {
             let new = NewQuestion {
                 question: s(a, "question").unwrap(),
-                options: a.get("options").and_then(normalize_options),
+                options: a.get("options").and_then(|o| normalize_options(o).unwrap()),
                 context: s(a, "context"),
                 asked_by: s(a, "asked_by"),
                 pane_id: s(a, "pane_id"),
@@ -191,6 +194,23 @@ fn run(store: &Store, op: &str, a: &Value) -> Value {
             store.hide_failed(i(a, "qid")).unwrap();
             Value::Null
         }
+        "sql" => {
+            let params: Vec<rusqlite::types::Value> = a["params"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| match v {
+                    Value::String(s) => rusqlite::types::Value::Text(s.clone()),
+                    Value::Number(n) => rusqlite::types::Value::Integer(n.as_i64().unwrap()),
+                    other => panic!("param {other}"),
+                })
+                .collect();
+            store
+                .db()
+                .execute(s(a, "sql").unwrap(), rusqlite::params_from_iter(params))
+                .unwrap();
+            Value::Null
+        }
         "claim_delivery" => store
             .claim_delivery(i(a, "qid"))
             .unwrap()
@@ -216,4 +236,78 @@ fn every_step_leaves_pythons_rows_and_returns_pythons_result() {
         assert_eq!(got, step["result"], "step {n} {op}: result");
         assert_eq!(tables(&store), step["tables"], "step {n} {op}: tables");
     }
+}
+
+/// What Python's `normalize_options` makes of each input, or which exception
+/// it raises. A truthy non-string description or preview is kept as a value by
+/// Python and as its `str()` spelling here (documented in `normalize_options`).
+#[test]
+fn options_normalize_as_pythons_do() {
+    let golden: Value = serde_json::from_str(GOLDEN).unwrap();
+    let cases = golden["options"].as_array().unwrap();
+    assert!(cases.len() >= 20);
+    let text = |v: &Value| match v {
+        Value::Null => Value::Null,
+        Value::String(_) => v.clone(),
+        Value::Bool(b) => Value::String(if *b { "True" } else { "False" }.into()),
+        other => Value::String(herdr_inbox::pyjson::dumps(other)),
+    };
+    for case in cases {
+        let got = normalize_options(&case["input"]);
+        match case.get("error").and_then(Value::as_str) {
+            Some("KeyError") => assert_eq!(got, Err(OptionsError::NoLabel), "{case}"),
+            Some(_) => assert_eq!(got, Err(OptionsError::NotOptions), "{case}"),
+            None => {
+                let want = case["output"].as_array().map(|list| {
+                    list.iter()
+                        .map(|o| json!({"label": o["label"], "description": text(&o["description"]), "preview": text(&o["preview"])}))
+                        .collect::<Vec<_>>()
+                });
+                let got = got.unwrap().map(|list| {
+                    list.iter()
+                        .map(|o| json!({"label": o.label, "description": o.description, "preview": o.preview}))
+                        .collect::<Vec<_>>()
+                });
+                assert_eq!(got, want, "{case}");
+            }
+        }
+    }
+}
+
+/// #79 review L3: an escaped lone surrogate in a stored JSON column (Python's
+/// json.dumps writes one for a lone surrogate in a str) does not fail the read:
+/// Python keeps the surrogate, a Rust string holds U+FFFD there.
+#[test]
+fn a_lone_surrogate_in_a_json_column_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), std::time::Duration::from_secs(5)).unwrap();
+    let new = NewQuestion {
+        question: "Odd?",
+        pane_id: Some("w1:p1"),
+        ..NewQuestion::default()
+    };
+    let q = store.insert(&new).unwrap();
+    store
+        .db()
+        .execute(
+            "UPDATE question_ext SET answer_json = ?, options_json = ? WHERE id = ?",
+            rusqlite::params![
+                r#"{"text": "a\ud83d"}"#,
+                r#"[{"label": "\udc00", "description": null, "preview": null}]"#,
+                q.id
+            ],
+        )
+        .unwrap();
+    let got = store.get(q.id).unwrap().unwrap();
+    assert_eq!(got.answer_json, Some(json!({"text": "a\u{FFFD}"})));
+    assert_eq!(got.options.unwrap()[0].label, "\u{FFFD}");
+    let owner = Owner {
+        session_id: None,
+        pane_id: Some("w1:p1"),
+    };
+    assert_eq!(
+        store.mine(owner, true, &Fake::default()).unwrap().len(),
+        1,
+        "the whole list still reads"
+    );
 }

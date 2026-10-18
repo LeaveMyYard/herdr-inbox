@@ -515,6 +515,7 @@ def capture_landed(out: Path) -> list[Path]:
 
 
 STORE_SESSION = "aaaaaaaa-0000-4000-8000-00000000000a"
+STORE_FIXED = "2001-01-01T00:00:00+00:00"  # a time a step sets: not "now", so never masked
 STORE_OPS = [
     ("insert", {"question": "Which region?", "session_id": STORE_SESSION, "pane_id": "w1:p1", "tab_id": "w1:t1",
                 "tab_label": "api", "cwd": "/r", "asked_by": "lane", "options": ["eu", "us"], "header": "Region"}),
@@ -557,7 +558,51 @@ STORE_OPS = [
     ("find_duplicate", {"norm": "ship it", "session_id": None, "pane_id": "w1:p3"}),  # the open one first
     ("claim_delivery", {"qid": 5}),
     ("acknowledge", {"qids": [5]}),  # a claim in flight stays
+    # every WHERE and ORDER BY clause decides some step (#79 review M1)
+    ("insert", {"question": "Pick a color?", "pane_id": "w1:p4"}),  # 6
+    ("set_answer", {"qid": 6, "answer": "red", "detail": None}),
+    ("find_duplicate", {"norm": "pick a color", "session_id": None, "pane_id": "w1:p4"}),  # answered, in the hour
+    ("sql", {"sql": "UPDATE questions SET answered_at = ? WHERE id = 6", "params": [STORE_FIXED]}),
+    ("find_duplicate", {"norm": "pick a color", "session_id": None, "pane_id": "w1:p4"}),  # past ANSWER_REUSE
+    ("insert", {"question": "Two of them?", "pane_id": "w1:p5"}),  # 7
+    ("insert", {"question": "Two of them?", "pane_id": "w1:p5"}),  # 8
+    ("find_duplicate", {"norm": "two of them", "session_id": None, "pane_id": "w1:p5"}),  # the newest open
+    ("unacknowledged_answers", {"session_id": STORE_SESSION, "pane_id": "w1:p1"}),  # 1 is acknowledged
+    ("group", {"group_id": 1, "include_closed": False}),  # nothing open in it
+    ("set_draft", {"qid": 3, "detail": {"choices": ["x"], "notes": {}, "text": None}}),  # closed: no
+    ("set_status", {"qid": 3, "status": "withdrawn", "note": "again"}),  # closed: no
+    ("set_answer", {"qid": 99, "answer": "x", "detail": None}),
+    ("redeliver", {"qids": [99]}),
+    ("hide_failed", {"qid": 99}),  # Python writes an orphan question_ext row
+    ("insert", {"question": "Nowhere?", "session_id": "bbbbbbbb-0000-4000-8000-00000000000b"}),  # 9, no pane
+    ("known_panes", {}),
+    ("open_counts", {}),
+    ("mine", {"session_id": None, "pane_id": None, "include_closed": True}),  # no owner: nothing
+    ("find_duplicate", {"norm": "nowhere", "session_id": None, "pane_id": None}),
+    ("sql", {"sql": "UPDATE question_ext SET pending_since = ?, busy_attempts = 2, verified_at = ? WHERE id = 2",
+             "params": [STORE_FIXED, STORE_FIXED]}),
+    ("redeliver", {"qids": [2]}),  # clears all three
+    ("sql", {"sql": "UPDATE questions SET acknowledged_at = ? WHERE id = 2", "params": [STORE_FIXED]}),
+    ("acknowledge", {"qids": [2]}),  # keeps the first time
+    ("bump_repeat", {"qid": 4}),
+    ("bump_repeat", {"qid": 4}),
+    ("insert", {"question": "Grouped by zero?", "pane_id": "w1:p6", "group_id": 0}),  # 10: 0 is no group
+    ("insert", {"question": "Smile 🙂?", "pane_id": "w1:p6",  # 11: outside the BMP, in every JSON column
+                "options": [{"label": "🙂 yes", "description": "😀"}, "no 🙃"]}),
+    ("set_draft", {"qid": 11, "detail": {"choices": ["🙂 yes"], "notes": {"🙂 yes": "🎉"}, "text": "𝄞"}}),
+    ("set_answer", {"qid": 11, "answer": "🙂 yes",
+                    "detail": {"choices": ["🙂 yes"], "notes": {"🙂 yes": "🎉"}, "text": None}}),
+    ("get", {"qid": 11}),
 ]
+# What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
+# row or another writer may hold anything): its result, or the exception it raises.
+STORE_OPTIONS = [["a", {"label": "b", "description": "", "preview": "p"}],
+                 [{"label": 5, "description": False, "preview": 0}],
+                 [{"label": True, "description": [], "preview": {}}], [{"label": None}],
+                 [{"label": 1.5, "description": 5, "preview": [1]}], [{"label": 1e20, "description": 0.0}],
+                 [{"label": "x", "description": True, "preview": "y"}],
+                 [{"description": "no label"}], [5], [None], [["a"]], [], None, "", "ab", {"k": 1, "j": 2},
+                 {}, 0, 7, True]
 STORE_TEXTS = ["Which REGION?", "  a\tb\n\nc  ", "Proceed — with the next step?!", "über_ALLES 3.5%",
                "İstanbul ǅemal ß", "日本語のテスト？", "tab\x1csep\x85nel", "", "!!!", "emoji 🙂 here",
                "x" * 70, "Deploy\tplan:\x07 ok", "\u2028line\u2029para", "ﬁne ﬂow"]
@@ -576,7 +621,7 @@ def _store_value(value):
         return {k: _store_value(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_store_value(v) for v in value]
-    if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T[\d:.]+(\+00:00)?", value):
+    if isinstance(value, str) and value != STORE_FIXED and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00", value):
         return "<time>"
     if isinstance(value, str) and re.fullmatch(r"sending:\d{4}-\d{2}-\d{2}T[\d:]+\+00:00:[0-9a-f]{8}", value):
         return "sending:<time>:<token>"
@@ -606,11 +651,17 @@ def capture_store(out: Path, work: Path) -> list[Path]:
     steps = []
     with st.Store(path, migrate=True) as s:
         for op, args in STORE_OPS:
-            result = getattr(s, op)(**args)
+            result = s.db.execute(args["sql"], args["params"]) and None if op == "sql" else getattr(s, op)(**args)
             steps.append({"op": op, "args": args, "result": _store_value(result), "tables": _store_tables(path)})
     texts = [{"text": t, "normalize": st.normalize(t), "clean_title": st.clean_title(t)} for t in STORE_TEXTS]
+    options = []
+    for value in STORE_OPTIONS:
+        try:
+            options.append({"input": value, "output": st.normalize_options(value)})
+        except Exception as e:  # noqa: BLE001
+            options.append({"input": value, "error": type(e).__name__})
     doc = {"source": "store.Store over STORE_OPS (tools/capture_goldens.py --only store)", "steps": steps,
-           "texts": texts}
+           "texts": texts, "options": options}
     target = out / "store-questions.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
     return [target]

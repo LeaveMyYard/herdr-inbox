@@ -101,6 +101,9 @@ say why in the PR:
 - `store-questions.json` (`--only store`): `store.Store`'s question reads and writes run over
   the script `STORE_OPS` in `capture_goldens.py`. Each step records its arguments, its result
   (`dataclasses.asdict` of a question) and the rows of `questions`, `question_ext` and
-  `question_groups` after it. Times are masked as `<time>`; claims as `sending:<time>:<token>`.
-  `tests/store/questions_golden.rs` runs the same script on the Rust store and must match
-  every step.
+  `question_groups` after it. A `sql` step sets up a row with raw SQL (a fixed time,
+  `STORE_FIXED`, which stays unmasked); every other time, exactly `YYYY-MM-DDTHH:MM:SS+00:00`,
+  is masked as `<time>`, and claims as `sending:<time>:<token>`. `options` holds what
+  `normalize_options` returns (or raises) for malformed options, and `texts` holds
+  `normalize`/`clean_title` of a few texts. `tests/store/questions_golden.rs` runs the same
+  script on the Rust store and must match every step.

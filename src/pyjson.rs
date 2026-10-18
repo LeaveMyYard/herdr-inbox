@@ -4,7 +4,8 @@
 //! write (`options_json`, `answer_json`, `draft_json`), so a value written here
 //! is byte-equal to Python's.
 //!
-//! Floats are written as Rust prints them; the inbox stores none.
+//! Floats are written as serde_json prints them; the inbox stores none.
+//! [`loads`] reads what Python's `json.loads` reads, lone surrogates included.
 
 use serde_json::Value;
 
@@ -44,6 +45,52 @@ fn write(out: &mut String, value: &Value) {
             out.push('}');
         }
     }
+}
+
+/// `json.loads(text)` for the JSON the inbox stores. Python accepts an escaped
+/// lone surrogate (`"\\ud83d"`) and keeps it in the string; a Rust string
+/// cannot hold one, so it reads as U+FFFD (written back as `"\\ufffd"`).
+/// Anything else serde_json rejects, Python rejects too.
+pub fn loads(text: &str) -> serde_json::Result<Value> {
+    serde_json::from_str(text).or_else(|e| match lone_surrogates_replaced(text) {
+        Some(fixed) => serde_json::from_str(&fixed),
+        None => Err(e),
+    })
+}
+
+/// `text` with every escaped lone surrogate replaced by `\\ufffd`; `None` if
+/// there is none.
+fn lone_surrogates_replaced(text: &str) -> Option<String> {
+    let unit = |s: &str| -> Option<u16> {
+        let hex = s.strip_prefix("\\u")?.get(..4)?;
+        u16::from_str_radix(hex, 16).ok()
+    };
+    let (mut out, mut rest, mut changed) = (String::with_capacity(text.len()), text, false);
+    while let Some(at) = rest.find('\\') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let Some(u) = unit(rest) else {
+            let len = rest[1..].chars().next().map_or(1, |c| 1 + c.len_utf8());
+            out.push_str(&rest[..len]); // an escape such as \\ or \": copied whole
+            rest = &rest[len..];
+            continue;
+        };
+        let low_follows = (0xD800..0xDC00).contains(&u)
+            && unit(&rest[6..]).is_some_and(|l| (0xDC00..0xE000).contains(&l));
+        if low_follows {
+            out.push_str(&rest[..12]);
+            rest = &rest[12..];
+        } else if (0xD800..0xE000).contains(&u) {
+            out.push_str("\\ufffd");
+            rest = &rest[6..];
+            changed = true;
+        } else {
+            out.push_str(&rest[..6]);
+            rest = &rest[6..];
+        }
+    }
+    out.push_str(rest);
+    changed.then_some(out)
 }
 
 /// A JSON string as `json.dumps` writes it (`ensure_ascii=True`).
