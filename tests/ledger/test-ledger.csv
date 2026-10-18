@@ -965,3 +965,4 @@ tests/test_worker_handover.py::test_a_rust_hooks_marker_alone_gets_the_r2_worker
 tests/test_worker_handover.py::test_a_marker_reaches_the_listed_install_from_a_holder_herdr_does_not_list,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_the_newer_worker_wins_the_lock_race_whatever_the_start_order,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_a_worker_started_without_ensure_is_found_and_stopped,tests/test_worker_handover.py,,todo,,
+tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_signalled,tests/test_worker_handover.py,,todo,,

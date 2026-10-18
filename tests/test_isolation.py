@@ -29,7 +29,7 @@ def test_a_worker_left_running_is_found_by_the_teardown_guard(fake_herdr, tmp_pa
 
     from herdr_inbox import worker
 
-    from .conftest import leaked_workers
+    from .conftest import leaked_workers, stop_own_workers
 
     assert leaked_workers(tmp_path) == []
     monkeypatch.delenv("HERDR_INBOX_NO_WORKER")
@@ -43,8 +43,7 @@ def test_a_worker_left_running_is_found_by_the_teardown_guard(fake_herdr, tmp_pa
             found = leaked_workers(tmp_path)
         assert len(found) == 1
     finally:
-        for pid in found:
-            os.kill(pid, signal.SIGTERM)
+        assert stop_own_workers(tmp_path, signal.SIGTERM) == [], "only this run's worker"
     deadline = time.monotonic() + 10
     while leaked_workers(tmp_path):
         assert time.monotonic() < deadline, "the worker did not stop"

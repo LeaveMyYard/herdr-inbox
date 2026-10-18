@@ -25,7 +25,7 @@ import pytest
 from herdr_inbox import revision_wanted, store as st, worker, worker_handover as wh
 from herdr_inbox.store import Store, db_path
 
-from .conftest import leaked_workers
+from .conftest import TEST_RUN_VAR, is_own_worker, leaked_workers, stop_own_workers
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "aaaaaaaa-0000-4000-8000-00000000000a"
@@ -78,17 +78,14 @@ def world(migrated_db, tmp_path, monkeypatch):
     listed.write_text(str(r1))
     procs: list[subprocess.Popen] = []
     yield {"r1": r1, "r2": r2, "listed": listed, "procs": procs, "qid": q.id}
-    for pid in leaked_workers(tmp_path):
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except OSError:
-            pass
+    others = stop_own_workers(tmp_path, signal.SIGKILL)  # this run's own only, checked per pid
     for p in procs:
         p.kill()
         p.wait(timeout=10)
     deadline = time.monotonic() + 10
     while leaked_workers(tmp_path) and time.monotonic() < deadline:
         time.sleep(0.05)
+    assert others == [], f"workers not started by this run, left alone: {others}"
     assert leaked_workers(tmp_path) == [], "no worker of this test outlives it"
 
 
@@ -255,3 +252,50 @@ def test_a_worker_started_without_ensure_is_found_and_stopped(bystander, world, 
     found = leaked_workers(tmp_path)
     assert p.pid in found
     assert bystander.pid not in found, "a worker of another database is never listed"
+
+
+def _outsider(tmp_path: Path) -> int:
+    """A stand-in for a worker this run did NOT start (the operator's own): argv like a worker's,
+    HERDR_INBOX_DB under ``tmp_path`` (so every database matcher lists it), but double-forked into
+    its own session (not a descendant of this process) and without this run's mark."""
+    (tmp_path / "worker.log").write_text("")
+    pidfile = tmp_path / "outsider.pid"
+    env = {k: v for k, v in os.environ.items() if k != TEST_RUN_VAR}
+    env["HERDR_INBOX_DB"] = str(tmp_path / "inbox.db")
+    code = ("import os, sys, time\n"
+            "if os.fork(): os._exit(0)\n"
+            "os.setsid()\n"
+            "if os.fork(): os._exit(0)\n"
+            "open(sys.argv[1] + '.tmp', 'w').write(str(os.getpid())); os.replace(sys.argv[1] + '.tmp', sys.argv[1])\n"
+            "time.sleep(120)  # herdr_inbox.cli")
+    subprocess.run([sys.executable, "-c", code, str(pidfile), "worker"], env=env, timeout=30, check=True)
+    assert wait_for(pidfile.exists, 10)
+    return int(pidfile.read_text())
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+def test_a_worker_this_run_did_not_start_is_never_signalled(tmp_path, monkeypatch):
+    """The operator's live worker was killed once by a test whose matcher was broken (a mutation
+    run). Whatever the matcher lists, a test signals only this run's own workers."""
+    from . import conftest
+
+    pid = _outsider(tmp_path)
+    try:
+        assert pid in leaked_workers(tmp_path), "the database matcher lists it"
+        assert not is_own_worker(pid, tmp_path), "but it is not this run's"
+        assert stop_own_workers(tmp_path) == [pid] and _alive(pid), "reported, never signalled"
+        # a matcher broken to list it anyway (as the mutation did) still never gets it signalled
+        monkeypatch.setattr(conftest, "leaked_workers", lambda root: [pid])
+        assert conftest.stop_own_workers(tmp_path, signal.SIGKILL) == [pid]
+        time.sleep(0.2)
+        assert _alive(pid)
+    finally:
+        os.kill(pid, signal.SIGKILL)  # the test started it: its own pid, from its own pid file
+        (tmp_path / "worker.log").unlink()
