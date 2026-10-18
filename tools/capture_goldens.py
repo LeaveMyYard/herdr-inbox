@@ -874,6 +874,54 @@ STORE_ALERT_OPS = [
     ("set_answer", {"qid": 4, "answer": "x", "detail": None}),
     ("acknowledge_answers", {"qids": [4]}),
     ("sessions_in_play", {}),  # not a closed alert's session, not a seen answer's
+    # #83 review M1
+    ("scan", {"server": "/srv/a", "t": 100.0, "labels": {}, "agents": [_agent("w1:p9", "blocked", "w1:t9")]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p9'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 101.0, "labels": {"w1:t9": "❓2 "},  # strips to "": the pane names it
+              "agents": [_agent("w1:p9", "blocked", "w1:t9")]}),
+    ("sql", {"sql": "INSERT INTO alerts (created_at, kind, severity, title, pane_id, status) VALUES "
+                    "(?, 'blocked', 'warning', 'legacy', 'w1:p10', 'open')", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 102.0, "labels": {}, "agents": [_agent("w1:p9", "blocked", "w1:t9")]}),
+    ("scan", {"server": "/srv/a", "t": 110.0, "labels": {}, "agents": [_agent("w1:p11", "blocked")]}),
+    ("scan", {"server": "/srv/a", "t": 111.0, "labels": {}, "agents": [_agent("w1:p11", "working")]}),
+    ("scan", {"server": "/srv/a", "t": 121.0, "labels": {}, "agents": [_agent("w1:p11", "working")]}),  # 10 s, 2 scans
+    ("scan", {"server": "/srv/a", "t": 130.0, "labels": {}, "agents": [_agent("w1:p12", "blocked", None, S1)]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p12'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 131.0, "labels": {}, "agents": [_agent("w1:p12", "blocked", None, S1)]}),
+    ("raise_alert", {"caller": _C1, "title": "w1:p12 is waiting for you", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # only agent alerts are duplicates
+    # every remaining condition (#83 review: one step per predicate)
+    ("raise_alert", {"caller": {**_C1, "pane_id": ""}, "title": "Empty pane", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # "" is no pane: unavailable
+    ("raise_alert", {"caller": {**_C1, "tab_label": ""}, "title": "Empty label", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # 14: an empty label names the pane
+    ("withdraw", {"caller": {"session_id": None, "pane_id": "w1:p4", "tab_id": None, "tab_label": None},
+                  "aid": 3}),  # session-less on both sides, another pane: not its
+    ("acknowledge", {"aid": 12}),
+    ("acknowledged_unreported", {"caller": _C1}),  # a blocked alert of its session is not reported
+    ("scan", {"server": "/srv/a", "t": 200.0, "labels": {}, "agents": [_agent("w1:p1", "blocked")]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p1'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 201.0, "labels": {},  # A1 (an acked agent alert) dismisses nothing
+              "agents": [_agent("w1:p1", "blocked")]}),
+    ("sql", {"sql": "UPDATE alerts SET closed_at = ? WHERE id = 12", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 202.0, "labels": {}, "agents": [_agent("w1:p1", "blocked")]}),  # keeps it
+    ("scan", {"server": "/srv/a", "t": 210.0, "labels": {"w1:t16": "", "w1:t19b": "web19"}, "agents": [
+        _agent("w1:p16", "blocked", "w1:t16"), {"pane_id": "w1:p17", "agent_status": "blocked", "tab_id": ""},
+        _agent("w1:p18", "idle"), _agent("w1:p19", "blocked", "w1:t19a"), _agent("w1:p19", "blocked", "w1:t19b"),
+        {"pane_id": "", "agent_status": "blocked"}]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id IN ('w1:p16', 'w1:p17', 'w1:p18', 'w1:p19')",
+             "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 211.0, "labels": {"w1:t16": "", "w1:t19b": "web19"}, "agents": [
+        _agent("w1:p16", "blocked", "w1:t16"), {"pane_id": "w1:p17", "agent_status": "blocked", "tab_id": ""},
+        _agent("w1:p18", "idle"), _agent("w1:p19", "blocked", "w1:t19a"), _agent("w1:p19", "blocked", "w1:t19b"),
+        {"pane_id": "", "agent_status": "blocked"}]}),  # 16: no label; 17: tab ""; 18 idle; 19: the last entry
+    ("sql", {"sql": "INSERT INTO alerts (created_at, kind, severity, title, pane_id, herdr_server, status) VALUES "
+                    "(?, 'blocked', 'warning', 'twice a', 'w1:p20', '/srv/a', 'open'), "
+                    "(?, 'blocked', 'warning', 'twice b', 'w1:p20', '/srv/a', 'open')",
+             "params": [STORE_FIXED, STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 212.0, "labels": {}, "agents": []}),  # only the later one of p20 clears
+    ("insert", {"question": "Open only", "session_id": "66666666-0000-4000-8000-000000000006", "pane_id": "w1:p6"}),
+    ("sessions_in_play", {}),  # an open question alone puts its session in play
 ]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.
