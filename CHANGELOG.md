@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Hardening of the worker handover** (#50, review of #75). A revision-wanted marker write waits at
+  most 200 ms for its lock (a hook never hangs). `ensure()` starts at most one worker per revision
+  every 5 s, so a newer worker that crashes at start can no longer cost one process and one
+  `worker.log` entry per hook or tool call. The standby record carries its process's start time,
+  and a heartbeat dated in the future does not count.
 - **Fix: an older worker could keep a newer release "not ready"** (#50). Only the worker and the
   popup migrate the database, and `ensure()` starts nobody while a worker holds the lock. A
   worker of an older revision (its handover failed) kept it, so after a schema change the newer
