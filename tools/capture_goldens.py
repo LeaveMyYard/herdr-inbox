@@ -593,6 +593,13 @@ STORE_OPS = [
     ("set_answer", {"qid": 11, "answer": "🙂 yes",
                     "detail": {"choices": ["🙂 yes"], "notes": {"🙂 yes": "🎉"}, "text": None}}),
     ("get", {"qid": 11}),
+    # an empty detail is no detail (Python `if detail`; #79 final pass L2)
+    ("insert", {"question": "Empty detail?", "pane_id": "w1:p7"}),  # 12
+    ("set_draft", {"qid": 12, "detail": {}}),
+    ("set_draft", {"qid": 12, "detail": {"choices": ["a"], "notes": {}, "text": None}}),
+    ("set_draft", {"qid": 12, "detail": []}),  # clears it, as None does
+    ("set_draft", {"qid": 12, "detail": {"choices": ["a"], "notes": {}, "text": None}}),
+    ("set_answer", {"qid": 12, "answer": "a", "detail": {}}),  # no answer_json; the draft goes
 ]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.

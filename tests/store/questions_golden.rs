@@ -311,3 +311,37 @@ fn a_lone_surrogate_in_a_json_column_reads() {
         "the whole list still reads"
     );
 }
+
+/// #79 final pass L1: set_answer's two writes are one transaction (Python's
+/// `with self.transaction()`): when the second fails, the first is undone.
+#[test]
+fn set_answer_is_all_or_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), std::time::Duration::from_secs(5)).unwrap();
+    let q = store
+        .insert(&NewQuestion {
+            question: "Atomic?",
+            pane_id: Some("w1:p1"),
+            ..NewQuestion::default()
+        })
+        .unwrap();
+    store
+        .db()
+        .execute_batch(
+            "CREATE TEMP TRIGGER no_ext_insert BEFORE INSERT ON main.question_ext BEGIN SELECT RAISE(ABORT, 'no'); END;
+             CREATE TEMP TRIGGER no_ext_update BEFORE UPDATE ON main.question_ext BEGIN SELECT RAISE(ABORT, 'no'); END;",
+        )
+        .unwrap();
+    assert!(
+        store
+            .set_answer(q.id, "yes", Some(&json!({"text": "yes"})))
+            .is_err()
+    );
+    let after = store.get(q.id).unwrap().unwrap();
+    assert_eq!(
+        (after.status.as_str(), after.answer, after.answered_at),
+        ("open", None, None),
+        "the answer was undone"
+    );
+    assert!(store.db().is_autocommit(), "no transaction left open");
+}

@@ -49,8 +49,15 @@ fn write(out: &mut String, value: &Value) {
 
 /// `json.loads(text)` for the JSON the inbox stores. Python accepts an escaped
 /// lone surrogate (`"\\ud83d"`) and keeps it in the string; a Rust string
-/// cannot hold one, so it reads as U+FFFD (written back as `"\\ufffd"`).
-/// Anything else serde_json rejects, Python rejects too.
+/// cannot hold one, so it reads as U+FFFD. The value is therefore lossy: never
+/// write it back where the stored text must survive (dump it and you get
+/// `"\\ufffd"`).
+///
+/// Python also reads what this does not: `NaN`, `Infinity`, numbers beyond f64
+/// such as `1e400`, and nesting deeper than 128. Here such a row fails the
+/// read where Python's succeeds (a whole list query errors, and the hook falls
+/// back to the worker's typing). Neither the MCP schema nor any Python writer
+/// produces those values.
 pub fn loads(text: &str) -> serde_json::Result<Value> {
     serde_json::from_str(text).or_else(|e| match lone_surrogates_replaced(text) {
         Some(fixed) => serde_json::from_str(&fixed),
