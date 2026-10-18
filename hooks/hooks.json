@@ -9,10 +9,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
+              "sh \"$1\" hook \"$2\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/launch",
               "session-start"
             ],
             "timeout": 20
@@ -28,10 +27,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
+              "sh \"$1\" hook \"$2\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/launch",
               "subagent-start"
             ],
             "timeout": 20
@@ -47,10 +45,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
+              "sh \"$1\" hook \"$2\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/launch",
               "post-tool-batch"
             ],
             "timeout": 10
@@ -66,10 +63,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; exit 0",
+              "sh \"$1\" hook \"$2\" 2>/dev/null; exit 0",
               "herdr-inbox-hook",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/launch",
               "stop"
             ],
             "timeout": 10
@@ -79,10 +75,9 @@
             "command": "sh",
             "args": [
               "-c",
-              "sh \"$1\" \"$2\" \"$3\" 2>/dev/null; [ $? -eq 3 ] && exit 2; exit 0",
+              "sh \"$1\" hook \"$2\" 2>/dev/null; [ $? -eq 3 ] && exit 2; exit 0",
               "herdr-inbox-hook",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run.py",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/launch",
               "rewake-watch"
             ],
             "asyncRewake": true,
