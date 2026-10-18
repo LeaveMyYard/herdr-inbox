@@ -53,3 +53,22 @@ fn the_shared_vectors_read_as_in_python() {
         );
     }
 }
+
+#[test]
+fn a_held_marker_lock_never_holds_the_hook() {
+    // #75 final pass L1: another writer holding the lock costs at most WANT_LOCK_WAIT
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    let mut lock = path_for(&db).into_os_string();
+    lock.push(".lock");
+    let _held = LockFile::new(PathBuf::from(lock)).exclusive().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let db2 = db.clone();
+    std::thread::spawn(move || {
+        want(&db2, 2, 1000.0);
+        tx.send(()).unwrap();
+    });
+    rx.recv_timeout(std::time::Duration::from_secs(10))
+        .expect("want() returned while the lock was held");
+    assert!(!path_for(&db).exists(), "nothing written without the lock");
+}
