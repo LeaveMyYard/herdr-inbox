@@ -1,5 +1,7 @@
 //! Databases for the tests: built from the schema the Python migration
-//! produces (captured in tests/fixtures/schema.json), never invented.
+//! produces (captured in tests/fixtures/schema.json), never invented. Shared by
+//! the `store` and `delivery` test binaries, each using part of it.
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
