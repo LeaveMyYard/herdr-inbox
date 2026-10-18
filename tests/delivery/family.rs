@@ -115,3 +115,27 @@ fn the_current_chain_always_counts_and_the_recorded_path_is_used() {
         [OLD, NEW]
     );
 }
+
+#[test]
+fn a_continuation_dated_exactly_at_the_question_counts() {
+    // Python `at >= bound`: the question was in the conversation when it moved
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&migrated(dir.path()));
+    let p = Projects::new(dir.path());
+    p.write(
+        OLD,
+        &[
+            continued_in(OLD, NEW, Some("2026-10-16T11:22:22Z")),
+            user(OLD, "2026-10-17T09:00:00Z", "resumed"),
+        ],
+    );
+    let files = p.files();
+    assert_eq!(
+        forward_family(&db, &files, Some(OLD), Some("2026-10-16T11:22:22+00:00")).unwrap(),
+        [OLD, NEW]
+    );
+    assert_eq!(
+        forward_family(&db, &files, Some(OLD), Some("2026-10-16T11:22:23+00:00")).unwrap(),
+        [OLD]
+    );
+}
