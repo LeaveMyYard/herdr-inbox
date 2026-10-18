@@ -36,6 +36,11 @@ def path_for(db: Path) -> Path:
     return db.with_name(db.name + SUFFIX)
 
 
+# The longest a write waits for the marker's lock (src/store/revision_wanted.rs WANT_LOCK_WAIT).
+WANT_LOCK_WAIT = 0.2
+WANT_LOCK_POLL = 0.01
+
+
 def _digits(text: str) -> int:
     """A non-negative integer in ASCII digits only (``int()`` also takes ``_``, signs, other
     scripts' digits; the Rust reader does not): ValueError otherwise."""
@@ -61,7 +66,15 @@ def want(db: Path, revision: int, now: float | None = None) -> None:
     at = time.time() if now is None else now
     try:
         with open(path.with_name(path.name + ".lock"), "a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            deadline = time.monotonic() + WANT_LOCK_WAIT
+            while True:  # bounded: a hook never waits long for another writer
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        return  # the next not-ready open writes it
+                    time.sleep(WANT_LOCK_POLL)
             current = wanted(db, now=at)
             if current is not None and current > revision:
                 return  # a fresher, higher request stands; never lower it, never extend it

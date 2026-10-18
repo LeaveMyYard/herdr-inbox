@@ -21,6 +21,10 @@ pub const SUFFIX: &str = ".revision-wanted";
 pub const REVISION_WANTED_TTL: f64 = 600.0;
 /// Seconds a marker may be dated in the future (a clock step back).
 pub const CLOCK_SKEW: f64 = 60.0;
+/// The longest a write waits for the marker's lock (Python `WANT_LOCK_WAIT`):
+/// the hook path never hangs; a busy marker is written by the next try.
+pub const WANT_LOCK_WAIT: std::time::Duration = std::time::Duration::from_millis(200);
+const WANT_LOCK_POLL: std::time::Duration = std::time::Duration::from_millis(10);
 
 /// The marker of database `db`.
 pub fn path_for(db: &Path) -> PathBuf {
@@ -62,7 +66,12 @@ pub fn want(db: &Path, revision: i64, now: f64) {
     let path = path_for(db);
     let mut lock_name = path.clone().into_os_string();
     lock_name.push(".lock");
-    let Ok(_held) = LockFile::new(PathBuf::from(lock_name)).exclusive() else {
+    // bounded: a hook never waits long for another writer (it writes again next time)
+    let Ok(Some(_held)) = LockFile::new(PathBuf::from(lock_name)).exclusive_within(
+        WANT_LOCK_WAIT,
+        WANT_LOCK_POLL,
+        || true,
+    ) else {
         return;
     };
     if wanted(db, now).is_some_and(|current| current > revision) {
