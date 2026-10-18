@@ -119,3 +119,11 @@ say why in the PR:
   `time.monotonic`). What `alerts.py` does to herdr is recorded per step as `effects`
   (`notify`, `markers`). Tables `alerts` and `blocked_panes` after each step.
   `tests/store/alerts_golden.rs` replays it.
+- `store-mirror.json` (`--only store`): `remote.py`'s mirror, the puller's side, over
+  `STORE_MIRROR_OPS`. Pulls run with the ssh stubbed (`_paths`, `call`) and the clock injected
+  (`_now`), covering failures and backoff, full and incremental snapshots, a reset, and alerts
+  being acknowledged. Also the popup's reads and stuck answers. The four mirror tables are
+  dumped after each step, unmasked (time is injected), and the export call's cursor and every
+  notification are recorded as `effects`. `vectors`: `validate_export` over
+  `STORE_EXPORT_VECTORS`, as the rows it keeps or the error it raises.
+  `tests/store/mirror_golden.rs` replays both.
