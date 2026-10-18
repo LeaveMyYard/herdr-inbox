@@ -50,6 +50,8 @@ jobs:
               - 'crates/**'
               - 'src/main.rs'
               - 'src/**/*.rs'
+              - 'tests/**/*.rs'
+              - 'tests/fixtures/schema.json'  # compiled in (src/store/readiness.rs)
               - '.github/workflows/rust.yml'
               - '.github/scripts/structure-check.py'
               - '.github/structure-allowlist.txt'

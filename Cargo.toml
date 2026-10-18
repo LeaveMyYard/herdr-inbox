@@ -31,6 +31,11 @@ all = { level = "warn", priority = -1 }
 [workspace.dependencies]
 inbox-core = { path = "crates/inbox-core" }
 herdr-agent-kit = { git = "https://github.com/LeaveMyYard/herdr-agent-kit", tag = "v0.1.0" }
+# `bundled`: SQLite is compiled in, so there is no system sqlite dependency (plan §4).
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
 
 # The `herdr-inbox` binary: one binary, subcommands keep today's CLI names (§2.2).
 # Its version is the Rust binary's own; pyproject.toml versions the Python
@@ -45,12 +50,25 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+# What the subcommands share (the store, the Claude-side lookups); the binary
+# is src/main.rs. Only the binary uses it: it is not a published library.
+[lib]
+name = "herdr_inbox"
+path = "src/lib.rs"
+
 [[bin]]
 name = "herdr-inbox"
 path = "src/main.rs"
 
 [dependencies]
-herdr-agent-kit.workspace = true
+# `internal`: the inbox's own paths and formats (plugin-only, outside the kit's semver).
+herdr-agent-kit = { workspace = true, features = ["internal"] }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
