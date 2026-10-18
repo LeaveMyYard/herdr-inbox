@@ -58,6 +58,11 @@ elif cmd == "plugin config-dir":
 elif cmd == "plugin list":
     ids = [p for p in os.environ.get("FAKE_HERDR_PLUGINS", "").split(",") if p]
     result = {{"plugins": [{{"plugin_id": p, "enabled": True, "name": p}} for p in ids]}}
+    root_file = os.environ.get("FAKE_HERDR_INBOX_ROOT_FILE")  # the inbox's plugin_root, read per call
+    if root_file:
+        with open(root_file) as fh:
+            result["plugins"].append({{"plugin_id": "leavemyyard.herdr-inbox", "enabled": True,
+                                      "name": "herdr-inbox", "plugin_root": fh.read().strip()}})
 elif cmd == "agent get":
     if os.environ.get("FAKE_HERDR_AGENT", "1") != "1" or args[2] in os.environ.get("FAKE_HERDR_GONE_PANES", "").split(","):
         sys.stderr.write(json.dumps({{"error": {{"code": "agent_not_found", "message": "not found"}}}}))
@@ -161,7 +166,8 @@ _REAL_POPEN = subprocess.Popen
 def leaked_workers(root: Path) -> list[int]:
     """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
 
-    Covers the Python workers worker.ensure() starts (``python -m herdr_inbox.cli worker``),
+    Covers the Python workers worker.ensure() starts (worker.python_worker_argv: runs
+    ``herdr_inbox.cli`` with the argument ``worker``),
     not a successor started through uv or a Rust binary. Cheap when nothing was spawned:
     ensure() writes worker.log next to the database before it starts one, so without that file
     there is nothing to look for (tests/test_isolation.py spawns through ensure() to keep the
@@ -179,7 +185,7 @@ def leaked_workers(root: Path) -> list[int]:
                 env = (d / "environ").read_bytes().split(b"\0")
             except OSError:
                 continue
-            if b"herdr_inbox.cli" in args and b"worker" in args \
+            if any(b"herdr_inbox.cli" in a for a in args) and b"worker" in args \
                     and any(e.decode(errors="replace").startswith(marker) for e in env):
                 found.append(int(d.name))
     else:  # macOS: ps -E shows the environment of the user's own processes
@@ -188,7 +194,7 @@ def leaked_workers(root: Path) -> list[int]:
             out = ps.communicate()[0]
         for line in out.splitlines():
             pid, _, command = line.strip().partition(" ")
-            if "herdr_inbox.cli worker" in command and marker in command and pid.isdigit():
+            if "herdr_inbox.cli" in command and " worker" in command and marker in command and pid.isdigit():
                 found.append(int(pid))
     return found
 
@@ -219,7 +225,7 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     tabs._config_dir.cache_clear()
     for var in ("CLAUDE_CODE_SESSION_ID", "HERDR_TAB_ID", "FAKE_HERDR_FAIL", "FAKE_HERDR_AGENT", "FAKE_HERDR_SESSION", "FAKE_HERDR_AGENT_KIND",
                 "FAKE_HERDR_STATUS", "FAKE_HERDR_FOCUSED",
-                "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR",
+                "FAKE_HERDR_TABS", "FAKE_HERDR_LAND", "FAKE_HERDR_PLUGINS", "FAKE_HERDR_RADAR_CONFIG_DIR", "FAKE_HERDR_INBOX_ROOT_FILE",
                 "FAKE_HERDR_SCREEN", "FAKE_HERDR_SCREEN_ANSI", "FAKE_HERDR_AGENTS", "FAKE_HERDR_LAND_SESSION", "FAKE_HERDR_GONE_PANES"):
         monkeypatch.delenv(var, raising=False)
     yield fake

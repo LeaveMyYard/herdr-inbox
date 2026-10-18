@@ -151,6 +151,7 @@ async def test_tools_on_an_older_schema_return_the_unavailable_receipt(migrated_
     path = Store().path
     make_older_head(path)
     monkeypatch.setattr(server, "BUSY_BACKOFF", (0.0, 0.0, 0.0))
+    monkeypatch.setattr(server, "NOT_READY_BACKOFF", (0.0, 0.0))
     started = []
     monkeypatch.setattr(server, "_ensure_worker", lambda: started.append(1))
     async with Client(mcp) as client:
@@ -158,7 +159,7 @@ async def test_tools_on_an_older_schema_return_the_unavailable_receipt(migrated_
                            ("list_my_questions", {}), ("withdraw_question", {"id": 1, "reason": "x"}),
                            ("alert_operator", {"title": "Look"}), ("withdraw_alert", {"id": 1})):
             assert await call(client, name, args) == service.NOT_MIGRATED, name
-    assert started == [1] * 6  # once per call: the worker migrates
+    assert started == [1] * 6 * 3  # every attempt of every call (#50): the worker migrates, or stands by
     assert stamp_of(path) == CURRENT_PRE_BRIDGE
     assert "sending_at" not in columns(path, "remote_outbox")
     assert Store(path, migrate=True).list(include_closed=True) == []  # nothing was filed

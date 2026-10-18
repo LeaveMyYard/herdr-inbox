@@ -1,0 +1,24 @@
+{
+ "about": "Marker texts and what wanted(db, now) must return for them, in Python (src/herdr_inbox/revision_wanted.py) and Rust (src/store/revision_wanted.rs). Inputs written by hand; both readers are tested against this one list. TTL 600 s, clock skew 60 s.",
+ "cases": [
+  {"text": "2 1000\n", "now": 1001, "wanted": 2},
+  {"text": "  2   1000  ", "now": 1000, "wanted": 2},
+  {"text": "2 1000\n", "now": 1600, "wanted": 2},
+  {"text": "2 1000\n", "now": 1601, "wanted": null},
+  {"text": "2 1060\n", "now": 1000, "wanted": 2},
+  {"text": "2 1061\n", "now": 1000, "wanted": null},
+  {"text": "2 nan\n", "now": 1000, "wanted": null},
+  {"text": "2 inf\n", "now": 1000, "wanted": null},
+  {"text": "2 1000.5\n", "now": 1000, "wanted": null},
+  {"text": "2 1e3\n", "now": 1000, "wanted": null},
+  {"text": "2_0 1000\n", "now": 1000, "wanted": null},
+  {"text": "2 1_000\n", "now": 1000, "wanted": null},
+  {"text": "+2 1000\n", "now": 1000, "wanted": null},
+  {"text": "-2 1000\n", "now": 1000, "wanted": null},
+  {"text": "٢ 1000\n", "now": 1000, "wanted": null},
+  {"text": "2 1000 x\n", "now": 1000, "wanted": null},
+  {"text": "2\n", "now": 1000, "wanted": null},
+  {"text": "", "now": 1000, "wanted": null},
+  {"text": "99999999999999999999999 1000\n", "now": 1000, "wanted": null}
+ ]
+}
