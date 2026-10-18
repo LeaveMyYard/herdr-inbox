@@ -36,6 +36,12 @@ fn a_stamp_is_written_at_most_once_a_minute_in_its_own_column() {
         Some(iso_seconds(t0)),
         "fresh enough: no write"
     );
+    touch(&path, A, Stamp::HookSeen, t0 + LIVENESS_EVERY);
+    assert_eq!(
+        stamped(&path, "hook_seen_at"),
+        Some(iso_seconds(t0)),
+        "exactly LIVENESS_EVERY old: still fresh"
+    );
     let later = t0 + LIVENESS_EVERY + Duration::from_secs(1);
     touch(&path, A, Stamp::HookSeen, later);
     assert_eq!(stamped(&path, "hook_seen_at"), Some(iso_seconds(later)));
