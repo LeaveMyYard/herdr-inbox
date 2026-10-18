@@ -430,8 +430,13 @@ def _spawn_newer() -> None:
     """Start herdr's current install's worker without releasing the lock (a revision-wanted
     marker asked for a newer one): if it is newer, it stands by and this worker hands over.
     Its Rust worker when one is installed and stands by (_rust_stands_by), else its Python
-    worker: a release's ``bin/herdr-inbox`` has no worker before P5 and exits at once."""
-    root = herdr.current_plugin_root()
+    worker: a release's ``bin/herdr-inbox`` has no worker before P5 and exits at once.
+
+    The install is the one herdr lists now, whatever this worker runs from: a worker an MCP
+    server or a hook started runs from the Claude-cache copy, which herdr never lists (for it
+    current_plugin_root() is its own checkout, the same revision again). Starting any listed
+    install is safe: its worker stands by only if it is newer, else it exits."""
+    root = herdr._listed_root() or herdr.current_plugin_root()
     if not root:
         return
     binary = rust_worker_binary(root)

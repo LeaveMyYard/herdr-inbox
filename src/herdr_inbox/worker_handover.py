@@ -81,7 +81,7 @@ def start_time(pid: int) -> str:
         with open(f"/proc/{pid}/stat", "rb") as fh:
             stat = fh.read()
         return stat[stat.rindex(b")") + 2:].split()[19].decode()
-    except (OSError, ValueError, IndexError):
+    except Exception:  # noqa: BLE001
         pass
     try:
         import subprocess
@@ -89,7 +89,7 @@ def start_time(pid: int) -> str:
         out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
                              timeout=5).stdout
         return "_".join(out.split()) or "-"
-    except (OSError, subprocess.SubprocessError):
+    except Exception:  # noqa: BLE001 - never fatal: a worker's start must not fail here
         return "-"
 
 
