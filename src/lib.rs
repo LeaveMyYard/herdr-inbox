@@ -9,6 +9,7 @@
 
 pub mod claude;
 pub mod clock;
+pub mod contract;
 pub mod delivery;
 pub mod hook;
 pub mod rewake;
