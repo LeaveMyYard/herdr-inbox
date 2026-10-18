@@ -175,17 +175,34 @@ def test_r2_hooks_alone_get_an_r2_worker_while_r1_ensure_callers_fire(world):
                            if (db_path().parent / "worker.log").exists() else "")
 
 
+def asked_herdr_for_its_root() -> bool:
+    """The worker has listed herdr's plugins (it decides then whether it is herdr's install)."""
+    log = Path(os.environ["FAKE_HERDR_LOG"])
+    return log.exists() and any(json.loads(line)[:2] == ["plugin", "list"] for line in log.read_text().splitlines())
+
+
 def test_a_rust_hooks_marker_alone_gets_the_r2_worker_of_a_release_install(world):
     """#75 review M1: the Rust hooks only write the revision-wanted marker. herdr lists the r2
     install, whose bin/herdr-inbox has no worker yet; the r1 holder (no version handover: same
     version) must start r2's Python worker, which stands by and takes over."""
     start_worker(world, world["r1"])
-    assert wait_for(lambda: worker.is_running() and holder() == 1)
-    world["listed"].write_text(str(world["r2"]))
+    assert wait_for(lambda: worker.is_running() and holder() == 1 and asked_herdr_for_its_root())
+    world["listed"].write_text(str(world["r2"]))  # herdr updated the install
     revision_wanted.want(db_path(), 2)  # what a not-ready Rust hook writes (src/store/revision_wanted.rs)
     assert wait_for(r2_took_over), (holder(), stamp())
     out = json.loads(hook(world["r2"]))["hookSpecificOutput"]["additionalContext"]
     assert f"Q{world['qid']} answered" in out
+
+
+def test_a_marker_reaches_the_listed_install_from_a_holder_herdr_does_not_list(world, tmp_path):
+    """#75 round 3 M2: the holder runs from a copy herdr never lists (the Claude-cache copy an MCP
+    server or a hook started it from). The marker still gets herdr's listed r2 install started."""
+    cache = install(tmp_path / "claude-cache-r1", 1)
+    world["listed"].write_text(str(world["r2"]))
+    start_worker(world, cache)
+    assert wait_for(lambda: worker.is_running() and holder() == 1 and asked_herdr_for_its_root())
+    revision_wanted.want(db_path(), 2)
+    assert wait_for(r2_took_over), (holder(), stamp())
 
 
 def test_the_newer_worker_wins_the_lock_race_whatever_the_start_order(world):

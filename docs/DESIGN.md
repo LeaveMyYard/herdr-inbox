@@ -132,7 +132,9 @@ that only matters for older databases (a data fix) needs a bump by hand.
     `<database>.revision-wanted` (`<revision> <unix seconds>`, never lowered, counted for
     10 minutes; both fields plain ASCII digits, `tests/vectors/revision_wanted.json` pins both
     readers; `revision_wanted.py` and `src/store/revision_wanted.rs`); the holder then starts
-    herdr's current install's worker (at most once a minute), which stands by if it is newer:
+    the worker of the install herdr lists now (at most once a minute; also when the holder runs
+    from a copy herdr does not list, such as the Claude-cache copy an MCP server or a hook
+    started it from), which stands by if it is newer:
     its Rust worker only if that one stands by within 5 s (a release's `bin/herdr-inbox` has no
     worker before P5 and exits), else its Python worker.
   - Every Python worker is started as `<python> -I -c <run herdr_inbox.cli> <src> worker`

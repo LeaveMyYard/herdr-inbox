@@ -189,6 +189,7 @@ def test_a_marker_asks_the_holder_for_a_newer_worker(migrated_db, case, expected
 
 def test_ensure_starts_a_standby_only_for_an_older_holder(migrated_db, monkeypatch, r2):
     monkeypatch.delenv("HERDR_INBOX_NO_WORKER")
+    monkeypatch.setattr(wh, "start_time", lambda pid: "t0")  # never the patched Popen (ps on macOS)
     spawned = []
     monkeypatch.setattr(worker.subprocess, "Popen", lambda argv, **k: spawned.append(argv))
     held = worker.hold_lock()
@@ -231,3 +232,25 @@ def test_a_worker_without_package_metadata_knows_its_version(monkeypatch):
     monkeypatch.setattr(importlib.metadata, "version", missing)
     pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
     assert worker.running_version() == pyproject.split('version = "')[1].split('"')[0]
+
+
+def test_a_worker_removes_its_holder_record_when_it_lets_go(migrated_db, monkeypatch):
+    """#75 round 3 L1: an older holder's stale record must not outlive it (a reused pid)."""
+    record = wh._holder_path(lock())
+    during = []
+    monkeypatch.setattr(worker, "_loop", lambda box: during.append(record.read_text().split()[:2]) or 0)
+    assert worker.run() == 0
+    assert during == [[str(st.MIGRATION_REVISION), str(os.getpid())]], "written while it held the lock"
+    assert not record.exists(), "gone with the lock"
+
+
+def test_start_time_never_raises(monkeypatch):
+    """#75 round 3 L2: an unexpected error reading the start time must not abort a worker's start."""
+    import builtins
+
+    def boom(*a, **k):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(builtins, "open", boom)
+    monkeypatch.setattr(wh.subprocess if hasattr(wh, "subprocess") else __import__("subprocess"), "run", boom)
+    assert wh.start_time(os.getpid()) == "-"
