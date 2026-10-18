@@ -53,6 +53,8 @@ def parse_sums(text: str, version: str) -> dict[str, str]:
         m = SUM_RE.fullmatch(line.strip())
         if not m:
             raise ReleaseError(f"not a sha256sum line: {line!r}")
+        if m.group(2) in by_file:
+            raise ReleaseError(f"{m.group(2)} is listed twice")
         by_file[m.group(2)] = m.group(1)
     want = {tarball(version, t): t for t in TARGETS}
     if set(by_file) != set(want):
@@ -79,14 +81,16 @@ def replace_once(text: str, pattern: str, repl: str, what: str) -> str:
     return new
 
 
-def bump(root: Path, version: str) -> None:
+def bumped(root: Path, version: str) -> dict[Path, str]:
+    """The three manifests with the plugin version set to ``version`` (nothing written)."""
+    out = {}
     p = root / "herdr-plugin.toml"
-    p.write_text(replace_once(p.read_text(), r'^version = "[^"]*"$', f'version = "{version}"', p.name))
+    out[p] = replace_once(p.read_text(), r'^version = "[^"]*"$', f'version = "{version}"', p.name)
     p = root / ".claude-plugin" / "plugin.json"
     text = replace_once(p.read_text(), r'^  "version": "[^"]*",$', f'  "version": "{version}",', p.name)
     text = replace_once(text, r'/venv-[0-9][^"]*"', f'/venv-{version}"', p.name + " venv")
     json.loads(text)
-    p.write_text(text)
+    out[p] = text
     p = root / ".claude-plugin" / "marketplace.json"
     doc = json.loads(p.read_text())
     entries = [e for e in doc["plugins"] if e.get("name") == NAME]
@@ -99,7 +103,8 @@ def bump(root: Path, version: str) -> None:
     if n != 1:
         raise ReleaseError(f"{p.name}: could not rewrite the {NAME} version")
     json.loads(text)
-    p.write_text(text)
+    out[p] = text
+    return out
 
 
 def main(argv: list[str]) -> int:
@@ -113,8 +118,9 @@ def main(argv: list[str]) -> int:
         if not m:
             raise ReleaseError(f"not a release tag vX.Y.Z: {tag!r}")
         sums = parse_sums(sums_path.read_text(), m.group(1))
-        (root / "release.toml").write_text(release_toml(tag, sums))
-        bump(root, m.group(1))
+        files = {root / "release.toml": release_toml(tag, sums), **bumped(root, m.group(1))}
+        for path, text in files.items():  # every text checked first: never a half-bumped tree
+            path.write_text(text)
     except (ReleaseError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
