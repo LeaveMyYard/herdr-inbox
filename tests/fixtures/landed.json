@@ -1,0 +1,3055 @@
+{
+"source": "transcript.landed_kinds (tools/capture_goldens.py --only landed)",
+"expected": {
+"7": {
+"segments": [
+"[inbox] Q7 answered — Which region?: eu",
+"Q7 Which region?: eu",
+"[inbox] Q7 answered — Which region?: (long answer, 2 chars; call check_answers to read it)"
+],
+"since": "2026-10-17T10:00:00+00:00"
+},
+"8": {
+"segments": [
+"[inbox] Q8 answered — Squash or merge?: squash",
+"Q8 Squash or merge?: squash",
+"[inbox] Q8 answered — Squash or merge?: (long answer, 6 chars; call check_answers to read it)"
+],
+"since": "2026-10-17T10:00:00+00:00"
+},
+"27": {
+"segments": [
+"[inbox] Q27 answered — Same as before?: same as Q28",
+"Q27 Same as before?: same as Q28",
+"[inbox] Q27 answered — Same as before?: (long answer, 11 chars; call check_answers to read it)"
+],
+"since": "2026-10-17T10:00:00+00:00"
+},
+"40": {
+"segments": [
+"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+"Q40 A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)"
+],
+"since": "2026-10-17T10:00:00+00:00"
+},
+"41": {
+"segments": [
+"[inbox] Q41 answered — Tabs and  spaces?: a b  c d",
+"Q41 Tabs and  spaces?: a b  c d",
+"[inbox] Q41 answered — Tabs and  spaces?: (long answer, 8 chars; call check_answers to read it)"
+],
+"since": "2026-10-17T10:00:00+00:00"
+}
+},
+"cases": [
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered — Which region?: eu\"]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"]}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, {\"type\": \"image\"}]}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q8 answered — Squash or merge?: squash\"}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q8 answered — Squash or merge?: squash\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q8 answered — Squash or merge?: squash\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q8 answered — Squash or merge?: squash\"]}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q8 answered — Squash or merge?: squash\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, {\"type\": \"image\"}]}}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q27 answered — Same as before?: same as Q28\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q27 answered — Same as before?: same as Q28\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q27 answered — Same as before?: same as Q28\"]}}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}}",
+"found": {
+"27": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q27 answered — Same as before?: same as Q28\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, {\"type\": \"image\"}]}}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"]}}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {
+"41": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q41 answered — Tabs\\tand  spaces?: a\\tb  c d\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, {\"type\": \"image\"}]}}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"]}}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}}",
+"found": {
+"40": [
+2
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: (long answer, 4100 chars; call check_answers to read it)\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q40 answered — A long one?: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"]}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"\\n\\n<pasted_content id=\\\"ec16\\\">\\n[inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d</pasted_content>\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"  \\t[inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"  \\t[inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"  \\t[inbox] Q7 answered — Which region?: eu\"]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"  \\t[inbox] Q7 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"draft text [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"draft text [inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"draft text [inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"draft text [inbox] Q7 answered — Which region?: eu\"]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"draft text [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"draft text Q7 Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"draft text Q7 Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"draft text Q7 Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"draft text Q7 Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"draft text Q7 Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"draft text Q7 Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"draft text Q7 Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"draft text Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"draft text Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"draft text Q7 Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"draft text Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"draft text Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"draft text Q7 Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"draft text Q7 Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"draft text Q7 Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"draft text Q7 Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"draft text Q7 Which region?: eu\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"draft text Q7 Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"draft text Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"draft text Q7 Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"same as Q7: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"same as Q7: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"same as Q7: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"same as Q7: eu\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"same as Q7: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"same as Q7: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"same as Q7: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"same as Q7: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"same as Q7: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"same as Q7: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"same as Q7: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"same as Q7: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"same as Q7: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"same as Q7: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"same as Q7: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"same as Q7: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"same as Q7: eu\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"same as Q7: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"same as Q7: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"same as Q7: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q70 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q70 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q70 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q70 answered — Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q70 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q70 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q70 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q70 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q70 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q70 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q70 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q70 answered — Which region?: eu\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q70 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q70 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q70 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, {\"type\": \"image\"}]}}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"]}}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}}",
+"found": {
+"27": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: us\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered — Which region?: us\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered — Which region?: us\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox] Q7 answered — Which region?: us\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered — Which region?: us\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered — Which region?: us\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered — Which region?: us\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered — Which region?: us\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox] Q7 answered — Which region?: us\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered — Which region?: us\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered — Which region?: us\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox] Q7 answered — Which region?: us\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox] Q7 answered — Which region?: us\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: us\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox] Q7 answered — Which region?: us\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"]}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}}",
+"found": {
+"7": [
+1
+],
+"8": [
+1
+],
+"41": [
+1
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"<task-notification>Stop hook blocking error from command: [inbox] answered — Q7 Which region?: eu · Q8 Squash or merge?: squash · Q41 Tabs\\tand  spaces?: a\\tb  c d\\n\\nmore</task-notification>\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"]}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}}",
+"found": {
+"8": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] Q7 Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, {\"type\": \"image\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"[inbox]\\nQ8\\nanswered\\n—\\nSquash\\nor\\nmerge?:\\nsquash\"}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"text\", \"text\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, {\"type\": \"image\"}]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"user\", \"message\": {\"content\": [{\"type\": \"tool_result\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}]}}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"enqueue\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\", \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"queue-operation\", \"operation\": \"dequeue\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"queued_command\", \"prompt\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"Ünïcödé [inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"Ünïcödé [inbox] Q7 answered — Which region?: eu\"]}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": [\"Ünïcödé [inbox] Q7 answered — Which region?: eu\"]}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"attachment\", \"attachment\": {\"type\": \"hook_additional_context\", \"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {
+"7": [
+0
+]
+}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T10:00:05.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}, \"timestamp\": \"2026-10-17T09:00:00.000Z\"}",
+"found": {}
+},
+{
+"line": "{\"type\": \"assistant\", \"message\": {\"content\": \"Ünïcödé [inbox] Q7 answered — Which region?: eu\"}}",
+"found": {}
+},
+{
+"line": "not json [inbox] Q7 answered",
+"found": {}
+},
+{
+"line": "[\"[inbox] Q7 answered — Which region?: eu\"]",
+"found": {}
+}
+]
+}

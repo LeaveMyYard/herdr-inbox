@@ -15,10 +15,12 @@
 
 pub mod busy;
 pub mod candidates;
+pub mod claims;
 pub mod connect;
 pub mod family;
 pub mod liveness;
 pub mod pending;
+pub mod question;
 pub mod readiness;
 pub mod revision;
 pub mod sessions;
@@ -28,7 +30,9 @@ use std::path::PathBuf;
 use herdr_agent_kit::internal::plugin_paths::inbox;
 use herdr_agent_kit::plugin_env::PluginEnv;
 
+pub use claims::Claim;
 pub use connect::{OpenError, Store};
+pub use question::Question;
 
 /// After this many hook sends that never showed up in the conversation, an
 /// answer is left to typing (Python `store.MAX_HOOK_MISSES`).
