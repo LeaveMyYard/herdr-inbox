@@ -4,7 +4,9 @@
 mod candidates;
 mod claims;
 mod common;
+mod delivery_golden;
 mod family;
+mod golden;
 mod liveness;
 mod pending;
 mod questions_golden;

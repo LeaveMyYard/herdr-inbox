@@ -20,6 +20,7 @@ pub mod connect;
 pub mod family;
 pub mod liveness;
 pub mod norm;
+pub mod outcomes;
 pub mod pending;
 pub mod question;
 pub mod questions;

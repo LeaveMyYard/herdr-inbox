@@ -4,117 +4,15 @@
 //! database built from the captured schema and must leave the same rows.
 
 use herdr_inbox::store::Store;
-use herdr_inbox::store::question::{OptionsError, QOption, Question, normalize_options};
+use herdr_inbox::store::question::{OptionsError, normalize_options};
 use herdr_inbox::store::questions::{NewQuestion, Owner};
-use rusqlite::types::ValueRef;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use crate::common::migrated;
 use crate::family::Fake;
+use crate::golden::{i, list, mask, question, s, sql, tables};
 
 const GOLDEN: &str = include_str!("../fixtures/store-questions.json");
-/// A time a step sets (capture_goldens `STORE_FIXED`): never masked.
-const FIXED: &str = "2001-01-01T00:00:00+00:00";
-
-/// A time as Python's capture masked it.
-fn mask(s: &str) -> Value {
-    // exactly YYYY-MM-DDTHH:MM:SS+00:00, as Python's capture masks it: the format is pinned too
-    let shape = "dddd-dd-ddTdd:dd:dd+00:00";
-    let iso = s.len() == shape.len()
-        && s.bytes().zip(shape.bytes()).all(|(c, want)| {
-            if want == b'd' {
-                c.is_ascii_digit()
-            } else {
-                c == want
-            }
-        });
-    if iso && s != FIXED {
-        return Value::String("<time>".into());
-    }
-    if let Some(rest) = s.strip_prefix("sending:") {
-        // sending:<iso>+00:00:<8 hex>
-        if let Some((at, token)) = rest.rsplit_once(':')
-            && token.len() == 8
-            && token.bytes().all(|c| c.is_ascii_hexdigit())
-            && mask(at) == Value::String("<time>".into())
-        {
-            return Value::String("sending:<time>:<token>".into());
-        }
-    }
-    Value::String(s.into())
-}
-
-fn opt(v: &Option<String>) -> Value {
-    v.as_deref().map_or(Value::Null, mask)
-}
-
-fn options(o: &Option<Vec<QOption>>) -> Value {
-    o.as_ref().map_or(Value::Null, |list| {
-        Value::Array(
-            list.iter()
-                .map(|q| json!({"label": q.label, "description": q.description, "preview": q.preview}))
-                .collect(),
-        )
-    })
-}
-
-/// `dataclasses.asdict(question)` with times masked.
-fn question(q: &Question) -> Value {
-    json!({
-        "id": q.id, "created_at": mask(&q.created_at), "pane_id": q.pane_id, "tab_id": q.tab_id,
-        "tab_label": q.tab_label, "session_id": q.session_id, "cwd": q.cwd, "asked_by": q.asked_by,
-        "question": q.question, "options": options(&q.options), "context": q.context, "norm": q.norm,
-        "status": q.status, "answer": q.answer, "answered_at": opt(&q.answered_at),
-        "delivered_at": opt(&q.delivered_at), "delivery_error": q.delivery_error,
-        "acknowledged_at": opt(&q.acknowledged_at), "repeat_count": q.repeat_count,
-        "delivery_attempts": q.delivery_attempts, "header": q.header, "multi_select": q.multi_select,
-        "answer_json": q.answer_json, "group_id": q.group_id, "draft_json": q.draft_json,
-        "drafted_at": opt(&q.drafted_at), "group_title": q.group_title, "verified_at": opt(&q.verified_at),
-    })
-}
-
-fn tables(store: &Store) -> Value {
-    let mut out = Map::new();
-    for table in ["questions", "question_ext", "question_groups"] {
-        let mut stmt = store
-            .db()
-            .prepare(&format!("SELECT * FROM {table} ORDER BY 1"))
-            .unwrap();
-        let names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
-        let rows: Vec<Value> = stmt
-            .query_map([], |r| {
-                let mut row = Map::new();
-                for (i, name) in names.iter().enumerate() {
-                    let v = match r.get_ref(i)? {
-                        ValueRef::Null => Value::Null,
-                        ValueRef::Integer(n) => json!(n),
-                        ValueRef::Real(f) => json!(f),
-                        ValueRef::Text(t) => mask(std::str::from_utf8(t).unwrap()),
-                        ValueRef::Blob(_) => panic!("blob"),
-                    };
-                    row.insert(name.clone(), v);
-                }
-                Ok(Value::Object(row))
-            })
-            .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
-        out.insert(table.into(), Value::Array(rows));
-    }
-    Value::Object(out)
-}
-
-fn s<'a>(args: &'a Value, k: &str) -> Option<&'a str> {
-    args.get(k).and_then(Value::as_str)
-}
-
-fn i(args: &Value, k: &str) -> i64 {
-    args[k].as_i64().unwrap()
-}
-
-fn list(qs: Vec<Question>) -> Value {
-    Value::Array(qs.iter().map(question).collect())
-}
 
 /// One step of the script, as the Rust store runs it; its result as Python returned it.
 fn run(store: &Store, op: &str, a: &Value) -> Value {
@@ -195,20 +93,7 @@ fn run(store: &Store, op: &str, a: &Value) -> Value {
             Value::Null
         }
         "sql" => {
-            let params: Vec<rusqlite::types::Value> = a["params"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|v| match v {
-                    Value::String(s) => rusqlite::types::Value::Text(s.clone()),
-                    Value::Number(n) => rusqlite::types::Value::Integer(n.as_i64().unwrap()),
-                    other => panic!("param {other}"),
-                })
-                .collect();
-            store
-                .db()
-                .execute(s(a, "sql").unwrap(), rusqlite::params_from_iter(params))
-                .unwrap();
+            sql(store, a);
             Value::Null
         }
         "claim_delivery" => store
@@ -234,7 +119,11 @@ fn every_step_leaves_pythons_rows_and_returns_pythons_result() {
         let op = step["op"].as_str().unwrap();
         let got = run(&store, op, &step["args"]);
         assert_eq!(got, step["result"], "step {n} {op}: result");
-        assert_eq!(tables(&store), step["tables"], "step {n} {op}: tables");
+        assert_eq!(
+            tables(&store, &["questions", "question_ext", "question_groups"]),
+            step["tables"],
+            "step {n} {op}: tables"
+        );
     }
 }
 
