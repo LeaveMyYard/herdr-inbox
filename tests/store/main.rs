@@ -2,6 +2,7 @@
 //! schema (tests/fixtures/schema.json).
 
 mod candidates;
+mod claims;
 mod common;
 mod family;
 mod liveness;
