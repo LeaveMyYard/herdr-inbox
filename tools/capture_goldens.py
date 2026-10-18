@@ -10,6 +10,10 @@ docs/plans/rust-rewrite.md §5.2) from the running Python code. Nothing in them 
   every table's columns, every index, trigger and view by name). The Rust hooks never migrate; on a
   database not stamped with this revision they check it against this list, as
   ``store.schema_missing`` does.
+- ``tests/fixtures/landed.json``: ``transcript.landed_kinds`` over generated transcript records
+  (every prompt-carrying record type, single and batch messages, references, pastes, text typed
+  onto a draft, mentions, older and undated records) for questions whose expected strings come
+  from ``service.expected_segments``. The Rust hooks' landing check must give the same answers.
 - ``tests/fixtures/decisions.json`` (item 5, the delivery decision table ``inbox-core::decide``
   must reproduce): the test suite runs in its own pytest with ``tests/decision_recorder.py``,
   which turns on the test-only trace (``herdr_inbox.decision_trace``) and records every delivery
@@ -424,11 +428,91 @@ def capture_schema(out: Path) -> list[Path]:
     return [path]
 
 
+LANDED_QUESTIONS = [  # (id, question, answer, answered_at)
+    (7, "Which region?", "eu", "2026-10-17T10:00:00+00:00"),
+    (8, "Squash or merge?\nsecond line", "squash", "2026-10-17T10:00:00+00:00"),
+    (27, "Same as before?", "same as Q28", "2026-10-17T10:00:00+00:00"),
+    (40, "A long one?", "x" * 4100, "2026-10-17T10:00:00+00:00"),
+    (41, "Tabs\tand  spaces?", "a\tb  c\u2028d", "2026-10-17T10:00:00+00:00"),
+]
+
+
+def _landed_texts(qs: dict) -> list[str]:
+    """Texts a transcript may hold for the questions: what the inbox writes, and near misses."""
+    from herdr_inbox import service
+
+    q7, q8, q27, q40, q41 = (qs[i] for i in (7, 8, 27, 40, 41))
+    single = service.delivery_text([q7])
+    batch = service.delivery_text([q7, q8, q41])
+    return [
+        single, batch, service.delivery_text([q8]), service.delivery_text([q27]), service.delivery_text([q41]),
+        service._reference(q40), service.delivery_text([q40])[:200],
+        "\n\n<pasted_content id=\"ec16\">\n" + batch + "</pasted_content>",
+        "  \t" + single, "draft text " + single, "draft text " + service.answer_line(q7),
+        "[inbox] Q7 answered", "same as Q7: eu", "[inbox] Q70 answered — Which region?: eu",
+        "[inbox] answered — Q27 Same as before?: same as Q28 · Q8 x", single.replace("eu", "us"),
+        "<task-notification>Stop hook blocking error from command: " + batch + "\n\nmore</task-notification>",
+        "prefix [inbox] Q8 answered — Squash or merge?: squash · [inbox] " + service.answer_line(q7),
+        service.delivery_text([q8]).replace(" ", "\n"), "Ünïcödé " + single,
+    ]
+
+
+def _landed_records(text: str) -> list[dict]:
+    """Each record type that can carry ``text`` (and some that cannot)."""
+    return [
+        {"type": "user", "message": {"content": text}},
+        {"type": "user", "message": {"content": [{"type": "text", "text": text}, {"type": "image"}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "content": text}]}},
+        {"type": "queue-operation", "operation": "enqueue", "content": text},
+        {"type": "queue-operation", "operation": "dequeue", "content": text},
+        {"type": "attachment", "attachment": {"type": "queued_command", "prompt": text}},
+        {"type": "attachment", "attachment": {"type": "hook_additional_context", "content": [text]}},
+        {"type": "attachment", "attachment": {"type": "hook_additional_context", "content": text}},
+        {"type": "assistant", "message": {"content": text}},
+    ]
+
+
+def capture_landed(out: Path) -> list[Path]:
+    """``transcript.landed_kinds`` over generated records, one case per (record, time)."""
+    import tempfile as _tempfile
+
+    from herdr_inbox import service, store, transcript
+
+    qs = {}
+    for qid, question, answer, at in LANDED_QUESTIONS:
+        qs[qid] = store.Question(id=qid, created_at=at, pane_id=None, tab_id=None, tab_label=None,
+                                 session_id=None, cwd=None, asked_by=None, question=question, options=None,
+                                 context=None, norm="", status="answered", answer=answer, answered_at=at,
+                                 delivered_at=None, delivery_error=None, acknowledged_at=None, repeat_count=0)
+    expected = {qid: (service.expected_segments(q), q.answered_at) for qid, q in qs.items()}
+    cases = []
+    with _tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "t.jsonl"
+        for text in _landed_texts(qs):
+            for record in _landed_records(text):
+                for ts in ("2026-10-17T10:00:05.000Z", "2026-10-17T09:00:00.000Z", None):
+                    rec = dict(record, **({"timestamp": ts} if ts else {}))
+                    line = json.dumps(rec, ensure_ascii=False)
+                    path.write_text(line + "\n")
+                    found = transcript.landed_kinds(path, expected)
+                    cases.append({"line": line, "found": {str(k): sorted(v) for k, v in sorted(found.items())}})
+        for line in ("not json [inbox] Q7 answered", '["[inbox] Q7 answered — Which region?: eu"]'):
+            path.write_text(line + "\n")
+            found = transcript.landed_kinds(path, expected)
+            cases.append({"line": line, "found": {str(k): sorted(v) for k, v in sorted(found.items())}})
+    doc = {"source": "transcript.landed_kinds (tools/capture_goldens.py --only landed)",
+           "expected": {str(k): {"segments": v[0], "since": v[1]} for k, v in expected.items()},
+           "cases": cases}
+    path = out / "landed.json"
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=0) + "\n")
+    return [path]
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions", "schema"), help="one of the sets")
+    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed"), help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
                         "other test drives no traced decision, so the table comes out the same)")
@@ -446,6 +530,8 @@ def main(argv: list[str] | None = None) -> int:
             written += capture_decisions(args.out, work, env, tests)
         if args.only in (None, "schema"):
             written += capture_schema(args.out)
+        if args.only in (None, "landed"):
+            written += capture_landed(args.out)
         if args.only in (None, "screens"):
             shutil.rmtree(args.out / "screens", ignore_errors=True)
             written += capture_screens(args.out, work)

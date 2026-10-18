@@ -87,4 +87,26 @@ impl Store {
     pub fn db(&self) -> &Connection {
         &self.db
     }
+
+    /// `work` under the write lock (`BEGIN IMMEDIATE`), committed when it
+    /// returns `Ok`, rolled back otherwise (Python `Store.transaction`).
+    pub fn immediate<T>(
+        &self,
+        work: impl FnOnce(&Connection) -> rusqlite::Result<T>,
+    ) -> rusqlite::Result<T> {
+        self.db.execute_batch("BEGIN IMMEDIATE")?;
+        match work(&self.db) {
+            Ok(value) => {
+                if let Err(err) = self.db.execute_batch("COMMIT") {
+                    let _ = self.db.execute_batch("ROLLBACK");
+                    return Err(err);
+                }
+                Ok(value)
+            }
+            Err(err) => {
+                let _ = self.db.execute_batch("ROLLBACK");
+                Err(err)
+            }
+        }
+    }
 }
