@@ -152,7 +152,8 @@ jobs:
   dry-run-manifest:
     name: release.toml from the dry run
     needs: sums
-    if: github.event_name == 'pull_request' && needs.sums.result == 'success'
+    # always(): sums ran after a skipped verify (pull requests have no tag to verify)
+    if: always() && github.event_name == 'pull_request' && needs.sums.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -251,13 +252,16 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: manifest
-          path: .
+          path: ${{ runner.temp }}/manifest
       - name: Commit, push and open the PR (no repo code runs here)
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          for f in release.toml herdr-plugin.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+            cp "$RUNNER_TEMP/manifest/$f" "$f"  # exactly the four files, nothing else from the artifact
+          done
           branch="release-manifest/$TAG"
           if [ "$(gh pr list -R "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq length)" != 0 ]; then
             echo "A PR from $branch exists: nothing to do."
