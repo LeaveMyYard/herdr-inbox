@@ -14,8 +14,10 @@ const FIELDS: [&str; 4] = ["session_id", "transcript_path", "source", "agent_id"
 /// committed.
 const STACK: usize = 512 << 20;
 
-/// Deeper than this is not read at all, as Python's parser gives up (about 100k
-/// levels); it also bounds the stack the parse below needs.
+/// Deeper than this is not read at all; it bounds the stack the parse below
+/// needs. Python's own limit depends on its version (3.13 gives up around
+/// 8–10k levels, 3.14 reads more than 100k), so between those depths the two
+/// may differ; Claude Code's payloads come nowhere near either.
 pub const MAX_DEPTH: usize = 100_000;
 
 /// The deepest nesting of arrays and objects in `raw`, strings skipped.

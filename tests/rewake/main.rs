@@ -3,6 +3,7 @@
 
 #[path = "../store/common.rs"]
 mod common;
+mod endable;
 mod locks;
 mod panes;
 mod scenarios;
