@@ -6,7 +6,7 @@ mod options;
 use rusqlite::Row;
 use serde_json::Value;
 
-pub use options::{QOption, labels_json, normalize_options, options_json};
+pub use options::{OptionsError, QOption, labels_json, normalize_options, options_json};
 
 /// The read view every release up to this one can read.
 pub const VIEW: &str = "questions_v6";
@@ -81,8 +81,10 @@ pub struct Question {
 }
 
 impl Question {
-    /// The question from a row selected with [`COLUMNS`]. A stored JSON text that
-    /// does not parse is an error, as Python's `json.loads` raised.
+    /// The question from a row selected with [`COLUMNS`]. Stored JSON reads as
+    /// Python's `json.loads` reads it ([`crate::pyjson::loads`]: a lone
+    /// surrogate becomes U+FFFD). JSON that does not parse, or options that
+    /// Python's `normalize_options` raises on, are an error, as in Python.
     pub fn from_row(row: &Row<'_>) -> rusqlite::Result<Question> {
         let options_json: Option<String> = row.get(26)?;
         let options: Option<String> = row.get(9)?;
@@ -100,7 +102,13 @@ impl Question {
             asked_by: row.get(7)?,
             question: row.get(8)?,
             options: match opts {
-                Some(text) => normalize_options(&parse(&text, 26)?),
+                Some(text) => normalize_options(&parse(&text, 26)?).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        26,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?,
                 None => None,
             },
             context: row.get(10)?,
@@ -139,7 +147,7 @@ fn json_column(row: &Row<'_>, idx: usize) -> rusqlite::Result<Option<Value>> {
 }
 
 fn parse(text: &str, idx: usize) -> rusqlite::Result<Value> {
-    serde_json::from_str(text).map_err(|e| {
+    crate::pyjson::loads(text).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Text, Box::new(e))
     })
 }
