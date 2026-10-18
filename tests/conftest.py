@@ -166,13 +166,13 @@ _REAL_POPEN = subprocess.Popen
 def leaked_workers(root: Path) -> list[int]:
     """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
 
-    Covers the Python workers worker.ensure() starts (worker.python_worker_argv: runs
-    ``herdr_inbox.cli`` with the argument ``worker``),
-    not a successor started through uv or a Rust binary. Cheap when nothing was spawned:
-    ensure() writes worker.log next to the database before it starts one, so without that file
-    there is nothing to look for (tests/test_isolation.py spawns through ensure() to keep the
-    two tied)."""
-    if not (root / "worker.log").exists():
+    Covers every Python worker however it was started (worker.python_worker_argv: runs
+    ``herdr_inbox.cli`` with the argument ``worker``): by ensure(), by a holder's _spawn_newer,
+    as a successor or by a test. Matched by its environment's HERDR_INBOX_DB, never by name: a
+    worker of another database (the operator's) is never listed. Cheap when no worker ran: a
+    worker always creates its lock file (``worker-<key>.lock``) next to the database, and ensure()
+    writes worker.log there, so without either under ``root`` there is nothing to look for."""
+    if not (root / "worker.log").exists() and next(root.rglob("worker-*.lock"), None) is None:
         return []
     marker = f"HERDR_INBOX_DB={root}{os.sep}"
     found = []

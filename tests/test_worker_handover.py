@@ -89,6 +89,7 @@ def world(migrated_db, tmp_path, monkeypatch):
     deadline = time.monotonic() + 10
     while leaked_workers(tmp_path) and time.monotonic() < deadline:
         time.sleep(0.05)
+    assert leaked_workers(tmp_path) == [], "no worker of this test outlives it"
 
 
 def start_worker(world, root: Path) -> subprocess.Popen:
@@ -217,3 +218,15 @@ def test_the_newer_worker_wins_the_lock_race_whatever_the_start_order(world):
             p.kill()
             p.wait(timeout=10)
         assert wait_for(lambda: not worker.is_running(), 10)
+
+
+def test_a_worker_started_without_ensure_is_found_and_stopped(world, tmp_path):
+    """#84 review: workers a holder starts (_spawn_newer) write no worker.log; teardown must
+    still find them by their database, and nothing else."""
+    assert not (tmp_path / "worker.log").exists()
+    p = start_worker(world, world["r1"])
+    assert wait_for(lambda: worker.is_running())
+    assert not (tmp_path / "worker.log").exists(), "started the way _spawn_newer starts one"
+    assert p.pid in leaked_workers(tmp_path)
+    other = Path(str(tmp_path) + "-other")
+    assert leaked_workers(other) == [], "a worker of another database is never listed"
