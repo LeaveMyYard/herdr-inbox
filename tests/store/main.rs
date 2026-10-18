@@ -1,6 +1,8 @@
 //! The store module against real SQLite databases built from the captured
 //! schema (tests/fixtures/schema.json).
 
+mod alerts_golden;
+mod atomic;
 mod candidates;
 mod claims;
 mod common;
