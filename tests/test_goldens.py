@@ -48,7 +48,7 @@ def decision_difference(want: dict, got: dict) -> str:
     return "decision rows differ:\n" + "\n".join(lines) if lines else "header differs"
 
 
-@pytest.mark.parametrize("kind", ["screens", "decisions"])
+@pytest.mark.parametrize("kind", ["screens", "decisions", "schema"])
 def test_the_goldens_are_what_the_code_does(tmp_path, kind):
     env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
     extra = ["--golden-tests"] if kind == "decisions" else []
@@ -60,6 +60,11 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
         if a != b:
             pytest.fail(f"decisions.json: {decision_difference(json.loads(a), json.loads(b))}\n"
                         "a behaviour change; if deliberate: uv run python tools/capture_goldens.py")
+        return
+    if kind == "schema":  # what the Rust hooks check a database against (src/store/readiness.rs)
+        assert (FIX / "schema.json").read_text() == (tmp_path / "schema.json").read_text(), (
+            "the schema changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
+            "--only schema")
         return
     want = sorted(p.name for p in (FIX / kind).glob("*.json"))
     got = sorted(p.name for p in (tmp_path / kind).glob("*.json"))
