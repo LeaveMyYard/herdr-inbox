@@ -55,6 +55,26 @@ fn a_claim_is_exclusive_until_released_or_stale() {
         s.claim_delivery(q).unwrap().is_some(),
         "a pending reason is claimable"
     );
+    // an error that is not a claim is claimable, whatever it sorts as ("u" > "s")
+    s.db()
+        .execute(
+            "UPDATE questions SET delivery_error = 'unknown pane' WHERE id = ?",
+            [q],
+        )
+        .unwrap();
+    assert!(
+        s.claim_delivery(q).unwrap().is_some(),
+        "a failed attempt is retried"
+    );
+    // a live sender's claim, however slow its send, stays held until CLAIM_STALE (60 s)
+    let slow = format!("sending:{}:5104a11e", now_minus(Duration::from_secs(59)));
+    s.db()
+        .execute(
+            "UPDATE questions SET delivery_error = ? WHERE id = ?",
+            params![slow, q],
+        )
+        .unwrap();
+    assert_eq!(s.claim_delivery(q).unwrap(), None, "59 s old: still held");
     // a claim older than CLAIM_STALE belongs to a process that died mid-send
     let dead = format!("sending:{}:deadbeef", now_minus(Duration::from_secs(61)));
     s.db()
