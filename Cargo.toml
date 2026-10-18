@@ -62,6 +62,7 @@ name = "herdr-inbox"
 path = "src/main.rs"
 
 [dependencies]
+inbox-core.workspace = true
 # `internal`: the inbox's own paths and formats (plugin-only, outside the kit's semver).
 herdr-agent-kit = { workspace = true, features = ["internal"] }
 rusqlite.workspace = true

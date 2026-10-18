@@ -57,7 +57,7 @@ fn tail(path: &Path) -> Option<Vec<u8>> {
 
 /// `subagents` is one of the three directories above the file (Python:
 /// `"subagents" in path.parts[-4:-1]`; folders above the session never count).
-fn in_subagents_dir(path: &Path) -> bool {
+pub(crate) fn in_subagents_dir(path: &Path) -> bool {
     path.parent().is_some_and(|dir| {
         dir.components()
             .rev()
