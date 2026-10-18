@@ -16,15 +16,9 @@
   ],
   "mcpServers": {
     "herdr-inbox": {
-      "command": "uv",
+      "command": "sh",
       "args": [
-        "run",
-        "--quiet",
-        "--frozen",
-        "--no-dev",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "inbox",
+        "${CLAUDE_PLUGIN_ROOT}/scripts/launch",
         "mcp"
       ],
       "env": {

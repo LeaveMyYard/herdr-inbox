@@ -167,7 +167,10 @@ def test_the_registered_watcher_wakes_through_the_launcher(store, monkeypatch, t
 def launch_rewake(root, tpath, spec, path_prefix=None):
     import os
 
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("UV_", "VIRTUAL_ENV"))}
+    from .test_hook_launch import hermetic_env, launch_root
+
+    root = launch_root(root)
+    env = hermetic_env(tpath.parent / "launch-data")
     if path_prefix:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
     argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(root)) for a in spec["args"])]
