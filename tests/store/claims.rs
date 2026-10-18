@@ -172,6 +172,15 @@ fn a_verified_landing_is_delivered_seen_and_verified_in_one_write() {
         Some(claim.0.as_str()),
         "not our claim: nothing written"
     );
+    let ext_rows: i64 = s
+        .db()
+        .query_row(
+            "SELECT COUNT(*) FROM question_ext WHERE id = ? AND verified_at IS NOT NULL",
+            [q],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(ext_rows, 0, "not our claim: never marked verified either");
     s.record_delivery(q, None, true, Some(&claim), true)
         .unwrap();
     let row: (Option<String>, Option<String>, Option<String>) = s
