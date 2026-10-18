@@ -220,13 +220,38 @@ def test_the_newer_worker_wins_the_lock_race_whatever_the_start_order(world):
         assert wait_for(lambda: not worker.is_running(), 10)
 
 
-def test_a_worker_started_without_ensure_is_found_and_stopped(world, tmp_path):
+@pytest.fixture
+def bystander(tmp_path):
+    """A live stand-in for a worker of ANOTHER database (as the operator's own is): its
+    directory sits beside this test's and shares its path as a prefix, with a worker lock and
+    log of its own. Requested before ``world``, so it is torn down after it: the world's
+    teardown must have left it running."""
+    other = tmp_path.parent / f"{tmp_path.name}-other"
+    other.mkdir()
+    (other / "worker.log").write_text("")
+    (other / "worker-0123456789ab.lock").write_text("")
+    env = {k: v for k, v in os.environ.items() if k != "HERDR_INBOX_DB"}
+    env["HERDR_INBOX_DB"] = str(other / "inbox.db")
+    # its argv looks like a worker's: herdr_inbox.cli ... worker
+    p = subprocess.Popen([sys.executable, "-c", "import time  # herdr_inbox.cli\ntime.sleep(120)", "worker"],
+                         env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    try:
+        assert wait_for(lambda: p.pid in leaked_workers(other), 10), "the stand-in matches as its own database's worker"
+        yield p
+        assert p.poll() is None, "the test's teardown killed another database's worker"
+    finally:
+        p.kill()
+        p.wait(timeout=10)
+
+
+def test_a_worker_started_without_ensure_is_found_and_stopped(bystander, world, tmp_path):
     """#84 review: workers a holder starts (_spawn_newer) write no worker.log; teardown must
     still find them by their database, and nothing else."""
     assert not (tmp_path / "worker.log").exists()
     p = start_worker(world, world["r1"])
     assert wait_for(lambda: worker.is_running())
     assert not (tmp_path / "worker.log").exists(), "started the way _spawn_newer starts one"
-    assert p.pid in leaked_workers(tmp_path)
-    other = Path(str(tmp_path) + "-other")
-    assert leaked_workers(other) == [], "a worker of another database is never listed"
+    found = leaked_workers(tmp_path)
+    assert p.pid in found
+    assert bystander.pid not in found, "a worker of another database is never listed"
