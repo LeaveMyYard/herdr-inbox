@@ -779,6 +779,150 @@ STORE_DELIVERY_OPS = [
              "params": [STORE_FIXED]}),
     ("stuck_answers", {}),  # 7 is verified: not stuck; 12 was delivered with an error: stuck
 ]
+# Alerts (alerts.py): agent alerts and the blocked-prompt scan, on a fresh database. herdr is
+# stubbed at its function boundary: ``server`` is herdr.server_id(), ``agents`` what `agent list`
+# returns, ``labels`` the tab labels, ``t`` time.monotonic(). What alerts.py would do to herdr
+# (notify, update_markers) is recorded as the step's ``effects``.
+_C1 = {"session_id": S1, "pane_id": "w1:p1", "tab_id": "w1:t1", "tab_label": "api"}
+_C2 = {"session_id": S2, "pane_id": "w1:p2", "tab_id": None, "tab_label": None}
+_C3 = {"session_id": None, "pane_id": "w1:p3", "tab_id": None, "tab_label": None}
+_NOPANE = {"session_id": S3, "pane_id": None, "tab_id": None, "tab_label": None}
+
+
+def _agent(pane, status, tab=None, session=None, kind="claude"):
+    a = {"pane_id": pane, "agent_status": status, "agent": kind}
+    if tab:
+        a["tab_id"] = tab
+    if session:
+        a["agent_session"] = {"value": session}
+    return a
+
+
+STORE_ALERT_OPS = [
+    ("raise_alert", {"caller": _C1, "title": "  Look   at\tthe build ", "message": "  red since 10:00  ",
+                     "severity": "urgent", "asked_by": "lane", "server": "/srv/a"}),  # 1
+    ("raise_alert", {"caller": _C1, "title": "Look at the build", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # the same open one: already_open
+    ("raise_alert", {"caller": _C2, "title": "Look at the build", "message": "", "severity": "bogus",
+                     "asked_by": None, "server": "/srv/a"}),  # 2: another session; severity -> warning
+    ("raise_alert", {"caller": _C3, "title": "x" * 130, "message": "m" * 2100, "severity": "info",
+                     "asked_by": None, "server": "/srv/b"}),  # 3: no session; both cut
+    ("raise_alert", {"caller": _C1, "title": "   ", "message": None, "severity": "info", "asked_by": None,
+                     "server": "/srv/a"}),  # no title
+    ("raise_alert", {"caller": _NOPANE, "title": "No pane", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # unavailable
+    ("open_alerts", {}),
+    ("mine", {"caller": _C1}),
+    ("mine", {"caller": _C3}),
+    ("get", {"aid": 2}),
+    ("get", {"aid": 99}),
+    ("withdraw", {"caller": _C2, "aid": 1}),  # not its alert
+    ("withdraw", {"caller": _C2, "aid": 2}),
+    ("withdraw", {"caller": _C2, "aid": 2}),  # not open any more
+    ("acknowledge", {"aid": 1}),
+    ("acknowledge", {"aid": 1}),
+    ("acknowledged_unreported", {"caller": _C1}),
+    ("acknowledged_unreported", {"caller": _C1}),  # reported once
+    ("raise_alert", {"caller": _C1, "title": "Look at the build", "message": None, "severity": "warning",
+                     "asked_by": None, "server": "/srv/a"}),  # 4: the acked one no longer blocks
+    ("scan", {"server": "/srv/a", "t": 0.0, "labels": {"w1:t5": "❓2 web"},
+              "agents": [_agent("w1:p5", "blocked", "w1:t5", S1), _agent("w1:p6", "working"), {"pane_id": None}]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p5'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 1.0, "labels": {"w1:t5": "❓2 web"},
+              "agents": [_agent("w1:p5", "blocked", "w1:t5", S1), _agent("w1:p7", "blocked", kind="codex")]}),  # 5
+    ("scan", {"server": "/srv/a", "t": 2.0, "labels": {},
+              "agents": [_agent("w1:p5", "blocked", "w1:t5", S1), _agent("w1:p7", "blocked")]}),  # no second one
+    ("withdraw", {"caller": _C1, "aid": 5}),  # open, its session's, but a blocked alert: not the agent's
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p7'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 3.0, "labels": {},
+              "agents": [_agent("w1:p5", "working"), _agent("w1:p7", "blocked")]}),  # 6 for p7; p5 flickers
+    ("scan", {"server": "/srv/a", "t": 5.0, "labels": {},
+              "agents": [_agent("w1:p5", "working"), _agent("w1:p7", "blocked")]}),  # two ticks, too soon
+    ("scan", {"server": "/srv/a", "t": 14.0, "labels": {},
+              "agents": [_agent("w1:p5", "working"), _agent("w1:p7", "blocked")]}),  # p5 clears
+    ("acknowledge", {"aid": 6}),  # the operator dismissed p7's
+    ("scan", {"server": "/srv/a", "t": 15.0, "labels": {}, "agents": [_agent("w1:p7", "blocked")]}),  # held
+    ("scan", {"server": "/srv/b", "t": 16.0, "labels": {}, "agents": [_agent("w1:p7", "blocked")]}),  # other server
+    ("scan", {"server": "/srv/a", "t": 17.0, "labels": {}, "agents": []}),  # p7 gone: its episode ends
+    ("scan", {"server": "/srv/a", "t": 18.0, "labels": {}, "agents": [_agent("w1:p7", "blocked")]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p7' AND herdr_server = '/srv/a'",
+             "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 19.0, "labels": {}, "agents": [_agent("w1:p7", "blocked")]}),  # alerts again
+    ("scan_failed", {"server": "/srv/a"}),  # herdr did not answer: nothing changes
+    ("scan", {"server": "/srv/b", "t": 20.0, "labels": {}, "agents": []}),  # /srv/a's alerts are not /srv/b's
+    ("mine", {"caller": _C1}),  # agent alerts only: not the blocked one of its session
+    ("raise_alert", {"caller": {"session_id": S3, "pane_id": "w1:p3", "tab_id": None, "tab_label": None},
+                     "title": "Same pane, a session", "message": None, "severity": "info", "asked_by": None,
+                     "server": "/srv/a"}),  # 8
+    ("withdraw", {"caller": _C3, "aid": 8}),  # the pane's session-less asker does not own it
+    # p8 flickers: one sighting not blocked, blocked again (the memory resets), then not blocked
+    ("scan", {"server": "/srv/a", "t": 30.0, "labels": {}, "agents": [_agent("w1:p8", "blocked")]}),
+    ("scan", {"server": "/srv/a", "t": 31.0, "labels": {}, "agents": [_agent("w1:p8", "working")]}),
+    ("scan", {"server": "/srv/a", "t": 32.0, "labels": {}, "agents": [_agent("w1:p8", "blocked")]}),
+    ("scan", {"server": "/srv/a", "t": 50.0, "labels": {}, "agents": [_agent("w1:p8", "working")]}),  # stays
+    ("open_alerts", {}),
+    ("insert", {"question": "In play?", "session_id": S1, "pane_id": "w1:p1"}),
+    ("insert", {"question": "Answered, unseen", "session_id": S2, "pane_id": "w1:p2"}),
+    ("set_answer", {"qid": 2, "answer": "x", "detail": None}),
+    ("insert", {"question": "Done", "session_id": S3, "pane_id": "w1:p3"}),
+    ("set_status", {"qid": 3, "status": "dismissed", "note": None}),
+    ("raise_alert", {"caller": {"session_id": "44444444-0000-4000-8000-000000000004", "pane_id": "w1:p4",
+                                "tab_id": None, "tab_label": None}, "title": "Closed later", "message": None,
+                     "severity": "info", "asked_by": None, "server": "/srv/a"}),  # 9
+    ("acknowledge", {"aid": 9}),
+    ("insert", {"question": "Seen", "session_id": "55555555-0000-4000-8000-000000000005", "pane_id": "w1:p5"}),
+    ("set_answer", {"qid": 4, "answer": "x", "detail": None}),
+    ("acknowledge_answers", {"qids": [4]}),
+    ("sessions_in_play", {}),  # not a closed alert's session, not a seen answer's
+    # #83 review M1
+    ("scan", {"server": "/srv/a", "t": 100.0, "labels": {}, "agents": [_agent("w1:p9", "blocked", "w1:t9")]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p9'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 101.0, "labels": {"w1:t9": "❓2 "},  # strips to "": the pane names it
+              "agents": [_agent("w1:p9", "blocked", "w1:t9")]}),
+    ("sql", {"sql": "INSERT INTO alerts (created_at, kind, severity, title, pane_id, status) VALUES "
+                    "(?, 'blocked', 'warning', 'legacy', 'w1:p10', 'open')", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 102.0, "labels": {}, "agents": [_agent("w1:p9", "blocked", "w1:t9")]}),
+    ("scan", {"server": "/srv/a", "t": 110.0, "labels": {}, "agents": [_agent("w1:p11", "blocked")]}),
+    ("scan", {"server": "/srv/a", "t": 111.0, "labels": {}, "agents": [_agent("w1:p11", "working")]}),
+    ("scan", {"server": "/srv/a", "t": 121.0, "labels": {}, "agents": [_agent("w1:p11", "working")]}),  # 10 s, 2 scans
+    ("scan", {"server": "/srv/a", "t": 130.0, "labels": {}, "agents": [_agent("w1:p12", "blocked", None, S1)]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p12'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 131.0, "labels": {}, "agents": [_agent("w1:p12", "blocked", None, S1)]}),
+    ("raise_alert", {"caller": _C1, "title": "w1:p12 is waiting for you", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # only agent alerts are duplicates
+    # every remaining condition (#83 review: one step per predicate)
+    ("raise_alert", {"caller": {**_C1, "pane_id": ""}, "title": "Empty pane", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # "" is no pane: unavailable
+    ("raise_alert", {"caller": {**_C1, "tab_label": ""}, "title": "Empty label", "message": None, "severity": "info",
+                     "asked_by": None, "server": "/srv/a"}),  # 14: an empty label names the pane
+    ("withdraw", {"caller": {"session_id": None, "pane_id": "w1:p4", "tab_id": None, "tab_label": None},
+                  "aid": 3}),  # session-less on both sides, another pane: not its
+    ("acknowledge", {"aid": 12}),
+    ("acknowledged_unreported", {"caller": _C1}),  # a blocked alert of its session is not reported
+    ("scan", {"server": "/srv/a", "t": 200.0, "labels": {}, "agents": [_agent("w1:p1", "blocked")]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id = 'w1:p1'", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 201.0, "labels": {},  # A1 (an acked agent alert) dismisses nothing
+              "agents": [_agent("w1:p1", "blocked")]}),
+    ("sql", {"sql": "UPDATE alerts SET closed_at = ? WHERE id = 12", "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 202.0, "labels": {}, "agents": [_agent("w1:p1", "blocked")]}),  # keeps it
+    ("scan", {"server": "/srv/a", "t": 210.0, "labels": {"w1:t16": "", "w1:t19b": "web19"}, "agents": [
+        _agent("w1:p16", "blocked", "w1:t16"), {"pane_id": "w1:p17", "agent_status": "blocked", "tab_id": ""},
+        _agent("w1:p18", "idle"), _agent("w1:p19", "blocked", "w1:t19a"), _agent("w1:p19", "blocked", "w1:t19b"),
+        {"pane_id": "", "agent_status": "blocked"}]}),
+    ("sql", {"sql": "UPDATE blocked_panes SET since = ? WHERE pane_id IN ('w1:p16', 'w1:p17', 'w1:p18', 'w1:p19')",
+             "params": [STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 211.0, "labels": {"w1:t16": "", "w1:t19b": "web19"}, "agents": [
+        _agent("w1:p16", "blocked", "w1:t16"), {"pane_id": "w1:p17", "agent_status": "blocked", "tab_id": ""},
+        _agent("w1:p18", "idle"), _agent("w1:p19", "blocked", "w1:t19a"), _agent("w1:p19", "blocked", "w1:t19b"),
+        {"pane_id": "", "agent_status": "blocked"}]}),  # 16: no label; 17: tab ""; 18 idle; 19: the last entry
+    ("sql", {"sql": "INSERT INTO alerts (created_at, kind, severity, title, pane_id, herdr_server, status) VALUES "
+                    "(?, 'blocked', 'warning', 'twice a', 'w1:p20', '/srv/a', 'open'), "
+                    "(?, 'blocked', 'warning', 'twice b', 'w1:p20', '/srv/a', 'open')",
+             "params": [STORE_FIXED, STORE_FIXED]}),
+    ("scan", {"server": "/srv/a", "t": 212.0, "labels": {}, "agents": []}),  # only the later one of p20 clears
+    ("insert", {"question": "Open only", "session_id": "66666666-0000-4000-8000-000000000006", "pane_id": "w1:p6"}),
+    ("sessions_in_play", {}),  # an open question alone puts its session in play
+]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.
 STORE_OPTIONS = [["a", {"label": "b", "description": "", "preview": "p"}],
@@ -849,7 +993,85 @@ def capture_store(out: Path, work: Path) -> list[Path]:
            "texts": texts, "options": options}
     target = out / "store-questions.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
-    return [target, capture_store_delivery(out, work)]
+    return [target, capture_store_delivery(out, work), capture_store_alerts(out, work)]
+
+
+def capture_store_alerts(out: Path, work: Path) -> Path:
+    """alerts.py's store side over STORE_ALERT_OPS (herdr stubbed, its effects recorded)."""
+    import dataclasses
+    import itertools
+
+    from herdr_inbox import alerts, herdr, service, store as st, transcript
+
+    path = work / "store-alerts.db"
+    effects: list = []
+    env = {"server": "/srv/a", "agents": None, "labels": {}, "t": 0.0}
+    stubs = {
+        (herdr, "server_id"): lambda: env["server"],
+        (herdr, "notify"): lambda title, body=None, *a, **k: effects.append(["notify", title, body]),
+        (herdr, "call"): lambda *args, **k: (({"agents": env["agents"]}, None) if args[:2] == ("agent", "list")
+                                             and env["agents"] is not None else (None, "fail")),
+        (herdr, "tab_label"): lambda tab: env["labels"].get(tab),
+        (service, "update_markers"): lambda store, pane: effects.append(["markers", pane]),
+        (service, "later"): lambda fn: fn(),
+        (alerts.time, "monotonic"): lambda: env["t"],
+    }
+    saved = {k: getattr(*k) for k in stubs}
+    played = []
+    for (mod, name), fn in stubs.items():
+        setattr(mod, name, fn)
+    real_chain = transcript.chain
+    transcript.chain = lambda session, path_: played.append(session) or [session]
+    alerts._unblocked.clear()
+    steps = []
+    try:
+        with st.Store(path, migrate=True) as s:
+            for op, args in STORE_ALERT_OPS:
+                effects.clear()
+                played.clear()
+                caller = service.Caller(**args["caller"], cwd=None) if "caller" in args else None
+                env["server"] = args.get("server", "/srv/a")
+                if op == "sql":
+                    s.db.execute(args["sql"], args["params"])
+                    result = None
+                elif op == "raise_alert":
+                    result = alerts.raise_alert(s, caller, args["title"], args["message"], args["severity"],
+                                                args["asked_by"])
+                    result = {k: result[k] for k in ("id", "status") if k in result}
+                elif op in ("withdraw",):
+                    result = {k: v for k, v in alerts.withdraw(s, caller, args["aid"]).items() if k != "message"}
+                elif op in ("mine", "acknowledged_unreported"):
+                    result = getattr(alerts, op)(s, caller)
+                elif op in ("get", "acknowledge"):
+                    result = getattr(alerts, op)(s, args["aid"])
+                elif op == "open_alerts":
+                    result = alerts.open_alerts(s)
+                elif op in ("scan", "scan_failed"):
+                    env.update(agents=args.get("agents"), labels=args.get("labels", {}), t=args.get("t", 0.0))
+                    result = alerts.scan_blocked(s)
+                elif op == "acknowledge_answers":
+                    result = s.acknowledge(args["qids"])
+                elif op == "sessions_in_play":
+                    service.adopt_continuations(s)
+                    result = sorted(played)
+                else:
+                    result = getattr(s, op)(**args)
+                if isinstance(result, list):
+                    result = [dataclasses.asdict(a) if dataclasses.is_dataclass(a) else a for a in result]
+                elif dataclasses.is_dataclass(result):
+                    result = dataclasses.asdict(result)
+                steps.append({"op": op, "args": args, "result": _store_value(result), "effects": list(effects),
+                              "tables": _store_tables(path, ("alerts", "blocked_panes"))})
+    finally:
+        for (mod, name), fn in saved.items():
+            setattr(mod, name, fn)
+        transcript.chain = real_chain
+        alerts._unblocked.clear()
+    del itertools
+    doc = {"source": "alerts.py over STORE_ALERT_OPS (tools/capture_goldens.py --only store)", "steps": steps}
+    target = out / "store-alerts.json"
+    target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return target
 
 
 def capture_store_delivery(out: Path, work: Path) -> Path:

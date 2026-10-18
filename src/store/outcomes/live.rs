@@ -1,5 +1,6 @@
 //! A session's continuation and the liveness of its hooks and watcher
-//! (Python `continued_in`, `record_continuation`, `watch_live`, `hook_live`).
+//! (Python `continued_in`, `record_continuation`, `watch_live`, `hook_live`,
+//! and the sessions `adopt_continuations` looks at).
 
 use std::time::Duration;
 
@@ -68,5 +69,18 @@ impl Store {
         };
         let at = self.session_column(column, s)?.filter(|a| !a.is_empty());
         Ok(at.is_some_and(|at| at >= now_minus(within)))
+    }
+
+    /// Sessions with questions or alerts still in play (open, or answered and
+    /// not seen; open alerts): whose continuations the worker records (Python
+    /// `service.adopt_continuations`' query). SQLite's `UNION` order.
+    pub fn sessions_in_play(&self) -> rusqlite::Result<Vec<String>> {
+        let mut stmt = self.db().prepare(
+            "SELECT DISTINCT session_id FROM questions WHERE session_id IS NOT NULL \
+             AND (status = 'open' OR (status = 'answered' AND acknowledged_at IS NULL)) \
+             UNION SELECT DISTINCT session_id FROM alerts WHERE session_id IS NOT NULL AND status = 'open'",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect()
     }
 }
