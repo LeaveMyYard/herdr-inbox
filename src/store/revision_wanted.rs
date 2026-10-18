@@ -36,15 +36,24 @@ pub fn unix_now() -> f64 {
         .map_or(0.0, |d| d.as_secs_f64())
 }
 
-/// The revision a newer release wants `db` at, or `None`.
+/// The revision a newer release wants `db` at, or `None`. Both fields are
+/// plain ASCII digits (tests/vectors/revision_wanted.json, shared with Python).
 pub fn wanted(db: &Path, now: f64) -> Option<i64> {
     let text = fs::read_to_string(path_for(db)).ok()?;
     let mut parts = text.split_whitespace();
-    let revision: i64 = parts.next()?.parse().ok()?;
-    let written: f64 = parts.next()?.parse().ok()?;
+    let revision = digits(parts.next()?)?;
+    let written = digits(parts.next()?)? as f64;
     let age = now - written;
     (parts.next().is_none() && (-CLOCK_SKEW..=REVISION_WANTED_TTL).contains(&age))
         .then_some(revision)
+}
+
+/// A non-negative integer written in ASCII digits only.
+fn digits(text: &str) -> Option<i64> {
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
 }
 
 /// A process of `revision` found `db` not migrated to it: say so. Errors are

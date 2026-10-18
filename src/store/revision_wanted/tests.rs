@@ -37,3 +37,19 @@ fn never_lowered_never_extended_and_it_expires() {
     assert_eq!(wanted(&db, 0.0), None);
     assert_eq!(wanted(&dir.path().join("other.db"), 1000.0), None);
 }
+
+#[test]
+fn the_shared_vectors_read_as_in_python() {
+    let doc: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/vectors/revision_wanted.json")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    for case in doc["cases"].as_array().unwrap() {
+        fs::write(path_for(&db), case["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            wanted(&db, case["now"].as_f64().unwrap()),
+            case["wanted"].as_i64(),
+            "{case}"
+        );
+    }
+}

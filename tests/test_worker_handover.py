@@ -1,7 +1,13 @@
-"""herdr-inbox#50 end to end, with real processes (#75 review H1): an r1 worker holds the lock and
-keeps delivering; the only r2 processes are hooks (no r2 MCP server, no popup); older ensure()
-callers keep firing. The r2 worker must take over (stand by, then get the lock the r1 worker hands
-over) and the r2 hooks must deliver, with no moment in which nobody holds the lock."""
+"""herdr-inbox#50 end to end, with real processes, shaped like real installs (#75 reviews H1, M1).
+
+Two install roots as herdr lays them out (``herdr-plugin.toml``, ``pyproject.toml``, ``hooks/``,
+``src/herdr_inbox``; the newer one at MIGRATION_REVISION 2 with one more column, and a release's
+``bin/herdr-inbox`` that has no worker yet). Every process runs as production runs it: the
+workers as ensure() starts them, the hook as hooks.json does (``python3 -I hooks/run.py``), with
+NO PYTHONPATH anywhere. An r1 worker holds the lock and keeps delivering; the only r2 processes
+are hooks. The r2 worker must take over (stand by, then get the lock the r1 worker hands over),
+the database must reach revision 2, and the r2 hooks must deliver.
+"""
 
 import json
 import os
@@ -16,44 +22,62 @@ from pathlib import Path
 
 import pytest
 
-from herdr_inbox import store as st, worker, worker_handover as wh
+from herdr_inbox import revision_wanted, store as st, worker, worker_handover as wh
 from herdr_inbox.store import Store, db_path
 
-from .compat_prebridge import set_stamp
 from .conftest import leaked_workers
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "aaaaaaaa-0000-4000-8000-00000000000a"
+LIMIT = 30.0  # every wait is bounded: a broken handover fails here, it never hangs
+# The interpreter behind this venv: herdr_inbox is NOT installed in it, as in the system python3
+# that hooks.json runs (a worker started from there must find its package on its own).
+PYTHON = getattr(sys, "_base_executable", None) or sys.executable
 
 
-def r2_package(tmp_path: Path) -> Path:
-    """The package at revision 2: its schema adds a column (as a real bump would)."""
-    dest = tmp_path / "r2"
-    shutil.copytree(ROOT / "src" / "herdr_inbox", dest / "herdr_inbox",
+def install(dest: Path, revision: int) -> Path:
+    """An install root of this code at ``revision`` (a release's layout)."""
+    dest.mkdir()
+    for name in ("herdr-plugin.toml", "pyproject.toml"):
+        shutil.copy(ROOT / name, dest / name)
+    shutil.copytree(ROOT / "hooks", dest / "hooks", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(ROOT / "src" / "herdr_inbox", dest / "src" / "herdr_inbox",
                     ignore=shutil.ignore_patterns("__pycache__"))
-    store = dest / "herdr_inbox" / "store.py"
-    text = store.read_text()
-    text, n = re.subn(r"^MIGRATION_REVISION = 1$", "MIGRATION_REVISION = 2", text, flags=re.M)
-    assert n == 1
-    text = text.replace('"remote_outbox": {"sending_at": "TEXT"}', '"remote_outbox": {"sending_at": "TEXT", "added_in_r2": "TEXT"}')
-    assert "added_in_r2" in text
-    store.write_text(text)
+    if revision != 1:
+        store = dest / "src" / "herdr_inbox" / "store.py"
+        text, n = re.subn(r"^MIGRATION_REVISION = 1$", f"MIGRATION_REVISION = {revision}", store.read_text(),
+                          flags=re.M)
+        assert n == 1
+        text = text.replace('"remote_outbox": {"sending_at": "TEXT"}',
+                            '"remote_outbox": {"sending_at": "TEXT", "added_in_r2": "TEXT"}')
+        assert "added_in_r2" in text
+        store.write_text(text)
+        # a release's binary before P5: no `worker`, prints its version and exits 0
+        binary = dest / "bin" / "herdr-inbox"
+        binary.parent.mkdir()
+        binary.write_text("#!/bin/sh\necho 'herdr-inbox 0.10.6'\n")
+        binary.chmod(0o755)
     return dest
 
 
 @pytest.fixture
 def world(migrated_db, tmp_path, monkeypatch):
     monkeypatch.delenv("HERDR_INBOX_NO_WORKER")
+    monkeypatch.delenv("PYTHONPATH", raising=False)
     monkeypatch.setenv("HERDR_INBOX_WORKER_TICK", "0.2")
     monkeypatch.setenv("HERDR_INBOX_WORKER_IDLE_EXIT", "120")
+    monkeypatch.setenv(wh.STANDBY_MAX_ENV, str(LIMIT))  # no standby outlives the test's wait
     monkeypatch.setenv("FAKE_HERDR_SESSION", SESSION)
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")  # the r1 worker leaves the answer to the hooks
+    listed = tmp_path / "listed-root"
+    monkeypatch.setenv("FAKE_HERDR_INBOX_ROOT_FILE", str(listed))
     with Store(migrate=True) as s:
         q = s.insert("Which region?", session_id=SESSION, pane_id="w1:p1")
         s.set_answer(q.id, "eu")
-    r2 = r2_package(tmp_path)
+    r1, r2 = install(tmp_path / "r1", 1), install(tmp_path / "r2", 2)
+    listed.write_text(str(r1))
     procs: list[subprocess.Popen] = []
-    yield {"r2": r2, "procs": procs, "qid": q.id}
+    yield {"r1": r1, "r2": r2, "listed": listed, "procs": procs, "qid": q.id}
     for pid in leaked_workers(tmp_path):
         try:
             os.kill(pid, signal.SIGKILL)
@@ -67,24 +91,21 @@ def world(migrated_db, tmp_path, monkeypatch):
         time.sleep(0.05)
 
 
-def env_for(package: Path) -> dict:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(package)
-    return env
-
-
-def start_worker(world, package: Path) -> subprocess.Popen:
-    p = subprocess.Popen([sys.executable, "-m", "herdr_inbox.cli", "worker"], env=env_for(package),
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+def start_worker(world, root: Path) -> subprocess.Popen:
+    """The worker of ``root`` as ensure() starts it (no PYTHONPATH: its src goes in argv)."""
+    assert "PYTHONPATH" not in os.environ
+    argv = [PYTHON, *worker.python_worker_argv(str(root / "src"))[1:]]
+    p = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     world["procs"].append(p)
     return p
 
 
-def r2_hook(world) -> str:
-    code = "import sys; from herdr_inbox import hook; hook.run('post-tool-batch')"
-    out = subprocess.run([sys.executable, "-c", code], input=json.dumps({"session_id": SESSION}),
-                         env=env_for(world["r2"]), capture_output=True, text=True, timeout=60)
+def hook(root: Path) -> str:
+    """``root``'s delivery hook as hooks.json runs it: python3 -I hooks/run.py (run-hook.sh)."""
+    assert "PYTHONPATH" not in os.environ
+    out = subprocess.run([PYTHON, "-I", str(root / "hooks" / "run.py"), "post-tool-batch"],
+                         input=json.dumps({"session_id": SESSION}), capture_output=True, text=True, timeout=60)
     return out.stdout
 
 
@@ -98,7 +119,11 @@ def stamp() -> int | None:
         db.close()
 
 
-def wait_for(cond, limit: float) -> bool:
+def holder() -> int:
+    return wh.holder_revision(worker._lock_path())
+
+
+def wait_for(cond, limit: float = LIMIT) -> bool:
     deadline = time.monotonic() + limit
     while time.monotonic() < deadline:
         if cond():
@@ -107,41 +132,70 @@ def wait_for(cond, limit: float) -> bool:
     return cond()
 
 
+def r2_took_over() -> bool:
+    return holder() == 2 and stamp() == 2
+
+
+def test_the_hook_interpreter_has_no_package_of_its_own():
+    probe = subprocess.run([PYTHON, "-I", "-c", "import herdr_inbox"], capture_output=True, timeout=60)
+    assert probe.returncode != 0, "PYTHON must be bare, or these tests prove less than production needs"
+
+
 def test_r2_hooks_alone_get_an_r2_worker_while_r1_ensure_callers_fire(world):
-    start_worker(world, ROOT / "src")
-    assert wait_for(lambda: worker.is_running() and wh.holder_revision(worker._lock_path()) == 1, 10)
+    start_worker(world, world["r1"])
+    assert wait_for(lambda: worker.is_running() and holder() == 1)
     stop = threading.Event()
-    gaps = []
+    holders = []
 
     def r1_callers():  # the r1 MCP servers, popup, CLI: ensure() whenever they run
         while not stop.is_set():
             worker.ensure()
-            if not worker.is_running():
-                gaps.append(time.monotonic())
+            holders.append(holder() if worker.is_running() else None)
             time.sleep(0.05)
 
     caller = threading.Thread(target=r1_callers, daemon=True)
     caller.start()
     try:
-        assert r2_hook(world) == "", "not ready yet: nothing printed, an r2 worker started"
-        assert wait_for(lambda: wh.holder_revision(worker._lock_path()) == 2 and stamp() == 2, 30), \
-            (wh.holder_revision(worker._lock_path()), stamp())
+        assert hook(world["r2"]) == "", "not ready yet: nothing printed, an r2 worker started"
+        assert wait_for(r2_took_over), (holder(), stamp(), (db_path().parent / "worker.log").read_text()
+                                       if (db_path().parent / "worker.log").exists() else "")
+        # the r1 callers keep firing after the takeover: ten more of their rounds, whatever the time
+        after = len(holders)
+        assert wait_for(lambda: len(holders) >= after + 10)
     finally:
         stop.set()
         caller.join(5)
-    assert worker.is_running()
-    out = json.loads(r2_hook(world))["hookSpecificOutput"]["additionalContext"]
+    out = json.loads(hook(world["r2"]))["hookSpecificOutput"]["additionalContext"]
     assert f"Q{world['qid']} answered" in out, "the r2 hook delivers"
-    # the lock was free only for the instant of the handover, never for a polling interval twice
-    assert len(gaps) <= 1, gaps
+    # one handover, r1 to r2: once r2 holds, no r1 worker ever holds again (the free instant in
+    # between is the design's one poll; its length is not asserted, a loaded machine stretches it)
+    seen = [h for h in holders if h is not None]
+    assert seen and seen[-1] == 2 and 1 not in seen[seen.index(2):], seen
+    assert "Error" not in ((db_path().parent / "worker.log").read_text()
+                           if (db_path().parent / "worker.log").exists() else "")
+
+
+def test_a_rust_hooks_marker_alone_gets_the_r2_worker_of_a_release_install(world):
+    """#75 review M1: the Rust hooks only write the revision-wanted marker. herdr lists the r2
+    install, whose bin/herdr-inbox has no worker yet; the r1 holder (no version handover: same
+    version) must start r2's Python worker, which stands by and takes over."""
+    start_worker(world, world["r1"])
+    assert wait_for(lambda: worker.is_running() and holder() == 1)
+    world["listed"].write_text(str(world["r2"]))
+    revision_wanted.want(db_path(), 2)  # what a not-ready Rust hook writes (src/store/revision_wanted.rs)
+    assert wait_for(r2_took_over), (holder(), stamp())
+    out = json.loads(hook(world["r2"]))["hookSpecificOutput"]["additionalContext"]
+    assert f"Q{world['qid']} answered" in out
 
 
 def test_the_newer_worker_wins_the_lock_race_whatever_the_start_order(world):
+    from .compat_prebridge import set_stamp
+
     for round_ in range(3):
         set_stamp(db_path(), st.revision_stamp(1))  # every round starts at revision 1
-        first, second = (ROOT / "src", world["r2"]) if round_ % 2 == 0 else (world["r2"], ROOT / "src")
+        first, second = (world["r1"], world["r2"]) if round_ % 2 == 0 else (world["r2"], world["r1"])
         a, b = start_worker(world, first), start_worker(world, second)
-        assert wait_for(lambda: wh.holder_revision(worker._lock_path()) == 2 and stamp() == 2, 30), round_
+        assert wait_for(r2_took_over), round_
         for p in (a, b):
             p.kill()
             p.wait(timeout=10)

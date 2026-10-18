@@ -20,7 +20,10 @@ all), so answers to long-lived sessions could sit undelivered with nobody retryi
   policy (service.deliver_batch: idle/done, busy grace, blocked, panel focus, transcript
   verification) for ALL panes; claims serialize it with any old server still retrying;
 - answers stuck for NOTIFY_AFTER seconds (or out of tries) raise one herdr notification
-  per pane: they can still be fetched with check_answers.
+  per pane: they can still be fetched with check_answers;
+- a worker of an older revision hands the lock over to a newer worker that stands by,
+  never to nobody (#50, worker_handover.py): a newer ensure() starts that standby, and a
+  revision-wanted marker (a Rust hook) makes the holder start the current install's worker.
 """
 
 from __future__ import annotations
@@ -48,9 +51,6 @@ LEGACY_RECHECK = timedelta(seconds=60)
 # (at least two checks): a server that is really gone costs one more tick, a socket path
 # that is missing only for a moment (a restart or handoff) does not end the worker.
 SERVER_GONE_EXIT = 10.0
-# A revision-wanted marker (a newer Rust hook) makes the holder start the newer install's worker
-# at most this often (worker_handover.py).
-SPAWN_EVERY = 60.0
 
 
 def _lock_path(server: str | None = None):
@@ -114,10 +114,26 @@ def ensure(server: str | None = None) -> bool:
     log_path = db_path().parent / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as err:
-        subprocess.Popen([sys.executable, "-m", "herdr_inbox.cli", "worker"],
+        subprocess.Popen(python_worker_argv(_package_src()),
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
                          start_new_session=True, close_fds=True, env=_spawn_env(server))
     return True
+
+
+def _package_src() -> str:
+    """The directory this herdr_inbox package is imported from (an install's ``src``)."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def python_worker_argv(src: str) -> list[str]:
+    """This interpreter running the worker of the package under ``src``, whoever calls: an MCP
+    server (its venv), a hook (the system python3 -I, with ``src`` put on sys.path by
+    hooks/run.py, never on PYTHONPATH) or a worker starting another install's. ``-I`` and the
+    path passed as an argument: nothing in the environment (no PYTHONPATH) reaches the worker
+    or what it starts. The worker's imports are standard library only."""
+    code = ("import runpy, sys; sys.path.insert(0, sys.argv.pop(1)); "
+            "runpy.run_module('herdr_inbox.cli', run_name='__main__', alter_sys=True)")
+    return [sys.executable, "-I", "-c", code, src, "worker"]
 
 
 def _ids(qids: list[int]) -> str:
@@ -263,7 +279,17 @@ def tick(store: Store) -> int:
 
 
 def running_version() -> str | None:
-    """The version of the code this process runs (its package metadata)."""
+    """The version of the code this process runs: its checkout's pyproject.toml (a worker a hook
+    started runs the install's ``src`` under the system python3, with no package metadata), else
+    its package metadata."""
+    own = herdr._own_checkout()
+    if own:
+        try:
+            for line in open(os.path.join(own, "pyproject.toml"), encoding="utf-8"):
+                if line.startswith("version = "):
+                    return line.split('"')[1]
+        except (OSError, IndexError):
+            pass
     try:
         from importlib.metadata import version
 
@@ -402,18 +428,49 @@ def handed_over() -> bool:
 
 def _spawn_newer() -> None:
     """Start herdr's current install's worker without releasing the lock (a revision-wanted
-    marker asked for a newer one): if it is newer, it stands by and this worker hands over."""
+    marker asked for a newer one): if it is newer, it stands by and this worker hands over.
+    Its Rust worker when one is installed and stands by (_rust_stands_by), else its Python
+    worker: a release's ``bin/herdr-inbox`` has no worker before P5 and exits at once."""
     root = herdr.current_plugin_root()
     if not root:
         return
     binary = rust_worker_binary(root)
-    argv = [binary, "worker"] if binary else ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", root,
-                                               "inbox", "worker"]
+    if binary and _rust_stands_by(binary, root):
+        return
     try:
-        subprocess.Popen(argv, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True, env=_spawn_env())
+        subprocess.Popen(python_worker_argv(os.path.join(root, "src")), cwd=root, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+                         close_fds=True, env=_spawn_env())
     except OSError:
         pass
+
+
+def _rust_stands_by(binary: str, root: str) -> bool:
+    """Start ``binary worker``; True once it stands by (its pid in the standby record). One
+    that exits first (no worker subcommand, not newer) or does not stand by within
+    RUST_HANDOVER_WAIT is not one: it is killed, and the caller starts the Python worker."""
+    from . import worker_handover as wh
+
+    try:
+        proc = subprocess.Popen([binary, "worker"], cwd=root, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True, close_fds=True, env=_spawn_env())
+    except OSError:
+        return False
+    deadline = time.monotonic() + RUST_HANDOVER_WAIT
+    while time.monotonic() < deadline:
+        standby = wh.live_standby(_lock_path())
+        if standby is not None and standby[1] == proc.pid:
+            return True
+        if proc.poll() is not None:
+            return False
+        time.sleep(0.05)
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return False
 
 
 def _newer_wanted() -> bool:
@@ -449,6 +506,7 @@ def run() -> int:
         return _loop(box)
     finally:
         if box["lock"] is not None:
+            wh.clear_holder(_lock_path())  # still ours while the lock is
             box["lock"].close()
 
 
@@ -461,6 +519,8 @@ def start_remote_thread() -> None:
 
 
 def _loop(box: dict) -> int:
+    from . import worker_handover as wh
+
     try:
         from . import venvs
 
@@ -477,7 +537,7 @@ def _loop(box: dict) -> int:
     remote_started = False
     herdr.follows_listed_root()  # decided now: is this worker herdr's install (update checks)
     gone_since = None
-    spawned_at = -SPAWN_EVERY
+    spawned_at = -wh.SPAWN_EVERY
     while True:
         # detached, so nothing else stops it: never outlive the server (plan §4 item 5)
         if herdr.server_gone():
@@ -493,7 +553,7 @@ def _loop(box: dict) -> int:
         if handed_over():  # a newer worker stands by (#50): it takes the lock as soon as it is free
             log.warning("a newer worker stands by: handing the lock over")
             return 0  # run() releases the lock
-        if _newer_wanted() and time.monotonic() - spawned_at >= SPAWN_EVERY:
+        if _newer_wanted() and time.monotonic() - spawned_at >= wh.SPAWN_EVERY:
             spawned_at = time.monotonic()
             _spawn_newer()  # if newer, it stands by and the next iteration hands over
         try:
