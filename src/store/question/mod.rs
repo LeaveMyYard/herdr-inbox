@@ -40,6 +40,7 @@ pub struct Question {
     /// The question as asked.
     pub question: String,
     /// Its options: from `question_ext.options_json`, else the labels in `questions.options`.
+    /// A read view, lossy for malformed rows (see [`Question::from_row`]): never write it back.
     pub options: Option<Vec<QOption>>,
     /// Context the agent gave.
     pub context: Option<String>,
@@ -66,11 +67,13 @@ pub struct Question {
     pub header: Option<String>,
     /// Several options may be picked.
     pub multi_select: bool,
-    /// The answer's parts (`{"choices", "notes", "text"}`), as stored.
+    /// The answer's parts (`{"choices", "notes", "text"}`), decoded. A read view, lossy for
+    /// lone surrogates (see [`Question::from_row`]): never write it back.
     pub answer_json: Option<Value>,
     /// The ask_operator call it came with (its first question's id).
     pub group_id: Option<i64>,
-    /// The operator's unsent answer, same shape as `answer_json`.
+    /// The operator's unsent answer, same shape as `answer_json`, decoded the same lossy way:
+    /// never write it back (see [`Question::from_row`]).
     pub draft_json: Option<Value>,
     /// When the draft was saved.
     pub drafted_at: Option<String>,
@@ -82,9 +85,16 @@ pub struct Question {
 
 impl Question {
     /// The question from a row selected with [`COLUMNS`]. Stored JSON reads as
-    /// Python's `json.loads` reads it ([`crate::pyjson::loads`]: a lone
-    /// surrogate becomes U+FFFD). JSON that does not parse, or options that
+    /// Python's `json.loads` reads it ([`crate::pyjson::loads`]), except that a
+    /// lone surrogate becomes U+FFFD. JSON that does not parse, or options that
     /// Python's `normalize_options` raises on, are an error, as in Python.
+    ///
+    /// **The JSON fields and `options` are a lossy view; never write them back.**
+    /// A lone surrogate becomes U+FFFD, so two keys can collapse into one, and a
+    /// non-string option field is spelled as `str()` would spell it. A write that
+    /// carries a stored value on must take the raw column text instead. The known
+    /// case is Python `service.submit`, which passes `draft_json` into
+    /// `set_answer` (P5 plan, "Lossy reads are never written back").
     pub fn from_row(row: &Row<'_>) -> rusqlite::Result<Question> {
         let options_json: Option<String> = row.get(26)?;
         let options: Option<String> = row.get(9)?;
