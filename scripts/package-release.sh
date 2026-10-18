@@ -24,7 +24,10 @@ name="herdr-inbox-v$version-$target.tar.gz"
 if tar --version 2>/dev/null | grep -q 'GNU tar'; then
 	tar -C "$stage" --owner=0 --group=0 --numeric-owner --mtime='@0' --sort=name -cf - herdr-inbox LICENSE | gzip -n >"$out/$name"
 else
-	touch -t 197001010000 "$stage/herdr-inbox" "$stage/LICENSE"
-	tar -C "$stage" --uid 0 --gid 0 -cf - herdr-inbox LICENSE | gzip -n >"$out/$name"
+	# bsdtar (macOS): UTC epoch whatever the local zone; no xattrs, ACLs, flags or AppleDouble
+	# entries (a quarantine or provenance attribute would change the bytes)
+	TZ=UTC touch -t 197001010000 "$stage/herdr-inbox" "$stage/LICENSE"
+	COPYFILE_DISABLE=1 tar -C "$stage" --format ustar --uid 0 --gid 0 --no-xattrs --no-mac-metadata \
+		--no-acls --no-fflags -cf - herdr-inbox LICENSE | gzip -n >"$out/$name"
 fi
 echo "$out/$name"

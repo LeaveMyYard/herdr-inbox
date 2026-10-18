@@ -13,12 +13,21 @@
 # On a pull request that touches this flow, the build and packaging run as a dry run (nothing
 # is published) and step 3's tool runs against the dry run's SHA256SUMS on a scratch copy.
 #
-# Least privilege: `verify` and `build` run repo code with a read-only token that is not
-# persisted; `publish` holds the write token and runs no repo code; `manifest-pr` runs only
-# tools/release_manifest.py from the default branch.
+# Least privilege: `verify`, `build`, `sums` and `manifest` run repo code with a read-only
+# token that is not persisted; `publish` and `manifest-pr` hold the write token and run no repo
+# code (`manifest-pr` only copies the files `manifest` wrote, commits and opens the PR).
+#
+# release.toml records only what was built: `manifest` checks that the published SHA256SUMS
+# equals the one computed from this run's build artifacts and that every published tarball
+# hashes to it, before the tool reads it.
+#
+# Versions: the tag must equal Cargo.toml's and pyproject.toml's version (bumped together by the
+# release PR); the manifests may lag them by the release in flight (tests/test_manifests.py).
 #
 # Secrets: RELEASE_BOT_TOKEN (optional; Contents and Pull requests: write on this repo). With
-# GITHUB_TOKEN instead, GitHub starts no CI for the bot's PR: close and reopen it.
+# GITHUB_TOKEN instead, "Allow GitHub Actions to create and approve pull requests" must be on in
+# the repo's Actions settings, and GitHub starts no CI for the bot's PR: close and reopen it.
+# A rerun after the PR was opened finds it and does nothing.
 
 name: Release
 
@@ -100,10 +109,21 @@ jobs:
         run: |
           set -euo pipefail
           tarball=$(sh scripts/package-release.sh "$TARGET" "$VERSION" dist)
+          again=$(sh scripts/package-release.sh "$TARGET" "$VERSION" "$RUNNER_TEMP/again")
+          cmp "$tarball" "$again"  # reproducible: the same binary packs the same bytes
           tar -tzf "$tarball" | LC_ALL=C sort | tr '\n' ' ' | grep -qx 'LICENSE herdr-inbox '
+          mkdir unpacked && tar -C unpacked -xzf "$tarball"
+          file unpacked/herdr-inbox
+          case "$TARGET" in
+            *-linux-musl) file unpacked/herdr-inbox | grep -Eq 'static-pie linked|statically linked' ;;
+          esac
           if [ "$RUN" = true ]; then
-            mkdir unpacked && tar -C unpacked -xzf "$tarball"
-            unpacked/herdr-inbox | grep -q '^herdr-inbox '
+            line=$(unpacked/herdr-inbox)
+            echo "$line"
+            case "$VERSION" in
+              *-dryrun) echo "$line" | grep -q '^herdr-inbox ' ;;
+              *) [ "$line" = "herdr-inbox $VERSION" ] ;;  # the tag's version was built
+            esac
           fi
       - uses: actions/upload-artifact@v4
         with:
@@ -168,7 +188,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: release
           path: dist
@@ -178,40 +198,76 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --generate-notes dist/*
 
-  manifest-pr:
-    name: open the release.toml PR
-    needs: [verify, publish]
+  manifest:
+    name: release.toml (read-only)
+    needs: [verify, sums, publish]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           persist-credentials: false
-      - name: Read the published SHA256SUMS (from the release, not the build)
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: built
+      - name: The published release is what this run built
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D published
+          cmp built/SHA256SUMS published/SHA256SUMS
+          (cd published && sha256sum -c --strict SHA256SUMS)
       - name: Write release.toml and bump the manifests
         env:
           TAG: ${{ github.ref_name }}
-        run: python3 tools/release_manifest.py "$TAG" "$RUNNER_TEMP/SHA256SUMS" .
-      - name: Open the PR
+        run: python3 tools/release_manifest.py "$TAG" published/SHA256SUMS .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest
+          path: |
+            release.toml
+            herdr-plugin.toml
+            .claude-plugin/plugin.json
+            .claude-plugin/marketplace.json
+          include-hidden-files: true
+          if-no-files-found: error
+
+  manifest-pr:
+    name: open the release.toml PR
+    needs: manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: manifest
+          path: .
+      - name: Commit, push and open the PR (no repo code runs here)
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           branch="release-manifest/$TAG"
+          if [ "$(gh pr list -R "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq length)" != 0 ]; then
+            echo "A PR from $branch exists: nothing to do."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           git add release.toml herdr-plugin.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json
           git commit -m "Point installs at $TAG (release.toml, manifests)"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
-          gh pr create --base main --head "$branch" --title "Point installs at $TAG" \
-            --body "Writes release.toml (the sha256 of each target's tarball, from the published SHA256SUMS of [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG)) and bumps the plugin version in herdr-plugin.toml, plugin.json and marketplace.json. Until this merges, installs fetch the previous release. Opened by .github/workflows/release.yml."
+          gh pr create -R "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Point installs at $TAG" \
+            --body "Writes release.toml (the sha256 of each target's tarball of [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG), checked against this run's build and the published assets) and bumps the plugin version in herdr-plugin.toml, plugin.json and marketplace.json. Until this merges, installs fetch the previous release. Opened by .github/workflows/release.yml."

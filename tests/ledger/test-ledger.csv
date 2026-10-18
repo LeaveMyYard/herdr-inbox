@@ -595,6 +595,17 @@ tests/test_real_timing.py::test_list_row_that_just_arrived_is_not_selectable,tes
 tests/test_real_timing.py::test_question_view_ignores_keys_until_armed,tests/test_real_timing.py,,todo,,
 tests/test_real_timing.py::test_submit_tab_ignores_keys_until_armed,tests/test_real_timing.py,,todo,,
 tests/test_real_timing.py::test_undelivered_view_ignores_keys_until_armed,tests/test_real_timing.py,,todo,,
+tests/test_release_manifest.py::test_release_toml_and_exactly_the_version_lines,tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[missing target],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[extra file],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[duplicate],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[binary mode],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[other version],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[9.8.7],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8.7-rc1],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8.7 ],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
+tests/test_release_manifest.py::test_a_manifest_it_cannot_rewrite_leaves_every_file_untouched,tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_remote_api.py::test_every_database_has_a_stable_random_id,tests/test_remote_api.py,,todo,,
 tests/test_remote_api.py::test_export_full_then_incremental,tests/test_remote_api.py,,todo,,
 tests/test_remote_api.py::test_export_with_another_db_id_or_a_pruned_cursor_is_full,tests/test_remote_api.py,,todo,,
