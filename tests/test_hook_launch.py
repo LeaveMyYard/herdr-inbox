@@ -127,8 +127,11 @@ def test_two_plugin_versions_run_hooks_concurrently(tmp_path, fake_herdr):
 
 
 def test_mcp_server_venv_is_per_version():
-    server = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["mcpServers"]["herdr-inbox"]
-    assert server["env"]["UV_PROJECT_ENVIRONMENT"] == f"${{CLAUDE_PLUGIN_DATA}}/venv-{VERSION}"
+    """Per Claude plugin version: the venv follows plugin.json's version, which the release bot
+    bumps (pyproject.toml may lead it by the release in flight, test_manifests)."""
+    plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+    server = plugin["mcpServers"]["herdr-inbox"]
+    assert server["env"]["UV_PROJECT_ENVIRONMENT"] == f"${{CLAUDE_PLUGIN_DATA}}/venv-{plugin['version']}"
 
 
 def test_old_python_falls_back_to_uv_and_still_exits_0(tmp_path, fake_herdr, monkeypatch, capsys):
