@@ -910,6 +910,39 @@ confirmations are asked in chat, not through the inbox. Hook `additionalContext`
 also a system reminder, so the same holds for answers delivered to busy sessions. Typed
 answers (other agents, "Send now") still arrive as user messages.
 
+## Rust hooks and the release path: P2 as built (2026-10-18)
+
+The Claude Code hooks and the rewake watcher run as `herdr-inbox hook <event>` (Rust), started
+through `scripts/launch`. The launcher runs the newest binary whose `contract` matches; with none it
+runs the Python hooks (`hooks/run.py`), and with no Python it prints the static rules. herdr's build
+step `scripts/install-bin.sh` installs the verified release binary named in `release.toml`.
+`.github/workflows/release.yml` builds, publishes and writes `release.toml`. The plan is
+herdr-panorama `docs/plans/rust-rewrite.md`, P2.
+
+Exit tests, run on isolated herdr servers (official release binaries, checksum-verified; own HOME,
+XDG dirs and socket; no `HERDR_*` of the caller). No release existed yet, so a release-shaped bundle
+stood in for one:
+- `scripts/package-release.sh` packed a local `cargo build --release` of main;
+- `tools/release_manifest.py` wrote `release.toml` for it, on a scratch branch;
+- a stand-in `curl` first on the server's PATH served only the fixed HTTPS release URL from that bundle.
+
+The bundle held a gnu build under the `x86_64-unknown-linux-musl` asset name. That is the one
+difference from a real release, and the release workflow's dry run already builds and checks the
+real musl and darwin binaries.
+
+| Check | herdr 0.9.4 | herdr 0.9.5 |
+|---|---|---|
+| Fresh `herdr plugin install` | passed: one download of the fixed URL (HTTPS only), sha256 checked; `bin/herdr-inbox` and the recorded copy in `$XDG_STATE_HOME/herdr-inbox/bin` match the built binary byte for byte | passed |
+| `herdr plugin update` to a newer commit | passed: `plugin list --json` names a new `plugin_root` and the new commit; the binary is fetched into the new root; the old root stays | passed |
+| `min_herdr_version = "0.9.4"`, then update | accepted | accepted |
+| Claude plugin, fresh install in a scratch `CLAUDE_CONFIG_DIR` | passed: the SessionStart hook, run as Claude Code runs it, runs the herdr-recorded binary (exit 0, the rules) | (the same Claude side) |
+| Claude plugin only, no herdr install | passed: the hooks run Python; `launch mcp` fetches the release into `$CLAUDE_PLUGIN_DATA/bin` in the background, and the next hook runs it | |
+| Skew: the Claude plugin newer than every binary (another contract) | passed: the hooks run the Python hooks, and the rules still go out | |
+
+Still open: #74. A local-folder Claude marketplace may copy `target/` into the plugin cache, and
+the exit test's marketplace was a fresh clone. Also open: #72 (pruning recorded binaries) and #73
+(a time bound on the contract probe).
+
 ## Deep links: opening the popup on a target (0.6.0)
 
 The integration API for other plugins (e.g. herdr-panorama). It is
