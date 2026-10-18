@@ -9,6 +9,11 @@
 //! 2. Per candidate, once claimed and checked against every transcript of its
 //!    conversation: [`carry`].
 //! 3. [`message`]: what is handed over, from what was recorded as sent.
+//!
+//! The liveness stamp (`hook_seen_at`, the worker's WORKING gate) is the
+//! caller's: on the PostToolBatch/Stop path only, and only after
+//! [`own_session`] passed (a subagent's firing never stamps it); the rewake
+//! watcher's delivery never stamps it.
 
 use std::collections::BTreeSet;
 

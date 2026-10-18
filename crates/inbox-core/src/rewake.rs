@@ -126,6 +126,10 @@ impl Verdict {
 
 /// One watcher's poll state: its deadline, when herdr was last asked, and
 /// since when herdr names no session for the pane.
+///
+/// The caller stamps the watcher's own liveness (`watch_seen_at`, the
+/// worker's IDLE gate) once per poll that did not end the watch, never the
+/// hook's `hook_seen_at`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Watch {
     end: f64,
