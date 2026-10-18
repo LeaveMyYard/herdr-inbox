@@ -448,6 +448,7 @@ tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_
 tests/test_final_review.py::test_closing_the_popup_waits_for_an_in_flight_send,tests/test_final_review.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[decisions],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,,todo,,
+tests/test_goldens.py::test_the_goldens_are_what_the_code_does[schema],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_decision_table_is_a_function,tests/test_goldens.py,,todo,,
 tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,,todo,,
 tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,,todo,,
@@ -478,11 +479,11 @@ tests/test_hook.py::test_subagent_start,tests/test_hook.py,,todo,,
 tests/test_hook.py::test_broken_db_never_fails,tests/test_hook.py,,todo,,
 tests/test_hook.py::test_garbage_input_never_fails,tests/test_hook.py,,todo,,
 tests/test_hook.py::test_plugin_hook_and_mcp_config_point_at_the_cli,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_bounded_retries_extended_busy_codes,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_bounded_gives_up_on_other_errors_and_at_the_deadline,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_touch_gives_up_quickly_on_a_locked_db,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_has_candidates_gives_up_quickly_on_a_locked_db,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_bounded_closes_every_connection_it_opens,tests/test_hook.py,,todo,,
+tests/test_hook.py::test_bounded_retries_extended_busy_codes,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_retries_extended_busy_codes,mapped,,P2
+tests/test_hook.py::test_bounded_gives_up_on_other_errors_and_at_the_deadline,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_gives_up_on_other_errors_and_at_the_deadline,mapped,,P2
+tests/test_hook.py::test_touch_gives_up_quickly_on_a_locked_db,tests/test_hook.py,herdr-inbox --test store liveness::touch_gives_up_quickly_on_a_locked_db,mapped,,P2
+tests/test_hook.py::test_has_candidates_gives_up_quickly_on_a_locked_db,tests/test_hook.py,herdr-inbox --test store candidates::has_candidates_gives_up_quickly_on_a_locked_db,mapped,,P2
+tests/test_hook.py::test_bounded_closes_every_connection_it_opens,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_opens_a_fresh_connection_for_every_attempt,mapped,,P2
 tests/test_hook_delivery.py::test_a_busy_sessions_answer_goes_out_as_hook_context_once[post-tool-batch-PostToolBatch],tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_a_busy_sessions_answer_goes_out_as_hook_context_once[stop-Stop],tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_several_answers_go_in_one_message,tests/test_hook_delivery.py,,todo,,

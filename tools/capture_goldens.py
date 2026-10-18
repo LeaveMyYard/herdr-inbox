@@ -6,6 +6,10 @@ docs/plans/rust-rewrite.md §5.2) from the running Python code. Nothing in them 
   ``tests/make_screenshots.py`` and ``tests/test_tui.py``; every screen is what Textual's
   compositor sends to the terminal, as runs of ``[text, fg, bg, bold]`` per row (the shape of
   panorama's ``design_*.json`` and ``screens/*.json``; ``null`` is the terminal's default colour).
+- ``tests/fixtures/schema.json``: the schema this code's migration produces (``store._expected_schema``:
+  every table's columns, every index, trigger and view by name). The Rust hooks never migrate; on a
+  database not stamped with this revision they check it against this list, as
+  ``store.schema_missing`` does.
 - ``tests/fixtures/decisions.json`` (item 5, the delivery decision table ``inbox-core::decide``
   must reproduce): the test suite runs in its own pytest with ``tests/decision_recorder.py``,
   which turns on the test-only trace (``herdr_inbox.decision_trace``) and records every delivery
@@ -393,11 +397,38 @@ def capture_decisions(out: Path, work: Path, env: dict, tests: list[str] | None)
     return [path]
 
 
+def capture_schema(out: Path) -> list[Path]:
+    """``store._expected_schema()`` at ``store.MIGRATION_REVISION``, sorted, and the SQL of every
+    object a migration creates, in creation order (the Rust tests build their databases from it)."""
+    import sqlite3
+
+    from herdr_inbox import store
+
+    tables, others = store._expected_schema()
+    db = sqlite3.connect(":memory:")
+    try:
+        store._apply_schema(db)
+        sql = [s for (s,) in db.execute(
+            "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'"
+            " ORDER BY rowid")]
+    finally:
+        db.close()
+    doc = {"source": "store._expected_schema() and store._apply_schema (tools/capture_goldens.py --only schema)",
+           "revision": store.MIGRATION_REVISION,
+           "tables": {name: sorted(cols) for name, cols in sorted(tables.items())},
+           "others": sorted(others),
+           "sql": sql}
+    path = out / "schema.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, indent=1) + "\n")
+    return [path]
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions"), help="one of the two sets")
+    p.add_argument("--only", choices=("screens", "decisions", "schema"), help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
                         "other test drives no traced decision, so the table comes out the same)")
@@ -413,6 +444,8 @@ def main(argv: list[str] | None = None) -> int:
                 rows = json.loads((FIXTURES / "decisions.json").read_text())["rows"]
                 tests = sorted({t for r in rows for t in r["tests"]})
             written += capture_decisions(args.out, work, env, tests)
+        if args.only in (None, "schema"):
+            written += capture_schema(args.out)
         if args.only in (None, "screens"):
             shutil.rmtree(args.out / "screens", ignore_errors=True)
             written += capture_screens(args.out, work)
