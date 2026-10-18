@@ -68,6 +68,8 @@ fn only_the_watchers_wake_code_becomes_claude_codes_exit_2() {
 
 #[test]
 fn every_hook_reaches_the_binary_with_its_own_event() {
+    // each Claude Code hook entry carries its own event name (PostToolBatch and Stop swapped
+    // would deliver from the wrong hook)
     let r = Root::new();
     stand_in(
         &r.data_bin().join("herdr-inbox-1.0.0"),
@@ -76,19 +78,18 @@ fn every_hook_reaches_the_binary_with_its_own_event() {
         1,
         0,
     );
-    let mut seen: Vec<String> = specs()
+    let mut seen: Vec<(String, String)> = specs()
         .iter()
-        .map(|(_, s)| stdout(&run_spec(&r, s)).trim().to_owned())
+        .map(|(event, s)| (event.clone(), stdout(&run_spec(&r, s)).trim().to_owned()))
         .collect();
     seen.sort();
-    assert_eq!(
-        seen,
-        [
-            "bin post-tool-batch",
-            "bin rewake-watch",
-            "bin session-start",
-            "bin stop",
-            "bin subagent-start"
-        ]
-    );
+    let want = [
+        ("PostToolBatch", "bin post-tool-batch"),
+        ("SessionStart", "bin session-start"),
+        ("Stop", "bin rewake-watch"),
+        ("Stop", "bin stop"),
+        ("SubagentStart", "bin subagent-start"),
+    ]
+    .map(|(e, o)| (e.to_owned(), o.to_owned()));
+    assert_eq!(seen, want);
 }
