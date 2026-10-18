@@ -41,11 +41,39 @@ def fake_bin(folder: Path, name: str, code: int, log: Path | None = None) -> Non
     (folder / name).chmod(0o755)
 
 
+_LAUNCH_COPY: list[Path] = []
+
+
+def launch_root(root: Path) -> Path:
+    """``root``, except that the checkout itself is replaced by a copy of its tracked files:
+    scripts/launch prefers ROOT/target/release/herdr-inbox (a linked checkout's own build), and
+    these tests are about the Python hooks the launcher falls back to (review #70 M1)."""
+    if root != ROOT:
+        return root
+    if not _LAUNCH_COPY:
+        import atexit
+        import tempfile
+
+        base = Path(tempfile.mkdtemp(prefix="inbox-launch-"))
+        atexit.register(shutil.rmtree, base, True)
+        _LAUNCH_COPY.append(copy_plugin(base / "plugin"))
+    return _LAUNCH_COPY[0]
+
+
+def hermetic_env(data: Path) -> dict:
+    """The environment for a hook through scripts/launch: no binary of the developer's (a
+    recorded one under the real state dir, or the plugin data dir) can be picked."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("UV_", "VIRTUAL_ENV"))}
+    env.update(CLAUDE_PLUGIN_DATA=str(data), XDG_STATE_HOME=str(Path(data).parent / "launch-xdg-state"))
+    return env
+
+
 def run_hook(event: str, root: Path, data: Path, path_prefix: Path | None = None, payload=None):
     spec = HOOKS[event][0]["hooks"][0]
+    root = launch_root(root)
     expand = lambda v: v.replace("${CLAUDE_PLUGIN_ROOT}", str(root)).replace("${CLAUDE_PLUGIN_DATA}", str(data))
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("UV_", "VIRTUAL_ENV"))}
-    env.update(CLAUDE_PLUGIN_ROOT=str(root), CLAUDE_PLUGIN_DATA=str(data))
+    env = hermetic_env(data)
+    env.update(CLAUDE_PLUGIN_ROOT=str(root))
     if path_prefix:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
     argv = [spec["command"], *(expand(a) for a in spec.get("args", []))]
@@ -77,9 +105,10 @@ def test_a_failing_python_still_exits_0(tmp_path, fake_herdr, event, name):
 
 def test_hook_crash_and_bad_arguments_exit_0(tmp_path, fake_herdr):
     spec = HOOKS["SessionStart"][0]["hooks"][0]
-    args = [a.replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)) for a in spec["args"]]
+    args = [a.replace("${CLAUDE_PLUGIN_ROOT}", str(launch_root(ROOT))) for a in spec["args"]]
     for bad in (args[:-1] + ["no-such-event"], args[:-1]):
-        proc = subprocess.run([spec["command"], *bad], input="not json", capture_output=True, text=True, timeout=30)
+        proc = subprocess.run([spec["command"], *bad], input="not json", capture_output=True, text=True, timeout=30,
+                              env=hermetic_env(tmp_path / "data"))
         assert proc.returncode == 0 and proc.stdout == ""
 
 
@@ -144,10 +173,11 @@ def _launch_until_rules(source: str) -> tuple[float, str]:
     import time
 
     spec = HOOKS["SessionStart"][0]["hooks"][0]
-    argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)) for a in spec["args"])]
+    argv = [spec["command"], *(a.replace("${CLAUDE_PLUGIN_ROOT}", str(launch_root(ROOT))) for a in spec["args"])]
+    env = hermetic_env(Path(os.environ["HERDR_INBOX_DB"]).parent / "launch-data")
     started = time.monotonic()
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
-                            start_new_session=True)
+                            start_new_session=True, env=env)
     proc.stdin.write(json.dumps({"session_id": "s", "source": source, "transcript_path": "/x/s.jsonl"}))
     proc.stdin.close()
     got: list = []

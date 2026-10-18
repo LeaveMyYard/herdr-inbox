@@ -60,6 +60,7 @@ def test_herdr_manifest_required_fields():
     assert {a["id"] for a in m["actions"]} == {"open", "sync-tokens", "radar-sidebar"}
     # GitHub installs run [[build]] before the first popup.
     assert m["build"][0]["command"][:2] == ["uv", "sync"]
+    assert m["build"][1]["command"] == ["sh", "scripts/install-bin.sh"]  # the Rust binary (plan §4 item 3)
 
 
 def test_license_declared_and_present():

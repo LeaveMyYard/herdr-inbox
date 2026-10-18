@@ -25,11 +25,13 @@ def spec(event: str, index: int = 0) -> dict:
 
 
 def argv_of(event: str, index: int = 0, root: Path = ROOT, script: Path | None = None) -> list[str]:
+    """The Python hook as scripts/launch runs it when no Rust binary matches (its fallback:
+    `sh run-hook.sh run.py <event>`), inside hooks.json's own wrapper and exit-code mapping."""
     s = spec(event, index)
-    args = [a.replace("${CLAUDE_PLUGIN_ROOT}", str(root)) for a in s["args"]]
-    if script:
-        args = [str(script) if a.endswith("/hooks/run.py") else a for a in args]
-    return [s["command"], *args]
+    tail = s["args"][1].split("2>/dev/null;", 1)[1]
+    wrapper = 'sh "$1" "$2" "$3" 2>/dev/null;' + tail
+    run_py = str(script) if script else f"{root}/hooks/run.py"
+    return [s["command"], "-c", wrapper, "herdr-inbox-hook", f"{root}/hooks/run-hook.sh", run_py, s["args"][-1]]
 
 
 def tool_bin(tmp_path: Path, python3: str | None = None) -> str:
@@ -85,13 +87,16 @@ def cached(data: Path) -> str:
 
 
 def test_every_hook_goes_through_run_hook_sh():
+    """Every hook runs scripts/launch, behind an always-exit-0 wrapper; with no Rust binary the
+    launcher runs the Python hook through run-hook.sh (argv_of builds exactly that)."""
     for entries in HOOKS.values():
         for entry in entries:
             for h in entry["hooks"]:
                 assert h["command"] == "sh" and h["args"][0] == "-c"
-                assert h["args"][1].startswith('sh "$1" "$2" "$3" 2>/dev/null;') and h["args"][1].endswith("exit 0")
-                assert h["args"][2:5] == ["herdr-inbox-hook", "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh",
-                                          "${CLAUDE_PLUGIN_ROOT}/hooks/run.py"]
+                assert h["args"][1].startswith('sh "$1" hook "$2" 2>/dev/null;') and h["args"][1].endswith("exit 0")
+                assert h["args"][2:4] == ["herdr-inbox-hook", "${CLAUDE_PLUGIN_ROOT}/scripts/launch"]
+    launch = (ROOT / "scripts" / "launch").read_text()
+    assert 'exec sh "$root/hooks/run-hook.sh" "$root/hooks/run.py" "$event"' in launch
 
 
 def test_cold_cache_resolves_once_and_writes_the_real_interpreter(tmp_path, fake_herdr):
