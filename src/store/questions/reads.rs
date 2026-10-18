@@ -24,7 +24,7 @@ impl Store {
             .optional()
     }
 
-    fn questions(&self, sql: &str, args: Vec<Value>) -> rusqlite::Result<Vec<Question>> {
+    pub(crate) fn questions(&self, sql: &str, args: Vec<Value>) -> rusqlite::Result<Vec<Question>> {
         let mut stmt = self.db().prepare(sql)?;
         let rows = stmt.query_map(params_from_iter(args), Question::from_row)?;
         rows.collect()
