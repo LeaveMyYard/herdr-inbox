@@ -63,7 +63,9 @@ pub fn main(event: &str) -> i32 {
     let outcome = run(event, &raw, &env, &Transcripts::from_env());
     if let Some(text) = &outcome.stdout {
         let mut out = std::io::stdout().lock();
-        let _ = writeln!(out, "{text}").and_then(|()| out.flush()); // a closed stdout: nothing to do
+        if writeln!(out, "{text}").and_then(|()| out.flush()).is_err() && outcome.code != 0 {
+            return 0; // never a wake without its text (Python returns 0)
+        }
     }
     if event == "session-start"
         && let Some(payload) = Payload::parse(&raw)
@@ -97,7 +99,19 @@ pub fn run(event: &str, raw: &str, env: &PluginEnv, files: &Transcripts) -> Outc
                 None => return Outcome::nothing(),
             }
         }
-        _ => return Outcome::nothing(), // rewake-watch arrives with the watcher (P2-E)
+        "rewake-watch" => {
+            // asyncRewake: the text itself on stdout, and the wake exit
+            let clock = crate::rewake::SystemClock::new();
+            let watcher = crate::rewake::Watcher::from_env(env, &clock);
+            return match crate::rewake::run(&watcher, &payload) {
+                Some(text) => Outcome {
+                    stdout: Some(text),
+                    code: crate::rewake::WAKE_EXIT,
+                },
+                None => Outcome::nothing(),
+            };
+        }
+        _ => return Outcome::nothing(),
     };
     Outcome {
         stdout: Some(hook_output(name, &context)),
