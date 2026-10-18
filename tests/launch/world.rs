@@ -21,7 +21,13 @@ impl Root {
         let root = dir.path().join("plugin");
         fs::create_dir_all(root.join("scripts")).unwrap();
         fs::create_dir_all(root.join("hooks/fallback")).unwrap();
-        for f in ["scripts/launch", "scripts/install-bin.sh", "scripts/release-lib.sh", "hooks/fallback/session-start.json", "hooks/fallback/subagent-start.json"] {
+        for f in [
+            "scripts/launch",
+            "scripts/install-bin.sh",
+            "scripts/release-lib.sh",
+            "hooks/fallback/session-start.json",
+            "hooks/fallback/subagent-start.json",
+        ] {
             fs::copy(repo().join(f), root.join(f)).unwrap();
         }
         fs::create_dir_all(dir.path().join("data/bin")).unwrap();
@@ -43,7 +49,11 @@ impl Root {
     pub fn with_python(&self) {
         let hooks = self.root().join("hooks");
         fs::write(hooks.join("run.py"), "").unwrap();
-        fs::write(hooks.join("run-hook.sh"), "echo \"python $2\"; cat; exit 3\n").unwrap();
+        fs::write(
+            hooks.join("run-hook.sh"),
+            "echo \"python $2\"; cat; exit 3\n",
+        )
+        .unwrap();
     }
 
     /// `sh <root>/scripts/<script> args…` with stdin, in a clean environment.
@@ -64,7 +74,12 @@ impl Root {
         }
         let mut child = cmd.spawn().unwrap();
         use std::io::Write;
-        child.stdin.take().unwrap().write_all(stdin.as_bytes()).unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(stdin.as_bytes())
+            .unwrap();
         child.wait_with_output().unwrap()
     }
 }
