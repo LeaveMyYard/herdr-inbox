@@ -932,8 +932,8 @@ real musl and darwin binaries.
 
 | Check | herdr 0.9.4 | herdr 0.9.5 |
 |---|---|---|
-| Fresh `herdr plugin install` | passed: one download of the fixed URL (HTTPS only), sha256 checked; `bin/herdr-inbox` and the recorded copy in `$XDG_STATE_HOME/herdr-inbox/bin` match the built binary byte for byte | passed |
-| `herdr plugin update` to a newer commit | passed: `plugin list --json` names a new `plugin_root` and the new commit; the binary is fetched into the new root; the old root stays | passed |
+| Fresh `herdr plugin install` | passed: one download of the fixed URL, sha256 checked (the logged `curl` call carried `--proto =https --proto-redir =https`; the stand-in served the file and did not itself enforce HTTPS); `bin/herdr-inbox` and the recorded copy in `$XDG_STATE_HOME/herdr-inbox/bin` match the built binary byte for byte | passed |
+| `herdr plugin update` to a newer commit | passed: `plugin list --json` names a new `plugin_root` and the new commit; the binary is fetched into the new root. The previous root was still on disk right after the update, while the server ran (herdr removes old installs later: after a later install or update, or at server start, once nothing uses them; not observed in this run) | passed |
 | `min_herdr_version = "0.9.4"`, then update | accepted | accepted |
 | Claude plugin, fresh install in a scratch `CLAUDE_CONFIG_DIR` | passed: the SessionStart hook, run as Claude Code runs it, runs the herdr-recorded binary (exit 0, the rules) | (the same Claude side) |
 | Claude plugin only, no herdr install | passed: the hooks run Python; `launch mcp` fetches the release into `$CLAUDE_PLUGIN_DATA/bin` in the background, and the next hook runs it | |
