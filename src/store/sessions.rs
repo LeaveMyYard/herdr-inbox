@@ -18,7 +18,7 @@ pub fn record_session(
         return Ok(());
     }
     db.execute(
-        "INSERT INTO sessions (session_id, transcript_path) VALUES (?, ?)\
+        "INSERT INTO sessions (session_id, transcript_path) VALUES (?, ?) \
          ON CONFLICT(session_id) DO UPDATE SET transcript_path = excluded.transcript_path",
         params![session_id, path],
     )?;

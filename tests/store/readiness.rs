@@ -99,3 +99,15 @@ fn a_hook_store_never_creates_the_database() {
         .unwrap();
     assert_eq!(n, 0);
 }
+
+#[test]
+fn a_hook_store_waits_its_busy_timeout() {
+    // Python Store(timeout=RECORD_TIMEOUT): SQLite's own busy timeout governs its statements
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), std::time::Duration::from_millis(500)).unwrap();
+    let ms: i64 = store
+        .db()
+        .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(ms, 500);
+}
