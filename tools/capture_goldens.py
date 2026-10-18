@@ -490,7 +490,8 @@ def capture_landed(out: Path) -> list[Path]:
         path = Path(d) / "t.jsonl"
         for text in _landed_texts(qs):
             for record in _landed_records(text):
-                for ts in ("2026-10-17T10:00:05.000Z", "2026-10-17T09:00:00.000Z", None):
+                for ts in ("2026-10-17T10:00:05.000Z", "2026-10-17T10:00:00.000Z", "2026-10-17T09:59:59.900Z",
+                           "2026-10-17T09:00:00.000Z", "1000000000", None):
                     rec = dict(record, **({"timestamp": ts} if ts else {}))
                     line = json.dumps(rec, ensure_ascii=False)
                     path.write_text(line + "\n")
