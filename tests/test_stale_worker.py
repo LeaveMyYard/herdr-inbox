@@ -58,6 +58,18 @@ def test_the_marker_never_lowers_a_fresh_higher_revision_and_expires(tmp_path):
     assert rw.wanted(tmp_path / "other.db") is None, "another database's marker is not this one's"
 
 
+def test_the_shared_vectors_read_as_in_rust(tmp_path):
+    """#75 review L2: Python reads every marker text as src/store/revision_wanted.rs does."""
+    import json
+    from pathlib import Path
+
+    doc = json.loads((Path(__file__).parent / "vectors" / "revision_wanted.json").read_text())
+    db = tmp_path / "inbox.db"
+    for case in doc["cases"]:
+        rw.path_for(db).write_text(case["text"])
+        assert rw.wanted(db, now=case["now"]) == case["wanted"], case
+
+
 # -- the holder and the standby ---------------------------------------------------------------
 
 def test_holder_revision_is_the_live_holders_or_1(tmp_path):
@@ -65,8 +77,21 @@ def test_holder_revision_is_the_live_holders_or_1(tmp_path):
     assert wh.holder_revision(lk) == 1, "a worker from before the record"
     wh.write_holder(lk, 3)
     assert wh.holder_revision(lk) == 3
-    (tmp_path / "worker-x.lock.holder").write_text("3 999999999\n")
+    (tmp_path / "worker-x.lock.holder").write_text(f"3 999999999 {wh.start_time(os.getpid())}\n")
     assert wh.holder_revision(lk) == 1, "its process is gone"
+    (tmp_path / "worker-x.lock.holder").write_text(f"3 {os.getpid()} 12345\n")
+    assert wh.holder_revision(lk) == 1, "#75 review L4: its pid is another (later) process's now"
+    assert wh.start_time(os.getpid()) not in ("", "-"), "readable here"
+
+
+def test_a_holder_clears_its_own_record_only(tmp_path):
+    lk = tmp_path / "worker-x.lock"
+    wh.write_holder(lk, 3)
+    wh.clear_holder(lk)
+    assert not (tmp_path / "worker-x.lock.holder").exists()
+    (tmp_path / "worker-x.lock.holder").write_text(f"3 {os.getppid()} -\n")
+    wh.clear_holder(lk)
+    assert (tmp_path / "worker-x.lock.holder").exists(), "another process's"
 
 
 def test_a_standby_counts_while_alive_and_fresh(tmp_path):
@@ -83,25 +108,54 @@ def test_a_standby_counts_while_alive_and_fresh(tmp_path):
 def test_a_standby_takes_the_lock_once_free_and_cleans_up(tmp_path):
     lk = tmp_path / "worker-x.lock"
     tries = []
-    t = [0.0]
+    clock = FakeClock()
 
     def take():
         tries.append(1)
         return "LOCK" if len(tries) == 30 else None
 
-    def sleep(s):
-        t[0] += s
-
-    assert wh.wait_as_standby(lk, 2, take, clock=lambda: t[0], sleep=sleep) == "LOCK"
+    assert wh.wait_as_standby(lk, 2, take, clock=clock, sleep=clock.sleep) == "LOCK"
     assert not (tmp_path / "worker-x.lock.standby").exists(), "its record goes with it"
+
+
+class FakeClock:
+    """Time that passes only when slept: a wait under a mutant ends at STANDBY_MAX at once."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+    def sleep(self, s):
+        self.t += s
 
 
 def test_one_standby_is_enough(tmp_path):
     lk = tmp_path / "worker-x.lock"
     other = os.getppid()  # alive, not us
     (tmp_path / "worker-x.lock.standby").write_text(f"2 {other} {time.time():.3f}\n")
-    assert wh.wait_as_standby(lk, 2, lambda: None, sleep=lambda s: None) is None
+    clock = FakeClock()
+    assert wh.wait_as_standby(lk, 2, lambda: None, clock=clock, sleep=clock.sleep) is None
+    assert clock.t < 1, "left at once"
     assert (tmp_path / "worker-x.lock.standby").read_text().split()[1] == str(other), "never removes another's record"
+
+
+def test_a_standby_leaves_once_a_holder_of_its_revision_has_the_lock(tmp_path):
+    """#75 review L1: a second newer worker won the lock in the handover window."""
+    lk = tmp_path / "worker-x.lock"
+    clock = FakeClock()
+    seen = []
+
+    def take():
+        seen.append(clock.t)
+        if len(seen) == 15:
+            (tmp_path / "worker-x.lock.holder").write_text(f"2 {os.getppid()} {wh.start_time(os.getppid())}\n")
+        return None
+
+    assert wh.wait_as_standby(lk, 2, take, clock=clock, sleep=clock.sleep) is None
+    assert clock.t < 3, "within a heartbeat or two"
+    assert not (tmp_path / "worker-x.lock.standby").exists()
 
 
 # -- the holder's side ------------------------------------------------------------------------
@@ -142,7 +196,7 @@ def test_ensure_starts_a_standby_only_for_an_older_holder(migrated_db, monkeypat
         wh.write_holder(lock(), 2)
         assert worker.ensure() is False and spawned == [], "the holder is this revision"
         wh.write_holder(lock(), 1)
-        assert worker.ensure() is True and spawned[-1][-2:] == ["herdr_inbox.cli", "worker"]
+        assert worker.ensure() is True and spawned[-1] == worker.python_worker_argv(worker._package_src())
         wh._standby_path(lock()).write_text(f"2 {os.getppid()} {time.time():.3f}\n")
         assert worker.ensure() is False and len(spawned) == 1, "one stands by already"
     finally:
@@ -163,3 +217,17 @@ def test_a_tool_on_a_not_migrated_db_keeps_asking_for_its_worker_longer_than_a_t
     assert tool() == dict(server.service.NOT_MIGRATED)
     assert len(ensured) == len(server.NOT_READY_BACKOFF) + 1, "every attempt"
     assert sum(slept) > worker.TICK + 2, "longer than a tick plus a handover"
+
+
+def test_a_worker_without_package_metadata_knows_its_version(monkeypatch):
+    """A hook starts the worker from an install's src under the system python3: no metadata,
+    yet it must see an update (version handover) like any other worker."""
+    import importlib.metadata
+    from pathlib import Path
+
+    def missing(name):
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", missing)
+    pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    assert worker.running_version() == pyproject.split('version = "')[1].split('"')[0]

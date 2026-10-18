@@ -36,10 +36,20 @@ def path_for(db: Path) -> Path:
     return db.with_name(db.name + SUFFIX)
 
 
-def _read(path: Path) -> tuple[int, float] | None:
+def _digits(text: str) -> int:
+    """A non-negative integer in ASCII digits only (``int()`` also takes ``_``, signs, other
+    scripts' digits; the Rust reader does not): ValueError otherwise."""
+    if not (text.isascii() and text.isdigit()) or int(text) >= 2**63:  # Rust reads an i64
+        raise ValueError(text)
+    return int(text)
+
+
+def _read(path: Path) -> tuple[int, int] | None:
+    """``<revision> <unix seconds>``, both plain ASCII digits (tests/vectors/revision_wanted.json,
+    shared with src/store/revision_wanted.rs)."""
     try:
         revision, written = path.read_text().split()
-        return int(revision), float(written)
+        return _digits(revision), _digits(written)
     except (OSError, ValueError):
         return None
 

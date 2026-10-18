@@ -6,12 +6,15 @@ failed, or it never sees the update). The newer revision must take over WITHOUT 
 nobody delivers, so the older worker never just exits: it hands over to a newer worker that is
 already alive and waiting.
 
-- **Holder record** ``worker-<key>.lock.holder``: ``<revision> <pid>``, written by the worker that
-  holds the lock. A worker from before this record (0.10.6 and older) is revision 1.
+- **Holder record** ``worker-<key>.lock.holder``: ``<revision> <pid> <start>``, written by the
+  worker that holds the lock and removed when it lets go; ``<start>`` is the process's start time
+  as the OS reports it (``-`` where it cannot be read), so a reused pid never passes for the
+  holder. A worker from before this record (0.10.6 and older) is revision 1.
 - **Standby** ``worker-<key>.lock.standby``: ``<revision> <pid> <unix seconds>``. A worker that
   cannot get the lock and has a HIGHER revision than the holder stands by: it rewrites this
   record every STANDBY_HEARTBEAT and retries the lock every STANDBY_POLL, for at most
-  STANDBY_MAX. A standby of an equal or higher revision already waiting means it is not needed.
+  STANDBY_MAX. It leaves when another standby of an equal or higher revision waits, or when the
+  lock's holder is already of its revision or higher (a second newer worker won the lock).
 - **The holder hands over** at the start of each loop iteration when a live standby (fresh
   heartbeat, process alive) has a higher revision than its own: it releases the lock and returns;
   the standby takes the lock within STANDBY_POLL. An older worker that grabs the lock meanwhile
@@ -36,6 +39,7 @@ STANDBY_HEARTBEAT = 1.0
 STANDBY_FRESH = 10.0  # a heartbeat older than this: the standby is gone
 STANDBY_MAX = 1800.0
 SPAWN_EVERY = 60.0  # the holder starts a successor for a revision-wanted marker at most this often
+STANDBY_MAX_ENV = "HERDR_INBOX_STANDBY_MAX"  # tests: a shorter wait
 
 
 def _holder_path(lock: Path) -> Path:
@@ -70,17 +74,45 @@ def _write(path: Path, text: str) -> None:
             pass
 
 
+def start_time(pid: int) -> str:
+    """When process ``pid`` started, as an opaque token ("-" when it cannot be read): Linux
+    /proc/<pid>/stat field 22, elsewhere ``ps -o lstart=``."""
+    try:
+        with open(f"/proc/{pid}/stat", "rb") as fh:
+            stat = fh.read()
+        return stat[stat.rindex(b")") + 2:].split()[19].decode()
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        import subprocess
+
+        out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
+                             timeout=5).stdout
+        return "_".join(out.split()) or "-"
+    except (OSError, subprocess.SubprocessError):
+        return "-"
+
+
 def write_holder(lock: Path, revision: int) -> None:
     """This process holds ``lock`` and runs ``revision``."""
-    _write(_holder_path(lock), f"{revision} {os.getpid()}\n")
+    _write(_holder_path(lock), f"{revision} {os.getpid()} {start_time(os.getpid())}\n")
+
+
+def clear_holder(lock: Path) -> None:
+    """This process lets go of ``lock``: its record goes (never another's)."""
+    try:
+        if _holder_path(lock).read_text().split()[1] == str(os.getpid()):
+            _holder_path(lock).unlink()
+    except (OSError, IndexError):
+        pass
 
 
 def holder_revision(lock: Path) -> int:
-    """The revision of the worker holding ``lock``: its record while that process lives, else 1 (a
-    worker from before the record)."""
+    """The revision of the worker holding ``lock``: its record while that process lives (same pid,
+    same start time), else 1 (a worker from before the record)."""
     try:
-        revision, pid = _holder_path(lock).read_text().split()
-        if _alive(int(pid)):
+        revision, pid, started = _holder_path(lock).read_text().split()
+        if _alive(int(pid)) and (started == "-" or started == start_time(int(pid))):
             return int(revision)
     except (OSError, ValueError):
         pass
@@ -102,9 +134,9 @@ def live_standby(lock: Path, now: float | None = None) -> tuple[int, int] | None
 
 def wait_as_standby(lock: Path, revision: int, take, clock=time.monotonic, sleep=time.sleep):
     """Stand by for ``lock`` as a worker of ``revision``: ``take()`` returns the lock or None.
-    Returns the lock once taken, or None (STANDBY_MAX passed, or another standby of an equal or
-    higher revision is waiting)."""
-    deadline = clock() + STANDBY_MAX
+    Returns the lock once taken, or None (STANDBY_MAX passed, another standby of an equal or
+    higher revision is waiting, or the holder is of this revision or higher)."""
+    deadline = clock() + float(os.environ.get(STANDBY_MAX_ENV) or STANDBY_MAX)
     last_beat = None
     path = _standby_path(lock)
     try:
@@ -116,6 +148,9 @@ def wait_as_standby(lock: Path, revision: int, take, clock=time.monotonic, sleep
             if other is not None and other[1] != os.getpid() and other[0] >= revision:
                 return None  # one standby is enough
             if last_beat is None or clock() - last_beat >= STANDBY_HEARTBEAT:
+                # once a heartbeat: reading the holder's start time may run ps (macOS)
+                if holder_revision(lock) >= revision:
+                    return None  # a worker of this revision or newer won the lock: nothing to wait for
                 _write(path, f"{revision} {os.getpid()} {time.time():.3f}\n")
                 last_beat = clock()
             sleep(STANDBY_POLL)
