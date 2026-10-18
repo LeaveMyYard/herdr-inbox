@@ -48,7 +48,7 @@ def decision_difference(want: dict, got: dict) -> str:
     return "decision rows differ:\n" + "\n".join(lines) if lines else "header differs"
 
 
-@pytest.mark.parametrize("kind", ["screens", "decisions", "schema", "landed"])
+@pytest.mark.parametrize("kind", ["screens", "decisions", "schema", "landed", "store"])
 def test_the_goldens_are_what_the_code_does(tmp_path, kind):
     env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
     extra = ["--golden-tests"] if kind == "decisions" else []
@@ -69,6 +69,10 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
     if kind == "landed":  # the Rust landing check replays it (src/claude/landed)
         assert (FIX / "landed.json").read_text() == (tmp_path / "landed.json").read_text(), (
             "transcript.landed_kinds changed: if deliberate, uv run python tools/capture_goldens.py --only landed")
+        return
+    if kind == "store":  # the Rust question store replays it (tests/store/questions_golden.rs)
+        assert (FIX / "store-questions.json").read_text() == (tmp_path / "store-questions.json").read_text(), (
+            "a Store question read or write changed: if deliberate, uv run python tools/capture_goldens.py --only store")
         return
     want = sorted(p.name for p in (FIX / kind).glob("*.json"))
     got = sorted(p.name for p in (tmp_path / kind).glob("*.json"))
