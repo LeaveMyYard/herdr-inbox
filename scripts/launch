@@ -19,7 +19,13 @@
 # ${CLAUDE_PLUGIN_DATA}/bin when nothing matches (in the background, checksum checked), so the
 # hooks find it from then on, and starts the MCP server (Python until P5).
 #
-# Prints nothing of its own and reads no stdin: the hook payload goes to the hook.
+# Prints nothing of its own and reads no stdin: the hook payload goes to the hook. The exit
+# codes stay the hooks.json wrapper's job (`2>/dev/null; exit 0`, and for the rewake watcher
+# `[ $? -eq 3 ] && exit 2`): the launcher passes the hook's 0 or 3 through.
+#
+# The candidates are the release binaries install-bin.sh and the MCP launch verified, or the
+# linked checkout's own build; a candidate that hangs on `contract` would hold the hook until
+# Claude Code's timeout (none of these do).
 CONTRACT=1
 
 root=$(cd "$(dirname "$0")/.." && pwd) || exit 0
@@ -35,7 +41,7 @@ versions() {
 			case $v in
 			*[!0-9.]* | .* | *.) continue ;;
 			esac
-			echo "$v" | awk -F. -v p="$f" 'NF == 3 { printf "%d\t%d\t%d\t%s\n", $1, $2, $3, p }'
+			printf '%s\t%s\n' "$v" "$f" | awk -F '\t' '{ n = split($1, v, "."); if (n == 3) printf "%d\t%d\t%d\t%s\n", v[1], v[2], v[3], $2 }'
 		done
 	done | sort -t "$tab" -k1,1nr -k2,2nr -k3,3nr
 }
@@ -65,9 +71,13 @@ hook)
 	if [ -f "$root/hooks/run.py" ]; then
 		exec sh "$root/hooks/run-hook.sh" "$root/hooks/run.py" "$event"
 	fi
-	case $event in
-	session-start | subagent-start) cat "$root/hooks/fallback/$event.json" 2>/dev/null ;;
-	esac
+	# the static rules, under the hooks' first gate: only the agent of a herdr pane gets the inbox
+	# (a Claude nested in another inherits HERDR_PANE_ID; only the binary or Python can tell)
+	if [ -n "${HERDR_PANE_ID:-}" ]; then
+		case $event in
+		session-start | subagent-start) cat "$root/hooks/fallback/$event.json" 2>/dev/null ;;
+		esac
+	fi
 	exit 0
 	;;
 mcp)
@@ -76,7 +86,8 @@ mcp)
 		. "$root/scripts/release-lib.sh"
 		tag=$(inbox_release_value "$root/release.toml" tag)
 		if [ -n "$tag" ]; then
-			(inbox_fetch "$root/release.toml" "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}") </dev/null >/dev/null 2>&1 &
+			# in the background, detached (double fork: init reaps it, not the MCP server)
+			( (inbox_fetch "$root/release.toml" "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}") </dev/null >/dev/null 2>&1 &)
 		fi
 	fi
 	exec uv run --quiet --frozen --no-dev --project "$root" inbox mcp

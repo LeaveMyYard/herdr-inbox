@@ -2,7 +2,8 @@
 # The release flow is plan §4 (herdr-panorama docs/plans/rust-rewrite.md): release.toml names
 # the release to fetch and the sha256 of each target's tarball.
 
-INBOX_REPO=${HERDR_INBOX_RELEASE_REPO:-LeaveMyYard/herdr-inbox}
+# Fixed, HTTPS only: never taken from the environment.
+INBOX_RELEASES=https://github.com/LeaveMyYard/herdr-inbox/releases/download
 
 # The release target of this machine, or nothing (an unsupported one).
 inbox_target() {
@@ -36,7 +37,8 @@ inbox_version_of() {
 # inbox_fetch <release.toml> <dest binary>: download this machine's tarball of the release,
 # check it against release.toml's sha256, and move the binary into <dest> atomically.
 # Returns 1 when there is nothing to fetch (no release.toml, no tag, an unsupported target),
-# 2 when the download fails, 3 when the checksum does not match (the file is discarded).
+# 2 when the download fails, 3 when the checksum does not match, 4 when no sha256 tool exists
+# (nothing can be verified, so nothing is installed); a failed fetch leaves no file behind.
 inbox_fetch() {
 	_toml=$1
 	_dest=$2
@@ -46,15 +48,20 @@ inbox_fetch() {
 	[ -n "$_tag" ] && [ -n "$_target" ] || return 1
 	_want=$(inbox_release_value "$_toml" "$_target")
 	[ -n "$_want" ] || return 1
-	_base=${HERDR_INBOX_RELEASE_BASE:-https://github.com/$INBOX_REPO/releases/download}
 	_dir=$(dirname "$_dest")
 	mkdir -p "$_dir" || return 2
 	_tmp=$(mktemp -d "$_dir/.fetch.XXXXXX") || return 2
-	if ! curl -fsSL --retry 2 -o "$_tmp/t.tar.gz" "$_base/$_tag/herdr-inbox-$_tag-$_target.tar.gz"; then
+	if ! curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 300 --retry 2 \
+		-o "$_tmp/t.tar.gz" "$INBOX_RELEASES/$_tag/herdr-inbox-$_tag-$_target.tar.gz"; then
 		rm -rf "$_tmp"
 		return 2
 	fi
-	if [ "$(inbox_sha256 "$_tmp/t.tar.gz")" != "$_want" ]; then
+	_got=$(inbox_sha256 "$_tmp/t.tar.gz")
+	if [ -z "$_got" ]; then
+		rm -rf "$_tmp"
+		return 4
+	fi
+	if [ "$_got" != "$_want" ]; then
 		rm -rf "$_tmp"
 		return 3
 	fi
