@@ -170,3 +170,50 @@ fn no_asset_for_this_machine_builds_where_cargo_builds_or_stays_python() {
     );
     assert!(r.state_bin().join("herdr-inbox-0.0.7").is_file());
 }
+
+#[test]
+fn an_update_replaces_the_binary_by_rename_never_in_place() {
+    // a running binary keeps its inode: another name for the old file still shows the old one
+    let r = Root::new();
+    let sha = publish(&r, "0.11.0");
+    release_toml(&r, "0.11.0", &sha);
+    let bin = r.root().join("bin/herdr-inbox");
+    fs::create_dir_all(bin.parent().unwrap()).unwrap();
+    fs::write(&bin, "old binary").unwrap();
+    let running = r.dir.path().join("running");
+    fs::hard_link(&bin, &running).unwrap();
+    assert_eq!(install(&r, &[]).0, Some(0));
+    assert_eq!(fs::read_to_string(&running).unwrap(), "old binary");
+    assert_eq!(
+        stdout(&Command::new(&bin).output().unwrap()),
+        "herdr-inbox 0.11.0\n"
+    );
+}
+
+#[test]
+fn no_home_and_no_state_dir_still_exits_0() {
+    let r = Root::new();
+    let sha = publish(&r, "0.11.0");
+    release_toml(&r, "0.11.0", &sha);
+    let path = format!(
+        "{}:{}",
+        r.dir.path().join("tools").display(),
+        std::env::var("PATH").unwrap()
+    );
+    let out = Command::new("sh")
+        .arg(r.root().join("scripts/install-bin.sh"))
+        .env_clear()
+        .env("PATH", path)
+        .env("FAKE_RELEASES", r.releases())
+        .env("FAKE_LOG", r.dir.path().join("tools.log"))
+        .output()
+        .unwrap();
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(r.root().join("bin/herdr-inbox").is_file());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("not recorded"));
+}

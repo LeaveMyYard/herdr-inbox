@@ -168,3 +168,43 @@ fn without_a_binary_the_python_hooks_run_then_the_static_rules() {
     let out = bare.sh("launch", &[], "", &[]);
     assert_eq!((out.status.code(), stdout(&out).as_str()), (Some(0), ""));
 }
+
+#[test]
+fn a_directory_with_a_backslash_still_runs_its_binary() {
+    // dash's echo would turn `\b` into a backspace: the exec would miss and the hook be lost
+    let r = Root::new();
+    let data = r.dir.path().join("da\\bta");
+    stand_in(
+        &data.join("bin/herdr-inbox-1.0.0"),
+        "slashed",
+        "1.0.0",
+        1,
+        0,
+    );
+    let out = r.sh(
+        "launch",
+        &["hook", "stop"],
+        "{}",
+        &[("CLAUDE_PLUGIN_DATA", &data)],
+    );
+    assert_eq!(
+        (out.status.code(), stdout(&out).as_str()),
+        (Some(0), "slashed stop\n{}")
+    );
+}
+
+#[test]
+fn the_linked_builds_probe_never_reads_the_hooks_payload() {
+    let r = Root::new();
+    stand_in(
+        &r.root().join("target/release/herdr-inbox"),
+        "dev",
+        "0.1.0",
+        1,
+        0,
+    );
+    assert_eq!(
+        stdout(&r.sh("launch", &["hook", "stop"], "{\"p\":1}", &[])),
+        "dev stop\n{\"p\":1}"
+    );
+}
