@@ -923,6 +923,168 @@ STORE_ALERT_OPS = [
     ("insert", {"question": "Open only", "session_id": "66666666-0000-4000-8000-000000000006", "pane_id": "w1:p6"}),
     ("sessions_in_play", {}),  # an open question alone puts its session in play
 ]
+# The remote mirror (remote.py, the puller's side). ``pull`` runs remote.pull with its ssh stubbed:
+# ``paths_error`` makes the paths probe fail, ``code``/``stdout``/``stderr`` are what the export call
+# returns (``export`` is turned into its JSON), ``now`` is remote._now() in unix seconds. The
+# call's cursor and full flag and every notification are recorded as the step's ``effects``.
+_T0 = 978307200  # 2001-01-01T00:00:00+00:00
+_DBA, _DBB = "a" * 32, "b" * 32
+_M1 = {"id": "m1", "label": "box", "target": "box.lan"}
+_M2 = {"id": "m2", "label": None, "target": "other.lan"}
+_NV = "not verified: herdr accepted the text but it never reached the conversation"
+
+
+def _rq(i, status="open", group=None, **kw):
+    row = {"id": i, "qkey": f"{i:08x}", "group": i if group is None else group, "status": status,
+           "question": f"Question {i}?\nsecond line", "options": ["yes", "no"]}
+    row.update(kw)
+    return row
+
+
+def _ra(i, status="open", **kw):
+    a = {"id": i, "akey": f"{i:08x}aa", "status": status, "kind": "agent", "severity": "warning",
+         "title": f"Alert {i}", "tab_label": "web", "created_at": "2001-01-01T00:00:00+00:00"}
+    a.update(kw)
+    return a
+
+
+def _ex(db, seq, questions, full=False, ids=None, gone=None, alerts=None, **kw):
+    out = {"version": "0.10.6", "format": 1, "db_id": db, "seq": seq, "full": full, "questions": questions}
+    if ids is not None:
+        out["ids"] = ids
+    if gone is not None:
+        out["gone"] = gone
+    if alerts is not None:
+        out["alerts"] = alerts
+    out.update(kw)
+    return out
+
+
+STORE_MIRROR_OPS = [
+    ("pull", {"machine": _M1, "now": _T0, "paths_error": "uv/herdr not found on the remote"}),
+    ("pull", {"machine": _M1, "now": _T0 + 1}),  # backing off: no call
+    ("pull", {"machine": _M1, "now": _T0 + 6, "code": 2}),  # no `export` there
+    ("pull", {"machine": _M1, "now": _T0 + 20, "code": 255, "stderr": "  ssh: connect refused\n"}),
+    ("pull", {"machine": _M1, "now": _T0 + 60, "code": 1, "stderr": "  "}),
+    ("pull", {"machine": _M1, "now": _T0 + 200, "export": {**_ex(_DBA, 1, []), "format": 2, "version": "0.11.0"}}),
+    ("pull", {"machine": _M1, "now": _T0 + 400, "export": _ex("XYZ", 1, [])}),  # bad header
+    ("pull", {"machine": _M1, "now": _T0 + 800, "export": _ex(_DBA, 5, [
+        _rq(1, group=1, tab_label="api"),
+        _rq(2, "answered", delivery_error=_NV + " (2 tries)", delivery_attempts=2, answer="eu"),
+        _rq(3, group=1, pane_id="w1:p3"),
+        _rq(4, pane_id="w1:p4", tab_label=""),
+        _rq(6, "answered", agent_gone=True),
+        _rq(7, "answered", delivery_error=_NV, delivery_attempts=1),
+        {**_rq(8), "qkey": "NOT-HEX"},
+    ], full=True, ids=[1, 2, 3, 4, 6, 7], alerts=[_ra(1), _ra(2, "acked")])}),
+    ("open_groups", {}),
+    ("open_alerts", {}),
+    ("alert_by_key", {"key": "m1|1"}),
+    ("alert_by_key", {"key": "m1|2"}),  # acked: not open
+    ("group_by_key", {"key": f"m1|{_DBA}|1"}),
+    ("group_by_key", {"key": f"m1|{_DBA}|99"}),
+    ("problem_rows", {}),
+    ("sql", {"sql": "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at,"
+                    " expires_at, state) VALUES ('r1', 'm1', ?, 3, '00000003', 'answer', ?, ?, 'queued'),"
+                    " ('r2', 'm1', ?, 1, '00000001aa', 'ack_alert', ?, ?, 'queued'),"
+                    " ('r3', 'm1', ?, 4, '00000004', 'hide', ?, ?, 'queued')",
+             "params": [_DBA, STORE_FIXED, STORE_FIXED] * 3}),
+    ("pull", {"machine": _M1, "now": _T0 + 801, "export": _ex(_DBA, 9, [
+        _rq(1, "answered", group=1, tab_label="api", answer="yes"),
+        _rq(5, group=5, tab_label="db"),
+        _rq(7, "answered", delivery_error=_NV, delivery_attempts=2),  # now a problem
+    ], gone=[4], alerts=[_ra(1), _ra(3, kind="blocked", severity="urgent", tab_label=None)])}),
+    ("open_groups", {}),  # 3 has an answer queued here
+    ("open_alerts", {}),  # 1 is being acknowledged: shown acked
+    ("problem_rows", {}),
+    ("clear_problem", {"machine_id": "m1", "remote_id": 2, "now": _T0 + 802}),
+    ("problem_rows", {}),
+    ("notify_problems", {"machine_id": "m1", "label": "box", "now": _T0 + 802}),  # each once
+    ("sql", {"sql": "UPDATE remote_machines SET pulls = 60 WHERE machine_id = 'm1'", "params": []}),
+    ("pull", {"machine": _M1, "now": _T0 + 803, "export": _ex(_DBA, 10, [], full=True, ids=[1, 2, 3])}),
+    ("pull", {"machine": _M1, "now": _T0 + 804, "export": _ex(_DBB, 1, [_rq(1, tab_label="new")])}),  # reset
+    ("pull", {"machine": {**_M1, "label": ""}, "now": _T0 + 805, "export": _ex(_DBB, 2, [_rq(2)])}),  # no label
+    ("pull", {"machine": _M2, "now": _T0 + 806, "export": _ex("c" * 32, 3, [_rq(1, tab_label="x")], full=True,
+                                                                ids=[1], alerts=[_ra(9, tab_label=None)])}),
+    ("open_alerts", {}),  # m2 (no label) sorts first
+    ("open_groups", {}),
+    ("alert_by_key", {"key": "m2|9"}),
+    # one step per remaining predicate (#83's rule, applied before review)
+    ("alert_by_key", {"key": "m1|9"}),  # m2's alert 9, not m1's
+    ("pull", {"machine": {"id": "m4", "label": "four", "target": "t4"}, "now": _T0 + 900,
+              "paths_error": "probe failed"}),
+    ("pull", {"machine": {"id": "m4", "label": "four", "target": "t4"}, "now": _T0 + 905,  # exactly backoff_until
+              "export": _ex("d" * 32, 1, [{**_rq(1), "id": True}], full=True, ids=[1])}),  # a bool id: QTrue
+    ("sql", {"sql": "UPDATE remote_machines SET db_id = '', pulls = 5 WHERE machine_id = 'm2'", "params": []}),
+    ("pull", {"machine": _M2, "now": _T0 + 906, "export": _ex("c" * 32, 4, [  # '' is no cursor: a full pull
+        _rq(1, tab_label="x"), _rq(2, "answered", delivery_error="herdr: down", delivery_attempts=5),
+        _rq(3, "answered", delivery_error=_NV, delivery_attempts=3)], full=True, ids=[1, 2, 3],
+        alerts=[_ra(9, tab_label=None)])}),
+    ("sql", {"sql": "UPDATE remote_questions SET issue_notified_at = NULL WHERE machine_id = 'm2'", "params": []}),
+    ("notify_problems", {"machine_id": "m1", "label": "box", "now": _T0 + 907}),  # m2's are not m1's
+    ("sql", {"sql": "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at,"
+                    " expires_at, state) VALUES ('r4', 'm1', ?, 2, '00000002', 'dismiss', ?, ?, 'queued'),"
+                    " ('r5', 'm1', ?, 7, '00000007', 'answer', ?, ?, 'done'),"
+                    " ('r6', 'm1', ?, 3, '00000003aa', 'ack_alert', ?, ?, 'done'),"
+                    " ('r7', 'm1', ?, 4, '00000004aa', 'ack_alert', ?, ?, 'queued')",
+             "params": [_DBB, STORE_FIXED, STORE_FIXED] * 4}),
+    ("pull", {"machine": {**_M1, "label": ""}, "now": _T0 + 908, "export": _ex(_DBB, 3, [
+        _rq(1, tab_label="new"), _rq(2), _rq(7), _rq(8, "answered", delivery_error=_NV, delivery_attempts=2)],
+        alerts=[_ra(3), _ra(4, "withdrawn")])}),  # 1 seen again: no notice; 2 and 7 queued/done here
+    ("open_groups", {}),
+    ("open_alerts", {}),
+    ("problem_rows", {}),  # m1 has no label now: its id names it
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m1', ?, 50, '00000032', 'open', ?, ?)",
+             "params": ["e" * 32, '{"id": 50, "group": 1, "status": "open", "question": "Other db?"}', STORE_FIXED]}),
+    ("open_groups", {}),  # group 1 of another db_id is another group
+    ("pull", {"machine": {**_M1, "label": ""}, "now": _T0 + 909, "export": _ex("f" * 32, 1, [])}),  # reset: r4, r7 fail
+    ("pull", {"machine": {**_M1, "label": ""}, "now": _T0 + 910, "export": _ex("0" * 32, 1, [])}),  # reset, nothing queued
+]
+# What validate_export makes of exports (the rows it keeps, cleaned, or the error it raises).
+_VROW = {"id": 1, "qkey": "0123abcd", "group": 1, "status": "open", "question": "Q?"}
+STORE_EXPORT_VECTORS = [
+    _ex(_DBA, 1, [_VROW]),
+    _ex(_DBA, 1, [{**_VROW, "question": "a b\x07c‮d\x85e" + "x" * 5000, "header": "h" * 99,
+                   "tab_label": "t ", "options": ["a", {"label": "b", "description": 5, "preview": "p"},
+                                                      {"label": "c\x1b", "description": "d" * 600}],
+                   "multi_select": 1, "hidden": "", "agent_gone": [0], "delivery_attempts": True}]),
+    _ex(_DBA, 1, [{**_VROW, "id": True, "group": False, "delivery_attempts": -1},
+                  {**_VROW, "id": 2, "delivery_attempts": 10_000}, {**_VROW, "id": 3, "delivery_attempts": 9999}]),
+    _ex(_DBA, 1, [{**_VROW, "options": ["o"] * 10}, {**_VROW, "id": 2, "options": [1]},
+                  {**_VROW, "id": 3, "options": "abc"}, {**_VROW, "id": 4, "options": 0},
+                  {**_VROW, "id": 5, "options": [{"label": 3}]}, {**_VROW, "id": 6, "status": "gone"},
+                  {**_VROW, "id": 7, "question": ""}, {**_VROW, "id": 8, "qkey": "abc"},
+                  {**_VROW, "id": 9, "qkey": "A" * 8}, {**_VROW, "id": 10, "header": 5}, [1],
+                  {**_VROW, "id": "11"}, {**_VROW, "id": 12, "group": None}, {**_VROW, "id": 13, "qkey": "f" * 65}]),
+    _ex(_DBA, 1, [], alerts=[_ra(1, kind="other", severity="loud", title="", message="m\nx"), "x",
+                            _ra(2, akey="ZZZZZZZZ"), _ra(3, status="bogus"), {**_ra(4), "id": "4"},
+                            _ra(5, tab_label="t" * 200, pane_id="p" * 100)]),
+    _ex(_DBA, 1, [], alerts=[_ra(1, title=5)]),  # a non-string title: the whole export is refused
+    _ex(_DBA, 1, [], alerts="many"),
+    _ex(_DBA, 1, [], full=True),
+    _ex(_DBA, 1, [], full=True, ids=[1, "2"]),
+    _ex(_DBA, 1, [], full=1, ids=[1, True]),
+    _ex(_DBA, 1, [], gone=[1, 2.5]),
+    _ex(_DBA, 1, [], gone=0, ids="whatever"),
+    _ex(_DBA, True, []),
+    _ex(_DBA, 1.0, []),
+    _ex(_DBA, 1, "rows"),
+    _ex(_DBA, 1, [0] * 1001),  # more than 1000 rows: refused before any is read
+    {**_ex(_DBA, 1, []), "format": 1.0, "version": None},
+    {**_ex(_DBA, 1, []), "format": "1"},
+    {**_ex(_DBA, 1, []), "format": True},  # True == 1 in Python
+    {**_ex(_DBA, 1, []), "format": None, "version": 12},
+    {k: v for k, v in _ex(_DBA, 1, []).items() if k != "format"},
+    [1, 2],
+    _ex(_DBA, 1, [{**_VROW, "question": "a\x00b\x08c\x0bd\x0ce\x1ff\x7fg\x9fh\u200ei\u200fj\u2066k\u2069l\x09m\x0an"}]),
+    _ex(_DBA, 1, [{**_VROW, "options": [{"description": "no label"}]}]),
+    _ex(_DBA, 1, [], alerts=[_ra(1, akey="a" * 64), _ra(2, akey="a" * 65), _ra(3, akey="a" * 7)]),
+    _ex(_DBA, 1, [], full=None, gone=None),
+    _ex(_DBA, 1, [], full=[], gone=[]),
+    _ex(_DBA, 1, [], alerts=[0] * 1000 + [_ra(1)]),  # only the first 1000 entries are looked at
+    _ex(_DBA, 1, [], gone=list(range(1001))),
+]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.
 STORE_OPTIONS = [["a", {"label": "b", "description": "", "preview": "p"}],
@@ -993,7 +1155,7 @@ def capture_store(out: Path, work: Path) -> list[Path]:
            "texts": texts, "options": options}
     target = out / "store-questions.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
-    return [target, capture_store_delivery(out, work), capture_store_alerts(out, work)]
+    return [target, capture_store_delivery(out, work), capture_store_alerts(out, work), capture_store_mirror(out, work)]
 
 
 def capture_store_alerts(out: Path, work: Path) -> Path:
@@ -1070,6 +1232,93 @@ def capture_store_alerts(out: Path, work: Path) -> Path:
     del itertools
     doc = {"source": "alerts.py over STORE_ALERT_OPS (tools/capture_goldens.py --only store)", "steps": steps}
     target = out / "store-alerts.json"
+    target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return target
+
+
+def capture_store_mirror(out: Path, work: Path) -> Path:
+    """remote.py's mirror over STORE_MIRROR_OPS, and validate_export over STORE_EXPORT_VECTORS."""
+    import sqlite3
+    import subprocess as sp
+    from datetime import datetime, timezone
+
+    from herdr_inbox import remote, store as st
+
+    path = work / "store-mirror.db"
+    env = {"now": _T0, "step": {}}
+    effects: list = []
+
+    def paths(store, rec):
+        if env["step"].get("paths_error"):
+            raise RuntimeError(env["step"]["paths_error"])
+        return rec
+
+    def call(rec, sub, request):
+        effects.append(["call", request.get("cursor"), request.get("full")])
+        s = env["step"]
+        stdout = json.dumps(s["export"]) if "export" in s else s.get("stdout", "")
+        return sp.CompletedProcess([], s.get("code", 0), stdout, s.get("stderr", ""))
+
+    stubs = {"_paths": paths, "call": call, "_now": lambda: datetime.fromtimestamp(env["now"], tz=timezone.utc),
+             "_notify": lambda title, body: effects.append(["notify", title, body])}
+    saved = {k: getattr(remote, k) for k in stubs}
+    for k, fn in stubs.items():
+        setattr(remote, k, fn)
+
+    def tables():
+        db = sqlite3.connect(path)
+        try:
+            out = {}
+            for table in ("remote_machines", "remote_questions", "remote_alerts", "remote_outbox"):
+                cur = db.execute(f"SELECT * FROM {table} ORDER BY 1, 2")
+                names = [d[0] for d in cur.description]
+                out[table] = [dict(zip(names, row)) for row in cur.fetchall()]
+            return out
+        finally:
+            db.close()
+
+    steps = []
+    try:
+        with st.Store(path, migrate=True) as s:
+            for op, args in STORE_MIRROR_OPS:
+                effects.clear()
+                env["step"] = args
+                env["now"] = args.get("now", env["now"])
+                if op == "sql":
+                    s.db.execute(args["sql"], args["params"])
+                    result = None
+                elif op == "pull":
+                    result = remote.pull(s, args["machine"])
+                elif op == "open_alerts":
+                    result = [[m, a] for m, a in remote.open_alerts(s)]
+                elif op == "alert_by_key":
+                    got = remote.alert_by_key(s, args["key"])
+                    result = list(got) if got else None
+                elif op == "open_groups":
+                    result = [[k, m, qs] for k, m, qs in remote.open_groups(s)]
+                elif op == "group_by_key":
+                    got = remote.group_by_key(s, args["key"])
+                    result = list(got) if got else None
+                elif op == "problem_rows":
+                    result = remote.problem_rows(s)
+                elif op == "clear_problem":
+                    result = remote.clear_problem(s, args["machine_id"], args["remote_id"])
+                elif op == "notify_problems":
+                    result = remote.notify_problems(s, args["machine_id"], args["label"])
+                steps.append({"op": op, "args": args, "result": result, "effects": list(effects), "tables": tables()})
+    finally:
+        for k, fn in saved.items():
+            setattr(remote, k, fn)
+    vectors = []
+    for v in STORE_EXPORT_VECTORS:
+        raw = json.dumps(v)
+        try:
+            vectors.append({"raw": raw, "result": remote.validate_export(raw)})
+        except (ValueError, PermissionError) as e:
+            vectors.append({"raw": raw, "error": type(e).__name__, "message": str(e)})
+    doc = {"source": "remote.py over STORE_MIRROR_OPS and STORE_EXPORT_VECTORS (tools/capture_goldens.py --only store)",
+           "steps": steps, "vectors": vectors}
+    target = out / "store-mirror.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
     return target
 
