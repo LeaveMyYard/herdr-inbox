@@ -3,5 +3,7 @@
 
 #[path = "../store/common.rs"]
 mod common;
+mod locks;
+mod panes;
 mod scenarios;
 mod world;
