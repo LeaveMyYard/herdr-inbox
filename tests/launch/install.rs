@@ -166,16 +166,26 @@ fn a_checksum_mismatch_fails_the_install_and_installs_nothing() {
 }
 
 #[test]
-fn no_release_and_no_cargo_is_a_clear_error() {
+fn no_asset_and_no_cargo_is_a_clear_error() {
+    let r = Root::new();
+    let path = no_cargo_path(r.dir.path());
+    // release.toml names a release with no asset for this machine
+    let toml = "tag = \"v0.11.0\"\n\n[sha256]\nnone-such-target = \"00\"\n";
+    fs::write(r.root().join("release.toml"), toml).unwrap();
+    let out = r.sh("install-bin.sh", &[], "", &[("PATH", &path)]);
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("no cargo"), "{err}");
+}
+
+#[test]
+fn before_the_first_release_without_cargo_the_install_still_succeeds() {
     let r = Root::new();
     let path = no_cargo_path(r.dir.path());
     let out = r.sh("install-bin.sh", &[], "", &[("PATH", &path)]);
-    assert_eq!(out.status.code(), Some(1));
-    assert!(
-        String::from_utf8_lossy(&out.stderr).contains("no cargo"),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert_eq!(out.status.code(), Some(0), "the Python hooks stay in use");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("Python hooks"));
+    assert!(!r.root().join("bin/herdr-inbox").exists());
 }
 
 #[test]
