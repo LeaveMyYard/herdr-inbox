@@ -85,6 +85,21 @@ fn a_live_predecessors_answer_is_a_candidate_through_its_real_transcript() {
     );
     fs::write(project.join(format!("{B}.jsonl")), format!("{record}\n")).unwrap();
     assert!(has_candidates(&path, A, &transcripts));
+    let other = "cccccccc-0000-4000-8000-00000000000c";
+    let elsewhere = format!(
+        r#"{{"type":"continued-in","sessionId":"{B}","continuedInSessionId":"{other}","timestamp":"2026-10-17T11:30:00Z"}}"#
+    );
+    fs::write(
+        project.join(format!("{B}.jsonl")),
+        format!("{record}\n{elsewhere}\n"),
+    )
+    .unwrap();
+    assert!(
+        !has_candidates(&path, A, &transcripts),
+        "B now continues into another session, not A"
+    );
+    fs::write(project.join(format!("{B}.jsonl")), format!("{record}\n")).unwrap();
+    assert!(has_candidates(&path, A, &transcripts));
     let resumed = format!(
         r#"{{"type":"user","sessionId":"{B}","timestamp":"2026-10-17T12:00:00Z","message":{{"content":"go on"}}}}"#
     );

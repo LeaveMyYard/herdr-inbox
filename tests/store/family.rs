@@ -69,6 +69,21 @@ fn a_session_and_its_live_predecessors_transitively() {
 }
 
 #[test]
+fn a_predecessor_whose_transcript_now_continues_elsewhere_never_joins() {
+    // D6: the nomination (sessions.continued_in = A) counts only while X's transcript still
+    // continues into A itself; continuing into another session C is not continuing into A
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&migrated(dir.path()));
+    let (x, c) = (sid(7), sid(8));
+    nominate(&db, &x, A);
+    let mut fake = Fake::default();
+    fake.next.insert(x.clone(), c);
+    assert_eq!(family(&db, A, &fake).unwrap(), [A.to_owned()]);
+    fake.next.insert(x.clone(), A.to_owned());
+    assert_eq!(family(&db, A, &fake).unwrap(), [A.to_owned(), x]);
+}
+
+#[test]
 fn successors_and_cycles_never_join_and_the_family_is_bounded() {
     let dir = tempfile::tempdir().unwrap();
     let db = open(&migrated(dir.path()));
