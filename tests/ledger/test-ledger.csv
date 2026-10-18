@@ -690,26 +690,26 @@ tests/test_review_v2.py::test_answer_longer_than_a_message_is_referenced,tests/t
 tests/test_review_v2.py::test_retry_picks_up_answers_never_attempted,tests/test_review_v2.py,,todo,,
 tests/test_review_v2.py::test_picks_with_separators_are_quoted,tests/test_review_v2.py,,todo,,
 tests/test_review_v2.py::test_option_rows_share_one_cursor_column,tests/test_review_v2.py,,todo,,
-tests/test_rewake.py::test_the_matcher_reads_the_captured_wake_record,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_an_idle_session_is_woken_with_its_answer_once,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_a_working_or_blocked_session_is_not_woken_until_it_rests,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_a_pane_holding_another_conversation_ends_the_watch,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_a_newer_watcher_supersedes_the_old_one,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_the_watch_ends_with_its_claude_process_and_after_the_max_age,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_nothing_for_a_subagent_or_outside_herdr,tests/test_rewake.py,,todo,,
+tests/test_rewake.py::test_the_matcher_reads_the_captured_wake_record,tests/test_rewake.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P2
+tests/test_rewake.py::test_an_idle_session_is_woken_with_its_answer_once,tests/test_rewake.py,herdr-inbox --test rewake scenarios::an_idle_session_is_woken_with_its_answer_once,mapped,,P2
+tests/test_rewake.py::test_a_working_or_blocked_session_is_not_woken_until_it_rests,tests/test_rewake.py,herdr-inbox --test rewake scenarios::a_working_or_blocked_session_is_not_woken_until_it_rests,mapped,,P2
+tests/test_rewake.py::test_a_pane_holding_another_conversation_ends_the_watch,tests/test_rewake.py,herdr-inbox --test rewake scenarios::a_pane_holding_another_conversation_ends_the_watch,mapped,,P2
+tests/test_rewake.py::test_a_newer_watcher_supersedes_the_old_one,tests/test_rewake.py,herdr-inbox --test rewake scenarios::a_newer_watcher_supersedes_the_old_one,mapped,,P2
+tests/test_rewake.py::test_the_watch_ends_with_its_claude_process_and_after_the_max_age,tests/test_rewake.py,herdr-inbox --test rewake scenarios::the_watch_ends_with_its_claude_process_and_after_the_max_age,mapped,,P2
+tests/test_rewake.py::test_nothing_for_a_subagent_or_outside_herdr,tests/test_rewake.py,herdr-inbox --test rewake scenarios::nothing_for_a_subagent_outside_herdr_or_a_bad_session_id,mapped,,P2
 tests/test_rewake.py::test_the_worker_leaves_an_idle_watched_session_to_its_watcher,tests/test_rewake.py,,todo,,
 tests/test_rewake.py::test_the_registered_watcher_wakes_through_the_launcher,tests/test_rewake.py,,todo,,
 tests/test_rewake.py::test_no_crash_or_stray_exit_code_can_wake_a_session,tests/test_rewake.py,,todo,,
 tests/test_rewake.py::test_a_live_watcher_whose_session_hook_is_stale_does_not_hold_typing_back,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_the_waiting_watcher_stamps_its_own_column_never_the_tool_hooks,tests/test_rewake.py,,todo,,
+tests/test_rewake.py::test_the_waiting_watcher_stamps_its_own_column_never_the_tool_hooks,tests/test_rewake.py,herdr-inbox --test rewake scenarios::the_waiting_watcher_stamps_its_own_column_never_the_tool_hooks,mapped,,P2
 tests/test_rewake.py::test_m1_a_live_watcher_with_silent_tool_hooks_does_not_hold_a_working_session,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_l2_the_matcher_survives_a_reworded_wake_wrapper,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_m1_a_watch_left_behind_by_clear_ends_without_any_answer,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_m1b_a_pane_without_a_session_is_never_woken_and_the_watch_ends,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_m1b_the_session_reappearing_resumes_the_watch,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_a_watcher_delivery_never_writes_hook_seen_at,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_the_watcher_on_a_pre_bridge_stamp_wakes_without_any_schema_work,tests/test_rewake.py,,todo,,
-tests/test_rewake.py::test_the_watcher_on_an_older_schema_waits_for_the_worker_to_migrate,tests/test_rewake.py,,todo,,
+tests/test_rewake.py::test_l2_the_matcher_survives_a_reworded_wake_wrapper,tests/test_rewake.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P2
+tests/test_rewake.py::test_m1_a_watch_left_behind_by_clear_ends_without_any_answer,tests/test_rewake.py,herdr-inbox --test rewake scenarios::a_watch_left_behind_by_clear_ends_without_any_answer,mapped,,P2
+tests/test_rewake.py::test_m1b_a_pane_without_a_session_is_never_woken_and_the_watch_ends,tests/test_rewake.py,herdr-inbox --test rewake scenarios::a_pane_without_a_session_is_never_woken_and_the_watch_ends,mapped,,P2
+tests/test_rewake.py::test_m1b_the_session_reappearing_resumes_the_watch,tests/test_rewake.py,herdr-inbox --test rewake scenarios::the_session_reappearing_resumes_the_watch,mapped,,P2
+tests/test_rewake.py::test_a_watcher_delivery_never_writes_hook_seen_at,tests/test_rewake.py,herdr-inbox --test rewake scenarios::a_watcher_delivery_never_writes_hook_seen_at,mapped,,P2
+tests/test_rewake.py::test_the_watcher_on_a_pre_bridge_stamp_wakes_without_any_schema_work,tests/test_rewake.py,herdr-inbox --test rewake scenarios::the_watcher_on_a_pre_bridge_stamp_wakes_without_any_schema_work,mapped,,P2
+tests/test_rewake.py::test_the_watcher_on_an_older_schema_waits_for_the_worker_to_migrate,tests/test_rewake.py,herdr-inbox --test rewake scenarios::the_watcher_on_an_older_schema_waits_for_the_worker_to_migrate,mapped,,P2
 tests/test_schema_migrations.py::test_every_declared_column_is_baseline_or_migrated,tests/test_schema_migrations.py,,todo,,
 tests/test_schema_migrations.py::test_a_database_from_an_earlier_head_gets_the_new_columns,tests/test_schema_migrations.py,,todo,,
 tests/test_schema_migrations.py::test_a_schema_change_comes_with_a_revision_bump,tests/test_schema_migrations.py,,todo,,
@@ -743,7 +743,7 @@ tests/test_session_continuation.py::test_a_new_question_is_filed_under_the_live_
 tests/test_session_continuation.py::test_an_answer_to_a_question_asked_before_the_switch_is_typed_and_verified,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_question_filed_under_new_is_not_refused_as_changed,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_the_worker_records_the_continuation_and_new_owns_old_rows,tests/test_session_continuation.py,,todo,,
-tests/test_session_continuation.py::test_the_old_sessions_watcher_ends_and_the_new_one_wakes,tests/test_session_continuation.py,,todo,,
+tests/test_session_continuation.py::test_the_old_sessions_watcher_ends_and_the_new_one_wakes,tests/test_session_continuation.py,herdr-inbox --test rewake scenarios::the_old_sessions_watcher_ends_and_the_new_one_wakes,mapped,,P2
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[../../etc/passwd],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[*],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[a/b],tests/test_session_continuation.py,,todo,,

@@ -289,3 +289,22 @@ fn the_old_sessions_watcher_ends_and_the_new_one_wakes() {
     );
     assert!(w.delivered(id));
 }
+
+#[test]
+fn the_watcher_on_a_pre_bridge_stamp_wakes_without_any_schema_work() {
+    let w = World::new();
+    let id = w.pending_answer();
+    w.conn()
+        .pragma_update(None, "user_version", 1_668_105_336_i64)
+        .unwrap();
+    let text = w.watch(&FakeClock::new(|_, _| {}));
+    assert_eq!(
+        text,
+        Some(format!("[inbox] Q{id} answered — Which colour?: amber"))
+    );
+    let stamp: i64 = w
+        .conn()
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(stamp, 1_668_105_336);
+}
