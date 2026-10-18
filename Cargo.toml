@@ -37,7 +37,11 @@ herdr-agent-kit = { git = "https://github.com/LeaveMyYard/herdr-agent-kit", tag 
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 # `unbounded_depth`: a hook payload nested deeper than 128 levels (src/hook/payload/deep.rs).
-serde_json = { version = "1", features = ["unbounded_depth"] }
+# `preserve_order`: objects keep their keys in insertion order, as Python's dicts and
+# json.dumps do (src/pyjson.rs writes the JSON Python reads back).
+serde_json = { version = "1", features = ["unbounded_depth", "preserve_order"] }
+# Python's `\w` and `str.isprintable` by Unicode general category (src/store/norm.rs).
+unicode-general-category = "1.1.0"
 tempfile = "3"
 
 # The `herdr-inbox` binary: one binary, subcommands keep today's CLI names (§2.2).
@@ -69,6 +73,7 @@ herdr-agent-kit = { workspace = true, features = ["internal"] }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+unicode-general-category.workspace = true
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests

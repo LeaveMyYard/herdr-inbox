@@ -14,6 +14,11 @@ docs/plans/rust-rewrite.md §5.2) from the running Python code. Nothing in them 
   (every prompt-carrying record type, single and batch messages, references, pastes, text typed
   onto a draft, mentions, older and undated records) for questions whose expected strings come
   from ``service.expected_segments``. The Rust hooks' landing check must give the same answers.
+- ``tests/fixtures/store-questions.json``: question reads and writes of ``store.Store`` (insert,
+  groups, drafts, answers, status, repeats, acknowledgement, redelivery, the owner queries) run as
+  a script on a fresh migrated database, with every table they touch dumped after each step
+  (times as ``<time>``), plus ``store.normalize`` and ``store.clean_title`` over a corpus. The Rust
+  store replays the script and must leave the same rows.
 - ``tests/fixtures/decisions.json`` (item 5, the delivery decision table ``inbox-core::decide``
   must reproduce): the test suite runs in its own pytest with ``tests/decision_recorder.py``,
   which turns on the test-only trace (``herdr_inbox.decision_trace``) and records every delivery
@@ -509,11 +514,171 @@ def capture_landed(out: Path) -> list[Path]:
     return [path]
 
 
+STORE_SESSION = "aaaaaaaa-0000-4000-8000-00000000000a"
+STORE_FIXED = "2001-01-01T00:00:00+00:00"  # a time a step sets: not "now", so never masked
+STORE_OPS = [
+    ("insert", {"question": "Which region?", "session_id": STORE_SESSION, "pane_id": "w1:p1", "tab_id": "w1:t1",
+                "tab_label": "api", "cwd": "/r", "asked_by": "lane", "options": ["eu", "us"], "header": "Region"}),
+    ("insert", {"question": "Deploy which parts?\nSecond line", "session_id": STORE_SESSION, "pane_id": "w1:p1",
+                "options": [{"label": "web", "description": "the site"},
+                            {"label": "api, v2", "description": "", "preview": "x = 1"}, "docs"],
+                "multi_select": True, "group_id": 1, "context": "ctx é \u2028"}),
+    ("insert", {"question": "Proceed with the next step?!", "pane_id": "w1:p2"}),
+    ("set_group_title", {"group_id": 1, "title": "  Deploy\tplan:\x07 " + "long " * 20}),
+    ("set_group_title", {"group_id": 3, "title": " \x01 "}),
+    ("find_duplicate", {"norm": "which region", "session_id": STORE_SESSION, "pane_id": "w1:p1"}),
+    ("find_duplicate", {"norm": "proceed with the next step", "session_id": None, "pane_id": "w1:p2"}),
+    ("set_draft", {"qid": 2, "detail": {"choices": ["web", "api, v2"], "notes": {"web": "n ü"}, "text": None}}),
+    ("drafted", {}),
+    ("set_draft", {"qid": 2, "detail": None}),
+    ("set_answer", {"qid": 1, "answer": "eu", "detail": {"choices": ["eu"], "notes": {}, "text": "ok é"}}),
+    ("set_answer", {"qid": 1, "answer": "again", "detail": None}),
+    ("set_status", {"qid": 3, "status": "dismissed", "note": "not needed"}),
+    ("bump_repeat", {"qid": 1}),
+    ("mine", {"session_id": STORE_SESSION, "pane_id": "w1:p1", "include_closed": False}),
+    ("mine", {"session_id": None, "pane_id": "w1:p2", "include_closed": True}),
+    ("list", {"include_closed": False}),
+    ("list", {"include_closed": True}),
+    ("group", {"group_id": 1, "include_closed": True}),
+    ("open_counts", {}),
+    ("known_panes", {}),
+    ("unacknowledged_answers", {"session_id": STORE_SESSION, "pane_id": "w1:p1"}),
+    ("acknowledge", {"qids": [1, 3]}),
+    ("redeliver", {"qids": [1, 2, 3]}),
+    ("hide_failed", {"qid": 1}),
+    ("get", {"qid": 2}),
+    ("get", {"qid": 99}),
+    ("acknowledge", {"qids": [1]}),  # a pending error on a seen answer goes
+    ("set_draft", {"qid": 2, "detail": {"choices": ["web"], "notes": {}, "text": None}}),
+    ("set_answer", {"qid": 2, "answer": "web", "detail": None}),  # the answer clears the draft
+    ("mine", {"session_id": None, "pane_id": "w1:p1", "include_closed": True}),  # no session: the pane's own only
+    ("insert", {"question": "Ship it?", "pane_id": "w1:p3"}),
+    ("insert", {"question": "Ship it?", "pane_id": "w1:p3"}),
+    ("set_answer", {"qid": 5, "answer": "yes", "detail": None}),
+    ("find_duplicate", {"norm": "ship it", "session_id": None, "pane_id": "w1:p3"}),  # the open one first
+    ("claim_delivery", {"qid": 5}),
+    ("acknowledge", {"qids": [5]}),  # a claim in flight stays
+    # every WHERE and ORDER BY clause decides some step (#79 review M1)
+    ("insert", {"question": "Pick a color?", "pane_id": "w1:p4"}),  # 6
+    ("set_answer", {"qid": 6, "answer": "red", "detail": None}),
+    ("find_duplicate", {"norm": "pick a color", "session_id": None, "pane_id": "w1:p4"}),  # answered, in the hour
+    ("sql", {"sql": "UPDATE questions SET answered_at = ? WHERE id = 6", "params": [STORE_FIXED]}),
+    ("find_duplicate", {"norm": "pick a color", "session_id": None, "pane_id": "w1:p4"}),  # past ANSWER_REUSE
+    ("insert", {"question": "Two of them?", "pane_id": "w1:p5"}),  # 7
+    ("insert", {"question": "Two of them?", "pane_id": "w1:p5"}),  # 8
+    ("find_duplicate", {"norm": "two of them", "session_id": None, "pane_id": "w1:p5"}),  # the newest open
+    ("unacknowledged_answers", {"session_id": STORE_SESSION, "pane_id": "w1:p1"}),  # 1 is acknowledged
+    ("group", {"group_id": 1, "include_closed": False}),  # nothing open in it
+    ("set_draft", {"qid": 3, "detail": {"choices": ["x"], "notes": {}, "text": None}}),  # closed: no
+    ("set_status", {"qid": 3, "status": "withdrawn", "note": "again"}),  # closed: no
+    ("set_answer", {"qid": 99, "answer": "x", "detail": None}),
+    ("redeliver", {"qids": [99]}),
+    ("hide_failed", {"qid": 99}),  # Python writes an orphan question_ext row
+    ("insert", {"question": "Nowhere?", "session_id": "bbbbbbbb-0000-4000-8000-00000000000b"}),  # 9, no pane
+    ("known_panes", {}),
+    ("open_counts", {}),
+    ("mine", {"session_id": None, "pane_id": None, "include_closed": True}),  # no owner: nothing
+    ("find_duplicate", {"norm": "nowhere", "session_id": None, "pane_id": None}),
+    ("sql", {"sql": "UPDATE question_ext SET pending_since = ?, busy_attempts = 2, verified_at = ? WHERE id = 2",
+             "params": [STORE_FIXED, STORE_FIXED]}),
+    ("redeliver", {"qids": [2]}),  # clears all three
+    ("sql", {"sql": "UPDATE questions SET acknowledged_at = ? WHERE id = 2", "params": [STORE_FIXED]}),
+    ("acknowledge", {"qids": [2]}),  # keeps the first time
+    ("bump_repeat", {"qid": 4}),
+    ("bump_repeat", {"qid": 4}),
+    ("insert", {"question": "Grouped by zero?", "pane_id": "w1:p6", "group_id": 0}),  # 10: 0 is no group
+    ("insert", {"question": "Smile 🙂?", "pane_id": "w1:p6",  # 11: outside the BMP, in every JSON column
+                "options": [{"label": "🙂 yes", "description": "😀"}, "no 🙃"]}),
+    ("set_draft", {"qid": 11, "detail": {"choices": ["🙂 yes"], "notes": {"🙂 yes": "🎉"}, "text": "𝄞"}}),
+    ("set_answer", {"qid": 11, "answer": "🙂 yes",
+                    "detail": {"choices": ["🙂 yes"], "notes": {"🙂 yes": "🎉"}, "text": None}}),
+    ("get", {"qid": 11}),
+    # an empty detail is no detail (Python `if detail`; #79 final pass L2)
+    ("insert", {"question": "Empty detail?", "pane_id": "w1:p7"}),  # 12
+    ("set_draft", {"qid": 12, "detail": {}}),
+    ("set_draft", {"qid": 12, "detail": {"choices": ["a"], "notes": {}, "text": None}}),
+    ("set_draft", {"qid": 12, "detail": []}),  # clears it, as None does
+    ("set_draft", {"qid": 12, "detail": {"choices": ["a"], "notes": {}, "text": None}}),
+    ("set_answer", {"qid": 12, "answer": "a", "detail": {}}),  # no answer_json; the draft goes
+]
+# What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
+# row or another writer may hold anything): its result, or the exception it raises.
+STORE_OPTIONS = [["a", {"label": "b", "description": "", "preview": "p"}],
+                 [{"label": 5, "description": False, "preview": 0}],
+                 [{"label": True, "description": [], "preview": {}}], [{"label": None}],
+                 [{"label": 1.5, "description": 5, "preview": [1]}], [{"label": 1e20, "description": 0.0}],
+                 [{"label": "x", "description": True, "preview": "y"}],
+                 [{"description": "no label"}], [5], [None], [["a"]], [], None, "", "ab", {"k": 1, "j": 2},
+                 {}, 0, 7, True]
+STORE_TEXTS = ["Which REGION?", "  a\tb\n\nc  ", "Proceed — with the next step?!", "über_ALLES 3.5%",
+               "İstanbul ǅemal ß", "日本語のテスト？", "tab\x1csep\x85nel", "", "!!!", "emoji 🙂 here",
+               "x" * 70, "Deploy\tplan:\x07 ok", "\u2028line\u2029para", "ﬁne ﬂow"]
+
+
+def _store_value(value):
+    """A Python result as JSON: questions by every field (times masked), the rest as is."""
+    import dataclasses
+    import re
+
+    from herdr_inbox.store import Question
+
+    if isinstance(value, Question):
+        value = dataclasses.asdict(value)
+    if isinstance(value, dict):
+        return {k: _store_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_store_value(v) for v in value]
+    if isinstance(value, str) and value != STORE_FIXED and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00", value):
+        return "<time>"
+    if isinstance(value, str) and re.fullmatch(r"sending:\d{4}-\d{2}-\d{2}T[\d:]+\+00:00:[0-9a-f]{8}", value):
+        return "sending:<time>:<token>"
+    return value
+
+
+def _store_tables(path: Path) -> dict:
+    import sqlite3
+
+    db = sqlite3.connect(path)
+    try:
+        out = {}
+        for table in ("questions", "question_ext", "question_groups"):
+            cur = db.execute(f"SELECT * FROM {table} ORDER BY 1")
+            names = [d[0] for d in cur.description]
+            out[table] = [_store_value(dict(zip(names, row))) for row in cur.fetchall()]
+        return out
+    finally:
+        db.close()
+
+
+def capture_store(out: Path, work: Path) -> list[Path]:
+    """The question reads and writes of store.Store over STORE_OPS (see the module docstring)."""
+    from herdr_inbox import store as st
+
+    path = work / "store-questions.db"
+    steps = []
+    with st.Store(path, migrate=True) as s:
+        for op, args in STORE_OPS:
+            result = s.db.execute(args["sql"], args["params"]) and None if op == "sql" else getattr(s, op)(**args)
+            steps.append({"op": op, "args": args, "result": _store_value(result), "tables": _store_tables(path)})
+    texts = [{"text": t, "normalize": st.normalize(t), "clean_title": st.clean_title(t)} for t in STORE_TEXTS]
+    options = []
+    for value in STORE_OPTIONS:
+        try:
+            options.append({"input": value, "output": st.normalize_options(value)})
+        except Exception as e:  # noqa: BLE001
+            options.append({"input": value, "error": type(e).__name__})
+    doc = {"source": "store.Store over STORE_OPS (tools/capture_goldens.py --only store)", "steps": steps,
+           "texts": texts, "options": options}
+    target = out / "store-questions.json"
+    target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return [target]
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed"), help="one of the sets")
+    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store"), help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
                         "other test drives no traced decision, so the table comes out the same)")
@@ -533,6 +698,8 @@ def main(argv: list[str] | None = None) -> int:
             written += capture_schema(args.out)
         if args.only in (None, "landed"):
             written += capture_landed(args.out)
+        if args.only in (None, "store"):
+            written += capture_store(args.out, work)
         if args.only in (None, "screens"):
             shutil.rmtree(args.out / "screens", ignore_errors=True)
             written += capture_screens(args.out, work)
