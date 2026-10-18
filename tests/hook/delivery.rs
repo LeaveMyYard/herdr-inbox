@@ -334,3 +334,26 @@ fn a_database_held_by_a_writer_costs_this_firing_and_nothing_else() {
         "the next firing carries it"
     );
 }
+
+#[test]
+fn liveness_is_stamped_after_own_session_on_the_tool_hook_path_only() {
+    // acceptance check (#65 final pass L2): hook_seen_at only from PostToolBatch/Stop of the
+    // session's own hook; never from SessionStart, SubagentStart or a subagent's firing
+    let w = World::new();
+    let db = open(&w.db);
+    let stamped = || -> i64 {
+        db.query_row(
+            "SELECT COUNT(*) FROM sessions WHERE hook_seen_at IS NOT NULL",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    w.hook("session-start", &w.payload(json!({"source": "startup"})));
+    w.hook("subagent-start", &w.payload(json!({"agent_id": "a1"})));
+    w.hook("post-tool-batch", &w.payload(json!({"agent_id": "a1"})));
+    w.hook("stop", &w.payload(json!({"agent_id": "a1"})));
+    assert_eq!(stamped(), 0);
+    w.hook("stop", &w.payload(json!({})));
+    assert_eq!(stamped(), 1);
+}
