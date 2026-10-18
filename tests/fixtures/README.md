@@ -107,3 +107,9 @@ say why in the PR:
   `normalize_options` returns (or raises) for malformed options, and `texts` holds
   `normalize`/`clean_title` of a few texts. `tests/store/questions_golden.rs` runs the same
   script on the Rust store and must match every step.
+- `store-delivery.json` (`--only store`): the same for the delivery state, over
+  `STORE_DELIVERY_OPS`: claims, pending and busy misses, failures and the piles the worker reads,
+  agents gone and panes moved, hook sends verified or not, legacy checks, notifications,
+  continuations and liveness. Tables `questions`, `question_ext` and `sessions` after each
+  step. `"$claim:N"` stands for the last claim on question N; `<x>_s` arguments are seconds.
+  `tests/store/delivery_golden.rs` replays it.

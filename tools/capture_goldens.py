@@ -601,6 +601,162 @@ STORE_OPS = [
     ("set_draft", {"qid": 12, "detail": {"choices": ["a"], "notes": {}, "text": None}}),
     ("set_answer", {"qid": 12, "answer": "a", "detail": {}}),  # no answer_json; the draft goes
 ]
+# The delivery state (store.Store's outcome writes and the piles the worker reads), on a fresh
+# database. "$claim:N" stands for the claim the last claim_delivery of question N returned; an
+# argument named "<x>_s" is passed to Python as ``x=timedelta(seconds=...)``.
+S1, S2, S3 = (f"{c * 8}-0000-4000-8000-00000000000{c}" for c in "123")
+_NOW_SQL = "strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now')"
+STORE_DELIVERY_OPS = [
+    ("insert", {"question": "One?", "session_id": S1, "pane_id": "w1:p1"}),  # 1
+    ("insert", {"question": "Two?", "session_id": S1, "pane_id": "w1:p1"}),  # 2
+    ("insert", {"question": "Three?", "session_id": S2, "pane_id": "w1:p2"}),  # 3
+    ("insert", {"question": "Four?", "pane_id": "w1:p2"}),  # 4, stays open
+    ("set_answer", {"qid": 1, "answer": "a1", "detail": None}),
+    ("set_answer", {"qid": 2, "answer": "a2", "detail": None}),
+    ("set_answer", {"qid": 3, "answer": "a3", "detail": None}),
+    ("failed_deliveries", {}),  # answered just now: not yet "never attempted"
+    ("undelivered", {"pane_id": "w1:p1", "caps": {}}),
+    ("sql", {"sql": "UPDATE questions SET answered_at = ? WHERE id IN (1, 2, 3)", "params": [STORE_FIXED]}),
+    ("failed_deliveries", {}),
+    ("undelivered", {"pane_id": "w1:p1", "caps": {}}),
+    ("claim_delivery", {"qid": 1}),
+    ("failed_deliveries", {}),  # a claim in flight is no failure
+    ("set_pending", {"qid": 1, "claim": "$claim:1", "reason": "busy: working"}),
+    ("get_pending_since", {"qid": 1}),
+    ("sql", {"sql": "UPDATE question_ext SET pending_since = ? WHERE id = 1", "params": [STORE_FIXED]}),
+    ("claim_delivery", {"qid": 1}),
+    ("set_pending", {"qid": 1, "claim": "$claim:1", "reason": "busy: again"}),  # keeps the first time
+    ("claim_delivery", {"qid": 1}),
+    ("record_busy_miss", {"qid": 1, "claim": "$claim:1", "reason": "busy: typed, unseen"}),
+    ("claim_delivery", {"qid": 1}),
+    ("record_busy_miss", {"qid": 1, "claim": "$claim:1", "reason": "busy: typed, unseen"}),
+    ("busy_attempts", {"qid": 1}),
+    ("busy_attempts", {"qid": 99}),
+    ("claim_delivery", {"qid": 2}),
+    ("set_pending", {"qid": 2, "claim": "$claim:2", "reason": "idle: later"}),  # not busy: no pending_since
+    ("set_pending", {"qid": 3, "claim": "sending:2001-01-01T00:00:00+00:00:deadbeef", "reason": "busy: x"}),
+    ("record_busy_miss", {"qid": 3, "claim": "sending:2001-01-01T00:00:00+00:00:deadbeef", "reason": "busy: x"}),
+    ("get_pending_since", {"qid": 2}),
+    ("claim_delivery", {"qid": 3}),
+    ("record_delivery", {"qid": 3, "error": "herdr: boom", "claim": "$claim:3"}),
+    ("undelivered", {"pane_id": "w1:p2", "caps": {"herdr: ": 1}}),
+    ("undelivered", {"pane_id": "w1:p2", "caps": {"herdr: ": 2, "nope: ": 1}}),
+    ("undelivered_all", {"caps": {"herdr: ": 1}}),
+    ("mark_agent_gone", {"qid": 2, "reason": "pane closed"}),
+    ("agent_gone", {"qid": 2}),
+    ("agent_gone", {"qid": 1}),
+    ("undelivered", {"pane_id": "w1:p1", "caps": {}}),
+    ("gone_recent", {"within_s": 3600}),
+    ("gone_candidates", {"prefixes": ["agent gone: ", "herdr: "], "cap": 1}),
+    ("gone_candidates", {"prefixes": ["herdr: "], "cap": 2}),
+    ("move_to_pane", {"qid": 4, "pane_id": "w1:p9", "tab_id": None, "reason": "moved"}),  # open: no
+    ("move_to_pane", {"qid": 2, "pane_id": "w1:p9", "tab_id": "w1:t9", "reason": "moved", "tab_label": "new"}),
+    ("claim_delivery", {"qid": 2}),
+    ("move_to_pane", {"qid": 2, "pane_id": "w1:p8", "tab_id": None, "reason": "again", "claim": "$claim:2"}),
+    ("move_to_pane", {"qid": 2, "pane_id": "w1:p7", "tab_id": None, "reason": "stale",
+                      "claim": "sending:2001-01-01T00:00:00+00:00:deadbeef"}),
+    ("mark_agent_gone", {"qid": 3, "reason": "conversation changed"}),
+    ("gone_recent", {"within_s": 3600}),
+    ("sql", {"sql": "UPDATE question_ext SET agent_gone_at = ? WHERE id = 3", "params": [STORE_FIXED]}),
+    ("gone_recent", {"within_s": 3600}),
+    ("archive_gone", {"after_s": 3600}),
+    ("archive_gone", {"after_s": 3600}),
+    ("mark_seen_elsewhere", {"qid": 3}),
+    ("claim_delivery", {"qid": 2}),
+    ("mark_seen_elsewhere", {"qid": 2}),  # a claim in flight: not without it
+    ("mark_seen_elsewhere", {"qid": 2, "claim": "$claim:2"}),
+    ("insert", {"question": "Five?", "session_id": S3, "pane_id": "w1:p3"}),  # 5
+    ("set_answer", {"qid": 5, "answer": "a5", "detail": None}),
+    ("mark_agent_gone", {"qid": 5, "reason": "x"}),
+    ("mark_landed", {"qid": 5, "acknowledge": False}),
+    ("sql", {"sql": "UPDATE question_ext SET verified_at = ? WHERE id = 5", "params": [STORE_FIXED]}),
+    ("sql", {"sql": "UPDATE questions SET delivered_at = ? WHERE id = 5", "params": [STORE_FIXED]}),
+    ("mark_landed", {"qid": 5, "acknowledge": True}),  # keeps the first times
+    ("insert", {"question": "Six?", "session_id": S3, "pane_id": "w1:p3"}),  # 6
+    ("set_answer", {"qid": 6, "answer": "a6", "detail": None}),
+    ("claim_delivery", {"qid": 6}),
+    ("mark_landed", {"qid": 6, "acknowledge": True}),  # a claim in flight: no
+    ("stuck_answers", {}),
+    ("failed_pile", {"within_s": 3600}),
+    ("sql", {"sql": "UPDATE questions SET delivery_error = 'herdr: old' WHERE id = 5", "params": []}),
+    ("acknowledge", {"qids": [6]}),
+    ("clear_seen_errors", {}),
+    ("insert", {"question": "Seven?", "session_id": S1, "pane_id": "w1:p1"}),  # 7
+    ("set_answer", {"qid": 7, "answer": "a7", "detail": None}),
+    ("claim_delivery", {"qid": 7}),
+    ("record_hook_delivery", {"qid": 7, "claim": "$claim:7"}),
+    ("set_server", {"qid": 7, "server": "/sock/a"}),
+    ("server_of", {"qid": 7}),
+    ("server_of", {"qid": 99}),
+    ("insert", {"question": "Eight?", "session_id": S1, "pane_id": "w1:p1"}),  # 8
+    ("set_answer", {"qid": 8, "answer": "a8", "detail": None}),
+    ("claim_delivery", {"qid": 8}),
+    ("record_hook_delivery", {"qid": 8, "claim": "$claim:8"}),
+    ("hook_unverified", {"server": "/sock/a"}),
+    ("hook_unverified", {"server": "/sock/b"}),  # 8 has no server: every server's
+    ("sql", {"sql": "UPDATE question_ext SET hook_sent_at = ? WHERE id IN (7, 8)", "params": [STORE_FIXED]}),
+    ("hook_unseen", {"qid": 7, "sent_at": "2000-01-01T00:00:00+00:00", "reason": "not seen"}),  # not that send
+    ("hook_unseen", {"qid": 7, "sent_at": STORE_FIXED, "reason": "not seen"}),
+    ("hook_misses", {"qid": 7}),
+    ("hook_misses", {"qid": 99}),
+    ("hook_unseen", {"qid": 8, "sent_at": STORE_FIXED, "reason": None}),  # no transcript: no miss
+    ("stuck_answers", {}),  # 8: sent where no transcript was found, most likely landed: not stuck
+    ("hook_verified", {"qid": 8, "acknowledge": True}),
+    ("claim_delivery", {"qid": 7}),
+    ("record_hook_delivery", {"qid": 7, "claim": "$claim:7"}),
+    ("hook_verified", {"qid": 7, "acknowledge": False}),
+    ("hook_unverified", {"server": "/sock/a"}),  # 7 is verified now
+    ("legacy_check_due", {"qid": 1, "every_s": 60}),
+    ("legacy_miss", {"qid": 1}),
+    ("legacy_check_due", {"qid": 1, "every_s": 60}),
+    ("legacy_miss", {"qid": 1}),
+    ("legacy_miss", {"qid": 99}),
+    ("sql", {"sql": "UPDATE question_ext SET legacy_checked_at = ? WHERE id = 1", "params": [STORE_FIXED]}),
+    ("legacy_check_due", {"qid": 1, "every_s": 60}),
+    ("notified", {"qid": 1}),
+    ("mark_notified", {"qids": [1, 98]}),
+    ("notified", {"qid": 1}),
+    ("continued_in", {"session_id": S1}),
+    ("record_continuation", {"old": S1, "new": S2}),
+    ("record_continuation", {"old": S1, "new": S1}),
+    ("record_continuation", {"old": "", "new": S2}),
+    ("continued_in", {"session_id": S1}),
+    ("record_continuation", {"old": S1, "new": S3}),
+    ("continued_in", {"session_id": S1}),
+    ("continued_in", {"session_id": None}),
+    ("sql", {"sql": f"UPDATE sessions SET watch_seen_at = ?, hook_seen_at = {_NOW_SQL} WHERE session_id = ?",
+             "params": [STORE_FIXED, S1]}),
+    ("watch_live", {"session_id": S1, "within_s": 60}),
+    ("watch_live", {"session_id": S1, "within_s": 30 * 365 * 86400}),
+    ("hook_live", {"session_id": S1, "within_s": 60}),
+    ("hook_live", {"session_id": S2, "within_s": 60}),
+    ("hook_live", {"session_id": None, "within_s": 60}),
+    ("failed_pile", {"within_s": 3600}),  # 7 waits ("pending: not seen"): not failed
+    ("insert", {"question": "Nine?", "session_id": S2, "pane_id": "w1:p2"}),  # 9
+    ("set_answer", {"qid": 9, "answer": "a9", "detail": None}),
+    ("claim_delivery", {"qid": 9}),
+    ("record_delivery", {"qid": 9, "error": "herdr: down", "claim": "$claim:9"}),
+    ("failed_pile", {"within_s": 3600}),
+    ("failed_deliveries", {}),  # 3 is hidden (archived)
+    ("sql", {"sql": "UPDATE questions SET delivery_error = 'sending:2001-01-01T00:00:00+00:00:deadbeef' WHERE id = 9",
+             "params": []}),
+    ("failed_deliveries", {}),  # a stale claim: its sender died
+    ("failed_pile", {"within_s": 3600}),  # a claim, even a stale one, is not on the pile
+    ("mark_agent_gone", {"qid": 9, "reason": "y"}),  # its claim stays
+    ("move_to_pane", {"qid": 9, "pane_id": "w1:p5", "tab_id": "w1:t1", "reason": "moved"}),
+    ("move_to_pane", {"qid": 9, "pane_id": "w1:p6", "tab_id": "w1:t2", "reason": "moved again"}),
+    ("mark_agent_gone", {"qid": 9, "reason": "z"}),
+    ("gone_recent", {"within_s": 3600}),
+    ("failed_deliveries", {}),
+    ("hide_failed", {"qid": 9}),
+    ("gone_recent", {"within_s": 3600}),  # hidden: dealt with
+    ("failed_deliveries", {}),  # hidden
+    ("insert", {"question": "Ten?", "session_id": S2, "pane_id": "w1:p2"}),  # 10
+    ("set_answer", {"qid": 10, "answer": "a10", "detail": None}),
+    ("claim_delivery", {"qid": 10}),
+    ("set_pending", {"qid": 10, "claim": "$claim:10", "reason": "idle: later"}),
+    ("failed_pile", {"within_s": 3600}),  # pending: waiting, not failed
+]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.
 STORE_OPTIONS = [["a", {"label": "b", "description": "", "preview": "p"}],
@@ -635,13 +791,13 @@ def _store_value(value):
     return value
 
 
-def _store_tables(path: Path) -> dict:
+def _store_tables(path: Path, tables=("questions", "question_ext", "question_groups")) -> dict:
     import sqlite3
 
     db = sqlite3.connect(path)
     try:
         out = {}
-        for table in ("questions", "question_ext", "question_groups"):
+        for table in tables:
             cur = db.execute(f"SELECT * FROM {table} ORDER BY 1")
             names = [d[0] for d in cur.description]
             out[table] = [_store_value(dict(zip(names, row))) for row in cur.fetchall()]
@@ -671,7 +827,41 @@ def capture_store(out: Path, work: Path) -> list[Path]:
            "texts": texts, "options": options}
     target = out / "store-questions.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
-    return [target]
+    return [target, capture_store_delivery(out, work)]
+
+
+def capture_store_delivery(out: Path, work: Path) -> Path:
+    """store.Store's delivery-state reads and writes over STORE_DELIVERY_OPS."""
+    from datetime import timedelta
+
+    from herdr_inbox import store as st
+
+    path = work / "store-delivery.db"
+    tables = ("questions", "question_ext", "sessions")
+    steps, claims = [], {}
+    with st.Store(path, migrate=True) as s:
+        for op, args in STORE_DELIVERY_OPS:
+            call = {}
+            for k, v in args.items():
+                if isinstance(v, str) and v.startswith("$claim:"):
+                    v = claims[int(v.split(":")[1])]
+                if k.endswith("_s"):
+                    k, v = k[:-2], timedelta(seconds=v)
+                call[k] = tuple(v) if k == "prefixes" else v
+            if op == "sql":
+                s.db.execute(args["sql"], args["params"])
+                result = None
+            else:
+                result = getattr(s, op)(**call)
+            if op == "claim_delivery":
+                claims[args["qid"]] = result
+            steps.append({"op": op, "args": args, "result": _store_value(result),
+                          "tables": _store_tables(path, tables)})
+    doc = {"source": "store.Store over STORE_DELIVERY_OPS (tools/capture_goldens.py --only store)",
+           "steps": steps}
+    target = out / "store-delivery.json"
+    target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return target
 
 
 def main(argv: list[str] | None = None) -> int:
