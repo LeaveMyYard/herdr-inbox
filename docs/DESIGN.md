@@ -119,7 +119,8 @@ that only matters for older databases (a data fix) needs a bump by hand.
     `<start>` the process start time, so a reused pid never passes for the holder) and removes it
     when it lets go; a worker without one, 0.10.6 and older, counts as revision 1;
   - a newer worker that cannot get the lock **stands by**: it writes `worker-<key>.lock.standby`
-    (`<revision> <pid> <unix seconds>`), refreshes it every second and retries the lock every
+    (`<revision> <pid> <unix seconds> <start>`; a heartbeat more than 10 s old or ahead, or another
+    start time, does not count), refreshes it every second and retries the lock every
     0.1 s, for up to 30 minutes; one standby is enough, and a standby leaves once the holder is
     of its revision or newer;
   - the holder hands over at the start of each loop iteration when a live standby (fresh
@@ -137,6 +138,10 @@ that only matters for older databases (a data fix) needs a bump by hand.
     started it from), which stands by if it is newer:
     its Rust worker only if that one stands by within 5 s (a release's `bin/herdr-inbox` has no
     worker before P5 and exits), else its Python worker.
+  - Never stuck, never a storm: a marker write waits at most 200 ms for the marker's lock (a hook
+    never hangs; the next not-ready open writes it), and `ensure()` starts at most one worker per
+    revision every 5 s (`worker-<key>.lock.spawned-<revision>`), so a newer worker that crashes at
+    start costs one process (and one `worker.log` entry) per 5 s, not one per call.
   - Every Python worker is started as `<python> -I -c <run herdr_inbox.cli> <src> worker`
     (`worker.python_worker_argv`): the package's `src` is an argument, never `PYTHONPATH`, so a
     hook's ensure() (the system python3, no package installed) starts a worker that can import

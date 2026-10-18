@@ -10,7 +10,8 @@ already alive and waiting.
   worker that holds the lock and removed when it lets go; ``<start>`` is the process's start time
   as the OS reports it (``-`` where it cannot be read), so a reused pid never passes for the
   holder. A worker from before this record (0.10.6 and older) is revision 1.
-- **Standby** ``worker-<key>.lock.standby``: ``<revision> <pid> <unix seconds>``. A worker that
+- **Standby** ``worker-<key>.lock.standby``: ``<revision> <pid> <unix seconds> <start>`` (``<start>``
+  as in the holder record). A worker that
   cannot get the lock and has a HIGHER revision than the holder stands by: it rewrites this
   record every STANDBY_HEARTBEAT and retries the lock every STANDBY_POLL, for at most
   STANDBY_MAX. It leaves when another standby of an equal or higher revision waits, or when the
@@ -120,14 +121,18 @@ def holder_revision(lock: Path) -> int:
 
 
 def live_standby(lock: Path, now: float | None = None) -> tuple[int, int] | None:
-    """(revision, pid) of a worker standing by for ``lock``, or None."""
+    """(revision, pid) of a worker standing by for ``lock``, or None: its heartbeat within
+    STANDBY_FRESH either way (a future-dated one does not count), its process alive with the
+    same start time (a reused pid is not the standby)."""
     try:
-        revision, pid, beat = _standby_path(lock).read_text().split()
+        revision, pid, beat, started = _standby_path(lock).read_text().split()
         revision, pid, beat = int(revision), int(pid), float(beat)
     except (OSError, ValueError):
         return None
     age = (time.time() if now is None else now) - beat
-    if age > STANDBY_FRESH or age < -STANDBY_FRESH or not _alive(pid):
+    if not -STANDBY_FRESH <= age <= STANDBY_FRESH or not _alive(pid):
+        return None
+    if pid != os.getpid() and started != "-" and started != start_time(pid):
         return None
     return revision, pid
 
@@ -138,6 +143,7 @@ def wait_as_standby(lock: Path, revision: int, take, clock=time.monotonic, sleep
     higher revision is waiting, or the holder is of this revision or higher)."""
     deadline = clock() + float(os.environ.get(STANDBY_MAX_ENV) or STANDBY_MAX)
     last_beat = None
+    started = start_time(os.getpid())  # once: on macOS it runs ps
     path = _standby_path(lock)
     try:
         while clock() < deadline:
@@ -151,7 +157,7 @@ def wait_as_standby(lock: Path, revision: int, take, clock=time.monotonic, sleep
                 # once a heartbeat: reading the holder's start time may run ps (macOS)
                 if holder_revision(lock) >= revision:
                     return None  # a worker of this revision or newer won the lock: nothing to wait for
-                _write(path, f"{revision} {os.getpid()} {time.time():.3f}\n")
+                _write(path, f"{revision} {os.getpid()} {time.time():.3f} {started}\n")
                 last_beat = clock()
             sleep(STANDBY_POLL)
         return None

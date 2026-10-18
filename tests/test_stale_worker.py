@@ -94,14 +94,45 @@ def test_a_holder_clears_its_own_record_only(tmp_path):
     assert (tmp_path / "worker-x.lock.holder").exists(), "another process's"
 
 
+def test_a_standby_must_be_the_process_that_wrote_it_and_not_from_the_future(tmp_path):
+    """#75 final pass L3: a reused pid (another start time) and a heartbeat dated ahead do not count."""
+    lk = tmp_path / "worker-x.lock"
+    standby = tmp_path / "worker-x.lock.standby"
+    other = os.getppid()
+    standby.write_text(f"2 {other} {time.time():.3f} {wh.start_time(other)}\n")
+    assert wh.live_standby(lk) == (2, other)
+    standby.write_text(f"2 {other} {time.time():.3f} not-its-start\n")
+    assert wh.live_standby(lk) is None, "another process now has that pid"
+    standby.write_text(f"2 {other} {time.time() + wh.STANDBY_FRESH + 1:.3f} {wh.start_time(other)}\n")
+    assert wh.live_standby(lk) is None, "a heartbeat from the future"
+    standby.write_text(f"2 {other} {time.time() + wh.STANDBY_FRESH - 1:.3f} {wh.start_time(other)}\n")
+    assert wh.live_standby(lk) == (2, other), "within the skew"
+
+
+def test_a_standby_writes_its_start_time(tmp_path):
+    lk = tmp_path / "worker-x.lock"
+    seen = []
+
+    def take():  # tried before each heartbeat: the record is there from the second try on
+        record = tmp_path / "worker-x.lock.standby"
+        if record.exists():
+            seen.append(record.read_text().split())
+        return "LOCK" if len(seen) == 3 else None
+
+    clock = FakeClock()
+    assert wh.wait_as_standby(lk, 2, take, clock=clock, sleep=clock.sleep) == "LOCK"
+    revision, pid, _beat, started = seen[-1]
+    assert (revision, pid, started) == ("2", str(os.getpid()), wh.start_time(os.getpid()))
+
+
 def test_a_standby_counts_while_alive_and_fresh(tmp_path):
     lk = tmp_path / "worker-x.lock"
     standby = tmp_path / "worker-x.lock.standby"
-    standby.write_text(f"2 {os.getpid()} {time.time():.3f}\n")
+    standby.write_text(f"2 {os.getpid()} {time.time():.3f} -\n")
     assert wh.live_standby(lk) == (2, os.getpid())
-    standby.write_text(f"2 {os.getpid()} {time.time() - wh.STANDBY_FRESH - 1:.3f}\n")
+    standby.write_text(f"2 {os.getpid()} {time.time() - wh.STANDBY_FRESH - 1:.3f} -\n")
     assert wh.live_standby(lk) is None, "its heartbeat stopped"
-    standby.write_text(f"2 999999999 {time.time():.3f}\n")
+    standby.write_text(f"2 999999999 {time.time():.3f} -\n")
     assert wh.live_standby(lk) is None, "its process is gone"
 
 
@@ -134,7 +165,7 @@ class FakeClock:
 def test_one_standby_is_enough(tmp_path):
     lk = tmp_path / "worker-x.lock"
     other = os.getppid()  # alive, not us
-    (tmp_path / "worker-x.lock.standby").write_text(f"2 {other} {time.time():.3f}\n")
+    (tmp_path / "worker-x.lock.standby").write_text(f"2 {other} {time.time():.3f} -\n")
     clock = FakeClock()
     assert wh.wait_as_standby(lk, 2, lambda: None, clock=clock, sleep=clock.sleep) is None
     assert clock.t < 1, "left at once"
@@ -163,9 +194,9 @@ def test_a_standby_leaves_once_a_holder_of_its_revision_has_the_lock(tmp_path):
 def test_the_holder_hands_over_only_to_a_live_newer_standby(migrated_db, monkeypatch):
     path = wh._standby_path(lock())
     assert worker.handed_over() is False
-    path.write_text(f"{st.MIGRATION_REVISION} {os.getppid()} {time.time():.3f}\n")
+    path.write_text(f"{st.MIGRATION_REVISION} {os.getppid()} {time.time():.3f} -\n")
     assert worker.handed_over() is False, "not newer"
-    path.write_text(f"{st.MIGRATION_REVISION + 1} {os.getppid()} {time.time():.3f}\n")
+    path.write_text(f"{st.MIGRATION_REVISION + 1} {os.getppid()} {time.time():.3f} -\n")
     assert worker.handed_over() is True
 
 
@@ -183,7 +214,7 @@ def test_a_marker_asks_the_holder_for_a_newer_worker(migrated_db, case, expected
         set_stamp(db_path(), st.revision_stamp(st.MIGRATION_REVISION + 1))
     elif case == "standby waiting":
         rw.want(db_path(), st.MIGRATION_REVISION + 1)
-        wh._standby_path(lock()).write_text(f"{st.MIGRATION_REVISION + 1} {os.getppid()} {time.time():.3f}\n")
+        wh._standby_path(lock()).write_text(f"{st.MIGRATION_REVISION + 1} {os.getppid()} {time.time():.3f} -\n")
     assert worker._newer_wanted() is expected
 
 
@@ -198,7 +229,7 @@ def test_ensure_starts_a_standby_only_for_an_older_holder(migrated_db, monkeypat
         assert worker.ensure() is False and spawned == [], "the holder is this revision"
         wh.write_holder(lock(), 1)
         assert worker.ensure() is True and spawned[-1] == worker.python_worker_argv(worker._package_src())
-        wh._standby_path(lock()).write_text(f"2 {os.getppid()} {time.time():.3f}\n")
+        wh._standby_path(lock()).write_text(f"2 {os.getppid()} {time.time():.3f} -\n")
         assert worker.ensure() is False and len(spawned) == 1, "one stands by already"
     finally:
         held.close()
@@ -254,3 +285,35 @@ def test_start_time_never_raises(monkeypatch):
     monkeypatch.setattr(builtins, "open", boom)
     monkeypatch.setattr(wh.subprocess if hasattr(wh, "subprocess") else __import__("subprocess"), "run", boom)
     assert wh.start_time(os.getpid()) == "-"
+
+
+def test_a_held_marker_lock_never_holds_a_hook(tmp_path):
+    """#75 final pass L1: another writer holding the marker's lock costs at most WANT_LOCK_WAIT."""
+    import fcntl
+    import threading
+
+    db = tmp_path / "inbox.db"
+    with open(rw.path_for(db).with_name(rw.path_for(db).name + ".lock"), "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        t = threading.Thread(target=rw.want, args=(db, 2), daemon=True)
+        t.start()
+        t.join(10)
+        assert not t.is_alive(), "want() returned while the lock was held"
+    assert rw.wanted(db) is None, "nothing written without the lock"
+
+
+def test_ensure_starts_at_most_one_worker_per_revision_per_interval(migrated_db, monkeypatch):
+    """#75 final pass L2: a newer worker that crashes at start costs one process per ENSURE_EVERY,
+    not one per call."""
+    monkeypatch.delenv("HERDR_INBOX_NO_WORKER")
+    spawned = []
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda argv, **k: spawned.append(argv))
+    assert worker.ensure() is True
+    assert worker.ensure() is False and worker.ensure() is False, "the first one may still be starting"
+    stamp = worker._lock_path().with_name(f"{worker._lock_path().name}.spawned-{st.MIGRATION_REVISION}")
+    old = time.time() - worker.ENSURE_EVERY - 1
+    os.utime(stamp, (old, old))
+    assert worker.ensure() is True and len(spawned) == 2
+    future = time.time() + 3600
+    os.utime(stamp, (future, future))
+    assert worker.ensure() is True, "a stamp from the future does not count"

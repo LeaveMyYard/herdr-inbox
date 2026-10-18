@@ -111,12 +111,42 @@ def ensure(server: str | None = None) -> bool:
         lock = _lock_path(server)
         if wh.holder_revision(lock) >= st.MIGRATION_REVISION or wh.live_standby(lock) is not None:
             return False
+    if not _may_spawn(server):
+        return False
     log_path = db_path().parent / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as err:
         subprocess.Popen(python_worker_argv(_package_src()),
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
                          start_new_session=True, close_fds=True, env=_spawn_env(server))
+    return True
+
+
+# ensure() starts at most one worker per revision this often (for one herdr server): a worker
+# that crashes at start (a broken newer release) must not cost one process and one worker.log
+# entry per hook or tool call (#75 final pass L2). A legitimate start waits at most this long.
+ENSURE_EVERY = 5.0
+
+
+def _may_spawn(server: str | None = None) -> bool:
+    """True, and stamped, unless this revision started a worker within ENSURE_EVERY (the stamp
+    ``worker-<key>.lock.spawned-<revision>``; a future-dated one does not count)."""
+    from . import store as st
+
+    lock = _lock_path(server)
+    stamp = lock.with_name(f"{lock.name}.spawned-{st.MIGRATION_REVISION}")
+    try:
+        age = time.time() - stamp.stat().st_mtime
+        if 0 <= age < ENSURE_EVERY:
+            return False
+    except OSError:
+        pass
+    try:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+        os.utime(stamp)
+    except OSError:
+        pass
     return True
 
 
