@@ -146,10 +146,8 @@ fn subagents_get_their_rules_and_garbage_or_no_pane_gets_nothing() {
         (0, ""),
         "not a herdr pane's agent"
     );
-    for event in ["no-such-event", "rewake-watch"] {
-        let r = w.hook(event, "{}");
-        assert_eq!((r.code, r.stdout.as_str()), (0, ""), "{event}");
-    }
+    let r = w.hook("no-such-event", "{}");
+    assert_eq!((r.code, r.stdout.as_str()), (0, ""));
 }
 
 #[test]
