@@ -70,8 +70,8 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
         assert (FIX / "landed.json").read_text() == (tmp_path / "landed.json").read_text(), (
             "transcript.landed_kinds changed: if deliberate, uv run python tools/capture_goldens.py --only landed")
         return
-    if kind == "store":  # the Rust store replays them (tests/store/questions_golden.rs, delivery_golden.rs)
-        for name in ("store-questions.json", "store-delivery.json"):
+    if kind == "store":  # the Rust store replays them (tests/store/*_golden.rs)
+        for name in ("store-questions.json", "store-delivery.json", "store-alerts.json"):
             assert (FIX / name).read_text() == (tmp_path / name).read_text(), (
                 f"{name}: a Store read or write changed: if deliberate, "
                 "uv run python tools/capture_goldens.py --only store")
