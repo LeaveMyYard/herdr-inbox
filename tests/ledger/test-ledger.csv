@@ -450,6 +450,7 @@ tests/test_goldens.py::test_the_goldens_are_what_the_code_does[decisions],tests/
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[landed],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[schema],tests/test_goldens.py,,todo,,
+tests/test_goldens.py::test_the_goldens_are_what_the_code_does[store],tests/test_goldens.py,herdr-inbox --test store questions_golden::every_step_leaves_pythons_rows_and_returns_pythons_result,mapped,,P5
 tests/test_goldens.py::test_the_decision_table_is_a_function,tests/test_goldens.py,,todo,,
 tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,,todo,,
 tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,,todo,,

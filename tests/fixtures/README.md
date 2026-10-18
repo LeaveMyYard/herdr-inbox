@@ -97,3 +97,10 @@ say why in the PR:
   paths and session ids (or their 8-character prefixes) replaced by `<pane>`, `<time>`, `<path>`,
   `<session>`. Deterministic: two full recorded runs give the
   same file.
+
+- `store-questions.json` (`--only store`): `store.Store`'s question reads and writes run over
+  the script `STORE_OPS` in `capture_goldens.py`. Each step records its arguments, its result
+  (`dataclasses.asdict` of a question) and the rows of `questions`, `question_ext` and
+  `question_groups` after it. Times are masked as `<time>`; claims as `sending:<time>:<token>`.
+  `tests/store/questions_golden.rs` runs the same script on the Rust store and must match
+  every step.
