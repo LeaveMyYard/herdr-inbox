@@ -307,3 +307,30 @@ fn a_predecessors_answer_rides_the_continued_sessions_hook() {
         ))
     );
 }
+
+#[test]
+fn a_database_held_by_a_writer_costs_this_firing_and_nothing_else() {
+    // a writer holds the lock past the 0.5 s busy timeout: nothing printed, nothing changed, exit 0
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    let lock = locked(&w.db, "IMMEDIATE");
+    let (ran, took) = timed(|| w.hook("post-tool-batch", &w.payload(json!({}))));
+    lock.execute_batch("ROLLBACK").unwrap();
+    assert_eq!((ran.code, ran.stdout.as_str()), (0, ""));
+    assert!(took < std::time::Duration::from_secs(5), "{took:?}");
+    let (delivered, _, error) = row(&db, id);
+    assert_eq!(
+        (delivered, error.as_deref()),
+        (None, Some("pending: busy: the agent is working")),
+        "never claimed"
+    );
+    let ctx = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch");
+    assert_eq!(
+        ctx,
+        Some(format!("[inbox] Q{id} answered — Merge it?: squash")),
+        "the next firing carries it"
+    );
+}
