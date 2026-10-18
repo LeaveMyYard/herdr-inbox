@@ -420,3 +420,60 @@ fn an_answer_whose_claim_is_lost_before_the_record_is_never_printed() {
         "Q2 stays with the other sender"
     );
 }
+
+#[test]
+fn a_failed_claim_carries_the_answers_already_claimed() {
+    // the deliberate difference from Python (which raised and carried none): Q2's claim fails
+    // (an abort, standing in for a busy database), Q1, claimed before it, is carried once
+    let w = World::new();
+    let db = open(&w.db);
+    let q1 = answered_busy(&db, "One?", "a");
+    let q2 = answered_busy(&db, "Two?", "b");
+    db.execute_batch(&format!(
+        "CREATE TRIGGER no_claim BEFORE UPDATE OF delivery_error ON questions \
+         WHEN NEW.id = {q2} AND NEW.delivery_error LIKE 'sending:%' BEGIN SELECT RAISE(ABORT, 'busy'); END"
+    ))
+    .unwrap();
+    let ctx = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch");
+    assert_eq!(ctx, Some(format!("[inbox] Q{q1} answered — One?: a")));
+    assert!(ext(&db, q1, "hook_sent_at").is_some());
+    let (delivered, _, error) = row(&db, q2);
+    assert_eq!(
+        (delivered, error.as_deref()),
+        (None, Some("pending: busy: the agent is working")),
+        "Q2 untouched"
+    );
+}
+
+#[test]
+fn a_session_id_with_a_lone_surrogate_writes_nothing() {
+    let w = World::new();
+    let db = open(&w.db);
+    let r = w.hook(
+        "post-tool-batch",
+        r#"{"session_id":"aaaaaaaa-0000-4000-8000-00000000000\ud83d"}"#,
+    );
+    assert_eq!((r.code, r.stdout.as_str()), (0, ""));
+    let rows: i64 = db
+        .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rows, 0, "no stray sessions row");
+}
+
+#[test]
+fn a_deep_tool_response_still_delivers() {
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    let deep = format!("{}{}", "[".repeat(300), "]".repeat(300));
+    let payload = w
+        .payload(json!({}))
+        .replacen('{', &format!(r#"{{"tool_response": {deep}, "#), 1);
+    let ctx = w.hook("post-tool-batch", &payload).context("PostToolBatch");
+    assert_eq!(
+        ctx,
+        Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
+    );
+}

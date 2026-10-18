@@ -4,6 +4,8 @@
 use herdr_agent_kit::agent_session::claude::wire::Line;
 use serde_json::{Map, Value};
 
+mod deep;
+
 /// The fields the inbox's hooks read.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Payload {
@@ -23,18 +25,22 @@ impl Payload {
     /// lone UTF-16 surrogate escape, as a string cut inside an emoji in
     /// `tool_response` carries, does not reject it. Valid JSON that is not an
     /// object reads as `{}` (Python's hook then fell back to the bare rules at
-    /// SessionStart and did nothing else). `None` when it is not JSON (the
-    /// hook then does nothing).
+    /// SessionStart and did nothing else). An object nested deeper than
+    /// serde_json's 128 levels (a deep `tool_response`) is still read
+    /// ([`deep`]). `None` when it is not JSON (the hook then does nothing).
     pub fn parse(raw: &str) -> Option<Payload> {
         if raw.trim().is_empty() {
             return Some(Payload::default());
         }
-        let Some(line) = Line::parse(raw.trim().as_bytes()) else {
-            return serde_json::from_str::<Value>(raw)
-                .ok()
-                .map(|_| Payload::default());
+        let map = match Line::parse(raw.trim().as_bytes()) {
+            Some(line) => line.into_map(),
+            None => match serde_json::from_str::<Value>(raw) {
+                Ok(_) => return Some(Payload::default()), // valid, not an object
+                Err(e) if deep::too_deep(&e) => deep::top_level(raw)?,
+                Err(_) => return None,
+            },
         };
-        let map = line.map();
+        let map = &map;
         Some(Payload {
             session_id: text(map, "session_id"),
             transcript_path: text(map, "transcript_path"),
@@ -45,9 +51,12 @@ impl Payload {
 }
 
 /// A non-empty string field. Claude Code writes these as strings; any other
-/// type is treated as absent.
+/// type is treated as absent, and so is one that held a lone surrogate
+/// (read as U+FFFD): Python could not write it to SQLite and raised before
+/// writing anything.
 fn text(map: &Map<String, Value>, key: &str) -> Option<String> {
     map.get(key)
+        .filter(|v| !v.as_str().is_some_and(|s| s.contains('\u{FFFD}')))
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
