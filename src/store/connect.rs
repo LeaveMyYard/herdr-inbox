@@ -22,9 +22,14 @@ pub fn read_write(path: &Path) -> rusqlite::Result<Connection> {
     with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE, Duration::ZERO)
 }
 
+/// Opens `path` as Python's `sqlite3` does: foreign keys NOT enforced (the
+/// bundled SQLite is built with them on by default; Python's is not, and the
+/// schema's `REFERENCES` were never enforced, e.g. a `question_ext` row may
+/// precede or outlive its question).
 fn with_flags(path: &Path, flags: OpenFlags, busy: Duration) -> rusqlite::Result<Connection> {
     let db = Connection::open_with_flags(path, flags | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
     db.busy_timeout(busy)?;
+    db.pragma_update(None, "foreign_keys", false)?;
     Ok(db)
 }
 
