@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -162,6 +164,15 @@ class FakeHerdr:
 # test that replaced subprocess.Popen (worker.subprocess IS subprocess) must not break it
 _REAL_POPEN = subprocess.Popen
 
+# This test run's mark: every process the suite starts inherits it (the environment is copied to
+# every child, however far it is detached or reparented), no process outside the run can carry it.
+# A test signals a worker only when its environment, read again right before the signal, carries
+# it: the operator's own worker is never signalled, whatever a matcher returns.
+# Not HERDR_* (each test scrubs those: _no_live_herdr). Created once: pytest imports this file
+# both as ``conftest`` and as ``tests.conftest``, and both must agree.
+TEST_RUN_VAR = "INBOX_TEST_RUN"
+TEST_RUN = os.environ.setdefault(TEST_RUN_VAR, uuid.uuid4().hex)
+
 
 def leaked_workers(root: Path) -> list[int]:
     """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
@@ -199,6 +210,51 @@ def leaked_workers(root: Path) -> list[int]:
     return found
 
 
+def _identity(pid: int) -> tuple[list[str], list[str]] | None:
+    """Process ``pid``'s argv and environment, read now (None: gone or unreadable)."""
+    if sys.platform.startswith("linux"):
+        try:
+            args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            env = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+        except OSError:
+            return None
+        return [a.decode(errors="replace") for a in args], [e.decode(errors="replace") for e in env]
+    with _REAL_POPEN(["ps", "-ww", "-E", "-o", "command=", "-p", str(pid)], stdout=subprocess.PIPE,
+                     stderr=subprocess.DEVNULL, text=True) as ps:
+        out = ps.communicate()[0].strip()
+    # macOS: the environment follows the command line; split on spaces (our values have none)
+    return (out.split(), out.split()) if out else None
+
+
+def is_own_worker(pid: int, root: Path) -> bool:
+    """``pid`` is, right now, a worker this test run started for a database under ``root``:
+    its argv is a worker's, its HERDR_INBOX_DB is under ``root`` and its environment carries
+    this run's TEST_RUN. Only then may a test signal it."""
+    got = _identity(pid)
+    if got is None:
+        return False
+    args, env = got
+    return (any("herdr_inbox.cli" in a for a in args) and "worker" in args
+            and any(e.startswith(f"HERDR_INBOX_DB={root}{os.sep}") for e in env)
+            and f"{TEST_RUN_VAR}={TEST_RUN}" in env)
+
+
+def stop_own_workers(root: Path, sig: int = signal.SIGKILL) -> list[int]:
+    """Signal the workers ``leaked_workers(root)`` lists that are this run's own (is_own_worker,
+    checked again for each pid right before its signal). Returns the ones it found but did NOT
+    signal: they are reported, never touched."""
+    others = []
+    for pid in leaked_workers(root):
+        if is_own_worker(pid, root):
+            try:
+                os.kill(pid, sig)
+            except OSError:
+                pass
+        else:
+            others.append(pid)
+    return others
+
+
 @pytest.fixture
 def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     fake = FakeHerdr(tmp_path)
@@ -231,15 +287,10 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     yield fake
     leaked = leaked_workers(tmp_path)
     if leaked:
-        import signal
-
-        for pid in leaked:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError:
-                pass
+        others = stop_own_workers(tmp_path, signal.SIGTERM)  # this run's own only
         pytest.fail(f"inbox worker process(es) {leaked} outlived the test (database under {tmp_path}); "
-                    "a test that starts a real worker must stop it", pytrace=False)
+                    "a test that starts a real worker must stop it"
+                    + (f"; not this run's, left alone: {others}" if others else ""), pytrace=False)
 
 
 @pytest.fixture
