@@ -151,6 +151,7 @@ name = "herdr-inbox"
 version = "0.1.0"
 dependencies = [
  "herdr-agent-kit",
+ "inbox-core",
  "rusqlite",
  "serde",
  "serde_json",
@@ -160,6 +161,9 @@ dependencies = [
 [[package]]
 name = "inbox-core"
 version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "indexmap"

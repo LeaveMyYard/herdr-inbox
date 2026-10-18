@@ -10,7 +10,7 @@ use crate::store::Question;
 
 /// The index of the long-answer reference in [`expected_segments`]: finding
 /// only it delivers the pointer, not the answer itself.
-pub const REFERENCE_INDEX: usize = 2;
+pub use inbox_core::REFERENCE_INDEX;
 
 /// No cap: `herdr.clean(text, limit=10**9)`.
 const NO_LIMIT: usize = 1_000_000_000;
