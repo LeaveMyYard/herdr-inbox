@@ -1,0 +1,296 @@
+use herdr_inbox::clock::{now, now_minus};
+use rusqlite::{Connection, OptionalExtension, params};
+use serde_json::json;
+
+use crate::common::*;
+use crate::run::World;
+
+/// An answer the worker could not type: the agent was working (pending, busy grace).
+fn answered_busy(db: &Connection, question: &str, text: &str) -> i64 {
+    let id = ask(db, A, question);
+    answer(db, id, text);
+    db.execute(
+        "UPDATE questions SET delivery_error = 'pending: busy: the agent is working' WHERE id = ?",
+        [id],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO question_ext (id, group_id, pending_since) VALUES (?, ?, ?)",
+        params![id, id, now()],
+    )
+    .unwrap();
+    id
+}
+
+fn row(db: &Connection, id: i64) -> (Option<String>, Option<String>, Option<String>) {
+    db.query_row(
+        "SELECT delivered_at, acknowledged_at, delivery_error FROM questions WHERE id = ?",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )
+    .unwrap()
+}
+
+fn ext(db: &Connection, id: i64, column: &str) -> Option<String> {
+    db.query_row(
+        &format!("SELECT {column} FROM question_ext WHERE id = ?"),
+        [id],
+        |r| r.get(0),
+    )
+    .optional()
+    .unwrap()
+    .flatten()
+}
+
+#[test]
+fn a_busy_sessions_answer_goes_out_as_hook_context_once() {
+    // Python test_hook_delivery::test_a_busy_sessions_answer_goes_out_as_hook_context_once
+    for (event, name) in [("post-tool-batch", "PostToolBatch"), ("stop", "Stop")] {
+        let w = World::new();
+        let db = open(&w.db);
+        let id = answered_busy(&db, "Merge it?", "squash");
+        let ctx = w.hook(event, &w.payload(json!({}))).context(name);
+        assert_eq!(
+            ctx,
+            Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
+        );
+        let (delivered, acked, error) = row(&db, id);
+        assert!(
+            delivered.is_some() && acked.is_none() && error.is_none(),
+            "sent; seen only once the transcript shows it"
+        );
+        assert!(ext(&db, id, "hook_sent_at").is_some() && ext(&db, id, "pending_since").is_none());
+        assert_eq!(
+            w.hook(event, &w.payload(json!({}))).context(name),
+            None,
+            "exactly once"
+        );
+    }
+}
+
+#[test]
+fn several_answers_go_in_one_message() {
+    let w = World::new();
+    let db = open(&w.db);
+    let q1 = answered_busy(&db, "One?", "a");
+    let q2 = answered_busy(&db, "Two?", "b");
+    let ctx = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch");
+    assert_eq!(
+        ctx,
+        Some(format!("[inbox] answered — Q{q1} One?: a · Q{q2} Two?: b"))
+    );
+}
+
+#[test]
+fn answers_over_the_cap_wait_for_the_next_firing_with_their_state_kept() {
+    let w = World::new();
+    let db = open(&w.db);
+    let (a, b) = ("a".repeat(2500), "b".repeat(2500));
+    let q1 = answered_busy(&db, "One?", &a);
+    let q2 = answered_busy(&db, "Two?", &b);
+    let first = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch")
+        .unwrap();
+    assert_eq!(first, format!("[inbox] Q{q1} answered — One?: {a}"));
+    let (delivered, _, error) = row(&db, q2);
+    assert_eq!(
+        (delivered, error.as_deref()),
+        (None, Some("pending: busy: the agent is working")),
+        "claim given back untouched"
+    );
+    let second = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch")
+        .unwrap();
+    assert_eq!(second, format!("[inbox] Q{q2} answered — Two?: {b}"));
+}
+
+#[test]
+fn nothing_for_a_subagent_another_session_or_outside_herdr() {
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    assert_eq!(
+        w.hook(
+            "post-tool-batch",
+            &w.payload(json!({"agent_id": "agent-1"}))
+        )
+        .context("PostToolBatch"),
+        None
+    );
+    assert_eq!(
+        w.hook("post-tool-batch", &w.payload(json!({"session_id": B})))
+            .context("PostToolBatch"),
+        None
+    );
+    assert_eq!(
+        w.hook_in("post-tool-batch", &w.payload(json!({})), None)
+            .context("PostToolBatch"),
+        None
+    );
+    assert_eq!(row(&db, id).0, None);
+}
+
+#[test]
+fn a_row_held_by_another_sender_or_already_seen_is_left_alone() {
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    db.execute(
+        "UPDATE questions SET delivery_error = ? WHERE id = ?",
+        params![format!("sending:{}:other", now()), id],
+    )
+    .unwrap();
+    assert_eq!(
+        w.hook("post-tool-batch", &w.payload(json!({})))
+            .context("PostToolBatch"),
+        None
+    );
+    db.execute(
+        "UPDATE questions SET delivery_error = NULL, acknowledged_at = ? WHERE id = ?",
+        params![now(), id],
+    )
+    .unwrap();
+    assert_eq!(
+        w.hook("post-tool-batch", &w.payload(json!({})))
+            .context("PostToolBatch"),
+        None
+    );
+}
+
+#[test]
+fn an_answer_already_in_the_transcript_is_recorded_not_resent() {
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    let record = json!({"type": "user", "timestamp": now(), "message": {"content": format!("[inbox] Q{id} answered — Merge it?: squash")}});
+    std::fs::write(&w.transcript, format!("{record}\n")).unwrap();
+    assert_eq!(
+        w.hook("post-tool-batch", &w.payload(json!({})))
+            .context("PostToolBatch"),
+        None
+    );
+    let (delivered, acked, _) = row(&db, id);
+    assert!(
+        delivered.is_some() && acked.is_some(),
+        "a late landing: verified"
+    );
+    assert!(ext(&db, id, "verified_at").is_some() && ext(&db, id, "hook_sent_at").is_none());
+}
+
+#[test]
+fn only_the_delivery_hook_firing_marks_the_session_live_throttled() {
+    let w = World::new();
+    let db = open(&w.db);
+    let seen = || -> Option<String> {
+        db.query_row(
+            "SELECT hook_seen_at FROM sessions WHERE session_id = ?",
+            [A],
+            |r| r.get(0),
+        )
+        .optional()
+        .unwrap()
+        .flatten()
+    };
+    w.hook("post-tool-batch", &w.payload(json!({})));
+    let first = seen().expect("stamped");
+    let recent = now_minus(std::time::Duration::from_secs(30));
+    db.execute(
+        "UPDATE sessions SET hook_seen_at = ? WHERE session_id = ?",
+        params![recent, A],
+    )
+    .unwrap();
+    w.hook("post-tool-batch", &w.payload(json!({})));
+    assert_eq!(seen(), Some(recent), "within the minute: no write");
+    db.execute(
+        "UPDATE sessions SET hook_seen_at = ? WHERE session_id = ?",
+        params![now_minus(std::time::Duration::from_secs(120)), A],
+    )
+    .unwrap();
+    w.hook("stop", &w.payload(json!({})));
+    assert!(seen().unwrap() >= first);
+    let transcript: Option<String> = db
+        .query_row(
+            "SELECT transcript_path FROM sessions WHERE session_id = ?",
+            [A],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        transcript, None,
+        "a session without answers writes only the liveness stamp"
+    );
+}
+
+#[test]
+fn a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp() {
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    db.pragma_update(None, "user_version", 1_668_105_336_i64)
+        .unwrap();
+    let ctx = w.hook("stop", &w.payload(json!({}))).context("Stop");
+    assert_eq!(
+        ctx,
+        Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
+    );
+    let stamp: i64 = db
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(stamp, 1_668_105_336);
+}
+
+#[test]
+fn a_hook_on_an_older_schema_does_nothing_and_exits_0() {
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    db.execute_batch("DROP INDEX alerts_status; PRAGMA user_version = 1668105336")
+        .unwrap();
+    for event in ["post-tool-batch", "stop"] {
+        let r = w.hook(event, &w.payload(json!({})));
+        assert_eq!((r.code, r.stdout.as_str()), (0, ""), "{event}");
+    }
+    let (delivered, _, error) = row(&db, id);
+    assert_eq!(
+        (delivered, error.as_deref()),
+        (None, Some("pending: busy: the agent is working")),
+        "never claimed"
+    );
+    let stamp: i64 = db
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(stamp, 1_668_105_336);
+}
+
+#[test]
+fn a_predecessors_answer_rides_the_continued_sessions_hook() {
+    // the conversation moved from B to A (B's transcript ends in continued-in A)
+    let w = World::new();
+    let db = open(&w.db);
+    let id = ask(&db, B, "Asked before the move?");
+    answer(&db, id, "yes");
+    db.execute(
+        "INSERT INTO sessions (session_id, continued_in) VALUES (?, ?)",
+        [B, A],
+    )
+    .unwrap();
+    let record = json!({"type": "continued-in", "sessionId": B, "continuedInSessionId": A, "timestamp": now()});
+    std::fs::write(
+        w.transcript.with_file_name(format!("{B}.jsonl")),
+        format!("{record}\n"),
+    )
+    .unwrap();
+    let ctx = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch");
+    assert_eq!(
+        ctx,
+        Some(format!(
+            "[inbox] Q{id} answered — Asked before the move?: yes"
+        ))
+    );
+}
