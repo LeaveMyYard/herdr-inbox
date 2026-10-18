@@ -1,5 +1,6 @@
 //! The watcher's lock and owner files, with real time (two real watchers).
 
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use herdr_agent_kit::plugin_env::LockFile;
@@ -7,6 +8,7 @@ use herdr_inbox::hook::payload::Payload;
 use herdr_inbox::rewake::{SystemClock, run};
 
 use crate::common::A;
+use crate::endable::{EndWatchers, EndableClock, join_within};
 use crate::world::{FakeClock, World};
 
 fn lock_of(w: &World, sid: &str) -> LockFile {
@@ -26,12 +28,14 @@ fn a_watcher_holds_its_lock_and_hands_it_to_the_one_that_supersedes_it() {
     // review #67 M1 (the reviewer's probe): the lock is what the worker's watcher_alive reads
     let w = World::new();
     let lock = lock_of(&w, A);
+    let ended = AtomicBool::new(false);
     std::thread::scope(|s| {
-        let _end = EndWatchers(&w);
+        let _end = EndWatchers(&w, &ended);
+        let ended = &ended;
         let t0 = Instant::now();
         let w = &w;
         let first = s.spawn(move || {
-            let c = SystemClock::new();
+            let c = EndableClock::new(ended);
             (
                 run(&w.watcher(&c, Some("w1:p1")), &w.payload()),
                 t0.elapsed(),
@@ -43,10 +47,10 @@ fn a_watcher_holds_its_lock_and_hands_it_to_the_one_that_supersedes_it() {
             "watcher 1 holds its lock while watching"
         );
         let second = s.spawn(move || {
-            let c = SystemClock::new();
+            let c = EndableClock::new(ended);
             run(&w.watcher(&c, Some("w1:p1")), &w.payload())
         });
-        let (r1, t1) = first.join().unwrap();
+        let (r1, t1) = join_within(first, Duration::from_secs(6), ended);
         assert!(
             r1.is_none() && t1 < Duration::from_secs(4),
             "superseded within a poll: {t1:?}"
@@ -58,7 +62,7 @@ fn a_watcher_holds_its_lock_and_hands_it_to_the_one_that_supersedes_it() {
         );
         assert!(!second.is_finished());
         rewrite_owner(w);
-        assert!(second.join().unwrap().is_none());
+        assert!(join_within(second, Duration::from_secs(6), ended).is_none());
     });
     assert!(
         lock.try_exclusive().unwrap().is_some(),
@@ -75,17 +79,19 @@ fn the_lock_wait_gives_up_when_superseded_or_after_lock_wait() {
         .try_exclusive()
         .unwrap()
         .expect("the test holds it");
+    let ended = AtomicBool::new(false);
     std::thread::scope(|s| {
-        let _end = EndWatchers(&w);
+        let _end = EndWatchers(&w, &ended);
+        let ended = &ended;
         let w = &w;
         let t0 = Instant::now();
         let waiting = s.spawn(move || {
-            let c = SystemClock::new();
+            let c = EndableClock::new(ended);
             run(&w.watcher(&c, Some("w1:p1")), &w.payload())
         });
         std::thread::sleep(Duration::from_millis(500));
         rewrite_owner(w);
-        assert!(waiting.join().unwrap().is_none());
+        assert!(join_within(waiting, Duration::from_secs(6), ended).is_none());
         assert!(
             t0.elapsed() < Duration::from_secs(2),
             "gave up on losing ownership: {:?}",
@@ -150,16 +156,4 @@ fn the_files_use_the_canonical_id() {
         .collect();
     names.sort();
     assert_eq!(names, [format!("{A}.lock"), format!("{A}.owner")]);
-}
-
-/// Ends every real watcher of A when dropped, also while a failed assertion unwinds (a scope
-/// joins its threads afterwards, and a watcher left running would hold the test for hours).
-struct EndWatchers<'a>(&'a World);
-
-impl Drop for EndWatchers<'_> {
-    fn drop(&mut self) {
-        let dir = self.0.dir.path().join("rewake");
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::write(dir.join(format!("{A}.owner")), "ended");
-    }
 }
