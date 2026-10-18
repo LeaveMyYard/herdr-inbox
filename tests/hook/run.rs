@@ -71,12 +71,10 @@ impl World {
             cmd.env(k, v);
         }
         let mut child = cmd.spawn().unwrap();
-        child
-            .stdin
-            .take()
-            .unwrap()
-            .write_all(stdin.as_bytes())
-            .unwrap();
+        // a hook that decides before reading stdin (outside herdr, nested) exits first: EPIPE
+        if let Err(e) = child.stdin.take().unwrap().write_all(stdin.as_bytes()) {
+            assert_eq!(e.kind(), std::io::ErrorKind::BrokenPipe, "{e}");
+        }
         let out = child.wait_with_output().unwrap();
         assert!(
             out.stderr.is_empty(),
