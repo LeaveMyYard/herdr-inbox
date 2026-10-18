@@ -11,6 +11,7 @@ pub mod claude;
 pub mod clock;
 pub mod delivery;
 pub mod hook;
+pub mod rewake;
 pub mod starts;
 pub mod store;
 pub mod text;

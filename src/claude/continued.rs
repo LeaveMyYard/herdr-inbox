@@ -28,6 +28,13 @@ const NO_OWNER: &str = "00000000-0000-0000-0000-000000000000";
 /// continued, resumed since, unreadable, or a subagent's own transcript
 /// (only the main one moves the conversation).
 pub fn continued_in(path: &Path) -> Option<SessionId> {
+    continuation(path).map(|(next, _)| next)
+}
+
+/// [`continued_in`] with the time of its record (Python
+/// `transcript.continued_at`; `None` when the record and everything before it
+/// in the window is undated), in epoch seconds.
+pub fn continuation(path: &Path) -> Option<(SessionId, Option<f64>)> {
     if in_subagents_dir(path) {
         return None;
     }
@@ -41,7 +48,8 @@ pub fn continued_in(path: &Path) -> Option<SessionId> {
     let mut state = Continuation::new(own);
     let lines: Vec<&[u8]> = data[..end].split(|&b| b == b'\n').collect();
     state.feed(&lines);
-    state.next().cloned()
+    let at = state.at().map(|t| t.secs());
+    state.next().cloned().map(|next| (next, at))
 }
 
 /// The last [`FOLLOW_TAIL`] bytes of the file.

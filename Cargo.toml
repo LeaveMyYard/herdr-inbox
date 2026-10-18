@@ -69,6 +69,8 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+# FakeHerdr for the watcher's tests
+herdr-agent-kit = { workspace = true, features = ["internal", "test-support"] }
 tempfile.workspace = true
 
 [lints]
