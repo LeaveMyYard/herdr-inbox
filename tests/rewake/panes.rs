@@ -14,8 +14,9 @@ use crate::world::{FakeClock, World};
 const OLD: &str = "01d00000-0000-4000-8000-000000000001";
 
 /// OLD's transcript continued in A (10:00); OLD was resumed afterwards (now) in `marker_pane`;
-/// herdr reports OLD for w1:p1. One answer pending for `asker`.
-fn world(marker_pane: &str, asker: &str) -> (World, i64) {
+/// herdr reports OLD for w1:p1. Each session has an answer of its own pending (so a watcher
+/// that ends does so because of the pane, not for lack of work): returns (OLD's, A's).
+fn world(marker_pane: &str) -> (World, i64, i64) {
     let w = World::new();
     let record = serde_json::json!({"type": "continued-in", "sessionId": OLD, "continuedInSessionId": A,
                                     "timestamp": "2026-10-17T10:00:00Z"});
@@ -38,14 +39,18 @@ fn world(marker_pane: &str, asker: &str) -> (World, i64) {
         .unwrap();
     w.agent(Some(OLD), "idle");
     let db = w.conn();
-    let id = ask(&db, asker, "Which colour?");
-    answer(&db, id, "amber");
-    db.execute(
-        "UPDATE questions SET created_at = ? WHERE id = ?",
-        params![herdr_inbox::clock::now(), id],
-    )
-    .unwrap();
-    (w, id)
+    let mut ids = Vec::new();
+    for asker in [OLD, A] {
+        let id = ask(&db, asker, &format!("Asked by {}?", &asker[..8]));
+        answer(&db, id, "amber");
+        db.execute(
+            "UPDATE questions SET created_at = ? WHERE id = ?",
+            params![herdr_inbox::clock::now(), id],
+        )
+        .unwrap();
+        ids.push(id);
+    }
+    (w, ids[0], ids[1])
 }
 
 fn watch(w: &World, session: &str) -> Option<String> {
@@ -68,28 +73,35 @@ fn watch(w: &World, session: &str) -> Option<String> {
 
 #[test]
 fn resumed_in_this_pane_old_runs_here() {
-    let (w, id) = world("w1:p1", OLD);
+    let (w, old_q, a_q) = world("w1:p1");
     assert_eq!(
         watch(&w, A),
         None,
-        "the pane runs OLD, not A: A's watch ends"
+        "the pane runs OLD, not A: A's watch ends with A's answer pending"
     );
     assert!(
-        watch(&w, OLD).is_some_and(|t| t.contains(&format!("Q{id} "))),
-        "OLD's watcher wakes OLD"
+        !w.delivered(a_q) && !w.delivered(old_q),
+        "nothing delivered by A's watcher"
+    );
+    let text = watch(&w, OLD).expect("OLD's watcher wakes OLD");
+    assert!(
+        text.contains(&format!("Q{old_q} ")) && !text.contains(&format!("Q{a_q} ")),
+        "{text}"
     );
 }
 
 #[test]
 fn resumed_in_another_pane_this_pane_runs_the_continuation() {
-    let (w, id) = world("w1:p9", A);
+    let (w, old_q, a_q) = world("w1:p9");
     assert_eq!(
         watch(&w, OLD),
         None,
-        "OLD runs in p9, not here: OLD's watch in p1 ends"
+        "OLD runs in p9, not here: OLD's watch in p1 ends with OLD's answer pending"
     );
     assert!(
-        watch(&w, A).is_some_and(|t| t.contains(&format!("Q{id} "))),
-        "A's watcher wakes A"
+        !w.delivered(old_q) && !w.delivered(a_q),
+        "nothing delivered by OLD's watcher"
     );
+    let text = watch(&w, A).expect("A's watcher wakes A");
+    assert!(text.contains(&format!("Q{a_q} ")), "{text}");
 }
