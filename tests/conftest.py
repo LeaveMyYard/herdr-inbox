@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -162,6 +164,28 @@ class FakeHerdr:
 # test that replaced subprocess.Popen (worker.subprocess IS subprocess) must not break it
 _REAL_POPEN = subprocess.Popen
 
+# This test run's mark: every process the suite starts inherits it (the environment is copied to
+# every child, however far it is detached or reparented), no process outside the run can carry it.
+# A test signals a worker only when its environment, read again right before the signal, carries
+# it: the operator's own worker is never signalled, whatever a matcher returns.
+# Not HERDR_* (each test scrubs those: _no_live_herdr). Fresh for every run: an inherited value
+# (a nested pytest, a shell that kept one) is never reused. Only this very process may reuse its
+# own, because pytest imports this file twice (as ``conftest`` and as ``tests.conftest``) and both
+# must agree: the value names the process that made it.
+TEST_RUN_VAR = "INBOX_TEST_RUN"
+
+
+def _fresh_run_token() -> str:
+    mine = os.environ.get(TEST_RUN_VAR, "")
+    if mine.startswith(f"{os.getpid()}:"):
+        return mine
+    token = f"{os.getpid()}:{uuid.uuid4().hex}"
+    os.environ[TEST_RUN_VAR] = token
+    return token
+
+
+TEST_RUN = _fresh_run_token()
+
 
 def leaked_workers(root: Path) -> list[int]:
     """Live ``inbox worker`` processes whose database (HERDR_INBOX_DB) is under ``root``.
@@ -199,6 +223,107 @@ def leaked_workers(root: Path) -> list[int]:
     return found
 
 
+def _identity(pid: int) -> tuple[list[str], list[str]] | None:
+    """Process ``pid``'s argv and environment, read now (None: gone or unreadable)."""
+    if sys.platform.startswith("linux"):
+        try:
+            args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            env = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+        except OSError:
+            return None
+        return [a.decode(errors="replace") for a in args], [e.decode(errors="replace") for e in env]
+    with _REAL_POPEN(["ps", "-ww", "-E", "-o", "command=", "-p", str(pid)], stdout=subprocess.PIPE,
+                     stderr=subprocess.DEVNULL, text=True) as ps:
+        out = ps.communicate()[0].strip()
+    # macOS: the environment follows the command line; split on spaces (our values have none)
+    return (out.split(), out.split()) if out else None
+
+
+def is_own_worker(pid: int, root: Path) -> bool:
+    """``pid`` is, right now, a worker this test run started for a database under ``root``:
+    its argv is a worker's, its HERDR_INBOX_DB is under ``root`` and its environment carries
+    this run's TEST_RUN. Only then may a test signal it."""
+    got = _identity(pid)
+    if got is None:
+        return False
+    args, env = got
+    return (any("herdr_inbox.cli" in a for a in args) and "worker" in args
+            and any(e.startswith(f"HERDR_INBOX_DB={root}{os.sep}") for e in env)
+            and f"{TEST_RUN_VAR}={TEST_RUN}" in env)
+
+
+def _pidfd_calls():
+    """(open(pid) -> fd, send(fd, sig)) on Linux, else None. The os/signal functions when this
+    Python has them; otherwise, on x86_64 and aarch64, the system calls themselves (pidfd_open
+    434, pidfd_send_signal 424 there), as some builds lack the wrappers."""
+    if not sys.platform.startswith("linux"):
+        return None
+    if hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal"):
+        return os.pidfd_open, signal.pidfd_send_signal
+    if os.uname().machine not in ("x86_64", "aarch64"):
+        return None
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.syscall.restype = ctypes.c_long
+
+    def check(r: int) -> int:
+        if r < 0:
+            err = ctypes.get_errno()
+            raise OSError(err, os.strerror(err)) if err != 3 else ProcessLookupError(err, os.strerror(err))
+        return r
+
+    def open_fd(pid: int) -> int:
+        return check(libc.syscall(434, ctypes.c_int(pid), ctypes.c_uint(0)))
+
+    def send(fd: int, sig: int) -> None:
+        check(libc.syscall(424, ctypes.c_int(fd), ctypes.c_int(sig), None, ctypes.c_uint(0)))
+
+    return open_fd, send
+
+
+def signal_verified(pid: int, sig: int, verify) -> bool:
+    """Send ``sig`` to ``pid`` only if ``verify(pid)`` holds, and only to the very process that
+    was verified. On Linux a pidfd pins the process first, so a pid reused after the check is
+    never hit; elsewhere the check runs right before ``os.kill``. True if it was sent."""
+    calls = _pidfd_calls()
+    if calls is not None:
+        open_fd, send = calls
+        try:
+            fd = open_fd(pid)
+        except OSError:  # gone, or no pidfd after all: never the unpinned check-then-kill
+            return False
+        try:
+            if not verify(pid):  # read AFTER the pidfd pinned it: this process, not a successor
+                return False
+            send(fd, sig)
+            return True
+        except ProcessLookupError:
+            return False
+        finally:
+            os.close(fd)
+    if not verify(pid):
+        return False
+    try:
+        os.kill(pid, sig)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+def stop_own_workers(root: Path, sig: int = signal.SIGKILL) -> list[int]:
+    """Signal the workers ``leaked_workers(root)`` lists that are this run's own (is_own_worker,
+    checked again for each pid right before its signal). Returns the ones it found but did NOT
+    signal: they are reported, never touched."""
+    others = []
+    for pid in leaked_workers(root):
+        if not is_own_worker(pid, root):
+            others.append(pid)
+            continue
+        signal_verified(pid, sig, lambda p: is_own_worker(p, root))
+    return others
+
+
 @pytest.fixture
 def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     fake = FakeHerdr(tmp_path)
@@ -231,15 +356,10 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     yield fake
     leaked = leaked_workers(tmp_path)
     if leaked:
-        import signal
-
-        for pid in leaked:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError:
-                pass
+        others = stop_own_workers(tmp_path, signal.SIGTERM)  # this run's own only
         pytest.fail(f"inbox worker process(es) {leaked} outlived the test (database under {tmp_path}); "
-                    "a test that starts a real worker must stop it", pytrace=False)
+                    "a test that starts a real worker must stop it"
+                    + (f"; not this run's, left alone: {others}" if others else ""), pytrace=False)
 
 
 @pytest.fixture

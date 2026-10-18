@@ -185,7 +185,8 @@ def _launch_until_rules(source: str) -> tuple[float, str]:
     reader.start()
     reader.join(LAUNCH_DEADLINE)
     if not got:
-        os.killpg(proc.pid, 9)  # the sh wrappers and python: the whole group
+        if proc.poll() is None:  # not reaped: its group is still ours (the sh wrappers and python)
+            os.killpg(proc.pid, 9)
         proc.wait()
         pytest.fail(f"the hook printed nothing within {LAUNCH_DEADLINE} s")
     line, at = got[0]
