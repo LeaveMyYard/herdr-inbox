@@ -80,3 +80,26 @@ fn no_release_toml_no_fetch() {
     std::thread::sleep(Duration::from_millis(300));
     assert!(!r.tool_log().contains("curl"));
 }
+
+#[test]
+fn concurrent_mcp_starts_download_once() {
+    let r = Root::new();
+    let sha = publish(&r, "0.11.0");
+    release_toml(&r, "0.11.0", &sha);
+    let path = with_uv(&r);
+    let env = [
+        ("PATH", Path::new(&path)),
+        ("FAKE_CURL_SLEEP", Path::new("2")),
+    ];
+    for _ in 0..3 {
+        assert_eq!(r.sh("launch", &["mcp"], "", &env).status.code(), Some(0));
+    }
+    let fetched = r.data_bin().join("herdr-inbox-0.11.0");
+    assert!(wait_for(&fetched, Duration::from_secs(20)));
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(r.tool_log().matches("curl ").count(), 1, "{}", r.tool_log());
+    assert!(
+        !r.data_bin().join(".fetch-lock").exists(),
+        "the lock goes with the download"
+    );
+}

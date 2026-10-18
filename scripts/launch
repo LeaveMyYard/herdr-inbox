@@ -29,7 +29,12 @@
 CONTRACT=1
 
 root=$(cd "$(dirname "$0")/.." && pwd) || exit 0
-state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-inbox/bin"
+state=
+if [ -n "${XDG_STATE_HOME:-}" ]; then
+	state="$XDG_STATE_HOME/herdr-inbox/bin"
+elif [ -n "${HOME:-}" ]; then
+	state="$HOME/.local/state/herdr-inbox/bin"
+fi
 tab=$(printf '\t')
 
 # Candidates as "major<TAB>minor<TAB>patch<TAB>path", newest first.
@@ -50,12 +55,12 @@ versions() {
 pick() {
 	dev="$root/target/release/herdr-inbox"
 	if [ -x "$dev" ] && [ "$("$dev" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
-		echo "$dev"
+		printf '%s\n' "$dev"
 		return
 	fi
-	versions ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/bin"} "$state" | cut -f 4- | while IFS= read -r c; do
+	versions ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/bin"} ${state:+"$state"} | cut -f 4- | while IFS= read -r c; do
 		if [ -x "$c" ] && [ "$("$c" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
-			echo "$c"
+			printf '%s\n' "$c"
 			break
 		fi
 	done
@@ -86,8 +91,17 @@ mcp)
 		. "$root/scripts/release-lib.sh"
 		tag=$(inbox_release_value "$root/release.toml" tag)
 		if [ -n "$tag" ]; then
-			# in the background, detached (double fork: init reaps it, not the MCP server)
-			( (inbox_fetch "$root/release.toml" "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}") </dev/null >/dev/null 2>&1 &)
+			# in the background, detached (double fork: init reaps it, not the MCP server), one
+			# download at a time: concurrent MCP starts share it (a lock older than 10 minutes
+			# was left by a killed download)
+			lock="$CLAUDE_PLUGIN_DATA/bin/.fetch-lock"
+			( (
+				mkdir -p "$CLAUDE_PLUGIN_DATA/bin" || exit 0
+				find "$lock" -maxdepth 0 -mmin +10 -exec rmdir {} \; 2>/dev/null
+				mkdir "$lock" 2>/dev/null || exit 0
+				inbox_fetch "$root/release.toml" "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}"
+				rmdir "$lock"
+			) </dev/null >/dev/null 2>&1 &)
 		fi
 	fi
 	exec uv run --quiet --frozen --no-dev --project "$root" inbox mcp

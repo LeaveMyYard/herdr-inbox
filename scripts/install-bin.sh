@@ -68,7 +68,14 @@ if [ -z "$version" ]; then
 	echo "herdr-inbox: $bin does not run: the Python hooks stay in use" >&2
 	exit 0
 fi
-state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-inbox/bin"
+if [ -n "${XDG_STATE_HOME:-}" ]; then
+	state="$XDG_STATE_HOME/herdr-inbox/bin"
+elif [ -n "${HOME:-}" ]; then
+	state="$HOME/.local/state/herdr-inbox/bin"
+else
+	echo "herdr-inbox: no XDG_STATE_HOME or HOME: the binary is not recorded for Claude Code (its hooks fall back to Python)" >&2
+	exit 0
+fi
 if mkdir -p "$state" && cp "$bin" "$state/.herdr-inbox-$version.$$" && mv -f "$state/.herdr-inbox-$version.$$" "$state/herdr-inbox-$version"; then
 	:
 else
