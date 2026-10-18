@@ -12,7 +12,10 @@ use std::path::Path;
 
 use herdr_agent_kit::agent_session::SessionId;
 
-/// Records that `session_id` was resumed now in pane `pane_id`. Nothing for
+/// Records that `session_id` was resumed now in pane `pane_id`, under
+/// `state_dir` (the caller passes the inbox's state directory,
+/// `plugin_paths::inbox::state_dir`, and makes the resume-only check: only
+/// SessionStart with source `resume` writes a marker). Nothing for
 /// an id that is not a canonical session id (it names the file). The marker
 /// is written to a per-process temporary file and renamed into place, so a
 /// reader sees a whole file and every write gives a new mtime.

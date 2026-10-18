@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use inbox_core::hook::{Candidate, Carry, carry, own_session};
+use inbox_core::hook::{Candidate, Carry, Gate, carry, gate};
 use inbox_core::rewake::{Ready, UNKNOWN_SESSION_END, Verdict, Watch};
 use serde_json::Value;
 
@@ -29,11 +29,19 @@ fn flag(v: &Value, key: &str) -> Option<bool> {
     v.get(key).and_then(Value::as_bool)
 }
 
-/// The hook's gates: a row without a question stopped before any claim.
-fn gates_pass(row: &Value) -> bool {
+/// The hook's gates replayed on a row's recorded lookups: a lookup the row
+/// does not hold was not made, so asking for it fails the test. The schema
+/// check is recorded only when it fails (Python notes `schema_ready` on
+/// `SchemaNotReady`), so its absence means ready.
+fn gate_of(row: &Value) -> Gate {
     let obs = &row["observed"];
-    let own = own_session(flag(obs, "own_session").unwrap().then_some("s"), false);
-    own && flag(obs, "has_candidates") == Some(true) && flag(obs, "schema_ready") != Some(false)
+    let recorded =
+        |key: &str| flag(obs, key).unwrap_or_else(|| panic!("{key} was not looked up: {row}"));
+    gate(
+        recorded("own_session"),
+        || recorded("has_candidates"),
+        || flag(obs, "schema_ready").unwrap_or(true),
+    )
 }
 
 #[test]
@@ -42,13 +50,14 @@ fn every_hook_row_is_the_policys() {
     assert!(rows.len() >= 5);
     for row in &rows {
         let Some(question) = row.get("question") else {
-            assert!(
-                !gates_pass(row),
+            assert_ne!(
+                gate_of(row),
+                Gate::Carry,
                 "a gate row the policy would carry on from: {row}"
             );
             continue;
         };
-        assert!(gates_pass(row), "{row}");
+        assert_eq!(gate_of(row), Gate::Carry, "{row}");
         let landed: Option<BTreeSet<usize>> =
             serde_json::from_value(question["landed"].clone()).unwrap();
         let c = Candidate {
@@ -93,9 +102,10 @@ fn every_rewake_row_is_the_policys() {
         let obs = &row["observed"];
         let want = row["action"].as_str().unwrap();
         let got = if let Some(still_owner) = flag(obs, "still_owner") {
-            // ended at the owner check; with the ownership intact only a gone Claude
-            // process ends it there (its liveness is not a recorded lookup)
-            Watch::owner(still_owner, !still_owner)
+            // ended at the poll's first check; with the ownership intact and the watch
+            // young, only a gone agent process ends it there (its liveness is not a
+            // recorded lookup)
+            Watch::new(0.0).begin_poll(1.0, still_owner, !still_owner)
         } else {
             let ready = match obs["ready"].as_str().unwrap() {
                 "go" => Ready::Go,

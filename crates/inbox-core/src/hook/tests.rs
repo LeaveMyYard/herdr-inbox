@@ -50,3 +50,12 @@ fn the_message_follows_what_was_recorded() {
     assert_eq!(message(2, 2), Message::AsBuilt);
     assert_eq!(message(1, 2), Message::Rebuilt);
 }
+
+#[test]
+fn the_gates_stop_in_order_and_look_up_only_what_they_need() {
+    let never = || -> bool { panic!("looked up after an earlier gate stopped") };
+    assert_eq!(gate(false, never, never), Gate::NotOwnSession);
+    assert_eq!(gate(true, || false, never), Gate::NothingWaiting);
+    assert_eq!(gate(true, || true, || false), Gate::SchemaNotReady);
+    assert_eq!(gate(true, || true, || true), Gate::Carry);
+}
