@@ -7,8 +7,10 @@
 # - the release named in release.toml, for this machine's target, checked against its sha256
 #   (release.toml was committed after the release was published, so an asset replaced later
 #   fails the install);
-# - with no matching asset (no release.toml yet, an unsupported target, a failed download),
-#   `cargo build --release --locked` when cargo exists; otherwise a clear error.
+# - with no matching asset (an unsupported target, a failed download), `cargo build --release
+#   --locked` when cargo exists; otherwise a clear error;
+# - before the first release (no release.toml), the same build when cargo exists; otherwise
+#   nothing, with a notice: the Claude Code hooks then run the Python hooks (scripts/launch).
 # A checksum mismatch is an error, never a reason to build instead.
 #
 # Then it records a hard copy for the Claude Code side, outside any install directory (herdr
@@ -30,6 +32,10 @@ case $? in
 	;;
 *)
 	if ! command -v cargo >/dev/null 2>&1; then
+		if [ ! -f "$here/release.toml" ]; then
+			echo "herdr-inbox: no Rust release yet and no cargo: the Python hooks stay in use" >&2
+			exit 0
+		fi
 		echo "herdr-inbox: no release binary for this machine ($(uname -s) $(uname -m)) and no cargo to build one; install Rust (https://rustup.rs) and run 'herdr plugin update'" >&2
 		exit 1
 	fi
