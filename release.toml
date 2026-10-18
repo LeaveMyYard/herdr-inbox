@@ -1,0 +1,9 @@
+# The release installs and updates fetch (plan §4). Written by .github/workflows/release.yml
+# (tools/release_manifest.py) after the release was published: never edit by hand.
+tag = "v0.10.6"
+
+[sha256]
+x86_64-unknown-linux-musl = "fe9cfa3ae0aadbdaaa84b1a03d57e7ad393b1b5781e85d0e0b6f8a37c608f97b"
+aarch64-unknown-linux-musl = "0000000000000000000000000000000000000000000000000000000000000000"
+x86_64-apple-darwin = "0000000000000000000000000000000000000000000000000000000000000000"
+aarch64-apple-darwin = "0000000000000000000000000000000000000000000000000000000000000000"
