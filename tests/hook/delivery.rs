@@ -360,18 +360,29 @@ fn liveness_is_stamped_after_own_session_on_the_tool_hook_path_only() {
 
 #[test]
 fn a_held_database_costs_one_busy_wait_not_one_per_answer() {
-    // review #66 H1: 12 answers, no transcript_path (record_session is a no-op), a writer holding
-    // the lock: the first failed claim stops the claiming (Python: 0.81 s; one wait per answer: 6 s)
-    let w = World::new();
-    let db = open(&w.db);
-    for i in 0..12 {
-        answered_busy(&db, &format!("Q{i}?"), "a");
-    }
-    let lock = locked(&w.db, "IMMEDIATE");
-    let (ran, took) = timed(|| w.hook("post-tool-batch", &json!({"session_id": A}).to_string()));
-    lock.execute_batch("ROLLBACK").unwrap();
-    assert_eq!((ran.code, ran.stdout.as_str()), (0, ""));
-    assert!(took < std::time::Duration::from_millis(1500), "{took:?}");
+    // review #66 H1: no transcript_path (record_session is a no-op), a writer holding the lock:
+    // the first failed claim stops the claiming. Measured against the same firing with ONE
+    // answer (one busy wait), so a slow runner cancels out: 12 answers must cost about the same,
+    // not 11 more waits of the 0.5 s busy timeout (Python: 0.81 s; one wait per answer: 6 s)
+    let firing = |answers: usize| {
+        let w = World::new();
+        let db = open(&w.db);
+        for i in 0..answers {
+            answered_busy(&db, &format!("Q{i}?"), "a");
+        }
+        let lock = locked(&w.db, "IMMEDIATE");
+        let (ran, took) =
+            timed(|| w.hook("post-tool-batch", &json!({"session_id": A}).to_string()));
+        lock.execute_batch("ROLLBACK").unwrap();
+        assert_eq!((ran.code, ran.stdout.as_str()), (0, ""));
+        took
+    };
+    let (one, twelve) = (firing(1), firing(12));
+    let extra = twelve.saturating_sub(one);
+    assert!(
+        extra < std::time::Duration::from_millis(2500),
+        "one answer {one:?}, twelve {twelve:?}"
+    );
 }
 
 #[test]
