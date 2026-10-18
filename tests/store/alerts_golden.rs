@@ -203,3 +203,39 @@ fn every_alert_step_leaves_pythons_rows_and_asks_for_pythons_effects() {
         );
     }
 }
+
+/// #83 review M1 #22: a prompt first seen exactly [`BLOCKED_AFTER`] ago alerts
+/// (Python skips only while `now - since < 15`). The step is retried if the
+/// clock second changed in between, so `since` is exactly the cutoff.
+#[test]
+fn a_prompt_alerts_at_exactly_fifteen_seconds() {
+    use herdr_inbox::store::alerts::BLOCKED_AFTER;
+    for _ in 0..5 {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(&migrated(dir.path()), Duration::from_secs(5)).unwrap();
+        let before = herdr_inbox::clock::now();
+        let since = herdr_inbox::clock::now_minus(BLOCKED_AFTER);
+        store
+            .db()
+            .execute("INSERT INTO blocked_panes (herdr_server, pane_id, since) VALUES ('/srv/a', 'w1:p5', ?)", [since])
+            .unwrap();
+        let agent = SeenAgent {
+            pane_id: "w1:p5".into(),
+            status: Some("blocked".into()),
+            tab_id: None,
+            session: None,
+            agent: None,
+        };
+        let (_, eff) = BlockedScan::default()
+            .scan(&store, "/srv/a", Some(&[agent]), 0.0, |_| None)
+            .unwrap();
+        if herdr_inbox::clock::now() == before {
+            assert!(
+                matches!(eff.first(), Some(Effect::Notify { .. })),
+                "alerted at the edge: {eff:?}"
+            );
+            return;
+        }
+    }
+    panic!("the clock second changed on every try");
+}

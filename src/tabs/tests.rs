@@ -19,4 +19,8 @@ fn every_leading_mark_of_ours_goes() {
     );
     assert_eq!(base_label("!3 ❓1 a", &["❓", "!"]), "a");
     assert_eq!(base_label("❓1 a", &[]), "❓1 a");
+    // Python: base_label("12 x", {""}) == "x", base_label("❓1 12 x", {"", "❓"}) == "x", base_label("❓2 ", {"❓"}) == ""
+    assert_eq!(base_label("12 x", &[""]), "x");
+    assert_eq!(base_label("❓1 12 x", &["", "❓"]), "x");
+    assert_eq!(base_label("❓2 ", &[DEFAULT_PREFIX]), "");
 }

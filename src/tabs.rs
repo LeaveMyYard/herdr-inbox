@@ -8,7 +8,8 @@ pub const DEFAULT_PREFIX: &str = "❓";
 /// The operator's label: every leading `<mark><digits> ` of ours stripped
 /// (Python `tabs.base_label`; `\d` is any Unicode decimal digit, as in `re`).
 pub fn base_label(label: &str, marks: &[&str]) -> String {
-    let mut marks: Vec<&str> = marks.iter().copied().filter(|m| !m.is_empty()).collect();
+    // an empty mark strips bare `<digits> ` too, as in Python (its callers leave "" out: marks_for)
+    let mut marks: Vec<&str> = marks.to_vec();
     marks.sort_unstable();
     let mut label = label;
     'strip: loop {

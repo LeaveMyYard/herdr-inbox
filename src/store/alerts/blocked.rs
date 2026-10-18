@@ -36,7 +36,7 @@ pub struct SeenAgent {
     pub pane_id: String,
     /// `agent_status` (`blocked`, `working`, ...).
     pub status: Option<String>,
-    /// Its tab.
+    /// Its tab, as herdr gave it (stored so; an empty one is not looked up).
     pub tab_id: Option<String>,
     /// `agent_session.value`.
     pub session: Option<String>,
@@ -52,7 +52,7 @@ impl SeenAgent {
         Some(SeenAgent {
             pane_id,
             status: text("agent_status"),
-            tab_id: text("tab_id").filter(|t| !t.is_empty()),
+            tab_id: text("tab_id"),
             session: v
                 .get("agent_session")
                 .and_then(|s| s.get("value"))
@@ -160,6 +160,7 @@ impl BlockedScan {
             let label = agent
                 .tab_id
                 .as_deref()
+                .filter(|tab| !tab.is_empty())
                 .and_then(&tab_label)
                 .filter(|l| !l.is_empty());
             let label = label.map(|l| base_label(&l, &[DEFAULT_PREFIX]));
