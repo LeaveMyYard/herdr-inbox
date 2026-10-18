@@ -112,6 +112,15 @@ that only matters for older databases (a data fix) needs a bump by hand.
     exits 0;
   - export/apply start that machine's worker and answer an error that the pulling worker
     backs off on.
+- **A stale older worker makes way (#50).** The worker lock means `ensure()` starts nobody while
+  any worker runs, and a worker of an older revision can keep running (its handover failed, or
+  it never sees the update). So every `SchemaNotReady` also writes the revision it wanted to
+  `revision-wanted` next to the database (`revision_wanted.py`; never lowered; rewritten on every
+  such open). A worker that finds that marker fresh (under 10 minutes old), above its own
+  revision and above the database's stamp, releases the lock and exits at its next tick; the
+  newer release's next `ensure()` (its MCP tools call it on `SchemaNotReady`) starts its own
+  worker, which migrates. After a rollback nobody rewrites the marker, and it stops counting.
+  The Rust worker (P5) honours the same file.
 - The non-migrating check compares against `reference_schema()`: the schema this code's own
   migration produces in an in-memory database, built once per process (about 2 ms), and only
   on a stale stamp.

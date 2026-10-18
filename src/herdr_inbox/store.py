@@ -634,6 +634,10 @@ class Store:
                 else:
                     with trace.step("store.schema_check"):
                         if missing := schema_missing(self.db):
+                            # a stale older worker holding the lock must hear about it (#50)
+                            from . import revision_wanted
+
+                            revision_wanted.want(self.path, MIGRATION_REVISION)
                             raise SchemaNotReady(f"inbox database not migrated yet: lacks {', '.join(missing[:5])}")
             if maintenance:
                 with trace.step("store.reconcile"):
