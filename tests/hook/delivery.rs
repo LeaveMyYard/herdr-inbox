@@ -132,6 +132,17 @@ fn nothing_for_a_subagent_another_session_or_outside_herdr() {
         None
     );
     assert_eq!(row(&db, id).0, None);
+    let stamped: i64 = db
+        .query_row(
+            "SELECT COUNT(*) FROM sessions WHERE hook_seen_at IS NOT NULL",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        stamped, 1,
+        "only the other session's own firing stamped liveness; never a subagent's"
+    );
 }
 
 #[test]
@@ -227,20 +238,22 @@ fn only_the_delivery_hook_firing_marks_the_session_live_throttled() {
 
 #[test]
 fn a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp() {
-    let w = World::new();
-    let db = open(&w.db);
-    let id = answered_busy(&db, "Merge it?", "squash");
-    db.pragma_update(None, "user_version", 1_668_105_336_i64)
-        .unwrap();
-    let ctx = w.hook("stop", &w.payload(json!({}))).context("Stop");
-    assert_eq!(
-        ctx,
-        Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
-    );
-    let stamp: i64 = db
-        .query_row("PRAGMA user_version", [], |r| r.get(0))
-        .unwrap();
-    assert_eq!(stamp, 1_668_105_336);
+    for (event, name) in [("post-tool-batch", "PostToolBatch"), ("stop", "Stop")] {
+        let w = World::new();
+        let db = open(&w.db);
+        let id = answered_busy(&db, "Merge it?", "squash");
+        db.pragma_update(None, "user_version", 1_668_105_336_i64)
+            .unwrap();
+        let ctx = w.hook(event, &w.payload(json!({}))).context(name);
+        assert_eq!(
+            ctx,
+            Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
+        );
+        let stamp: i64 = db
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(stamp, 1_668_105_336, "{event}");
+    }
 }
 
 #[test]

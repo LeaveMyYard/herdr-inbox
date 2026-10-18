@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime};
 
 use herdr_agent_kit::herdr_api::{MAX_ARG, clean};
 use herdr_agent_kit::internal::inbox_contract::delivery::delivery_messages;
-use inbox_core::hook::{self, Candidate, Carry, Message};
+use inbox_core::hook::{self, Candidate, Carry, Gate, Message};
 
 use super::payload::Payload;
 use crate::claude::Transcripts;
@@ -39,24 +39,35 @@ pub fn deliver(
     payload: &Payload,
     liveness: bool,
 ) -> Option<String> {
-    let session = payload.session_id.as_deref();
-    if !hook::own_session(session, payload.agent_id) {
-        return None; // a subagent's or teammate's hook: the answer belongs to the session that asked
-    }
-    let session = session?;
-    if liveness {
+    let own = hook::own_session(payload.session_id.as_deref(), payload.agent_id);
+    let session = payload.session_id.as_deref().unwrap_or_default();
+    if own && liveness {
         touch(db_path, session, Stamp::HookSeen, SystemTime::now());
     }
-    if !has_candidates(db_path, session, files) {
-        return None;
+    // an open error other than the schema (locked, unreadable) also means nothing now
+    let mut store = None;
+    let gate = hook::gate(
+        own,
+        || has_candidates(db_path, session, files),
+        || match Store::open(db_path, RECORD_TIMEOUT) {
+            Ok(opened) => {
+                store = Some(opened);
+                true
+            }
+            Err(OpenError::NotReady(_) | OpenError::Sqlite(_)) => false,
+        },
+    );
+    if gate != Gate::Carry {
+        return None; // not this session's own hook, nothing waiting, or no usable database
     }
-    let store = match Store::open(db_path, RECORD_TIMEOUT) {
-        Ok(store) => store,
-        Err(OpenError::NotReady(_)) | Err(OpenError::Sqlite(_)) => return None,
-    };
-    carry(&store, files, session, payload.transcript_path.as_deref())
-        .ok()
-        .flatten()
+    carry(
+        store.as_ref()?,
+        files,
+        session,
+        payload.transcript_path.as_deref(),
+    )
+    .ok()
+    .flatten()
 }
 
 /// The steps after the gates, under the store.

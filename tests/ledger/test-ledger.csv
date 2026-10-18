@@ -471,49 +471,49 @@ tests/test_groups.py::test_batched_delivery_one_message_per_pane,tests/test_grou
 tests/test_groups.py::test_batch_respects_session_and_retry_rules,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_cli_answer_still_answers_immediately,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_mcp_questions_parameter,tests/test_groups.py,,todo,,
-tests/test_hook.py::test_rules_are_short,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_startup_injects_rules,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_startup_does_not_list_questions,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_compact_lists_this_sessions_pending_questions,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_compact_without_questions_is_just_the_rules,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_subagent_start,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_broken_db_never_fails,tests/test_hook.py,,todo,,
-tests/test_hook.py::test_garbage_input_never_fails,tests/test_hook.py,,todo,,
+tests/test_hook.py::test_rules_are_short,tests/test_hook.py,herdr-inbox --lib hook::rules::tests::the_rules_are_short,mapped,,P2
+tests/test_hook.py::test_startup_injects_rules,tests/test_hook.py,herdr-inbox --test hook session_start::startup_injects_the_rules_and_lists_nothing,mapped,,P2
+tests/test_hook.py::test_startup_does_not_list_questions,tests/test_hook.py,herdr-inbox --test hook session_start::startup_injects_the_rules_and_lists_nothing,mapped,,P2
+tests/test_hook.py::test_compact_lists_this_sessions_pending_questions,tests/test_hook.py,herdr-inbox --test hook session_start::compact_lists_this_sessions_pending_questions,mapped,,P2
+tests/test_hook.py::test_compact_without_questions_is_just_the_rules,tests/test_hook.py,herdr-inbox --test hook session_start::compact_lists_this_sessions_pending_questions,mapped,,P2
+tests/test_hook.py::test_subagent_start,tests/test_hook.py,herdr-inbox --test hook session_start::subagents_get_their_rules_and_garbage_or_no_pane_gets_nothing,mapped,,P2
+tests/test_hook.py::test_broken_db_never_fails,tests/test_hook.py,herdr-inbox --test hook session_start::an_unusable_or_older_database_costs_the_list_never_the_rules,mapped,,P2
+tests/test_hook.py::test_garbage_input_never_fails,tests/test_hook.py,herdr-inbox --test hook session_start::subagents_get_their_rules_and_garbage_or_no_pane_gets_nothing,mapped,,P2
 tests/test_hook.py::test_plugin_hook_and_mcp_config_point_at_the_cli,tests/test_hook.py,,todo,,
 tests/test_hook.py::test_bounded_retries_extended_busy_codes,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_retries_extended_busy_codes,mapped,,P2
 tests/test_hook.py::test_bounded_gives_up_on_other_errors_and_at_the_deadline,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_gives_up_on_other_errors_and_at_the_deadline,mapped,,P2
 tests/test_hook.py::test_touch_gives_up_quickly_on_a_locked_db,tests/test_hook.py,herdr-inbox --test store liveness::touch_gives_up_quickly_on_a_locked_db,mapped,,P2
 tests/test_hook.py::test_has_candidates_gives_up_quickly_on_a_locked_db,tests/test_hook.py,herdr-inbox --test store candidates::has_candidates_gives_up_quickly_on_a_locked_db,mapped,,P2
 tests/test_hook.py::test_bounded_closes_every_connection_it_opens,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_opens_a_fresh_connection_for_every_attempt,mapped,,P2
-tests/test_hook_delivery.py::test_a_busy_sessions_answer_goes_out_as_hook_context_once[post-tool-batch-PostToolBatch],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_busy_sessions_answer_goes_out_as_hook_context_once[stop-Stop],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_several_answers_go_in_one_message,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_nothing_for_a_subagent_another_session_or_outside_herdr,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_row_held_by_another_sender_or_already_seen_is_left_alone,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_an_answer_already_in_the_transcript_is_recorded_not_resent,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_the_matcher_reads_hook_context_records,tests/test_hook_delivery.py,,todo,,
+tests/test_hook_delivery.py::test_a_busy_sessions_answer_goes_out_as_hook_context_once[post-tool-batch-PostToolBatch],tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_busy_sessions_answer_goes_out_as_hook_context_once,mapped,,P2
+tests/test_hook_delivery.py::test_a_busy_sessions_answer_goes_out_as_hook_context_once[stop-Stop],tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_busy_sessions_answer_goes_out_as_hook_context_once,mapped,,P2
+tests/test_hook_delivery.py::test_several_answers_go_in_one_message,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::several_answers_go_in_one_message,mapped,,P2
+tests/test_hook_delivery.py::test_nothing_for_a_subagent_another_session_or_outside_herdr,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::nothing_for_a_subagent_another_session_or_outside_herdr,mapped,,P2
+tests/test_hook_delivery.py::test_a_row_held_by_another_sender_or_already_seen_is_left_alone,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_row_held_by_another_sender_or_already_seen_is_left_alone,mapped,,P2
+tests/test_hook_delivery.py::test_an_answer_already_in_the_transcript_is_recorded_not_resent,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::an_answer_already_in_the_transcript_is_recorded_not_resent,mapped,,P2
+tests/test_hook_delivery.py::test_the_matcher_reads_hook_context_records,tests/test_hook_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P2
 tests/test_hook_delivery.py::test_the_worker_verifies_a_hook_delivery,tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_an_unseen_hook_delivery_goes_back_to_pending_then_to_typing,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_only_the_delivery_hook_firing_marks_the_session_live_throttled,tests/test_hook_delivery.py,,todo,,
+tests/test_hook_delivery.py::test_only_the_delivery_hook_firing_marks_the_session_live_throttled,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::only_the_delivery_hook_firing_marks_the_session_live_throttled,mapped,,P2
 tests/test_hook_delivery.py::test_the_worker_never_types_into_a_working_session_whose_hook_is_live,tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_a_session_whose_hook_never_fires_or_went_quiet_gets_0_8_busy_typing[False],tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_a_session_whose_hook_never_fires_or_went_quiet_gets_0_8_busy_typing[True],tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_a_stale_verifier_read_never_wipes_a_newer_send,tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_verification_is_scoped_to_the_workers_herdr_server,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_rows_at_the_miss_cap_never_open_the_writable_store,tests/test_hook_delivery.py,,todo,,
+tests/test_hook_delivery.py::test_rows_at_the_miss_cap_never_open_the_writable_store,tests/test_hook_delivery.py,herdr-inbox --test store candidates::an_answered_undelivered_unseen_answer_is_a_candidate,mapped,,P2
 tests/test_hook_delivery.py::test_a_session_without_the_hook_keeps_the_busy_grace_typing,tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_the_registered_hook_delivers_through_the_stdlib_launcher[PostToolBatch-PostToolBatch],tests/test_hook_delivery.py,,todo,,
 tests/test_hook_delivery.py::test_the_registered_hook_delivers_through_the_stdlib_launcher[Stop-Stop],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_session_without_answers_writes_only_the_minutely_liveness_stamp,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_fresh_liveness_stamp_is_checked_read_only,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_hook_delivery_column_is_no_longer_written,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp[post-tool-batch-PostToolBatch],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp[stop-Stop],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_hook_on_an_older_schema_does_nothing_and_exits_0[post-tool-batch],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_hook_on_an_older_schema_does_nothing_and_exits_0[stop],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_a_hook_on_an_older_schema_does_nothing_and_exits_0[session-start],tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_the_hooks_run_no_schema_statement_on_a_stale_stamp,tests/test_hook_delivery.py,,todo,,
-tests/test_hook_delivery.py::test_deliver_returns_nothing_when_the_store_is_not_ready,tests/test_hook_delivery.py,,todo,,
+tests/test_hook_delivery.py::test_a_session_without_answers_writes_only_the_minutely_liveness_stamp,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::only_the_delivery_hook_firing_marks_the_session_live_throttled,mapped,,P2
+tests/test_hook_delivery.py::test_a_fresh_liveness_stamp_is_checked_read_only,tests/test_hook_delivery.py,herdr-inbox --test store liveness::a_stamp_is_written_at_most_once_a_minute_in_its_own_column,mapped,,P2
+tests/test_hook_delivery.py::test_hook_delivery_column_is_no_longer_written,tests/test_hook_delivery.py,,retired,Rust has no code path that names sessions.hook_delivery (grep); the column stays for old releases,P2
+tests/test_hook_delivery.py::test_a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp[post-tool-batch-PostToolBatch],tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp,mapped,,P2
+tests/test_hook_delivery.py::test_a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp[stop-Stop],tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp,mapped,,P2
+tests/test_hook_delivery.py::test_a_hook_on_an_older_schema_does_nothing_and_exits_0[post-tool-batch],tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_hook_on_an_older_schema_does_nothing_and_exits_0,mapped,,P2
+tests/test_hook_delivery.py::test_a_hook_on_an_older_schema_does_nothing_and_exits_0[stop],tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_hook_on_an_older_schema_does_nothing_and_exits_0,mapped,,P2
+tests/test_hook_delivery.py::test_a_hook_on_an_older_schema_does_nothing_and_exits_0[session-start],tests/test_hook_delivery.py,herdr-inbox --test hook session_start::an_unusable_or_older_database_costs_the_list_never_the_rules,mapped,,P2
+tests/test_hook_delivery.py::test_the_hooks_run_no_schema_statement_on_a_stale_stamp,tests/test_hook_delivery.py,,retired,Rust hooks contain no schema SQL at all (store::readiness only SELECTs); covered by readiness a_hook_store_never_opens_an_older_schema_and_never_writes_to_it,P2
+tests/test_hook_delivery.py::test_deliver_returns_nothing_when_the_store_is_not_ready,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_hook_on_an_older_schema_does_nothing_and_exits_0,mapped,,P2
 tests/test_hook_launch.py::test_a_failing_uv_does_not_touch_the_hooks[SessionStart-SessionStart],tests/test_hook_launch.py,,todo,,
 tests/test_hook_launch.py::test_a_failing_uv_does_not_touch_the_hooks[SubagentStart-SubagentStart],tests/test_hook_launch.py,,todo,,
 tests/test_hook_launch.py::test_a_failing_python_still_exits_0[SessionStart-SessionStart],tests/test_hook_launch.py,,todo,,
