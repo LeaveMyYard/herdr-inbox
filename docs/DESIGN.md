@@ -112,15 +112,27 @@ that only matters for older databases (a data fix) needs a bump by hand.
     exits 0;
   - export/apply start that machine's worker and answer an error that the pulling worker
     backs off on.
-- **A stale older worker makes way (#50).** The worker lock means `ensure()` starts nobody while
-  any worker runs, and a worker of an older revision can keep running (its handover failed, or
-  it never sees the update). So every `SchemaNotReady` also writes the revision it wanted to
-  `revision-wanted` next to the database (`revision_wanted.py`; never lowered; rewritten on every
-  such open). A worker that finds that marker fresh (under 10 minutes old), above its own
-  revision and above the database's stamp, releases the lock and exits at its next tick; the
-  newer release's next `ensure()` (its MCP tools call it on `SchemaNotReady`) starts its own
-  worker, which migrates. After a rollback nobody rewrites the marker, and it stops counting.
-  The Rust worker (P5) honours the same file.
+- **An older worker hands over, never to nobody (#50).** The worker lock means `ensure()` starts
+  nobody while any worker runs, and a worker of an older revision can keep running (its version
+  handover failed, or it never sees the update). The handover (`worker_handover.py`):
+  - the worker holding the lock writes `worker-<key>.lock.holder` (`<revision> <pid>`; a worker
+    without one, 0.10.6 and older, counts as revision 1);
+  - a newer worker that cannot get the lock **stands by**: it writes `worker-<key>.lock.standby`
+    (`<revision> <pid> <unix seconds>`), refreshes it every second and retries the lock every
+    0.1 s, for up to 30 minutes; one standby is enough;
+  - the holder hands over at the start of each loop iteration when a live standby (fresh
+    heartbeat, process alive) has a higher revision: it releases the lock and the standby takes it
+    within 0.1 s, then migrates. An older worker that an older `ensure()` starts meanwhile sees
+    the same standby and hands over before its first tick;
+  - who starts the standby: the newer release's `ensure()` (its hooks, MCP tools and CLI call it
+    on `SchemaNotReady`; MCP tools retry for longer than a tick), when the holder is older and
+    nobody stands by. A process that cannot start a worker (the Rust hooks) writes
+    `<database>.revision-wanted` (`<revision> <unix seconds>`, never lowered, counted for
+    10 minutes, `revision_wanted.py` and `src/store/revision_wanted.rs`); the holder then starts
+    herdr's current install's worker (at most once a minute), which stands by if it is newer.
+  - The release that brings this must be live (old workers handed over by version) before any
+    release that bumps `MIGRATION_REVISION`: a 0.10.6 worker does not know the standby. The Rust
+    worker (P5) keeps the same records.
 - The non-migrating check compares against `reference_schema()`: the schema this code's own
   migration produces in an in-memory database, built once per process (about 2 ms), and only
   on a stale stamp.

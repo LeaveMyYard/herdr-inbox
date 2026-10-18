@@ -48,6 +48,9 @@ LEGACY_RECHECK = timedelta(seconds=60)
 # (at least two checks): a server that is really gone costs one more tick, a socket path
 # that is missing only for a moment (a restart or handoff) does not end the worker.
 SERVER_GONE_EXIT = 10.0
+# A revision-wanted marker (a newer Rust hook) makes the holder start the newer install's worker
+# at most this often (worker_handover.py).
+SPAWN_EVERY = 60.0
 
 
 def _lock_path(server: str | None = None):
@@ -98,8 +101,16 @@ def ensure(server: str | None = None) -> bool:
     """Start the worker for ``server`` (default: this process's herdr server), detached,
     unless one is running. True if one was started. HERDR_INBOX_NO_WORKER=1 turns this off
     (the test suite)."""
-    if os.environ.get("HERDR_INBOX_NO_WORKER") or is_running(server):
+    if os.environ.get("HERDR_INBOX_NO_WORKER"):
         return False
+    if is_running(server):
+        # a worker of an older revision holds the lock: start this revision's worker, which stands
+        # by until the older one hands the lock over (worker_handover.py, #50)
+        from . import store as st, worker_handover as wh
+
+        lock = _lock_path(server)
+        if wh.holder_revision(lock) >= st.MIGRATION_REVISION or wh.live_standby(lock) is not None:
+            return False
     log_path = db_path().parent / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as err:
@@ -364,26 +375,59 @@ def start_successor() -> bool:
     return True
 
 
-def outranked() -> bool:
-    """A newer release wants the database migrated to a revision above this code's, and nobody
-    has done it yet (herdr-inbox#50): this worker must let go of the lock so the newer worker
-    can start and migrate. A stale marker (REVISION_WANTED_TTL) does not count."""
-    from . import revision_wanted, store as st
+def _db_stamp() -> int | None:
+    """The revision the database is stamped with (None: legacy, unstamped or unreadable)."""
+    from . import store as st
 
-    want = revision_wanted.wanted(db_path())
-    if want is None or want <= st.MIGRATION_REVISION:
-        return False
     try:
         import sqlite3
 
         db = sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True, timeout=5)
         try:
-            stamped = st.stamped_revision(db.execute("PRAGMA user_version").fetchone()[0])
+            return st.stamped_revision(db.execute("PRAGMA user_version").fetchone()[0])
         finally:
             db.close()
-    except Exception:  # noqa: BLE001 - unreadable: the marker alone decides
-        stamped = None
-    return stamped is None or stamped < want
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def handed_over() -> bool:
+    """A newer worker stands by (worker_handover.py): this worker hands the lock over. The caller
+    releases it and returns; the standby takes it within STANDBY_POLL."""
+    from . import store as st, worker_handover as wh
+
+    standby = wh.live_standby(_lock_path())
+    return standby is not None and standby[0] > st.MIGRATION_REVISION
+
+
+def _spawn_newer() -> None:
+    """Start herdr's current install's worker without releasing the lock (a revision-wanted
+    marker asked for a newer one): if it is newer, it stands by and this worker hands over."""
+    root = herdr.current_plugin_root()
+    if not root:
+        return
+    binary = rust_worker_binary(root)
+    argv = [binary, "worker"] if binary else ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", root,
+                                               "inbox", "worker"]
+    try:
+        subprocess.Popen(argv, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True, env=_spawn_env())
+    except OSError:
+        pass
+
+
+def _newer_wanted() -> bool:
+    """A newer release asked (revision-wanted marker) for a revision above this worker's and the
+    database's, and no newer worker stands by yet."""
+    from . import revision_wanted, store as st, worker_handover as wh
+
+    want = revision_wanted.wanted(db_path())
+    if want is None or want <= st.MIGRATION_REVISION:
+        return False
+    stamped = _db_stamp()
+    if stamped is not None and stamped >= want:
+        return False
+    return wh.live_standby(_lock_path()) is None
 
 
 def _pending_now() -> int:
@@ -392,9 +436,15 @@ def _pending_now() -> int:
 
 
 def run() -> int:
+    from . import store as st, worker_handover as wh
+
     box = {"lock": hold_lock()}
+    if box["lock"] is None and wh.holder_revision(_lock_path()) < st.MIGRATION_REVISION:
+        # an older worker holds it: stand by until it hands over (#50)
+        box["lock"] = wh.wait_as_standby(_lock_path(), st.MIGRATION_REVISION, hold_lock)
     if box["lock"] is None:
         return 0  # another worker runs (for this herdr server)
+    wh.write_holder(_lock_path(), st.MIGRATION_REVISION)
     try:
         return _loop(box)
     finally:
@@ -427,6 +477,7 @@ def _loop(box: dict) -> int:
     remote_started = False
     herdr.follows_listed_root()  # decided now: is this worker herdr's install (update checks)
     gone_since = None
+    spawned_at = -SPAWN_EVERY
     while True:
         # detached, so nothing else stops it: never outlive the server (plan §4 item 5)
         if herdr.server_gone():
@@ -439,9 +490,12 @@ def _loop(box: dict) -> int:
             time.sleep(TICK)  # nothing can be delivered meanwhile: no tick, no error spam
             continue
         gone_since = None
-        if outranked():  # a newer release waits for its worker to migrate (#50): make way
-            log.warning("a newer release wants the database at a higher revision: worker exits")
-            return 0  # run() releases the lock; the newer release's ensure() starts its worker
+        if handed_over():  # a newer worker stands by (#50): it takes the lock as soon as it is free
+            log.warning("a newer worker stands by: handing the lock over")
+            return 0  # run() releases the lock
+        if _newer_wanted() and time.monotonic() - spawned_at >= SPAWN_EVERY:
+            spawned_at = time.monotonic()
+            _spawn_newer()  # if newer, it stands by and the next iteration hands over
         try:
             from . import remote
 
@@ -467,6 +521,9 @@ def _loop(box: dict) -> int:
             box["lock"] = hold_lock()
             if box["lock"] is None:
                 return 0  # someone else took over meanwhile
+            from . import store as st, worker_handover as wh
+
+            wh.write_holder(_lock_path(), st.MIGRATION_REVISION)
         # an enabled remote machine keeps the worker (and its pulls) alive; so does any agent,
         # whose blocked state it watches (an agent at a prompt cannot ask for help itself)
         if pending or remotes or watching:
