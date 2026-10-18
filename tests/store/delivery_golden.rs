@@ -216,3 +216,66 @@ fn every_delivery_step_leaves_pythons_rows_and_returns_pythons_result() {
         );
     }
 }
+
+/// Runs `step` until it ran within one clock second (at most a few tries):
+/// a boundary written as `now_minus(d)` is then exactly the method's cutoff.
+fn within_one_second(mut step: impl FnMut() -> bool) -> bool {
+    for _ in 0..5 {
+        let before = herdr_inbox::clock::now();
+        let got = step();
+        if herdr_inbox::clock::now() == before {
+            return got;
+        }
+    }
+    panic!("the clock second changed on every try");
+}
+
+/// #82 review L1: at exactly the cutoff, Python's `not (at > cutoff)` is
+/// due and `at >= cutoff` is live.
+#[test]
+fn same_second_boundaries_are_pythons() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), Duration::from_secs(5)).unwrap();
+    let new = NewQuestion {
+        question: "Edge?",
+        session_id: Some("s-edge"),
+        pane_id: Some("w1:p1"),
+        ..NewQuestion::default()
+    };
+    let q = store.insert(&new).unwrap();
+    store
+        .db()
+        .execute("INSERT INTO sessions (session_id) VALUES ('s-edge')", [])
+        .unwrap();
+    let every = Duration::from_secs(60);
+    let due = within_one_second(|| {
+        let at = herdr_inbox::clock::now_minus(every);
+        store
+            .db()
+            .execute(
+                "UPDATE question_ext SET legacy_checked_at = ? WHERE id = ?",
+                rusqlite::params![at, q.id],
+            )
+            .unwrap();
+        store.legacy_check_due(q.id, every).unwrap()
+    });
+    assert!(due, "legacy_checked_at == now - every: due");
+    for column in ["hook_seen_at", "watch_seen_at"] {
+        let live = within_one_second(|| {
+            let at = herdr_inbox::clock::now_minus(every);
+            store
+                .db()
+                .execute(
+                    &format!("UPDATE sessions SET {column} = ? WHERE session_id = 's-edge'"),
+                    [at],
+                )
+                .unwrap();
+            if column == "hook_seen_at" {
+                store.hook_live(Some("s-edge"), every).unwrap()
+            } else {
+                store.watch_live(Some("s-edge"), every).unwrap()
+            }
+        });
+        assert!(live, "{column} == now - within: live");
+    }
+}
