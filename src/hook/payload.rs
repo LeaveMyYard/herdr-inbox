@@ -1,6 +1,7 @@
 //! The hook payload Claude Code writes to stdin, read as Python reads its
 //! dict: a missing key, `null` and a falsy value all mean "absent".
 
+use herdr_agent_kit::agent_session::claude::wire::Line;
 use serde_json::{Map, Value};
 
 /// The fields the inbox's hooks read.
@@ -17,19 +18,27 @@ pub struct Payload {
 }
 
 impl Payload {
-    /// The payload from stdin's text: empty or blank text is `{}`; `None`
-    /// when it is not a JSON object (the hook then does nothing).
+    /// The payload from stdin's text: empty or blank text is `{}`. Parsed
+    /// as Python's `json.loads` would (the kit's transcript-line parser): a
+    /// lone UTF-16 surrogate escape, as a string cut inside an emoji in
+    /// `tool_response` carries, does not reject it. Valid JSON that is not an
+    /// object reads as `{}` (Python's hook then fell back to the bare rules at
+    /// SessionStart and did nothing else). `None` when it is not JSON (the
+    /// hook then does nothing).
     pub fn parse(raw: &str) -> Option<Payload> {
         if raw.trim().is_empty() {
             return Some(Payload::default());
         }
-        let Ok(Value::Object(map)) = serde_json::from_str::<Value>(raw) else {
-            return None;
+        let Some(line) = Line::parse(raw.trim().as_bytes()) else {
+            return serde_json::from_str::<Value>(raw)
+                .ok()
+                .map(|_| Payload::default());
         };
+        let map = line.map();
         Some(Payload {
-            session_id: text(&map, "session_id"),
-            transcript_path: text(&map, "transcript_path"),
-            source: text(&map, "source"),
+            session_id: text(map, "session_id"),
+            transcript_path: text(map, "transcript_path"),
+            source: text(map, "source"),
             agent_id: map.get("agent_id").is_some_and(truthy),
         })
     }

@@ -357,3 +357,66 @@ fn liveness_is_stamped_after_own_session_on_the_tool_hook_path_only() {
     w.hook("stop", &w.payload(json!({})));
     assert_eq!(stamped(), 1);
 }
+
+#[test]
+fn a_held_database_costs_one_busy_wait_not_one_per_answer() {
+    // review #66 H1: 12 answers, no transcript_path (record_session is a no-op), a writer holding
+    // the lock: the first failed claim stops the claiming (Python: 0.81 s; one wait per answer: 6 s)
+    let w = World::new();
+    let db = open(&w.db);
+    for i in 0..12 {
+        answered_busy(&db, &format!("Q{i}?"), "a");
+    }
+    let lock = locked(&w.db, "IMMEDIATE");
+    let (ran, took) = timed(|| w.hook("post-tool-batch", &json!({"session_id": A}).to_string()));
+    lock.execute_batch("ROLLBACK").unwrap();
+    assert_eq!((ran.code, ran.stdout.as_str()), (0, ""));
+    assert!(took < std::time::Duration::from_millis(1500), "{took:?}");
+}
+
+#[test]
+fn a_lone_surrogate_in_the_payload_still_delivers() {
+    // review #66 M1: a tool_response cut inside an emoji (Python's json.loads accepts it)
+    let w = World::new();
+    let db = open(&w.db);
+    let id = answered_busy(&db, "Merge it?", "squash");
+    let payload = w
+        .payload(json!({}))
+        .replacen('{', r#"{"tool_response": "cut \ud83d", "#, 1);
+    let ctx = w.hook("post-tool-batch", &payload).context("PostToolBatch");
+    assert_eq!(
+        ctx,
+        Some(format!("[inbox] Q{id} answered — Merge it?: squash"))
+    );
+}
+
+#[test]
+fn an_answer_whose_claim_is_lost_before_the_record_is_never_printed() {
+    // the exactly-once rebuild: a trigger steals Q2's claim right after this hook took it
+    // (another sender's live claim), so its record fails and the message is rebuilt from Q1
+    let w = World::new();
+    let db = open(&w.db);
+    let q1 = answered_busy(&db, "One?", "a");
+    let q2 = answered_busy(&db, "Two?", "b");
+    let thief = format!("sending:{}:7h1ef000", now());
+    db.execute_batch(&format!(
+        "CREATE TRIGGER steal AFTER UPDATE OF delivery_error ON questions \
+         WHEN NEW.id = {q2} AND NEW.delivery_error LIKE 'sending:%' AND NEW.delivery_error NOT LIKE '%:7h1ef000' \
+         BEGIN UPDATE questions SET delivery_error = '{thief}' WHERE id = {q2}; END"
+    ))
+    .unwrap();
+    let ctx = w
+        .hook("post-tool-batch", &w.payload(json!({})))
+        .context("PostToolBatch");
+    assert_eq!(
+        ctx,
+        Some(format!("[inbox] Q{q1} answered — One?: a")),
+        "never Q2: its record lost the claim"
+    );
+    let (delivered, _, error) = row(&db, q2);
+    assert_eq!(
+        (delivered, error),
+        (None, Some(thief)),
+        "Q2 stays with the other sender"
+    );
+}
