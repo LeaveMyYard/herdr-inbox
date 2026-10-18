@@ -169,3 +169,86 @@ fn bad_arguments_exit_0() {
         );
     }
 }
+
+#[test]
+fn a_json_payload_that_is_not_an_object_still_gets_the_rules() {
+    // review #66 L1: Python fell back to the bare rules (session-start) and never read the
+    // payload (subagent-start)
+    let w = World::new();
+    for raw in ["[]", "1"] {
+        assert_eq!(
+            w.hook("session-start", raw)
+                .context("SessionStart")
+                .as_deref(),
+            Some(SESSION_RULES)
+        );
+        assert_eq!(
+            w.hook("subagent-start", raw)
+                .context("SubagentStart")
+                .as_deref(),
+            Some(SUBAGENT_RULES)
+        );
+        let r = w.hook("stop", raw);
+        assert_eq!((r.code, r.stdout.as_str()), (0, ""));
+    }
+}
+
+/// A Claude Code process stand-in: a script named `claude` (its comm on Linux) that runs `next`.
+#[cfg(target_os = "linux")]
+fn claude_script(dir: &std::path::Path, next: &str) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::create_dir_all(dir).unwrap();
+    let path = dir.join("claude");
+    std::fs::write(&path, format!("#!/bin/sh\n{next}\n")).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    path
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_claude_nested_in_another_gets_nothing() {
+    // `claude -p` started from an agent's Bash tool inherits the pane's HERDR_PANE_ID: it is not
+    // the pane's agent (Python proc.nested_claude: two Claude processes above the hook)
+    let w = World::new();
+    let run = |nested: bool| {
+        let bin = env!("CARGO_BIN_EXE_herdr-inbox");
+        let inner = claude_script(
+            &w.state().join(if nested { "n/inner" } else { "o/inner" }),
+            &format!("{bin} hook subagent-start"),
+        );
+        let top = if nested {
+            claude_script(&w.state().join("n/outer"), &inner.display().to_string())
+        } else {
+            inner
+        };
+        // detached (a background subshell whose parent exits): the walk up from the hook meets
+        // only these scripts, never the Claude Code that may be running this test
+        let out = w.state().join(if nested { "n/out" } else { "o/out" });
+        let done = out.with_extension("done");
+        let script = format!(
+            "(\"{}\" > \"{}\" 2>/dev/null; touch \"{}\") </dev/null &",
+            top.display(),
+            out.display(),
+            done.display()
+        );
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(script)
+            .env_clear()
+            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+            .env("HERDR_PANE_ID", "w1:p1")
+            .env("HERDR_INBOX_DB", &w.db)
+            .status()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        std::fs::read_to_string(&out).unwrap()
+    };
+    assert!(
+        run(false).contains("SubagentStart"),
+        "one Claude above: its own hook"
+    );
+    assert_eq!(run(true), "", "a Claude inside a Claude: nothing");
+}
