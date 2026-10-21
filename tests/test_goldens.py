@@ -65,6 +65,10 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
         assert (FIX / "schema.json").read_text() == (tmp_path / "schema.json").read_text(), (
             "the schema changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
             "--only schema")
+        # what the Rust migration replays and must reproduce (tests/store/migrate.rs)
+        assert (FIX / "migrate.json").read_text() == (tmp_path / "migrate.json").read_text(), (
+            "the migration changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
+            "--only schema")
         return
     if kind == "herdr":  # the Rust screen parsers and live agent replay it (src/delivery/screen, pane)
         assert (FIX / "herdr-screens.json").read_text() == (tmp_path / "herdr-screens.json").read_text(), (

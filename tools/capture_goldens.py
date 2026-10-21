@@ -430,7 +430,108 @@ def capture_schema(out: Path) -> list[Path]:
     path = out / "schema.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, indent=1) + "\n")
-    return [path]
+    return [path, capture_migrate(out)]
+
+
+def _baseline(path) -> None:
+    """Every table back at the columns it first shipped with (tests/test_schema_migrations.py
+    BASELINE), no view, index or trigger: the oldest database a migration must bring forward."""
+    import sqlite3
+
+    from herdr_inbox import store
+    from tests.test_schema_migrations import BASELINE
+
+    db = sqlite3.connect(path, isolation_level=None)
+    try:
+        for kind, name in db.execute("SELECT type, name FROM sqlite_master WHERE type IN ('view', 'trigger', 'index')"
+                                     " AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'").fetchall():
+            db.execute(f"DROP {kind.upper()} {name}")
+        for table, added in store.TABLE_ADDED_COLUMNS.items():
+            for name in added:
+                assert name not in BASELINE[table]
+                db.execute(f"ALTER TABLE {table} DROP COLUMN {name}")
+        db.execute("PRAGMA user_version = 0")
+    finally:
+        db.close()
+
+
+def _describe(path) -> dict:
+    import sqlite3
+
+    from herdr_inbox import store
+
+    db = sqlite3.connect(path)
+    try:
+        columns, objects = store.describe_schema(db)
+        return {"user_version": db.execute("PRAGMA user_version").fetchone()[0],
+                "columns": {k: [list(c) for c in v] for k, v in sorted(columns.items())},
+                "objects": {k: list(v) for k, v in sorted(objects.items())}}
+    finally:
+        db.close()
+
+
+def capture_migrate(out: Path) -> Path:
+    """The migration as Python runs it (store._apply_schema's statements, in order) and what
+    ``Store(migrate=True)`` makes of databases from older releases: each case's database as
+    its SQL and stamp, and ``describe_schema`` before and after (tests/store/migrate.rs)."""
+    import sqlite3
+    import tempfile
+
+    from herdr_inbox import store
+    from tests.compat_prebridge import CURRENT_PRE_BRIDGE, LEGACY_STAMPS, make_older_head, set_stamp
+
+    def older_f84d277(path):  # remote_questions without issue_notified_at/cleared_at, remote_outbox without sending_at
+        db = sqlite3.connect(path, isolation_level=None)
+        try:
+            for table, col in (("remote_questions", "issue_notified_at"), ("remote_questions", "cleared_at"),
+                               ("remote_outbox", "sending_at")):
+                db.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
+            db.execute("PRAGMA user_version = 0")
+        finally:
+            db.close()
+
+    cases = [
+        ("fresh", None),
+        ("older head, pre-bridge stamp", lambda p: make_older_head(p)),
+        ("f84d277 head, stamp 0", older_f84d277),
+        ("baseline of every table, stamp 0", _baseline),
+        ("migrated, legacy crc32 stamp", lambda p: set_stamp(p, LEGACY_STAMPS["0.10.0 (ec16d20)"])),
+        ("migrated, revision 0 stamp", lambda p: set_stamp(p, store.REVISION_BASE)),
+        ("older head, a higher revision", lambda p: make_older_head(p, store.revision_stamp(store.MIGRATION_REVISION + 1))),
+    ]
+    docs = []
+    with tempfile.TemporaryDirectory(dir=out) as tmp:
+        for i, (name, make) in enumerate(cases):
+            path = Path(tmp) / f"case{i}.db"
+            if make is not None:
+                store.Store(path, migrate=True, maintenance=False).close()
+                make(path)
+            else:
+                sqlite3.connect(path).close()
+            before = _describe(path)
+            db = sqlite3.connect(path)
+            try:
+                setup = [s for (s,) in db.execute(
+                    "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'"
+                    " ORDER BY rowid")]
+            finally:
+                db.close()
+            store.Store(path, migrate=True, maintenance=False).close()
+            docs.append({"name": name, "setup": setup, "before": before, "after": _describe(path)})
+    doc = {"source": "store._apply_schema and Store(migrate=True) (tools/capture_goldens.py --only schema)",
+           "revision": store.MIGRATION_REVISION,
+           "current_pre_bridge": CURRENT_PRE_BRIDGE,
+           # tests/test_schema_migrations.py UNKNOWN_STAMPS: every legacy crc32, and small ones
+           "unknown_stamps": [*LEGACY_STAMPS.values(), 0, 1, 2, 0x7FFFFFFF],
+           "migration": {"schema": store._statements(store.SCHEMA),
+                         "added_columns": [[table, [[n, d] for n, d in added.items()]]
+                                           for table, added in store.TABLE_ADDED_COLUMNS.items()],
+                         "old_views": list(store.OLD_VIEWS),
+                         "view": store._statements(store.VIEW_SQL)},
+           "cases": docs}
+    path = out / "migrate.json"
+    path.write_text(json.dumps(doc, indent=1) + "\n")
+    return path
 
 
 def _generated_screens(count: int = 600, seed: int = 42) -> list[str]:
