@@ -43,6 +43,10 @@ fn is_word(c: char) -> bool {
 }
 
 /// Python's `str.isprintable` for one character.
+pub fn printable(c: char) -> bool {
+    is_printable(c)
+}
+
 fn is_printable(c: char) -> bool {
     c == ' '
         || !matches!(

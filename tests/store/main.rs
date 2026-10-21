@@ -10,6 +10,7 @@ mod delivery_golden;
 mod family;
 mod golden;
 mod liveness;
+mod mirror_golden;
 mod pending;
 mod questions_golden;
 mod readiness;
