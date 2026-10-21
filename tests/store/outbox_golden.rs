@@ -149,6 +149,10 @@ impl Replay {
                         let r = replies
                             .pop()
                             .unwrap_or_else(|| json!({"code": 255, "stderr": "ssh: no reply"}));
+                        if let Some(before) = r.get("before").and_then(Value::as_str) {
+                            // another worker settles the row while this send is under way
+                            store.db().execute_batch(before).unwrap();
+                        }
                         CallResult {
                             code: r.get("code").and_then(Value::as_i64).unwrap_or(0) as i32,
                             stdout: r.get("reply").map_or_else(
@@ -216,6 +220,11 @@ impl Replay {
                     notices(&mut effects_cell.borrow_mut(), got.notices);
                     match got.aborted {
                         None => Value::Null,
+                        // Python's json.loads message is not serde's: the kind is compared, the
+                        // text is documented as differing
+                        Some(m) if m.starts_with(herdr_inbox::store::mirror::CORRUPT_DETAIL) => {
+                            json!({"error": "JSONDecodeError"})
+                        }
                         Some(m) => {
                             json!({"error": if m.contains("has no attribute") { "AttributeError" } else { "ValueError" }, "message": m})
                         }
@@ -260,7 +269,11 @@ fn every_outbox_step_leaves_pythons_rows_calls_and_notices() {
     for (n, step) in steps.iter().enumerate() {
         let op = step["op"].as_str().unwrap();
         let (result, effects) = replay.run(op, &step["args"]);
-        assert_eq!(result, step["result"], "step {n} {op}: result");
+        let mut want = step["result"].clone();
+        if want.get("error") == Some(&json!("JSONDecodeError")) {
+            want = json!({"error": "JSONDecodeError"});
+        }
+        assert_eq!(result, want, "step {n} {op}: result");
         // Python notifies in the middle of a flush; the port returns its notices for the caller
         // to send afterwards. Each sequence is Python's: the ssh calls, and the notices.
         let split = |list: &[Value]| -> (Vec<Value>, Vec<Value>) {

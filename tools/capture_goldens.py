@@ -1226,6 +1226,28 @@ STORE_OUTBOX_OPS = [
                 sending=_iso_at(_T1 + 670))),  # sent exactly SENDING_STALE ago: no longer in flight
     ("expire_sweep", {"now": _T1 + 700}),
     ("outbox_rows", {}),
+    # a second worker settles the row during the send (#90 review M1), both ways; deliver on an
+    # open question; the 30 s in-flight edge; a corrupt detail_json (Python raises before sending)
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m2', ?, 10, '0000000a', 'open', '{}', ?), ('m2', ?, 11, '0000000b', 'open', '{}', ?),"
+                    " ('m2', ?, 12, '0000000c', 'open', '{}', ?), ('m2', ?, 14, '0000000e', 'open', '{}', ?)",
+             "params": ["d" * 32, STORE_FIXED] * 4}),
+    ("sql", _ob("race1", "m2", 10, "answer", _iso_at(_T1 + 801), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("race2", "m2", 11, "answer", _iso_at(_T1 + 802), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("d1", "m2", 12, "deliver", _iso_at(_T1 + 803), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", {**_ob("c1", "m2", 14, "answer", _iso_at(_T1 + 804), _iso_at(_T1 + 9999), db="d" * 32)}),
+    ("sql", {"sql": "UPDATE remote_outbox SET detail_json = '{broken' WHERE request_id = 'c1'", "params": []}),
+    ("sql", _ob("s3", "m8", 13, "answer", _iso_at(_T1 + 800), _iso_at(_T1 + 850), sending=_iso_at(_T1 + 871))),
+    ("sql", _ob("s4", "m8", 15, "answer", _iso_at(_T1 + 800), _iso_at(_T1 + 850), sending=_iso_at(_T1 + 870))),
+    ("flush", {"machine_id": "m2", "now": _T1 + 900, "replies": [
+        {"reply": {"outcome": "applied"}},  # o6, due again
+        {"reply": {"outcome": "rejected", "reason": "late"},
+         "before": "UPDATE remote_outbox SET state = 'done', result = 'applied' WHERE request_id = 'race1'"},
+        {"reply": {"outcome": "applied"},
+         "before": "UPDATE remote_outbox SET state = 'failed', result = 'expired' WHERE request_id = 'race2'"}]}),
+    ("clearable", {"request_id": "s3", "now": _T1 + 900}),  # sent 29 s ago: in flight
+    ("clearable", {"request_id": "s4", "now": _T1 + 900}),  # sent 30 s ago: not
+    ("expire_sweep", {"now": _T1 + 900}),
 ]
 # What validate_export makes of exports (the rows it keeps, cleaned, or the error it raises).
 _VROW = {"id": 1, "qkey": "0123abcd", "group": 1, "status": "open", "question": "Q?"}
@@ -1559,6 +1581,13 @@ def capture_store_outbox(out: Path, work: Path) -> Path:
             finally:
                 db.close()
             effects.append(["sending", rid, row[0] if row else None])
+            nxt = env["replies"][0] if env.get("replies") else {}
+            if nxt.get("before"):  # another worker settles the row while this send is under way
+                db = sqlite3.connect(path, isolation_level=None)
+                try:
+                    db.execute(nxt["before"])
+                finally:
+                    db.close()
         return inner(argv, input=input, **kw)
 
     count = {"n": 0}
