@@ -184,3 +184,73 @@ def test_text_typed_into_an_unknown_status_agent_and_lost_is_a_busy_miss(store, 
     q = store.get(qid)
     assert q.delivery_error == f"pending: {service.BUSY_WAIT_IDLE}" and q.delivery_attempts == 0
     assert store.busy_attempts(qid) == 1
+
+
+# -- several answers in one pane (#92 final pass M1) ------------------------------------------
+
+
+def waiting_answers(store, monkeypatch, *answers):
+    """Answers to questions of one pane, all held pending (the agent was at a dialog)."""
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "blocked")
+    ids = []
+    for i, answer in enumerate(answers):
+        qid = service.ask(store, A, f"Question {i + 1}?")["id"]
+        service.answer(store, qid, answer)
+        ids.append(qid)
+    return ids
+
+
+def pass_of(store, ids, **kw):
+    service.deliver_batch(store, [store.get(i) for i in ids], **kw)
+    return [store.get(i) for i in ids]
+
+
+def test_a_draft_in_the_input_box_holds_back_every_answer_of_the_message(store, fake_herdr, monkeypatch, live_session):
+    from .test_composer_draft import screen
+
+    ids = waiting_answers(store, monkeypatch, "yes", "no", "maybe")
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    monkeypatch.setenv("FAKE_HERDR_SCREEN_ANSI", screen("draft"))
+    qs = pass_of(store, ids, retry=True)
+    assert prompts(fake_herdr) == []
+    assert all(q.delivery_error == f"pending: {service.COMPOSER_DRAFT}" for q in qs)
+
+
+def test_a_failed_prompt_fails_every_answer_of_the_message(store, fake_herdr, monkeypatch, live_session):
+    ids = waiting_answers(store, monkeypatch, "yes", "no")
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    monkeypatch.setenv("FAKE_HERDR_FAIL", "agent prompt")
+    qs = pass_of(store, ids, retry=True)
+    assert all("fake failure" in q.delivery_error and q.delivery_attempts == 1 for q in qs)
+
+
+def test_only_the_answer_not_yet_in_the_conversation_is_typed(store, fake_herdr, monkeypatch, live_session):
+    first, second = waiting_answers(store, monkeypatch, "yes", "no")
+    with open(live_session, "a") as fh:  # the second one landed late, after its pass gave up
+        fh.write(json.dumps({"type": "user", "message": {"content": service.delivery_text([store.get(second)])}}) + "\n")
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    q1, q2 = pass_of(store, [first, second], retry=True)
+    assert len(prompts(fake_herdr)) == 1 and service.delivery_text([q1]) in prompts(fake_herdr)[0][3]
+    assert q1.verified_at and q2.verified_at and q2.acknowledged_at
+
+
+def test_a_long_answer_goes_in_a_message_of_its_own_as_a_reference(store, fake_herdr, monkeypatch, live_session):
+    short, long = waiting_answers(store, monkeypatch, "yes", "x" * 5000)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    q1, q2 = pass_of(store, [short, long], retry=True)
+    assert len(prompts(fake_herdr)) == 2
+    assert q1.acknowledged_at and q2.verified_at and not q2.acknowledged_at
+
+
+def test_a_busy_answer_typed_into_an_older_session_is_recorded_as_such_not_retried(store, fake_herdr, monkeypatch):
+    """Busy (Send now into a working agent) and the text landed only in the older session the
+    pane runs: the older-conversation state, never a busy miss to type again."""
+    continued_then_resumed()
+    monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
+    monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
+    q = filed(store, "w1:p1", NEW, "Which KMS key alias?", "alias/gw-creds")
+    service.deliver(store, q, force=True)
+    r = store.get(q.id)
+    assert len(prompts(fake_herdr)) == 1 and store.busy_attempts(q.id) == 0
+    assert r.delivery_error.startswith(f"{service.OLDER}typed into {OLD[:8]}")

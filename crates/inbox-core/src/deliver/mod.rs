@@ -53,7 +53,8 @@ pub struct Waiting {
 pub struct Agent {
     /// Its kind (`claude`, `codex`, ...).
     pub kind: Option<String>,
-    /// `idle`, `done`, `working`, `blocked`, ...
+    /// `idle`, `done`, `working`, `blocked`, ... A status herdr does not
+    /// report is `"None"` here, as Python renders it (`busy: the agent is None`).
     pub status: String,
     /// The operator is in the pane.
     pub focused: bool,
@@ -111,6 +112,9 @@ pub enum Outcome {
     /// Its conversation runs in another pane now (`move_to_pane`): delivered there next.
     Moved,
     /// Typed; a detached `inbox verify` records the outcome under the claim.
+    /// Its job needs what this does not carry: the message's full-answer flag
+    /// (from [`Look::messages`]) and whether the pane was busy (its agent's
+    /// status not `idle` or `done`), Python's `"ack"` and `"busy"`.
     VerifyLater,
 }
 

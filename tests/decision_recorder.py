@@ -14,6 +14,7 @@ claim tokens), deduplicated, and written in a stable order with the tests that d
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -108,6 +109,7 @@ class Frame:
         self.before: dict[int, dict | None] = {}
         self.db: str | None = None
         self.sessions: dict[str, str] = {}
+        self.messages = 0  # deliver_batch's message batches, in typing order
 
     def label(self, session: str | None) -> str | None:
         """``session`` as this frame's s1, s2, ... (None when unknown)."""
@@ -125,6 +127,10 @@ class Frame:
 
     def note(self, key: str, value, qids=None) -> None:
         v = agent_view(value, self.label) if key in ("agent", "agent_again") else value_of(key, value)
+        if key == "full_answer_in_message" and qids is not None:  # one note per message: its batch
+            for qid in qids:
+                self.qobs.setdefault(qid, {})["message"] = self.messages
+            self.messages += 1
         if qids is None:
             self.obs[key] = v
         else:
@@ -136,7 +142,8 @@ class Frame:
         if not self.before:
             self.rec.add(base)
             return
-        for qid, before in self.before.items():
+        rows = []
+        for slot, (qid, before) in enumerate(self.before.items()):
             after = state(self.db, qid)
             row = {**base, "question": self.qobs.get(qid, {}), "before": before, "after": after}
             if before and after:
@@ -146,7 +153,12 @@ class Frame:
             for s in (before, after):
                 if s:
                     s.pop("_pane", None)
-            self.rec.add(row)
+            rows.append({**row, "slot": slot})
+        # the pass: every row of this frame carries the same id, made from the whole frame (so a
+        # replay can put a pane's answers back together; identical passes share one id)
+        digest = hashlib.sha256(json.dumps(rows, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
+        for row in rows:
+            self.rec.add({**row, "pass": digest})
 
 
 class Recorder:
