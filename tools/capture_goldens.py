@@ -1248,6 +1248,70 @@ STORE_OUTBOX_OPS = [
     ("clearable", {"request_id": "s3", "now": _T1 + 900}),  # sent 29 s ago: in flight
     ("clearable", {"request_id": "s4", "now": _T1 + 900}),  # sent 30 s ago: not
     ("expire_sweep", {"now": _T1 + 900}),
+    # time passes within one flush (#90 final pass M1): every _now() is 10 s after the one
+    # before (``tick``). t1 is sent; t2 expires before its turn and is never sent; t3 is still
+    # being sent (stamped late in the flush) when another worker's sweep runs, which leaves it
+    # alone. u1's stored detail holds an escaped lone surrogate, sent back exactly as stored.
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m2', ?, 20, '00000014', 'open', '{}', ?), ('m2', ?, 21, '00000015', 'open', '{}', ?),"
+                    " ('m2', ?, 22, '00000016', 'open', '{}', ?), ('m2', ?, 23, '00000017', 'open', '{}', ?)",
+             "params": ["d" * 32, STORE_FIXED] * 4}),
+    ("sql", {"sql": "UPDATE remote_outbox SET state = 'seen' WHERE machine_id = 'm2' AND state = 'queued'",
+             "params": []}),  # the rows above (c1 stays corrupt otherwise): out of the way
+    ("sql", _ob("t1", "m2", 20, "answer", _iso_at(_T1 + 950), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("t2", "m2", 21, "answer", _iso_at(_T1 + 951), _iso_at(_T1 + 1025), db="d" * 32)),
+    ("sql", _ob("t3", "m2", 22, "answer", _iso_at(_T1 + 952), _iso_at(_T1 + 1065), db="d" * 32)),
+    ("flush", {"machine_id": "m2", "now": _T1 + 1000, "tick": 10, "replies": [
+        {"reply": {"outcome": "applied"}},
+        {"reply": {"outcome": "applied"}, "sweep": True}]}),
+    ("sql", _ob("u1", "m2", 23, "answer", _iso_at(_T1 + 1100), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", {"sql": "UPDATE remote_outbox SET detail_json = ? WHERE request_id = 'u1'",
+             "params": ['{"choices": [], "notes": {}, "text": "half \\ud83d pair"}']}),
+    ("flush", {"machine_id": "m2", "now": _T1 + 1200, "replies": [{"reply": {"outcome": "applied"}}]}),
+    # every other _now() of the outbox, with time passing (7 s per read): a due next try, a
+    # stale mirror, a lost reply, a rejection, an old remote, the four status-query answers;
+    # then the sweep, `d` and both enqueues
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES " + ", ".join(f"('m2', ?, {i}, '{i:08x}', 'open', '{{}}', ?)" for i in range(41, 50)),
+             "params": ["d" * 32, STORE_FIXED] * 9}),
+    ("sql", _ob("v1", "m2", 41, "answer", _iso_at(_T1 + 1301), _iso_at(_T1 + 9999), db="d" * 32,
+                next_try=_iso_at(_T1 + 1290))),
+    ("sql", _ob("v2", "m2", 42, "answer", _iso_at(_T1 + 1302), _iso_at(_T1 + 9999), db="c" * 32,
+                next_try="")),  # an empty next try: no time read for it
+    ("sql", _ob("v3", "m2", 43, "answer", _iso_at(_T1 + 1303), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("v4", "m2", 44, "answer", _iso_at(_T1 + 1304), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("v5", "m2", 45, "answer", _iso_at(_T1 + 1305), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("v6", "m2", 46, "answer", _iso_at(_T1 + 1306), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("sql", _ob("v7", "m2", 47, "answer", _iso_at(_T1 + 1307), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("sql", _ob("v8", "m2", 48, "answer", _iso_at(_T1 + 1308), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("sql", _ob("v9", "m2", 49, "answer", _iso_at(_T1 + 1309), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("flush", {"machine_id": "m2", "now": _T1 + 1310, "tick": 7, "replies": [
+        {"reply": {"outcome": "applied"}}, {"stdout": "", "stderr": "lost", "code": 255},
+        {"reply": {"outcome": "rejected", "reason": "no"}}, {"code": 2, "stdout": ""},
+        {"reply": {"outcome": "recorded", "state": "applied"}}, {"reply": {"outcome": "rejected"}},
+        {"reply": {"outcome": "recorded", "reason": "closed"}}, {"reply": {"outcome": "expired"}}]}),
+    ("sql", _ob("w1", "m9", 61, "answer", _iso_at(_T1 + 1400), _iso_at(_T1 + 1450), sending=_iso_at(_T1 + 1460))),
+    ("sql", _ob("w2", "m9", 62, "answer", _iso_at(_T1 + 1400), _iso_at(_T1 + 1450), sending=_iso_at(_T1 + 1485))),
+    ("sql", _ob("w3", "m9", 63, "answer", _iso_at(_T1 + 1400), _iso_at(_T1 + 1450))),
+    ("expire_sweep", {"now": _T1 + 1480, "tick": 10}),  # w1 is out of flight at its read (1490), w2 not (1510)
+    ("sql", _ob("w4", "m9", 64, "answer", _iso_at(_T1 + 1500), _iso_at(_T1 + 1550), sending=_iso_at(_T1 + 1525))),
+    ("clearable", {"request_id": "w4", "now": _T1 + 1554, "tick": 1}),  # expired at 1554, stale at 1555: clearable
+    ("sql", _ob("w5", "m9", 65, "answer", _iso_at(_T1 + 1500), _iso_at(_T1 + 1555))),
+    ("clearable", {"request_id": "w5", "now": _T1 + 1554, "tick": 1}),  # one read: not expired yet
+    # an unsafe target on the send path: call() refuses it inside _sending, the row fails
+    ("sql", {"sql": "INSERT INTO remote_machines (machine_id, label, target, last_error, last_ok_at)"
+                    " VALUES ('m11', 'eleven', 'x;y', NULL, ?)", "params": [_iso_at(_T1)]}),
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m11', ?, 1, '00000001', 'open', '{}', ?), ('m11', ?, 2, '00000002', 'open', '{}', ?)",
+             "params": [_DBX, STORE_FIXED] * 2}),
+    ("sql", _ob("x1", "m11", 1, "answer", _iso_at(_T1 + 1560), _iso_at(_T1 + 9999))),
+    ("sql", _ob("x2", "m11", 2, "answer", _iso_at(_T1 + 1561), _iso_at(_T1 + 9999))),
+    ("flush", {"machine_id": "m11", "now": _T1 + 1570, "tick": 3, "replies": []}),
+    ("enqueue", {"machine_id": "m2", "data": {"id": 20, "qkey": "00000014", "_db_id": "d" * 32}, "action": "answer",
+                 "detail": None, "now": _T1 + 1600, "tick": 5}),
+    ("enqueue_alert_ack", {"machine_id": "m1", "data": {"id": 2, "akey": "00000002aa", "_db_id": _DBX},
+                           "now": _T1 + 1700, "tick": 5}),
+    ("outbox_rows", {}),
 ]
 # What validate_export makes of exports (the rows it keeps, cleaned, or the error it raises).
 _VROW = {"id": 1, "qkey": "0123abcd", "group": 1, "status": "open", "question": "Q?"}
@@ -1582,6 +1646,15 @@ def capture_store_outbox(out: Path, work: Path) -> Path:
                 db.close()
             effects.append(["sending", rid, row[0] if row else None])
             nxt = env["replies"][0] if env.get("replies") else {}
+            if nxt.get("sweep"):  # another worker's expiry sweep runs while this send is under way,
+                tick, env["tick"] = env["tick"], 0  # at the time now, on a clock of its own
+                notify, remote._notify = remote._notify, lambda title, body: effects.append(
+                    ["notify-other", title, body])  # its notices, not this flush's
+                try:
+                    with st.Store(path, maintenance=False) as other:
+                        remote.expire_sweep(other)
+                finally:
+                    env["tick"], remote._notify = tick, notify
             if nxt.get("before"):  # another worker settles the row while this send is under way
                 db = sqlite3.connect(path, isolation_level=None)
                 try:
@@ -1597,8 +1670,12 @@ def capture_store_outbox(out: Path, work: Path) -> Path:
             count["n"] += 1
             self.hex = f"{count['n']:032x}"
 
-    stubs = {"_now": lambda: datetime.fromtimestamp(env["now"], tz=timezone.utc),
-             "_notify": lambda title, body: effects.append(["notify", title, body])}
+    def _now():  # the step's ``now``, then ``tick`` seconds later at every read
+        at = env["now"]
+        env["now"] += env.get("tick", 0)
+        return datetime.fromtimestamp(at, tz=timezone.utc)
+
+    stubs = {"_now": _now, "_notify": lambda title, body: effects.append(["notify", title, body])}
     saved = {k: getattr(remote, k) for k in stubs}
     for k, fn in stubs.items():
         setattr(remote, k, fn)
@@ -1624,6 +1701,7 @@ def capture_store_outbox(out: Path, work: Path) -> Path:
                 effects.clear()
                 env["step"] = args
                 env["now"] = args.get("now", env["now"])
+                env["tick"] = args.get("tick", 0)
                 env["replies"] = list(args.get("replies", []))
                 try:
                     if op == "sql":

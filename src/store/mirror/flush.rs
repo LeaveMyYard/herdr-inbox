@@ -9,7 +9,8 @@ use rusqlite::{OptionalExtension, params};
 use serde_json::{Value, json};
 
 use super::outbox::{OUTBOX_COLUMNS, OutboxRow};
-use super::{CallResult, MACHINE_COLUMNS, Machine, Notice, iso};
+use super::paths::too_large;
+use super::{Clock, MACHINE_COLUMNS, Machine, Notice, iso};
 use crate::pyjson::{self, dumps};
 use crate::remote::command::{FixedCommand, InboxSub, SafeTarget, Ssh};
 use crate::remote::fields::text;
@@ -32,22 +33,31 @@ pub struct Flushed {
 /// `json.loads` raising out of `flush`; serde's message follows).
 pub const CORRUPT_DETAIL: &str = "corrupt detail_json: ";
 
+/// An `inbox apply` reply: `None` when it is not JSON, or longer than the
+/// export cap (Python reads any length; a remote's output is untrusted, so
+/// an oversized reply counts as lost and the send is retried with the same
+/// request id).
 pub(super) fn reply_of(stdout: &str) -> Option<Value> {
+    if too_large(stdout) {
+        return None;
+    }
     pyjson::loads(stdout).ok()
 }
 
 impl Store {
     /// Runs `ssh` with the row marked as being sent meanwhile (Python
     /// `_sending`): the sweep and the popup leave it alone.
-    pub(super) fn sending(
+    ///
+    /// `stamp`: the time read as Python reads it, before the call starts.
+    pub(super) fn sending<T>(
         &self,
         request_id: &str,
-        now: SystemTime,
-        send: impl FnOnce() -> CallResult,
-    ) -> rusqlite::Result<CallResult> {
+        stamp: SystemTime,
+        send: impl FnOnce() -> T,
+    ) -> rusqlite::Result<T> {
         self.db().execute(
             "UPDATE remote_outbox SET sending_at = ? WHERE request_id = ?",
-            params![iso(now), request_id],
+            params![iso(stamp), request_id],
         )?;
         let result = send();
         self.db().execute(
@@ -61,7 +71,7 @@ impl Store {
     pub fn flush(
         &self,
         machine_id: &str,
-        now: SystemTime,
+        clock: Clock<'_>,
         ssh: Ssh<'_>,
     ) -> rusqlite::Result<Flushed> {
         let mut out = Flushed::default();
@@ -97,25 +107,26 @@ impl Store {
             }
         }
         for row in heads {
+            // Python reads the time per check, and only when the row has a next try
             if row
                 .next_try_at
                 .as_deref()
-                .is_some_and(|n| n > iso(now).as_str())
+                .is_some_and(|n| !n.is_empty() && n > iso(clock()).as_str())
             {
                 continue;
             }
-            if row.expires_at.as_str() <= iso(now).as_str() {
+            if row.expires_at.as_str() <= iso(clock()).as_str() {
                 if row.attempts == 0 {
-                    out.notices.extend(self.expire(&row, &label, now)?);
+                    out.notices.extend(self.expire(&row, &label, clock())?);
                 } else if let Err(e) =
-                    self.resolve_expired(&rec, &row, &label, now, ssh, &mut out.notices)?
+                    self.resolve_expired(&rec, &row, &label, clock, ssh, &mut out.notices)?
                 {
                     out.aborted = Some(e);
                     return Ok(out);
                 }
                 continue;
             }
-            match self.send_one(&rec, &row, &label, now, ssh)? {
+            match self.send_one(&rec, &row, &label, clock, ssh)? {
                 Ok(notice) => out.notices.extend(notice),
                 Err(e) => {
                     out.aborted = Some(e);
@@ -132,7 +143,7 @@ impl Store {
         rec: &Machine,
         row: &OutboxRow,
         label: &str,
-        now: SystemTime,
+        clock: Clock<'_>,
         ssh: Ssh<'_>,
     ) -> rusqlite::Result<Result<Option<Notice>, String>> {
         let reference = row.reference(label);
@@ -175,26 +186,26 @@ impl Store {
                     "rejected",
                     &reason,
                     Some((not_sent, body)),
-                    now,
+                    clock(),
                 )?
                 .1));
         }
         // Python: json.loads(detail_json) if detail_json else None, outside any try: a corrupt
         // one raises out of flush before anything is sent (only corruption can produce one)
-        let detail = match row.detail_json.as_deref().filter(|d| !d.is_empty()) {
-            None => Value::Null,
-            Some(d) => match pyjson::loads(d) {
-                Ok(v) => v,
-                Err(e) => return Ok(Err(format!("{CORRUPT_DETAIL}{e}"))),
-            },
-        };
-        let request = json!({"request_id": row.request_id, "db_id": row.db_id, "id": row.remote_id, "qkey": row.qkey,
-                             "action": row.action, "detail": detail});
-        // Python call(): the target, then the cached paths, before ssh runs
-        let checked = SafeTarget::for_call(rec.target.as_deref())
-            .and_then(|t| Ok((t, FixedCommand::inbox(rec, InboxSub::Apply)?)));
-        let (target, command) = match checked {
-            Ok(c) => c,
+        let detail = row.detail_json.as_deref().filter(|d| !d.is_empty());
+        if let Some(Err(e)) = detail.map(pyjson::loads) {
+            return Ok(Err(format!("{CORRUPT_DETAIL}{e}")));
+        }
+        let request = request_text(row, detail);
+        // Python call() inside _sending: the stamp, then the target and the cached paths
+        let stamp = clock();
+        let sent = self.sending(&row.request_id, stamp, || {
+            let target = SafeTarget::for_call(rec.target.as_deref())?;
+            let command = FixedCommand::inbox(rec, InboxSub::Apply)?;
+            Ok::<_, String>(ssh(&target, &command, Some(&request)))
+        })?;
+        let result = match sent {
+            Ok(r) => r,
             Err(e) => {
                 return Ok(Ok(self
                     .settle(
@@ -202,14 +213,11 @@ impl Store {
                         "failed",
                         &e,
                         Some((not_sent, e.clone())),
-                        now,
+                        clock(),
                     )?
                     .1));
             }
         };
-        let result = self.sending(&row.request_id, now, || {
-            ssh(&target, &command, Some(&dumps(&request)))
-        })?;
         if result.code == 2 {
             let msg = format!("upgrade {label} (inbox remote upgrade {label})");
             return Ok(Ok(self
@@ -218,7 +226,7 @@ impl Store {
                     "failed",
                     &msg,
                     Some((not_sent, msg.clone())),
-                    now,
+                    clock(),
                 )?
                 .1));
         }
@@ -228,9 +236,9 @@ impl Store {
             .and_then(|r| r.as_object())
             .and_then(|r| r.get("outcome"));
         match outcome.and_then(Value::as_str) {
-            Some(o @ ("applied" | "already_applied")) => {
-                Ok(Ok(self.settle(&row.request_id, "done", o, None, now)?.1))
-            }
+            Some(o @ ("applied" | "already_applied")) => Ok(Ok(self
+                .settle(&row.request_id, "done", o, None, clock())?
+                .1)),
             Some("rejected") => {
                 let reason = reason_of(reply.as_ref());
                 let title = format!("{reference}: {label} rejected your {}", row.action);
@@ -240,7 +248,7 @@ impl Store {
                         "rejected",
                         &reason,
                         Some((title, reason.clone())),
-                        now,
+                        clock(),
                     )?
                     .1))
             }
@@ -251,10 +259,29 @@ impl Store {
                 let tail: String = tail[tail.len().saturating_sub(200)..].iter().collect();
                 self.db().execute(
                     "UPDATE remote_outbox SET attempts = attempts + 1, next_try_at = ?, result = ? WHERE request_id = ?",
-                    params![iso(now + Duration::from_secs(delay)), tail, row.request_id],
+                    params![iso(clock() + Duration::from_secs(delay)), tail, row.request_id],
                 )?;
                 Ok(Ok(None))
             }
+        }
+    }
+}
+
+/// The `inbox apply` request, as Python's `json.dumps` writes it, with the
+/// stored `detail_json` text itself as its `detail`: Python re-dumps what it
+/// loaded, which gives back the stored text for everything either side
+/// writes, while a value read here can be lossy (an escaped lone surrogate
+/// reads as U+FFFD) and must never be sent back (#79).
+fn request_text(row: &OutboxRow, detail: Option<&str>) -> String {
+    let head = dumps(
+        &json!({"request_id": row.request_id, "db_id": row.db_id, "id": row.remote_id,
+                             "qkey": row.qkey, "action": row.action, "detail": null}),
+    );
+    match detail {
+        None => head,
+        Some(raw) => {
+            let open = head.strip_suffix("null}").expect("detail is the last key");
+            format!("{open}{raw}}}")
         }
     }
 }

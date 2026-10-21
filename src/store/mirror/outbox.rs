@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 use rusqlite::{OptionalExtension, Row, params};
 use serde_json::{Map, Value};
 
-use super::{Notice, iso};
+use super::{Clock, Notice, iso};
 use crate::pyjson::dumps;
 use crate::remote::pyvalue::py_truthy;
 use crate::remote::validate::py_int;
@@ -77,10 +77,11 @@ impl OutboxRow {
     }
 
     /// Being sent right now (Python `_in_flight`).
-    pub fn in_flight(&self, now: SystemTime) -> bool {
+    /// The time is read only for a row with a stamp, as Python reads it.
+    pub fn in_flight(&self, clock: Clock<'_>) -> bool {
         self.sending_at
             .as_deref()
-            .is_some_and(|s| !s.is_empty() && s > iso(now - SENDING_STALE).as_str())
+            .is_some_and(|s| !s.is_empty() && s > iso(clock() - SENDING_STALE).as_str())
     }
 }
 
@@ -113,7 +114,7 @@ impl Store {
         action: &str,
         detail: Option<&Value>,
         request_id: &str,
-        now: SystemTime,
+        clock: Clock<'_>,
         expiry: Duration,
     ) -> rusqlite::Result<Result<String, Gone>> {
         let (id, qkey, db_id) = shown(data, "qkey");
@@ -132,10 +133,13 @@ impl Store {
             return Ok(Err(Gone("that question changed — reopen it".into())));
         }
         let detail_json = detail.filter(|d| py_truthy(d)).map(dumps);
+        // Python: the expiry first, then the creation time, each its own _now()
+        let expires = clock() + expiry;
+        let created = clock();
         self.db().execute(
             "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, detail_json, created_at, \
              expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            params![request_id, machine_id, mirror_db, id, mirror_key, action, detail_json, iso(now), iso(now + expiry)],
+            params![request_id, machine_id, mirror_db, id, mirror_key, action, detail_json, iso(created), iso(expires)],
         )?;
         Ok(Ok(request_id.to_string()))
     }
@@ -147,7 +151,7 @@ impl Store {
         machine_id: &str,
         data: &Map<String, Value>,
         request_id: &str,
-        now: SystemTime,
+        clock: Clock<'_>,
         expiry: Duration,
     ) -> rusqlite::Result<Result<String, Gone>> {
         let (id, akey, db_id) = shown(data, "akey");
@@ -166,10 +170,13 @@ impl Store {
                 "that alert changed or is gone — reopen the inbox".into(),
             )));
         };
+        // Python: the creation time first, then the expiry
+        let created = clock();
+        let expires = clock() + expiry;
         self.db().execute(
             "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, detail_json, created_at, \
              expires_at) VALUES (?, ?, ?, ?, ?, 'ack_alert', NULL, ?, ?)",
-            params![request_id, machine_id, mirror_db, id, mirror_key, iso(now), iso(now + expiry)],
+            params![request_id, machine_id, mirror_db, id, mirror_key, iso(created), iso(expires)],
         )?;
         self.db().execute(
             "UPDATE remote_alerts SET status = 'acked' WHERE machine_id = ? AND alert_id = ?",
@@ -249,7 +256,7 @@ impl Store {
 
     /// `d` in the popup: failed or rejected rows, and queued ones past expiry
     /// that are not being sent right now.
-    pub fn clearable(&self, request_id: &str, now: SystemTime) -> rusqlite::Result<bool> {
+    pub fn clearable(&self, request_id: &str, clock: Clock<'_>) -> rusqlite::Result<bool> {
         let row = self
             .db()
             .query_row(
@@ -263,7 +270,7 @@ impl Store {
         Ok(match row {
             None => false,
             Some(r) if r.state == "rejected" || r.state == "failed" => true,
-            Some(r) => r.state == "queued" && r.expires_at <= iso(now) && !r.in_flight(now),
+            Some(r) => r.state == "queued" && r.expires_at <= iso(clock()) && !r.in_flight(clock),
         })
     }
 }
