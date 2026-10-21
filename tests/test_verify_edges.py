@@ -167,3 +167,26 @@ def test_a_job_whose_text_never_showed_misses_every_row(store, live_session, mon
                                         {"id": q2, "claim": c2}]})
     for q in (q1, q2):
         assert store.get(q).delivery_error == f"pending: {service.BUSY_WAIT_IDLE}" and store.busy_attempts(q) == 1
+
+
+@pytest.mark.parametrize("busy", [False, True])
+def test_text_seen_only_in_an_unrelated_watched_transcript_counts_for_nothing(store, live_session, monkeypatch, busy):
+    """The text landed in a watched transcript the row's plan does not count, and that is no
+    older session of its conversation: not delivered, not an older landing (#93 final pass M1)."""
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.2)
+    other = live_session.parent / "cccccccc-0000-4000-8000-00000000000c.jsonl"
+    other.write_text("")
+    (q1, c1), = claimed_answers(store, 1)
+    text = service.delivery_text([store.get(q1)])
+    with open(other, "a") as fh:
+        fh.write(json.dumps({"type": "user", "message": {"content": text}}) + "\n")
+    service.verify_job(store, {
+        "path": str(live_session), "offset": live_session.stat().st_size, "busy": busy, "text": text,
+        "watch": [[str(live_session), live_session.stat().st_size], [str(other), 0]],
+        "rows": [{"id": q1, "claim": c1, "counting": [str(live_session)], "older_error": None}]})
+    q = store.get(q1)
+    assert not q.verified_at and not q.acknowledged_at
+    if busy:
+        assert q.delivery_error == f"pending: {service.BUSY_WAIT_IDLE}" and store.busy_attempts(q1) == 1
+    else:
+        assert q.delivery_error == service.NOT_VERIFIED and q.delivery_attempts == 1
