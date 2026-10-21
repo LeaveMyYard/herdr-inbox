@@ -4,13 +4,27 @@
 //!
 //! Python's types are kept where they decide anything: a JSON `true`/`false`
 //! is an `int` to Python's `isinstance`, so it passes an integer check (as 1 or
-//! 0) and is kept as it came in the stored row. Two inputs Rust cannot read as
-//! Python does: an escaped lone surrogate reads as U+FFFD
-//! ([`crate::pyjson::loads`]), and `NaN`/`Infinity`/numbers beyond f64 fail the
-//! whole export (Python reads them). Neither comes from an inbox's export.
+//! 0) and is kept as it came in the stored row.
+//!
+//! Where Rust reads an export differently (none of it comes from an inbox's
+//! own export; each fails safe):
+//! - an escaped lone surrogate reads as U+FFFD ([`crate::pyjson::loads`]);
+//! - `NaN`, `Infinity` and numbers beyond f64 fail the whole export (Python
+//!   reads them);
+//! - JSON nested deeper than 128 fails the whole export (serde_json's stack
+//!   guard); Python reads it and ignores a field it does not use;
+//! - an integer beyond i64 in `id`, `group`, `seq`, `ids` or `gone` drops the
+//!   row or refuses the export, recorded as a failed pull with backoff; Python
+//!   takes it and then fails at SQLite inside the apply (`OverflowError`), out
+//!   of `pull` without `_fail`;
+//! - a non-string `version` is stored as its JSON text (Python: its `str()`,
+//!   e.g. `['a']`); only `remote_machines.version` shows it;
+//! - a failed JSON parse records serde's message as `last_error`, not Python's.
 
 use serde_json::{Map, Value};
 
+use super::fields::is_hex_key;
+pub use super::fields::{NotAString, text};
 pub use super::pyvalue::py_int;
 use super::pyvalue::{py_int_strict, py_repr, py_repr_str, py_truthy};
 use crate::pyjson;
@@ -70,43 +84,6 @@ pub enum ExportError {
     Format(String),
     /// Malformed (Python `ValueError`).
     Bad(String),
-}
-
-fn is_hex_key(s: &str) -> bool {
-    (8..=64).contains(&s.len()) && s.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'))
-}
-
-fn is_ctrl(c: char) -> bool {
-    matches!(c, '\u{0}'..='\u{8}' | '\u{b}'..='\u{1f}' | '\u{7f}'..='\u{9f}' | '\u{200e}' | '\u{200f}')
-        || ('\u{202a}'..='\u{202e}').contains(&c)
-        || ('\u{2066}'..='\u{2069}').contains(&c)
-}
-
-/// A field that should be text is not (Python's `ValueError("not a string")`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NotAString;
-
-/// Python `_text`: `None` stays `None`; a non-string is an error; line and
-/// paragraph separators become spaces, controls (and bidi controls) go, and
-/// at most `cap` characters are kept.
-pub fn text(value: Option<&Value>, cap: usize) -> Result<Option<String>, NotAString> {
-    match value {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::String(s)) => Ok(Some(
-            s.chars()
-                .map(|c| {
-                    if c == '\u{2028}' || c == '\u{2029}' {
-                        ' '
-                    } else {
-                        c
-                    }
-                })
-                .filter(|&c| !is_ctrl(c))
-                .take(cap)
-                .collect(),
-        )),
-        Some(_) => Err(NotAString),
-    }
 }
 
 fn clean_option(o: &Value) -> Result<Value, NotAString> {
@@ -289,3 +266,6 @@ pub fn validate_export(raw: &str) -> Result<Export, ExportError> {
         alerts: clean_alerts(m.get("alerts"))?,
     })
 }
+
+#[cfg(test)]
+mod tests;
