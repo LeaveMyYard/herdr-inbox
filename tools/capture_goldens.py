@@ -534,6 +534,184 @@ def capture_migrate(out: Path) -> Path:
     return path
 
 
+def _generated_screens(count: int = 600, seed: int = 42) -> list[str]:
+    """Screens built at random from the pieces both parsers react to (escapes, dim codes, the
+    prompt, the placeholder, borders with and without tags, blank and footer lines), a fixed
+    seed: the #95 review's differential generator, kept so its cases stay replayed."""
+    import random
+
+    rnd = random.Random(seed)
+    dim, rst, bold, b22 = "\x1b[2m", "\x1b[0m", "\x1b[1m", "\x1b[22m"
+    parts = ["", " ", " ", "❯", "❯ ", "❯ ", 'Try "fix the bug"', 'Try ""', 'Try "a', "hello",
+             "日本語", "\U0001f642", "x", dim, rst, bold, b22, "\x1b[38;5;246m", "\x1b[2;3m", "\x1b[m",
+             "\x1b[7m", "\x1b[?25l", "\x1b[K", "\x1b]0;title\x07", "\x1b[1;2m", "\x1b[02m", "\x1b[22;2m", "　",
+             " ", "\x1c", "\t", "─", "│", "╭", "\x1b[", "\x1b]x"]
+    rule = "─"
+
+    def border():
+        return rnd.choice([rule * rnd.randint(1, 60), rule * 40 + " node " + rule, rule * 10 + " a b " + rule * 5,
+                           rule * 5 + "  x " + rule, rule * 5 + " " + rule + " " + rule, rule * 5 + " " + "y" * 41 + " " + rule,
+                           rule * 5 + " " + "y" * 40 + " " + rule, "  " + rule * 20 + "  ", dim + rule * 30 + rst, rule * 3,
+                           rule * 2, rule * 5 + " t " + rule + "x", rule * 5 + " t " + rule + " ", rule * 5 + " t " + rule,
+                           rule * 5 + " \tt " + rule])
+
+    def line():
+        return "".join(rnd.choice(parts) for _ in range(rnd.randint(0, 6)))
+
+    def box_line():
+        pre = rnd.choice(["", " ", " ", dim, bold])
+        body = rnd.choice(["❯ ", "❯", "❯ " + dim + 'Try "x"' + rst, "❯ " + dim + "T" + rst + 'ry "x"',
+                           "❯ " + 'Try "x"', "❯ " + "\x1b[7m" + " " + rst + dim + 'ry "x"' + rst,
+                           "❯ draft", "> x", "❯ " + dim + 'Try "x"', line()])
+        return pre + body + rnd.choice(["", " ", rst, " "])
+
+    screens = []
+    for _ in range(count):
+        lines = [line() for _ in range(rnd.randint(0, 6))]
+        for _ in range(rnd.randint(0, 3)):
+            lines.append(border())
+            lines += [box_line()] + [rnd.choice(["", " ", " ", line(), "  "]) for _ in range(rnd.randint(0, 2))]
+        if rnd.random() < 0.8:
+            lines.append(border())
+        lines += [rnd.choice(["", "↑/↓ to select · enter", "  ↑/↓ to select", "? for shortcuts", line()])
+                  for _ in range(rnd.randint(0, 3))]
+        screens.append("\n".join(lines) + rnd.choice(["", "\n"]))
+    return screens
+
+
+def capture_herdr_screens(out: Path) -> Path:
+    """herdr.composer_state, herdr.panel_focused and herdr.live_agent over every screen and
+    agent record the tests use (the captured Claude Code screens in tests/fixtures/composer,
+    the shapes test_composer_draft and test_delivery_worker build, each rule's edges), each
+    screen as the CLI's text mode reads it (universal newlines): what the Rust side
+    (src/delivery/screen, src/delivery/pane) must return."""
+    import io
+
+    from herdr_inbox import herdr
+    from herdr_inbox import store as st
+    from tests import test_composer_draft as tcd
+    from tests import test_delivery_worker as tdw
+
+    def read(raw: str) -> str:  # subprocess text mode: \r\n and a lone \r read as \n
+        return io.StringIO(raw, newline=None).read()
+
+    composer = [(f"{name}.ansi", read(tcd.screen(name)))
+                for name in sorted(p.stem for p in (ROOT / "tests" / "fixtures" / "composer").glob("*.ansi"))]
+    composer += [(f"variant {line!r}", read(tcd.variant(line))) for line in (
+        "❯ \x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r",
+        "❯ \x1b[0m\x1b[2m[Image #1]\x1b[0m\r",
+        "❯ \x1b[7mT\x1b[0m\x1b[2mry \"refactor <filepath>\"\x1b[0m\r",
+        "❯ \x1b[0m\x1b[2mTry \"x\"\x1b[0m and more\r",
+        "❯ Try \"x\"\r",
+        "❯ \r")]
+    lines = tcd.screen("empty").split("\n")  # test_l1: Shift+Enter first, text on the next box line
+    i = next(k for k, line in enumerate(lines) if "❯" in line)
+    lines[i:i + 1] = ["❯ \r", "  second line of a draft\r"]
+    composer.append(("a blank first line, text on the next", read("\n".join(lines))))
+    composer += [(f"no box {text!r}", read(text)) for text in (
+        "", "plain output with no input box\n", "\x1b[2m────\x1b[0m\nno prompt\n\x1b[2m────\x1b[0m")]
+
+    # each rule's edges, Python deciding: a box is `top`, the ❯ line, `bottom`
+    def box(prompt_line, top="─" * 20, bottom="─" * 20):
+        return f"output\n{top}\n{prompt_line}\n{bottom}\n  ? for shortcuts"
+
+    dim, off = "\x1b[2m", "\x1b[0m"
+    edges = [
+        ("csi erase on the prompt line", box("❯ \x1b[K")),
+        ("csi private mode on the prompt line", box("❯ \x1b[?25l")),
+        ("osc title on the prompt line", box("❯ \x1b]0;title\x07")),
+        ("osc on a border", box("❯ ", top="\x1b]8;;\x07" + "─" * 20)),
+        ("csi on a border", box("❯ ", top="\x1b[K" + "─" * 20)),
+        ("sgr 22 ends dim", box(f'❯ {dim}Try "\x1b[22mab{dim}c"{off}')),
+        ("sgr 2; ends dim", box('❯ \x1b[2;mTry "x"' + off)),
+        ("bare sgr ends dim", box(f'❯ {dim}Try "\x1b[mab{dim}c"{off}')),
+        ("two lit cells on the placeholder", box(f'❯ \x1b[7mT{off}\x1b[7mr{off}{dim}y "x"{off}')),
+        ("placeholder without its closing quote", box(f'❯ {dim}Try "x{off}')),
+        ("placeholder of five characters", box(f'❯ {dim}Try "{off}')),
+        ("placeholder-like, another word", box(f'❯ {dim}Xry "x"{off}')),
+        ("three-dash borders", box("❯ hi", top="───", bottom="───")),
+        ("two-dash borders", box("❯ hi", top="──", bottom="──")),
+        ("borders with trailing spaces", box("❯ ", top="─" * 20 + "   ", bottom="─" * 20 + "  ")),
+        ("a session tag", box("❯ ", top="─" * 20 + " node ─")),
+        ("a tag starting with a dash", box("❯ ", top="─" * 20 + " ─x ─")),
+        ("a tag starting with a space", box("❯ ", top="─" * 20 + "  x ─")),
+        ("a tag with a dash inside", box("❯ ", top="─" * 20 + " x─y ─")),
+        ("a tag without its last dashes", box("❯ ", top="─" * 20 + " node ")),
+        ("a tag of 41 characters", box("❯ ", top="─" * 20 + " " + "x" * 41 + " ─")),
+        ("a tag of 42 characters", box("❯ ", top="─" * 20 + " " + "x" * 42 + " ─")),
+        ("adjacent borders", "─" * 20 + "\n" + "─" * 20),
+        ("a blank line under the box", box("❯ ") + "\n \n"),
+        # #95 review M1: more than two ─── lines; a whitespace-only second box line
+        ("rules in the output above a draft", "─" * 20 + "\ntable\n" + "─" * 20 + "\nmore\n" + box("❯ draft text")),
+        ("rules in the output above an empty box", "─" * 20 + "\n❯ x\n" + "─" * 20 + "\n" + box("❯ ")),
+        ("a whitespace-only second box line", "out\n" + "─" * 20 + "\n❯ \n   \n" + "─" * 20 + "\nfooter"),
+    ]
+    composer += [(name, read(text)) for name, text in edges]
+    panel_edges = [("a blank line, no border", "output\n\n↑/↓ to select"),
+                   ("the phrase inside the footer", "─" * 20 + "\n❯\n" + "─" * 20 + "\n  x ↑/↓ to select"),
+                   ("a border with trailing spaces", "─" * 20 + "\n❯\n" + "─" * 20 + "   \n  ↑/↓ to select · esc"),
+                   ("blank lines above the footer", "─" * 20 + "\n❯\n" + "─" * 20 + "\n\n  \n  ↑/↓ to select · esc"),
+                   ("a rule in the output, the footer below the box", "─" * 20 + "\nout\n" + "─" * 20 + "\n❯\n"
+                    + "─" * 20 + "\n  ↑/↓ to select")]
+    panel = [("normal, the phrase in the body", tdw.SCREEN_NORMAL_WITH_PHRASE_IN_BODY),
+             ("panel focused", tdw.SCREEN_PANEL_FOCUSED), ("no input box", "↑/↓ to select"), ("empty", ""),
+             *panel_edges]
+    generated = _generated_screens()
+    real = herdr.run_raw
+    try:
+        rows = []
+        for name, text in composer:
+            herdr.run_raw = lambda *a, text=text, **k: (text, None)
+            rows.append({"name": name, "screen": text, "composer": herdr.composer_state("w1:p1")})
+        for name, text in panel:
+            herdr.run_raw = lambda *a, text=read(text), **k: (text, None)
+            rows.append({"name": name, "screen": read(text), "panel": herdr.panel_focused("w1:p1")})
+        for n, text in enumerate(generated):  # both parsers over every generated screen
+            herdr.run_raw = lambda *a, text=text, **k: (text, None)
+            rows.append({"name": f"generated {n}", "screen": text, "composer": herdr.composer_state("w1:p1"),
+                         "panel": herdr.panel_focused("w1:p1")})
+    finally:
+        herdr.run_raw = real
+    S = "aaaaaaaa-0000-4000-8000-00000000000a"
+    full = {"pane_id": "w1:p1", "agent": "claude", "agent_status": "idle", "focused": True,
+            "agent_session": {"kind": "id", "value": S}}
+    replies = [
+        ("a claude agent", {"agent": full}),
+        ("no session", {"agent": {**full, "agent_session": None}}),
+        ("a session without a value", {"agent": {**full, "agent_session": {"kind": "id"}}}),
+        ("an empty session id", {"agent": {**full, "agent_session": {"kind": "id", "value": ""}}}),
+        ("no status", {"agent": {k: v for k, v in full.items() if k != "agent_status"}}),
+        ("a null status", {"agent": {**full, "agent_status": None}}),
+        ("status unknown", {"agent": {**full, "agent_status": "unknown"}}),
+        ("a status herdr added later", {"agent": {**full, "agent_status": "starting"}}),
+        ("a numeric status", {"agent": {**full, "agent_status": 3}}),
+        ("not focused", {"agent": {**full, "focused": False}}),
+        ("focused as 1", {"agent": {**full, "focused": 1}}),
+        ("focused as 0", {"agent": {**full, "focused": 0}}),
+        ("focused null", {"agent": {**full, "focused": None}}),
+        ("no kind", {"agent": {k: v for k, v in full.items() if k != "agent"}}),
+        ("a codex agent", {"agent": {**full, "agent": "codex"}}),
+        ("an empty agent", {"agent": {}}),
+        ("no agent", {"agent": None}),
+        ("an empty result", {}),
+        ("the call failed", None),
+    ]
+    real_call, real_live = herdr.call, st.live_session
+    try:
+        st.live_session = lambda reported, *a, **k: f"live-of-{reported}"
+        for name, result in replies:
+            herdr.call = lambda *a, result=result, **k: (result, None if result is not None else "failed")
+            rows.append({"name": name, "result": result, "agent": herdr.live_agent("w1:p1")})
+    finally:
+        herdr.call, st.live_session = real_call, real_live
+    doc = {"source": "herdr.composer_state / herdr.panel_focused / herdr.live_agent (live_session stubbed as "
+                     "'live-of-<reported>') (tools/capture_goldens.py --only herdr)",
+           "rows": rows}
+    path = out / "herdr-screens.json"
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return path
+
+
 LANDED_QUESTIONS = [  # (id, question, answer, answered_at)
     (7, "Which region?", "eu", "2026-10-17T10:00:00+00:00"),
     (8, "Squash or merge?\nsecond line", "squash", "2026-10-17T10:00:00+00:00"),
@@ -1876,7 +2054,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store"), help="one of the sets")
+    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store", "herdr"),
+                   help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
                         "other test drives no traced decision, so the table comes out the same)")
@@ -1896,6 +2075,8 @@ def main(argv: list[str] | None = None) -> int:
             written += capture_schema(args.out)
         if args.only in (None, "landed"):
             written += capture_landed(args.out)
+        if args.only in (None, "herdr"):
+            written.append(capture_herdr_screens(args.out))
         if args.only in (None, "store"):
             written += capture_store(args.out, work)
         if args.only in (None, "screens"):

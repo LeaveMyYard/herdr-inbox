@@ -48,7 +48,7 @@ def decision_difference(want: dict, got: dict) -> str:
     return "decision rows differ:\n" + "\n".join(lines) if lines else "header differs"
 
 
-@pytest.mark.parametrize("kind", ["screens", "decisions", "schema", "landed", "store"])
+@pytest.mark.parametrize("kind", ["screens", "decisions", "schema", "landed", "store", "herdr"])
 def test_the_goldens_are_what_the_code_does(tmp_path, kind):
     env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
     extra = ["--golden-tests"] if kind == "decisions" else []
@@ -69,6 +69,11 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
         assert (FIX / "migrate.json").read_text() == (tmp_path / "migrate.json").read_text(), (
             "the migration changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
             "--only schema")
+        return
+    if kind == "herdr":  # the Rust screen parsers and live agent replay it (src/delivery/screen, pane)
+        assert (FIX / "herdr-screens.json").read_text() == (tmp_path / "herdr-screens.json").read_text(), (
+            "herdr.composer_state / panel_focused / live_agent changed: if deliberate, uv run python "
+            "tools/capture_goldens.py --only herdr")
         return
     if kind == "landed":  # the Rust landing check replays it (src/claude/landed)
         assert (FIX / "landed.json").read_text() == (tmp_path / "landed.json").read_text(), (
