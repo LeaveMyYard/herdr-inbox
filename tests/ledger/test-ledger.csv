@@ -266,23 +266,23 @@ tests/test_compat.py::test_from_row_ignores_columns_it_does_not_know,tests/test_
 tests/test_compat.py::test_views_are_versioned_and_older_ones_left_alone,tests/test_compat.py,,todo,,
 tests/test_compat_v04.py::test_long_lived_v04_connection_survives_a_newer_open,tests/test_compat_v04.py,,todo,,
 tests/test_compat_v04.py::test_v04_and_newer_processes_opening_concurrently,tests/test_compat_v04.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[empty-empty],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[draft-draft],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[wrapped-draft],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[labelled_empty-empty],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[labelled_draft-draft],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[focused_empty-empty],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[pasted_text-draft],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[image_chip-draft],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r-draft],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[0m\x1b[2m[Image #1]\x1b[0m\r-draft],tests/test_composer_draft.py,,todo,,
-"tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[7mT\x1b[0m\x1b[2mry ""refactor <filepath>""\x1b[0m\r-empty]",tests/test_composer_draft.py,,todo,,
-"tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[0m\x1b[2mTry ""x""\x1b[0m and more\r-draft]",tests/test_composer_draft.py,,todo,,
-"tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0Try ""x""\r-draft]",tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\r-empty],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_no_recognisable_input_box_is_unknown[],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_no_recognisable_input_box_is_unknown[plain output with no input box\n],tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_no_recognisable_input_box_is_unknown[\x1b[2m\u2500\u2500\u2500\u2500\x1b[0m\nno prompt\n\x1b[2m\u2500\u2500\u2500\u2500\x1b[0m],tests/test_composer_draft.py,,todo,,
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[empty-empty],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[draft-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[wrapped-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[labelled_empty-empty],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[labelled_draft-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[focused_empty-empty],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[pasted_text-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_the_input_box_state_is_read_from_the_captured_screens[image_chip-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[0m\x1b[2m[Image #1]\x1b[0m\r-draft],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+"tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[7mT\x1b[0m\x1b[2mry ""refactor <filepath>""\x1b[0m\r-empty]",tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+"tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\x1b[0m\x1b[2mTry ""x""\x1b[0m and more\r-draft]",tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+"tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0Try ""x""\r-draft]",tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_empty_is_recognised_positively[\u276f\xa0\r-empty],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_no_recognisable_input_box_is_unknown[],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_no_recognisable_input_box_is_unknown[plain output with no input box\n],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_composer_draft.py::test_no_recognisable_input_box_is_unknown[\x1b[2m\u2500\u2500\u2500\u2500\x1b[0m\nno prompt\n\x1b[2m\u2500\u2500\u2500\u2500\x1b[0m],tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_claude_input_box[draft],tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_claude_input_box[wrapped],tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_claude_input_box[None],tests/test_composer_draft.py,,todo,,
@@ -292,7 +292,7 @@ tests/test_composer_draft.py::test_other_agents_are_typed_into_as_before,tests/t
 tests/test_composer_draft.py::test_a_delivery_typed_after_a_draft_counts_as_landed,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_a_mere_mention_after_other_text_still_does_not_count,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_send_now_after_a_merged_landing_records_it_instead_of_typing_again,tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_l1_a_draft_with_a_blank_first_line_is_a_draft,tests/test_composer_draft.py,,todo,,
+tests/test_composer_draft.py::test_l1_a_draft_with_a_blank_first_line_is_a_draft,tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_composer_draft.py::test_l2_an_unreadable_input_box_says_why_once,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_l2_a_brief_unreadable_read_does_not_notify,tests/test_composer_draft.py,,todo,,
 tests/test_cursor_targets.py::test_cancel_stays_cancel_when_a_question_arrives,tests/test_cursor_targets.py,,todo,,
@@ -402,7 +402,7 @@ tests/test_delivery_worker.py::test_mcp_servers_no_longer_run_their_own_retry_lo
 tests/test_delivery_worker.py::test_herdr_startup_ensures_the_worker,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_every_answer_or_send_ensures_the_worker,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_a_worker_that_idles_out_with_new_work_starts_a_successor,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_panel_detection_reads_only_the_footer,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_panel_detection_reads_only_the_footer,tests/test_delivery_worker.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery_worker.py::test_send_now_overrides_the_panel_wait,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_unverifiable_sends_are_not_reported_as_not_delivered,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_an_agent_at_a_prompt_gets_a_waiting_notification,tests/test_delivery_worker.py,,todo,,
@@ -890,6 +890,17 @@ tests/test_verified_delivery.py::test_cli_redeliver,tests/test_verified_delivery
 tests/test_verified_delivery.py::test_a_mention_of_a_q_id_is_not_a_delivery_of_it,tests/test_verified_delivery.py,,todo,,
 tests/test_verified_delivery.py::test_seven_day_sweep_continues_past_one_batch,tests/test_verified_delivery.py,,todo,,
 tests/test_verified_delivery.py::test_verified_delivery_is_written_in_one_transaction,tests/test_verified_delivery.py,,todo,,
+tests/test_verify_edges.py::test_a_fresh_hook_send_not_yet_seen_is_left_for_the_next_tick,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_hook_send_without_a_transcript_stays_sent_and_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_long_answer_whose_reference_landed_is_verified_but_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_typed_answer_never_seen_at_rest_is_not_verified,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_typed_answer_never_seen_while_busy_waits_for_idle,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_typed_reference_that_landed_is_delivered_but_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_an_answer_whose_text_and_reference_both_landed_is_seen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_job_judges_every_row_by_its_own_plan,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_job_whose_text_never_showed_misses_every_row,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_text_seen_only_in_an_unrelated_watched_transcript_counts_for_nothing[False],tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_text_seen_only_in_an_unrelated_watched_transcript_counts_for_nothing[True],tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
 tests/test_hook_interp.py::test_every_hook_goes_through_run_hook_sh,tests/test_hook_interp.py,,todo,,
 tests/test_hook_interp.py::test_cold_cache_resolves_once_and_writes_the_real_interpreter,tests/test_hook_interp.py,,todo,,
 tests/test_hook_interp.py::test_warm_cache_never_touches_python3,tests/test_hook_interp.py,,todo,,

@@ -1,5 +1,5 @@
 {
- "source": "herdr.composer_state / herdr.panel_focused (tools/capture_goldens.py --only herdr)",
+ "source": "herdr.composer_state / herdr.panel_focused / herdr.live_agent (live_session stubbed as 'live-of-<reported>') (tools/capture_goldens.py --only herdr)",
  "rows": [
   {
    "name": "draft.ansi",
@@ -72,6 +72,11 @@
    "composer": "empty"
   },
   {
+   "name": "a blank first line, text on the next",
+   "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \n  second line of a draft\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
+   "composer": "draft"
+  },
+  {
    "name": "no box ''",
    "screen": "",
    "composer": "unknown"
@@ -85,6 +90,126 @@
    "name": "no box '\\x1b[2m────\\x1b[0m\\nno prompt\\n\\x1b[2m────\\x1b[0m'",
    "screen": "\u001b[2m────\u001b[0m\nno prompt\n\u001b[2m────\u001b[0m",
    "composer": "unknown"
+  },
+  {
+   "name": "csi erase on the prompt line",
+   "screen": "output\n────────────────────\n❯ \u001b[K\n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "csi private mode on the prompt line",
+   "screen": "output\n────────────────────\n❯ \u001b[?25l\n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "osc title on the prompt line",
+   "screen": "output\n────────────────────\n❯ \u001b]0;title\u0007\n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "osc on a border",
+   "screen": "output\n\u001b]8;;\u0007────────────────────\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "csi on a border",
+   "screen": "output\n\u001b[K────────────────────\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "sgr 22 ends dim",
+   "screen": "output\n────────────────────\n❯ \u001b[2mTry \"\u001b[22mab\u001b[2mc\"\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "sgr 2; ends dim",
+   "screen": "output\n────────────────────\n❯ \u001b[2;mTry \"x\"\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "bare sgr ends dim",
+   "screen": "output\n────────────────────\n❯ \u001b[2mTry \"\u001b[mab\u001b[2mc\"\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "two lit cells on the placeholder",
+   "screen": "output\n────────────────────\n❯ \u001b[7mT\u001b[0m\u001b[7mr\u001b[0m\u001b[2my \"x\"\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "placeholder without its closing quote",
+   "screen": "output\n────────────────────\n❯ \u001b[2mTry \"x\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "placeholder of five characters",
+   "screen": "output\n────────────────────\n❯ \u001b[2mTry \"\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "placeholder-like, another word",
+   "screen": "output\n────────────────────\n❯ \u001b[2mXry \"x\"\u001b[0m\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "three-dash borders",
+   "screen": "output\n───\n❯ hi\n───\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "two-dash borders",
+   "screen": "output\n──\n❯ hi\n──\n  ? for shortcuts",
+   "composer": "unknown"
+  },
+  {
+   "name": "borders with trailing spaces",
+   "screen": "output\n────────────────────   \n❯ \n────────────────────  \n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "a session tag",
+   "screen": "output\n──────────────────── node ─\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "a tag starting with a dash",
+   "screen": "output\n──────────────────── ─x ─\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "unknown"
+  },
+  {
+   "name": "a tag starting with a space",
+   "screen": "output\n────────────────────  x ─\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "unknown"
+  },
+  {
+   "name": "a tag with a dash inside",
+   "screen": "output\n──────────────────── x─y ─\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "unknown"
+  },
+  {
+   "name": "a tag without its last dashes",
+   "screen": "output\n──────────────────── node \n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "unknown"
+  },
+  {
+   "name": "a tag of 41 characters",
+   "screen": "output\n──────────────────── xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ─\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "a tag of 42 characters",
+   "screen": "output\n──────────────────── xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ─\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "unknown"
+  },
+  {
+   "name": "adjacent borders",
+   "screen": "────────────────────\n────────────────────",
+   "composer": "unknown"
+  },
+  {
+   "name": "a blank line under the box",
+   "screen": "output\n────────────────────\n❯ \n────────────────────\n  ? for shortcuts\n \n",
+   "composer": "empty"
   },
   {
    "name": "normal, the phrase in the body",
@@ -105,6 +230,369 @@
    "name": "empty",
    "screen": "",
    "panel": false
+  },
+  {
+   "name": "a blank line, no border",
+   "screen": "output\n\n↑/↓ to select",
+   "panel": false
+  },
+  {
+   "name": "the phrase inside the footer",
+   "screen": "────────────────────\n❯\n────────────────────\n  x ↑/↓ to select",
+   "panel": false
+  },
+  {
+   "name": "a border with trailing spaces",
+   "screen": "────────────────────\n❯\n────────────────────   \n  ↑/↓ to select · esc",
+   "panel": true
+  },
+  {
+   "name": "a claude agent",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "no session",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": null
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": null,
+    "reported_session_id": null,
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "a session without a value",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": null,
+    "reported_session_id": null,
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "an empty session id",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": ""
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "",
+    "reported_session_id": "",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "no status",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": null,
+    "focused": true
+   }
+  },
+  {
+   "name": "a null status",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": null,
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": null,
+    "focused": true
+   }
+  },
+  {
+   "name": "status unknown",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "unknown",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "unknown",
+    "focused": true
+   }
+  },
+  {
+   "name": "a status herdr added later",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "starting",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "starting",
+    "focused": true
+   }
+  },
+  {
+   "name": "a numeric status",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": 3,
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": 3,
+    "focused": true
+   }
+  },
+  {
+   "name": "not focused",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": false
+   }
+  },
+  {
+   "name": "focused as 1",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": 1,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "focused as 0",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": 0,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": false
+   }
+  },
+  {
+   "name": "focused null",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": null,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": false
+   }
+  },
+  {
+   "name": "no kind",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": null,
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "a codex agent",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "codex",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "an empty agent",
+   "result": {
+    "agent": {}
+   },
+   "agent": null
+  },
+  {
+   "name": "no agent",
+   "result": {
+    "agent": null
+   },
+   "agent": null
+  },
+  {
+   "name": "an empty result",
+   "result": {},
+   "agent": null
+  },
+  {
+   "name": "the call failed",
+   "result": null,
+   "agent": null
   }
  ]
 }

@@ -43,7 +43,7 @@ pub fn panel_focused(screen: &str) -> bool {
         let s = strip(line);
         !s.is_empty() && s.chars().all(|c| c == '─')
     };
-    let Some(last) = lines.iter().rposition(|l| border(l)) else {
+    let Some(last) = lines.iter().rposition(border) else {
         return false;
     };
     let footer = lines[last + 1..]
