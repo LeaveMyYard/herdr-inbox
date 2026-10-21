@@ -136,6 +136,7 @@ pub fn sql(store: &Store, a: &Value) {
         .map(|v| match v {
             Value::String(s) => rusqlite::types::Value::Text(s.clone()),
             Value::Number(n) => rusqlite::types::Value::Integer(n.as_i64().unwrap()),
+            Value::Null => rusqlite::types::Value::Null,
             other => panic!("param {other}"),
         })
         .collect();
