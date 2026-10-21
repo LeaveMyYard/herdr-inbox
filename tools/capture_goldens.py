@@ -1101,6 +1101,218 @@ STORE_MIRROR_OPS = [
     ("sql", {"sql": "UPDATE remote_machines SET plugin_root = '/r oot' WHERE machine_id = 'ok0'", "params": []}),
     ("pull", {"machine": {"id": "ok0", "label": None, "target": "x" * 253}, "now": _T0 + 3100}),  # bad plugin_root
 ]
+# The outbox (remote.py: enqueue, flush, the sweep, the popup's calls), on a fresh database whose
+# mirror comes from one pull. remote._now is ``now`` (unix seconds, kept until a step sets it),
+# each `inbox apply` answers with the next of the step's ``replies``, uuid4 counts up (request ids
+# 000…001, 000…002, …). Each apply call also records the row's sending_at while it runs.
+_T1 = _T0 + 10_000
+_DBX = "a" * 32
+
+
+def _q(i, status="open"):
+    return {"id": i, "qkey": f"{i:08x}", "_db_id": _DBX, "status": status}
+
+
+def _ob(rid, mid, remote_id, action, created, expires, attempts=0, db=_DBX, qkey=None, state="queued",
+        sending=None, next_try=None):
+    return {"sql": "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at,"
+                   " expires_at, attempts, state, sending_at, next_try_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "params": [rid, mid, db, remote_id, qkey or f"{remote_id:08x}", action, created, expires, attempts, state,
+                       sending, next_try]}
+
+
+def _iso_at(t):
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(t, tz=timezone.utc).isoformat(timespec="seconds")
+
+
+STORE_OUTBOX_OPS = [
+    ("pull", {"machine": _M1, "now": _T1, "export": _ex(_DBX, 1, [
+        _rq(1), _rq(2), _rq(3, "answered"), _rq(4)], full=True, ids=[1, 2, 3, 4],
+        alerts=[_ra(1), _ra(2)])}),
+    ("enqueue", {"machine_id": "m1", "data": _q(1), "action": "answer",
+                 "detail": {"choices": ["yes"], "notes": {}, "text": None}}),
+    ("enqueue", {"machine_id": "m1", "data": _q(1), "action": "dismiss", "detail": None}),  # same question: waits
+    ("enqueue", {"machine_id": "m1", "data": _q(99), "action": "answer", "detail": None}),  # gone
+    ("enqueue", {"machine_id": "m1", "data": {**_q(2), "qkey": "ffffffff"}, "action": "answer", "detail": None}),
+    ("enqueue", {"machine_id": "m1", "data": {**_q(2), "_db_id": "b" * 32}, "action": "answer", "detail": None}),
+    ("enqueue", {"machine_id": "m1", "data": _q(3, "answered"), "action": "deliver", "detail": {}}),  # {}: no detail
+    ("enqueue", {"machine_id": "m1", "data": _q(4), "action": "hide", "detail": None}),
+    ("enqueue_alert_ack", {"machine_id": "m1", "data": {"id": 1, "akey": "00000001aa", "_db_id": _DBX}}),
+    ("enqueue_alert_ack", {"machine_id": "m1", "data": {"id": 2, "akey": "ffffffffaa", "_db_id": _DBX}}),
+    ("enqueue_alert_ack", {"machine_id": "m1", "data": {"id": 2, "akey": "00000002aa", "_db_id": "b" * 32}}),
+    ("outbox_rows", {}),
+    ("flush", {"machine_id": "m1", "now": _T1 + 1, "replies": [
+        {"reply": {"outcome": "applied"}},
+        {"reply": {"outcome": "rejected", "reason": "already delivered\nby hand"}},
+        {"stdout": "oops", "stderr": "e" * 250, "code": 1},
+        {"reply": {"outcome": "already_applied"}}]}),
+    ("flush", {"machine_id": "m1", "now": _T1 + 2, "replies": [{"code": 2}]}),  # the dismiss: no `apply` there
+    ("flush", {"machine_id": "m1", "now": _T1 + 5, "replies": []}),  # the retry's next_try_at is T+6
+    ("flush", {"machine_id": "m1", "now": _T1 + 6, "replies": [{"reply": {"outcome": "rejected", "reason": 5}}]}),
+    ("sql", _ob("r06", "m1", 3, "dismiss", _iso_at(_T1 + 7), _iso_at(_T1 + 9999))),
+    ("sql", _ob("r07", "m1", 99, "answer", _iso_at(_T1 + 7), _iso_at(_T1 + 9999))),
+    ("sql", _ob("r08", "m1", 4, "deliver", _iso_at(_T1 + 7), _iso_at(_T1 + 9999), db="c" * 32)),
+    ("sql", _ob("r09", "m1", 2, "hide", _iso_at(_T1 + 7), _iso_at(_T1 + 9999))),
+    ("sql", _ob("r10", "m1", 2, "answer", _iso_at(_T1 + 7), _iso_at(_T1 + 9999), qkey="eeeeeeee")),  # behind r09
+    ("sql", _ob("r11", "m1", 1, "ack_alert", _iso_at(_T1 + 7), _iso_at(_T1 + 9999), qkey="00000001aa")),  # alert 1, not Q1
+    ("flush", {"machine_id": "m1", "now": _T1 + 8, "replies": [{"reply": {"outcome": "applied"}},
+                                                                {"reply": ["not", "an", "object"]}]}),
+    ("flush", {"machine_id": "m1", "now": _T1 + 20, "replies": [{"reply": {"outcome": "applied"}}]}),  # r10 now
+    ("sql", _ob("r21", "m1", 21, "answer", _iso_at(_T1 + 21), _iso_at(_T1 + 22))),
+    ("sql", _ob("r22", "m1", 22, "answer", _iso_at(_T1 + 21), _iso_at(_T1 + 22), attempts=2)),
+    ("sql", _ob("r23", "m1", 23, "dismiss", _iso_at(_T1 + 21), _iso_at(_T1 + 22), attempts=1)),
+    ("sql", _ob("r24", "m1", 24, "answer", _iso_at(_T1 + 21), _iso_at(_T1 + 22), attempts=1)),
+    ("sql", _ob("r25", "m1", 25, "ack_alert", _iso_at(_T1 + 21), _iso_at(_T1 + 22), attempts=1)),
+    ("sql", _ob("r26", "m1", 26, "answer", _iso_at(_T1 + 21), _iso_at(_T1 + 22), attempts=1)),
+    ("flush", {"machine_id": "m1", "now": _T1 + 30, "replies": [
+        {"reply": {"outcome": "recorded", "state": "applied"}},
+        {"reply": {"outcome": "recorded", "state": "rejected", "reason": "closed there"}},
+        {"reply": {"outcome": "expired"}},
+        {"reply": {"outcome": "rejected"}},
+        {"code": 255, "stderr": "unreachable"}]}),  # r26: no reply, left as it is
+    ("sql", _ob("r31", "m1", 31, "answer", _iso_at(_T1 + 31), _iso_at(_T1 + 32), attempts=1)),
+    ("sql", _ob("r32", "m1", 2, "answer", _iso_at(_T1 + 33), _iso_at(_T1 + 9999))),
+    ("flush", {"machine_id": "m1", "now": _T1 + 40, "replies": [{"code": 255}, {"reply": [1]}]}),  # r31's status: a list
+    ("sql", {"sql": "UPDATE remote_machines SET target = 'x;y' WHERE machine_id = 'm1'", "params": []}),
+    ("flush", {"machine_id": "m1", "now": _T1 + 41, "replies": []}),  # call() refuses the target
+    ("sql", {"sql": "INSERT INTO remote_machines (machine_id, label, target, last_error, last_ok_at)"
+                    " VALUES ('m8', 'eight', 't8', 'down', ?), ('m9', NULL, 't9', NULL, ?), ('m10', 'ten', 't10', NULL, NULL)",
+             "params": [_iso_at(_T1), _iso_at(_T1)]}),
+    ("sql", _ob("r41", "m10", 1, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 99))),
+    ("flush", {"machine_id": "m10", "now": _T1 + 43, "replies": []}),  # never reached: nothing sent
+    ("flush", {"machine_id": "m99", "now": _T1 + 43, "replies": []}),  # unknown machine
+    ("sql", _ob("r42", "m8", 1, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 50), attempts=1)),  # offline: expires
+    ("sql", _ob("r43", "m9", 1, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 50), attempts=1)),  # no label: expires
+    ("sql", _ob("r44", "m1", 50, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 50), attempts=1)),  # reachable, sent: waits
+    ("sql", _ob("r45", "m1", 51, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 50))),  # never sent: expires
+    ("sql", _ob("r46", "m1", 52, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 50), sending=_iso_at(_T1 + 75))),  # in flight
+    ("sql", _ob("r47", "m1", 53, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 50), sending=_iso_at(_T1 + 69))),  # stale send
+    ("sql", _ob("r48", "m1", 54, "answer", _iso_at(_T1 + 42), _iso_at(_T1 + 200))),  # not expired yet
+    ("expire_sweep", {"now": _T1 + 100}),
+    ("clearable", {"request_id": "r07", "now": _T1 + 100}),  # rejected
+    ("clearable", {"request_id": "r44", "now": _T1 + 100}),  # queued, expired, not in flight
+    ("clearable", {"request_id": "r46", "now": _T1 + 100}),  # in flight
+    ("clearable", {"request_id": "r48", "now": _T1 + 100}),  # not expired
+    ("clearable", {"request_id": "nope", "now": _T1 + 100}),
+    ("clearable", {"request_id": "r09", "now": _T1 + 100}),  # done
+    ("mark_seen", {"request_id": "r07"}),
+    ("mark_seen", {"request_id": "r09"}),  # done: not seen
+    ("outbox_rows", {}),
+    # one step per remaining predicate, on a second machine with its own mirror
+    ("pull", {"machine": _M2, "now": _T1 + 500, "export": _ex("d" * 32, 1, [
+        _rq(1), _rq(2), _rq(3, "answered"), _rq(4, "dismissed")], full=True, ids=[1, 2, 3, 4])}),
+    ("sql", _ob("o1", "m2", 1, "answer", _iso_at(_T1 + 501), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("o2", "m2", 3, "hide", _iso_at(_T1 + 499), _iso_at(_T1 + 9999), db="d" * 32)),  # older, inserted later
+    ("sql", _ob("o3", "m2", 2, "answer", _iso_at(_T1 + 502), _iso_at(_T1 + 9999), db="c" * 32)),  # same qkey, other db
+    ("sql", _ob("o4", "m2", 4, "hide", _iso_at(_T1 + 503), _iso_at(_T1 + 9999), db="d" * 32)),  # dismissed: hide goes
+    ("sql", _ob("o5", "m2", 5, "answer", _iso_at(_T1 + 504), _iso_at(_T1 + 600), db="d" * 32)),  # expires right now
+    ("sql", _ob("o6", "m2", 6, "answer", _iso_at(_T1 + 505), _iso_at(_T1 + 9999), db="d" * 32, attempts=4,
+                qkey="00000006")),  # not in the mirror: rejected before any send
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m2', ?, 6, '00000006', 'open', '{}', ?), ('m2', ?, 7, '00000007', 'open', '{}', ?)",
+             "params": ["d" * 32, STORE_FIXED, "d" * 32, STORE_FIXED]}),
+    ("sql", _ob("o7", "m2", 7, "answer", _iso_at(_T1 + 506), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("flush", {"machine_id": "m2", "now": _T1 + 600, "replies": [
+        {"reply": {"outcome": "applied"}}, {"reply": {"outcome": "applied"}}, {"reply": {"outcome": "applied"}},
+        {"stdout": "", "stderr": "lost", "code": 255}, {"reply": {"outcome": "rejected", "reason": ""}}]}),
+    ("clearable", {"request_id": "00000000000000000000000000000002", "now": _T1 + 600}),  # failed
+    ("clearable", {"request_id": "00000000000000000000000000000001", "now": _T1 + 50_000}),  # done, long expired
+    ("clearable", {"request_id": "r48", "now": _T1 + 200}),  # expires exactly now
+    ("sql", _ob("aaa-early", "m2", 9, "answer", _iso_at(_T1 - 100), _iso_at(_T1 - 50), db="d" * 32, state="rejected")),
+    ("sql", _ob("s1", "m10", 2, "answer", _iso_at(_T1 + 650), _iso_at(_T1 + 700), attempts=1)),  # never reached
+    ("sql", _ob("s2", "m2", 60, "answer", _iso_at(_T1 + 650), _iso_at(_T1 + 690), db="d" * 32,
+                sending=_iso_at(_T1 + 670))),  # sent exactly SENDING_STALE ago: no longer in flight
+    ("expire_sweep", {"now": _T1 + 700}),
+    ("outbox_rows", {}),
+    # a second worker settles the row during the send (#90 review M1), both ways; deliver on an
+    # open question; the 30 s in-flight edge; a corrupt detail_json (Python raises before sending)
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m2', ?, 10, '0000000a', 'open', '{}', ?), ('m2', ?, 11, '0000000b', 'open', '{}', ?),"
+                    " ('m2', ?, 12, '0000000c', 'open', '{}', ?), ('m2', ?, 14, '0000000e', 'open', '{}', ?)",
+             "params": ["d" * 32, STORE_FIXED] * 4}),
+    ("sql", _ob("race1", "m2", 10, "answer", _iso_at(_T1 + 801), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("race2", "m2", 11, "answer", _iso_at(_T1 + 802), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("d1", "m2", 12, "deliver", _iso_at(_T1 + 803), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", {**_ob("c1", "m2", 14, "answer", _iso_at(_T1 + 804), _iso_at(_T1 + 9999), db="d" * 32)}),
+    ("sql", {"sql": "UPDATE remote_outbox SET detail_json = '{broken' WHERE request_id = 'c1'", "params": []}),
+    ("sql", _ob("s3", "m8", 13, "answer", _iso_at(_T1 + 800), _iso_at(_T1 + 850), sending=_iso_at(_T1 + 871))),
+    ("sql", _ob("s4", "m8", 15, "answer", _iso_at(_T1 + 800), _iso_at(_T1 + 850), sending=_iso_at(_T1 + 870))),
+    ("flush", {"machine_id": "m2", "now": _T1 + 900, "replies": [
+        {"reply": {"outcome": "applied"}},  # o6, due again
+        {"reply": {"outcome": "rejected", "reason": "late"},
+         "before": "UPDATE remote_outbox SET state = 'done', result = 'applied' WHERE request_id = 'race1'"},
+        {"reply": {"outcome": "applied"},
+         "before": "UPDATE remote_outbox SET state = 'failed', result = 'expired' WHERE request_id = 'race2'"}]}),
+    ("clearable", {"request_id": "s3", "now": _T1 + 900}),  # sent 29 s ago: in flight
+    ("clearable", {"request_id": "s4", "now": _T1 + 900}),  # sent 30 s ago: not
+    ("expire_sweep", {"now": _T1 + 900}),
+    # time passes within one flush (#90 final pass M1): every _now() is 10 s after the one
+    # before (``tick``). t1 is sent; t2 expires before its turn and is never sent; t3 is still
+    # being sent (stamped late in the flush) when another worker's sweep runs, which leaves it
+    # alone. u1's stored detail holds an escaped lone surrogate, sent back exactly as stored.
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m2', ?, 20, '00000014', 'open', '{}', ?), ('m2', ?, 21, '00000015', 'open', '{}', ?),"
+                    " ('m2', ?, 22, '00000016', 'open', '{}', ?), ('m2', ?, 23, '00000017', 'open', '{}', ?)",
+             "params": ["d" * 32, STORE_FIXED] * 4}),
+    ("sql", {"sql": "UPDATE remote_outbox SET state = 'seen' WHERE machine_id = 'm2' AND state = 'queued'",
+             "params": []}),  # the rows above (c1 stays corrupt otherwise): out of the way
+    ("sql", _ob("t1", "m2", 20, "answer", _iso_at(_T1 + 950), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("t2", "m2", 21, "answer", _iso_at(_T1 + 951), _iso_at(_T1 + 1025), db="d" * 32)),
+    ("sql", _ob("t3", "m2", 22, "answer", _iso_at(_T1 + 952), _iso_at(_T1 + 1065), db="d" * 32)),
+    ("flush", {"machine_id": "m2", "now": _T1 + 1000, "tick": 10, "replies": [
+        {"reply": {"outcome": "applied"}},
+        {"reply": {"outcome": "applied"}, "sweep": True}]}),
+    ("sql", _ob("u1", "m2", 23, "answer", _iso_at(_T1 + 1100), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", {"sql": "UPDATE remote_outbox SET detail_json = ? WHERE request_id = 'u1'",
+             "params": ['{"choices": [], "notes": {}, "text": "half \\ud83d pair"}']}),
+    ("flush", {"machine_id": "m2", "now": _T1 + 1200, "replies": [{"reply": {"outcome": "applied"}}]}),
+    # every other _now() of the outbox, with time passing (7 s per read): a due next try, a
+    # stale mirror, a lost reply, a rejection, an old remote, the four status-query answers;
+    # then the sweep, `d` and both enqueues
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES " + ", ".join(f"('m2', ?, {i}, '{i:08x}', 'open', '{{}}', ?)" for i in range(41, 50)),
+             "params": ["d" * 32, STORE_FIXED] * 9}),
+    ("sql", _ob("v1", "m2", 41, "answer", _iso_at(_T1 + 1301), _iso_at(_T1 + 9999), db="d" * 32,
+                next_try=_iso_at(_T1 + 1290))),
+    ("sql", _ob("v2", "m2", 42, "answer", _iso_at(_T1 + 1302), _iso_at(_T1 + 9999), db="c" * 32,
+                next_try="")),  # an empty next try: no time read for it
+    ("sql", _ob("v3", "m2", 43, "answer", _iso_at(_T1 + 1303), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("v4", "m2", 44, "answer", _iso_at(_T1 + 1304), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("v5", "m2", 45, "answer", _iso_at(_T1 + 1305), _iso_at(_T1 + 9999), db="d" * 32)),
+    ("sql", _ob("v6", "m2", 46, "answer", _iso_at(_T1 + 1306), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("sql", _ob("v7", "m2", 47, "answer", _iso_at(_T1 + 1307), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("sql", _ob("v8", "m2", 48, "answer", _iso_at(_T1 + 1308), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("sql", _ob("v9", "m2", 49, "answer", _iso_at(_T1 + 1309), _iso_at(_T1 + 1000), db="d" * 32, attempts=1)),
+    ("flush", {"machine_id": "m2", "now": _T1 + 1310, "tick": 7, "replies": [
+        {"reply": {"outcome": "applied"}}, {"stdout": "", "stderr": "lost", "code": 255},
+        {"reply": {"outcome": "rejected", "reason": "no"}}, {"code": 2, "stdout": ""},
+        {"reply": {"outcome": "recorded", "state": "applied"}}, {"reply": {"outcome": "rejected"}},
+        {"reply": {"outcome": "recorded", "reason": "closed"}}, {"reply": {"outcome": "expired"}}]}),
+    ("sql", _ob("w1", "m9", 61, "answer", _iso_at(_T1 + 1400), _iso_at(_T1 + 1450), sending=_iso_at(_T1 + 1460))),
+    ("sql", _ob("w2", "m9", 62, "answer", _iso_at(_T1 + 1400), _iso_at(_T1 + 1450), sending=_iso_at(_T1 + 1485))),
+    ("sql", _ob("w3", "m9", 63, "answer", _iso_at(_T1 + 1400), _iso_at(_T1 + 1450))),
+    ("expire_sweep", {"now": _T1 + 1480, "tick": 10}),  # w1 is out of flight at its read (1490), w2 not (1510)
+    ("sql", _ob("w4", "m9", 64, "answer", _iso_at(_T1 + 1500), _iso_at(_T1 + 1550), sending=_iso_at(_T1 + 1525))),
+    ("clearable", {"request_id": "w4", "now": _T1 + 1554, "tick": 1}),  # expired at 1554, stale at 1555: clearable
+    ("sql", _ob("w5", "m9", 65, "answer", _iso_at(_T1 + 1500), _iso_at(_T1 + 1555))),
+    ("clearable", {"request_id": "w5", "now": _T1 + 1554, "tick": 1}),  # one read: not expired yet
+    # an unsafe target on the send path: call() refuses it inside _sending, the row fails
+    ("sql", {"sql": "INSERT INTO remote_machines (machine_id, label, target, last_error, last_ok_at)"
+                    " VALUES ('m11', 'eleven', 'x;y', NULL, ?)", "params": [_iso_at(_T1)]}),
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at)"
+                    " VALUES ('m11', ?, 1, '00000001', 'open', '{}', ?), ('m11', ?, 2, '00000002', 'open', '{}', ?)",
+             "params": [_DBX, STORE_FIXED] * 2}),
+    ("sql", _ob("x1", "m11", 1, "answer", _iso_at(_T1 + 1560), _iso_at(_T1 + 9999))),
+    ("sql", _ob("x2", "m11", 2, "answer", _iso_at(_T1 + 1561), _iso_at(_T1 + 9999))),
+    ("flush", {"machine_id": "m11", "now": _T1 + 1570, "tick": 3, "replies": []}),
+    ("enqueue", {"machine_id": "m2", "data": {"id": 20, "qkey": "00000014", "_db_id": "d" * 32}, "action": "answer",
+                 "detail": None, "now": _T1 + 1600, "tick": 5}),
+    ("enqueue_alert_ack", {"machine_id": "m1", "data": {"id": 2, "akey": "00000002aa", "_db_id": _DBX},
+                           "now": _T1 + 1700, "tick": 5}),
+    ("outbox_rows", {}),
+]
 # What validate_export makes of exports (the rows it keeps, cleaned, or the error it raises).
 _VROW = {"id": 1, "qkey": "0123abcd", "group": 1, "status": "open", "question": "Q?"}
 STORE_EXPORT_VECTORS = [
@@ -1227,7 +1439,7 @@ def capture_store(out: Path, work: Path) -> list[Path]:
            "texts": texts, "options": options}
     target = out / "store-questions.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
-    return [target, capture_store_delivery(out, work), capture_store_alerts(out, work), capture_store_mirror(out, work)]
+    return [target, capture_store_delivery(out, work), capture_store_alerts(out, work), capture_store_mirror(out, work), capture_store_outbox(out, work)]
 
 
 def capture_store_alerts(out: Path, work: Path) -> Path:
@@ -1408,6 +1620,119 @@ def capture_store_mirror(out: Path, work: Path) -> Path:
     doc = {"source": "remote.py over STORE_MIRROR_OPS and STORE_EXPORT_VECTORS (tools/capture_goldens.py --only store)",
            "steps": steps, "vectors": vectors}
     target = out / "store-mirror.json"
+    target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return target
+
+
+def capture_store_outbox(out: Path, work: Path) -> Path:
+    """remote.py's outbox over STORE_OUTBOX_OPS (ssh scripted at subprocess.run)."""
+    import sqlite3
+    from datetime import datetime, timezone
+
+    from herdr_inbox import remote, store as st
+
+    path = work / "store-outbox.db"
+    env = {"now": _T1, "step": {}, "replies": []}
+    effects: list = []
+    inner = _remote_run(remote, env, effects)
+
+    def run(argv, input=None, **kw):
+        if input is not None and argv[-1].endswith(" inbox apply"):
+            rid = json.loads(input)["request_id"]
+            db = sqlite3.connect(path)
+            try:
+                row = db.execute("SELECT sending_at FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()
+            finally:
+                db.close()
+            effects.append(["sending", rid, row[0] if row else None])
+            nxt = env["replies"][0] if env.get("replies") else {}
+            if nxt.get("sweep"):  # another worker's expiry sweep runs while this send is under way,
+                tick, env["tick"] = env["tick"], 0  # at the time now, on a clock of its own
+                notify, remote._notify = remote._notify, lambda title, body: effects.append(
+                    ["notify-other", title, body])  # its notices, not this flush's
+                try:
+                    with st.Store(path, maintenance=False) as other:
+                        remote.expire_sweep(other)
+                finally:
+                    env["tick"], remote._notify = tick, notify
+            if nxt.get("before"):  # another worker settles the row while this send is under way
+                db = sqlite3.connect(path, isolation_level=None)
+                try:
+                    db.execute(nxt["before"])
+                finally:
+                    db.close()
+        return inner(argv, input=input, **kw)
+
+    count = {"n": 0}
+
+    class _U:
+        def __init__(self):
+            count["n"] += 1
+            self.hex = f"{count['n']:032x}"
+
+    def _now():  # the step's ``now``, then ``tick`` seconds later at every read
+        at = env["now"]
+        env["now"] += env.get("tick", 0)
+        return datetime.fromtimestamp(at, tz=timezone.utc)
+
+    stubs = {"_now": _now, "_notify": lambda title, body: effects.append(["notify", title, body])}
+    saved = {k: getattr(remote, k) for k in stubs}
+    for k, fn in stubs.items():
+        setattr(remote, k, fn)
+    real_run, remote.subprocess.run = remote.subprocess.run, run
+    real_uuid, remote._uuid.uuid4 = remote._uuid.uuid4, _U
+
+    def tables():
+        db = sqlite3.connect(path)
+        try:
+            out = {}
+            for table in ("remote_outbox", "remote_alerts"):
+                cur = db.execute(f"SELECT * FROM {table} ORDER BY 1, 2")
+                names = [d[0] for d in cur.description]
+                out[table] = [dict(zip(names, row)) for row in cur.fetchall()]
+            return out
+        finally:
+            db.close()
+
+    steps = []
+    try:
+        with st.Store(path, migrate=True) as s:
+            for op, args in STORE_OUTBOX_OPS:
+                effects.clear()
+                env["step"] = args
+                env["now"] = args.get("now", env["now"])
+                env["tick"] = args.get("tick", 0)
+                env["replies"] = list(args.get("replies", []))
+                try:
+                    if op == "sql":
+                        s.db.execute(args["sql"], args["params"])
+                        result = None
+                    elif op == "pull":
+                        result = remote.pull(s, args["machine"])
+                    elif op == "enqueue":
+                        result = remote.enqueue(s, args["machine_id"], args["data"], args["action"], args["detail"])
+                    elif op == "enqueue_alert_ack":
+                        result = remote.enqueue_alert_ack(s, args["machine_id"], args["data"])
+                    elif op == "flush":
+                        result = remote.flush(s, {"id": args["machine_id"]})
+                    elif op == "expire_sweep":
+                        result = remote.expire_sweep(s)
+                    elif op == "clearable":
+                        result = remote.clearable(s, args["request_id"])
+                    elif op == "mark_seen":
+                        result = remote.mark_seen(s, args["request_id"])
+                    elif op == "outbox_rows":
+                        result = remote.outbox_rows(s)
+                except Exception as e:  # noqa: BLE001 - what Python raises is part of the behaviour
+                    result = {"error": type(e).__name__, "message": str(e)}
+                steps.append({"op": op, "args": args, "result": result, "effects": list(effects), "tables": tables()})
+    finally:
+        for k, fn in saved.items():
+            setattr(remote, k, fn)
+        remote.subprocess.run = real_run
+        remote._uuid.uuid4 = real_uuid
+    doc = {"source": "remote.py's outbox over STORE_OUTBOX_OPS (tools/capture_goldens.py --only store)", "steps": steps}
+    target = out / "store-outbox.json"
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
     return target
 
