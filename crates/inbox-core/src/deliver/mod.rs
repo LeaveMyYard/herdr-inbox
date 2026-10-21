@@ -151,8 +151,15 @@ pub trait Look {
     /// The agent looked up again just before typing.
     fn agent_again(&mut self, ids: &[i64]) -> Option<Agent>;
     /// Claude Code's input box.
+    ///
+    /// Two notifications are the caller's, not an [`Outcome`] (Python
+    /// `deliver_batch`): under "Send now", an input box that is not empty
+    /// notifies `"{refs} not sent"` with the pending reason minus
+    /// `waiting: `, once per message; and an input box that stays
+    /// unreadable notifies once per pane (`_note_unreadable`).
     fn composer(&mut self, ids: &[i64]) -> Composer;
-    /// Types the message: herdr's error, if any.
+    /// Types the message: herdr's error, if any (an empty one counts as
+    /// none, as Python's `if err:`).
     fn prompt(&mut self, ids: &[i64]) -> Option<String>;
     /// A transcript to verify against is known.
     fn verify_transcript(&mut self, ids: &[i64]) -> bool;

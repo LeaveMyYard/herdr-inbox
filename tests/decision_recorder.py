@@ -36,12 +36,14 @@ def text(value: str) -> str:
     return SESSION.sub("<session>", PATH.sub("<path>", TIME.sub("<time>", PANE.sub("<pane>", value))))
 
 
-def agent_view(agent) -> dict | None:
-    """What the policy reads from herdr's agent record (never its ids)."""
+def agent_view(agent, label=lambda session: None) -> dict | None:
+    """What the policy reads from herdr's agent record: never its ids, only which session it
+    runs, as a label of its own frame (``label``: s1, s2, ... in order of appearance), so a
+    pane that switched conversations between two looks shows."""
     if agent is None:
         return None
     return {"kind": agent.get("agent"), "status": agent.get("status"), "focused": bool(agent.get("focused")),
-            "session_known": bool(agent.get("session_id"))}
+            "session": label(agent.get("session_id"))}
 
 
 def value_of(key: str, value):
@@ -105,6 +107,11 @@ class Frame:
         self.qobs: dict[int, dict] = {}
         self.before: dict[int, dict | None] = {}
         self.db: str | None = None
+        self.sessions: dict[str, str] = {}
+
+    def label(self, session: str | None) -> str | None:
+        """``session`` as this frame's s1, s2, ... (None when unknown)."""
+        return self.sessions.setdefault(session, f"s{len(self.sessions) + 1}") if session else None
 
     def track(self, store, qs) -> None:
         if store is None:
@@ -117,7 +124,7 @@ class Frame:
                 self.qobs[qid] = {}
 
     def note(self, key: str, value, qids=None) -> None:
-        v = value_of(key, value)
+        v = agent_view(value, self.label) if key in ("agent", "agent_again") else value_of(key, value)
         if qids is None:
             self.obs[key] = v
         else:

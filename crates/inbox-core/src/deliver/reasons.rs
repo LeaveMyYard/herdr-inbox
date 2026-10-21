@@ -39,7 +39,14 @@ const OLDER: &str = "older conversation: ";
 /// The state of an answer whose pane runs (or got it typed into) an older
 /// session of its conversation (Python `older_error`).
 pub fn older_error(pane: &str, live: Option<&str>, asker: Option<&str>, typed: bool) -> String {
-    let short = |s: Option<&str>| s.unwrap_or("?").chars().take(8).collect::<String>();
+    // Python `(live or "?")[:8]`: an empty id reads as `?` too
+    let short = |s: Option<&str>| {
+        s.filter(|s| !s.is_empty())
+            .unwrap_or("?")
+            .chars()
+            .take(8)
+            .collect::<String>()
+    };
     let (old, ask) = (short(live), short(asker));
     if typed {
         format!(

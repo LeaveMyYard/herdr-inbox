@@ -46,10 +46,11 @@ fn agent_of(v: &Value) -> Option<Agent> {
         kind: a.get("kind").and_then(Value::as_str).map(String::from),
         status: a["status"].as_str().unwrap().into(),
         focused: a["focused"].as_bool().unwrap(),
-        session: a["session_known"]
-            .as_bool()
-            .unwrap()
-            .then(|| LIVE.to_string()),
+        // the recorder's per-frame label (s1 is the pane's first agent's session)
+        session: a["session"].as_str().map(|label| match label {
+            "s1" => LIVE.to_string(),
+            other => format!("{other}-other-session"),
+        }),
         reported_session: Some(REPORTED.into()),
     })
 }
@@ -124,7 +125,6 @@ impl Look for RowLook<'_> {
         vec![(ids.to_vec(), self.flag("full_answer_in_message"))]
     }
     fn agent_again(&mut self, _: &[i64]) -> Option<Agent> {
-        // the recorder keeps no session ids: the same session is assumed when one is known
         agent_of(self.of("agent_again"))
     }
     fn composer(&mut self, _: &[i64]) -> Composer {
