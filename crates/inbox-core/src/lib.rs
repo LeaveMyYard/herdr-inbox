@@ -11,10 +11,13 @@
 //! - [`rewake`]: when the asyncRewake watcher looks, wakes or ends (Python
 //!   `rewake.run`).
 //!
-//! The worker's `decide` (Python `service.deliver_batch`) joins in P5. Every
-//! rule here reproduces the hook and rewake rows of the delivery decision
-//! table, `tests/fixtures/decisions.json` (`tests/decisions.rs`).
+//! - [`deliver`]: what the delivery worker does with a pane's waiting answers
+//!   (Python `service.deliver_batch`).
+//!
+//! Every rule here reproduces the delivery decision table,
+//! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`).
 
+pub mod deliver;
 pub mod hook;
 pub mod rewake;
 
