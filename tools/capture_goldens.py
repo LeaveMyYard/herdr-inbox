@@ -434,13 +434,15 @@ def capture_schema(out: Path) -> list[Path]:
 
 
 def capture_herdr_screens(out: Path) -> Path:
-    """herdr.composer_state and herdr.panel_focused over every screen the tests use (the
-    captured Claude Code screens in tests/fixtures/composer, the shapes test_composer_draft and
-    test_delivery_worker build), each screen as the CLI's text mode reads it (universal
-    newlines): what the Rust parsers (src/delivery/screen) must return."""
+    """herdr.composer_state, herdr.panel_focused and herdr.live_agent over every screen and
+    agent record the tests use (the captured Claude Code screens in tests/fixtures/composer,
+    the shapes test_composer_draft and test_delivery_worker build, each rule's edges), each
+    screen as the CLI's text mode reads it (universal newlines): what the Rust side
+    (src/delivery/screen, src/delivery/pane) must return."""
     import io
 
     from herdr_inbox import herdr
+    from herdr_inbox import store as st
     from tests import test_composer_draft as tcd
     from tests import test_delivery_worker as tdw
 
@@ -450,16 +452,57 @@ def capture_herdr_screens(out: Path) -> Path:
     composer = [(f"{name}.ansi", read(tcd.screen(name)))
                 for name in sorted(p.stem for p in (ROOT / "tests" / "fixtures" / "composer").glob("*.ansi"))]
     composer += [(f"variant {line!r}", read(tcd.variant(line))) for line in (
-        "\u276f\u00a0\x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r",
-        "\u276f\u00a0\x1b[0m\x1b[2m[Image #1]\x1b[0m\r",
-        "\u276f\u00a0\x1b[7mT\x1b[0m\x1b[2mry \"refactor <filepath>\"\x1b[0m\r",
-        "\u276f\u00a0\x1b[0m\x1b[2mTry \"x\"\x1b[0m and more\r",
-        "\u276f\u00a0Try \"x\"\r",
-        "\u276f\u00a0\r")]
+        "❯ \x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r",
+        "❯ \x1b[0m\x1b[2m[Image #1]\x1b[0m\r",
+        "❯ \x1b[7mT\x1b[0m\x1b[2mry \"refactor <filepath>\"\x1b[0m\r",
+        "❯ \x1b[0m\x1b[2mTry \"x\"\x1b[0m and more\r",
+        "❯ Try \"x\"\r",
+        "❯ \r")]
+    lines = tcd.screen("empty").split("\n")  # test_l1: Shift+Enter first, text on the next box line
+    i = next(k for k, line in enumerate(lines) if "❯" in line)
+    lines[i:i + 1] = ["❯ \r", "  second line of a draft\r"]
+    composer.append(("a blank first line, text on the next", read("\n".join(lines))))
     composer += [(f"no box {text!r}", read(text)) for text in (
         "", "plain output with no input box\n", "\x1b[2m────\x1b[0m\nno prompt\n\x1b[2m────\x1b[0m")]
+
+    # each rule's edges, Python deciding: a box is `top`, the ❯ line, `bottom`
+    def box(prompt_line, top="─" * 20, bottom="─" * 20):
+        return f"output\n{top}\n{prompt_line}\n{bottom}\n  ? for shortcuts"
+
+    dim, off = "\x1b[2m", "\x1b[0m"
+    edges = [
+        ("csi erase on the prompt line", box("❯ \x1b[K")),
+        ("csi private mode on the prompt line", box("❯ \x1b[?25l")),
+        ("osc title on the prompt line", box("❯ \x1b]0;title\x07")),
+        ("osc on a border", box("❯ ", top="\x1b]8;;\x07" + "─" * 20)),
+        ("csi on a border", box("❯ ", top="\x1b[K" + "─" * 20)),
+        ("sgr 22 ends dim", box(f'❯ {dim}Try "\x1b[22mab{dim}c"{off}')),
+        ("sgr 2; ends dim", box('❯ \x1b[2;mTry "x"' + off)),
+        ("bare sgr ends dim", box(f'❯ {dim}Try "\x1b[mab{dim}c"{off}')),
+        ("two lit cells on the placeholder", box(f'❯ \x1b[7mT{off}\x1b[7mr{off}{dim}y "x"{off}')),
+        ("placeholder without its closing quote", box(f'❯ {dim}Try "x{off}')),
+        ("placeholder of five characters", box(f'❯ {dim}Try "{off}')),
+        ("placeholder-like, another word", box(f'❯ {dim}Xry "x"{off}')),
+        ("three-dash borders", box("❯ hi", top="───", bottom="───")),
+        ("two-dash borders", box("❯ hi", top="──", bottom="──")),
+        ("borders with trailing spaces", box("❯ ", top="─" * 20 + "   ", bottom="─" * 20 + "  ")),
+        ("a session tag", box("❯ ", top="─" * 20 + " node ─")),
+        ("a tag starting with a dash", box("❯ ", top="─" * 20 + " ─x ─")),
+        ("a tag starting with a space", box("❯ ", top="─" * 20 + "  x ─")),
+        ("a tag with a dash inside", box("❯ ", top="─" * 20 + " x─y ─")),
+        ("a tag without its last dashes", box("❯ ", top="─" * 20 + " node ")),
+        ("a tag of 41 characters", box("❯ ", top="─" * 20 + " " + "x" * 41 + " ─")),
+        ("a tag of 42 characters", box("❯ ", top="─" * 20 + " " + "x" * 42 + " ─")),
+        ("adjacent borders", "─" * 20 + "\n" + "─" * 20),
+        ("a blank line under the box", box("❯ ") + "\n \n"),
+    ]
+    composer += [(name, read(text)) for name, text in edges]
+    panel_edges = [("a blank line, no border", "output\n\n↑/↓ to select"),
+                   ("the phrase inside the footer", "─" * 20 + "\n❯\n" + "─" * 20 + "\n  x ↑/↓ to select"),
+                   ("a border with trailing spaces", "─" * 20 + "\n❯\n" + "─" * 20 + "   \n  ↑/↓ to select · esc")]
     panel = [("normal, the phrase in the body", tdw.SCREEN_NORMAL_WITH_PHRASE_IN_BODY),
-             ("panel focused", tdw.SCREEN_PANEL_FOCUSED), ("no input box", "↑/↓ to select"), ("empty", "")]
+             ("panel focused", tdw.SCREEN_PANEL_FOCUSED), ("no input box", "↑/↓ to select"), ("empty", ""),
+             *panel_edges]
     real = herdr.run_raw
     try:
         rows = []
@@ -471,7 +514,40 @@ def capture_herdr_screens(out: Path) -> Path:
             rows.append({"name": name, "screen": read(text), "panel": herdr.panel_focused("w1:p1")})
     finally:
         herdr.run_raw = real
-    doc = {"source": "herdr.composer_state / herdr.panel_focused (tools/capture_goldens.py --only herdr)",
+    S = "aaaaaaaa-0000-4000-8000-00000000000a"
+    full = {"pane_id": "w1:p1", "agent": "claude", "agent_status": "idle", "focused": True,
+            "agent_session": {"kind": "id", "value": S}}
+    replies = [
+        ("a claude agent", {"agent": full}),
+        ("no session", {"agent": {**full, "agent_session": None}}),
+        ("a session without a value", {"agent": {**full, "agent_session": {"kind": "id"}}}),
+        ("an empty session id", {"agent": {**full, "agent_session": {"kind": "id", "value": ""}}}),
+        ("no status", {"agent": {k: v for k, v in full.items() if k != "agent_status"}}),
+        ("a null status", {"agent": {**full, "agent_status": None}}),
+        ("status unknown", {"agent": {**full, "agent_status": "unknown"}}),
+        ("a status herdr added later", {"agent": {**full, "agent_status": "starting"}}),
+        ("a numeric status", {"agent": {**full, "agent_status": 3}}),
+        ("not focused", {"agent": {**full, "focused": False}}),
+        ("focused as 1", {"agent": {**full, "focused": 1}}),
+        ("focused as 0", {"agent": {**full, "focused": 0}}),
+        ("focused null", {"agent": {**full, "focused": None}}),
+        ("no kind", {"agent": {k: v for k, v in full.items() if k != "agent"}}),
+        ("a codex agent", {"agent": {**full, "agent": "codex"}}),
+        ("an empty agent", {"agent": {}}),
+        ("no agent", {"agent": None}),
+        ("an empty result", {}),
+        ("the call failed", None),
+    ]
+    real_call, real_live = herdr.call, st.live_session
+    try:
+        st.live_session = lambda reported, *a, **k: f"live-of-{reported}"
+        for name, result in replies:
+            herdr.call = lambda *a, result=result, **k: (result, None if result is not None else "failed")
+            rows.append({"name": name, "result": result, "agent": herdr.live_agent("w1:p1")})
+    finally:
+        herdr.call, st.live_session = real_call, real_live
+    doc = {"source": "herdr.composer_state / herdr.panel_focused / herdr.live_agent (live_session stubbed as "
+                     "'live-of-<reported>') (tools/capture_goldens.py --only herdr)",
            "rows": rows}
     path = out / "herdr-screens.json"
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")

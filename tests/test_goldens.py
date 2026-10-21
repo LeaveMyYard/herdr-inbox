@@ -66,10 +66,10 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
             "the schema changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
             "--only schema")
         return
-    if kind == "herdr":  # the Rust screen parsers replay it (src/delivery/screen)
+    if kind == "herdr":  # the Rust screen parsers and live agent replay it (src/delivery/screen, pane)
         assert (FIX / "herdr-screens.json").read_text() == (tmp_path / "herdr-screens.json").read_text(), (
-            "herdr.composer_state / panel_focused changed: if deliberate, uv run python tools/capture_goldens.py "
-            "--only herdr")
+            "herdr.composer_state / panel_focused / live_agent changed: if deliberate, uv run python "
+            "tools/capture_goldens.py --only herdr")
         return
     if kind == "landed":  # the Rust landing check replays it (src/claude/landed)
         assert (FIX / "landed.json").read_text() == (tmp_path / "landed.json").read_text(), (

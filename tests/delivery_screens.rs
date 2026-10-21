@@ -14,7 +14,7 @@ fn every_screen_reads_as_python_reads_it() {
     let doc: Value = serde_json::from_str(GOLDEN).unwrap();
     let rows = doc["rows"].as_array().unwrap();
     let (mut composers, mut panels) = (0, 0);
-    for row in rows {
+    for row in rows.iter().filter(|r| r.get("screen").is_some()) {
         let (name, screen) = (
             row["name"].as_str().unwrap(),
             row["screen"].as_str().unwrap(),
@@ -34,4 +34,41 @@ fn every_screen_reads_as_python_reads_it() {
         }
     }
     assert!(composers >= 17 && panels >= 4);
+}
+
+/// What Python's `live_agent` returned, as the `Agent` the policy reads (a
+/// status Python leaves as `None` or a number is printed as `str()` does).
+fn python_agent(v: &Value) -> Option<inbox_core::deliver::Agent> {
+    let a = v.as_object()?;
+    let text = |k: &str| a[k].as_str().map(String::from);
+    Some(inbox_core::deliver::Agent {
+        kind: text("agent"),
+        status: match &a["status"] {
+            Value::String(s) => s.clone(),
+            Value::Null => "None".into(),
+            other => other.to_string(),
+        },
+        focused: a["focused"].as_bool().unwrap(),
+        session: text("session_id"),
+        reported_session: text("reported_session_id"),
+    })
+}
+
+#[test]
+fn every_agent_record_reads_as_python_reads_it() {
+    use herdr_inbox::delivery::pane::agent_from;
+
+    let doc: Value = serde_json::from_str(GOLDEN).unwrap();
+    let rows: Vec<&Value> = doc["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r.get("result").is_some())
+        .collect();
+    assert!(rows.len() >= 19);
+    for row in rows {
+        let result = Some(&row["result"]).filter(|r| !r.is_null());
+        let got = agent_from(result, |reported| format!("live-of-{reported}"));
+        assert_eq!(got, python_agent(&row["agent"]), "{}", row["name"]);
+    }
 }
