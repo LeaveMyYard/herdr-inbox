@@ -10,16 +10,21 @@
 //!   (Python `hook.deliver`).
 //! - [`rewake`]: when the asyncRewake watcher looks, wakes or ends (Python
 //!   `rewake.run`).
+//! - [`verify`]: what a typed answer's landing records, and whether a
+//!   hook-sent answer arrived (Python `_record_outcome`,
+//!   `verify_hook_deliveries`).
 //!
 //! - [`deliver`]: what the delivery worker does with a pane's waiting answers
 //!   (Python `service.deliver_batch`).
 //!
 //! Every rule here reproduces the delivery decision table,
-//! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`).
+//! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`,
+//! `tests/verify_rows.rs`).
 
 pub mod deliver;
 pub mod hook;
 pub mod rewake;
+pub mod verify;
 
 /// The index of the long-answer reference among a delivery's expected
 /// strings (single message, batch segment, reference; Python

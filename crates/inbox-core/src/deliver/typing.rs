@@ -3,8 +3,9 @@
 //! outcome taken from where the text landed.
 
 use super::decide::{DELIVERABLE, Outcomes};
-use super::reasons::{COMPOSER_DRAFT, COMPOSER_UNKNOWN, NOT_VERIFIED, OPERATOR_IN_PANE};
+use super::reasons::{COMPOSER_DRAFT, COMPOSER_UNKNOWN, OPERATOR_IN_PANE};
 use super::{Agent, Composer, Look, Mode, Outcome, Waiting};
+use crate::verify::landing as landed;
 
 /// Types each message and records where it landed.
 pub(super) fn type_them(
@@ -65,20 +66,7 @@ pub(super) fn type_them(
             continue;
         }
         for id in batch {
-            let landing = look.landing(id);
-            let o = if landing.counted {
-                Outcome::Delivered { ack }
-            } else if let Some(older) = landing
-                .older_error
-                .filter(|e| landing.anywhere && !e.is_empty())
-            {
-                Outcome::Failed(older)
-            } else if busy {
-                Outcome::BusyMiss
-            } else {
-                Outcome::Failed(NOT_VERIFIED.into())
-            };
-            out.insert(id, o);
+            out.insert(id, landed(look.landing(id), ack, busy));
         }
     }
 }
