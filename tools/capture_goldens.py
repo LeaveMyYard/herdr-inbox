@@ -433,6 +433,51 @@ def capture_schema(out: Path) -> list[Path]:
     return [path]
 
 
+def _generated_screens(count: int = 600, seed: int = 42) -> list[str]:
+    """Screens built at random from the pieces both parsers react to (escapes, dim codes, the
+    prompt, the placeholder, borders with and without tags, blank and footer lines), a fixed
+    seed: the #95 review's differential generator, kept so its cases stay replayed."""
+    import random
+
+    rnd = random.Random(seed)
+    dim, rst, bold, b22 = "\x1b[2m", "\x1b[0m", "\x1b[1m", "\x1b[22m"
+    parts = ["", " ", " ", "❯", "❯ ", "❯ ", 'Try "fix the bug"', 'Try ""', 'Try "a', "hello",
+             "日本語", "\U0001f642", "x", dim, rst, bold, b22, "\x1b[38;5;246m", "\x1b[2;3m", "\x1b[m",
+             "\x1b[7m", "\x1b[?25l", "\x1b[K", "\x1b]0;title\x07", "\x1b[1;2m", "\x1b[02m", "\x1b[22;2m", "　",
+             " ", "\x1c", "\t", "─", "│", "╭", "\x1b[", "\x1b]x"]
+    rule = "─"
+
+    def border():
+        return rnd.choice([rule * rnd.randint(1, 60), rule * 40 + " node " + rule, rule * 10 + " a b " + rule * 5,
+                           rule * 5 + "  x " + rule, rule * 5 + " " + rule + " " + rule, rule * 5 + " " + "y" * 41 + " " + rule,
+                           rule * 5 + " " + "y" * 40 + " " + rule, "  " + rule * 20 + "  ", dim + rule * 30 + rst, rule * 3,
+                           rule * 2, rule * 5 + " t " + rule + "x", rule * 5 + " t " + rule + " ", rule * 5 + " t " + rule,
+                           rule * 5 + " \tt " + rule])
+
+    def line():
+        return "".join(rnd.choice(parts) for _ in range(rnd.randint(0, 6)))
+
+    def box_line():
+        pre = rnd.choice(["", " ", " ", dim, bold])
+        body = rnd.choice(["❯ ", "❯", "❯ " + dim + 'Try "x"' + rst, "❯ " + dim + "T" + rst + 'ry "x"',
+                           "❯ " + 'Try "x"', "❯ " + "\x1b[7m" + " " + rst + dim + 'ry "x"' + rst,
+                           "❯ draft", "> x", "❯ " + dim + 'Try "x"', line()])
+        return pre + body + rnd.choice(["", " ", rst, " "])
+
+    screens = []
+    for _ in range(count):
+        lines = [line() for _ in range(rnd.randint(0, 6))]
+        for _ in range(rnd.randint(0, 3)):
+            lines.append(border())
+            lines += [box_line()] + [rnd.choice(["", " ", " ", line(), "  "]) for _ in range(rnd.randint(0, 2))]
+        if rnd.random() < 0.8:
+            lines.append(border())
+        lines += [rnd.choice(["", "↑/↓ to select · enter", "  ↑/↓ to select", "? for shortcuts", line()])
+                  for _ in range(rnd.randint(0, 3))]
+        screens.append("\n".join(lines) + rnd.choice(["", "\n"]))
+    return screens
+
+
 def capture_herdr_screens(out: Path) -> Path:
     """herdr.composer_state, herdr.panel_focused and herdr.live_agent over every screen and
     agent record the tests use (the captured Claude Code screens in tests/fixtures/composer,
@@ -495,14 +540,22 @@ def capture_herdr_screens(out: Path) -> Path:
         ("a tag of 42 characters", box("❯ ", top="─" * 20 + " " + "x" * 42 + " ─")),
         ("adjacent borders", "─" * 20 + "\n" + "─" * 20),
         ("a blank line under the box", box("❯ ") + "\n \n"),
+        # #95 review M1: more than two ─── lines; a whitespace-only second box line
+        ("rules in the output above a draft", "─" * 20 + "\ntable\n" + "─" * 20 + "\nmore\n" + box("❯ draft text")),
+        ("rules in the output above an empty box", "─" * 20 + "\n❯ x\n" + "─" * 20 + "\n" + box("❯ ")),
+        ("a whitespace-only second box line", "out\n" + "─" * 20 + "\n❯ \n   \n" + "─" * 20 + "\nfooter"),
     ]
     composer += [(name, read(text)) for name, text in edges]
     panel_edges = [("a blank line, no border", "output\n\n↑/↓ to select"),
                    ("the phrase inside the footer", "─" * 20 + "\n❯\n" + "─" * 20 + "\n  x ↑/↓ to select"),
-                   ("a border with trailing spaces", "─" * 20 + "\n❯\n" + "─" * 20 + "   \n  ↑/↓ to select · esc")]
+                   ("a border with trailing spaces", "─" * 20 + "\n❯\n" + "─" * 20 + "   \n  ↑/↓ to select · esc"),
+                   ("blank lines above the footer", "─" * 20 + "\n❯\n" + "─" * 20 + "\n\n  \n  ↑/↓ to select · esc"),
+                   ("a rule in the output, the footer below the box", "─" * 20 + "\nout\n" + "─" * 20 + "\n❯\n"
+                    + "─" * 20 + "\n  ↑/↓ to select")]
     panel = [("normal, the phrase in the body", tdw.SCREEN_NORMAL_WITH_PHRASE_IN_BODY),
              ("panel focused", tdw.SCREEN_PANEL_FOCUSED), ("no input box", "↑/↓ to select"), ("empty", ""),
              *panel_edges]
+    generated = _generated_screens()
     real = herdr.run_raw
     try:
         rows = []
@@ -512,6 +565,10 @@ def capture_herdr_screens(out: Path) -> Path:
         for name, text in panel:
             herdr.run_raw = lambda *a, text=read(text), **k: (text, None)
             rows.append({"name": name, "screen": read(text), "panel": herdr.panel_focused("w1:p1")})
+        for n, text in enumerate(generated):  # both parsers over every generated screen
+            herdr.run_raw = lambda *a, text=text, **k: (text, None)
+            rows.append({"name": f"generated {n}", "screen": text, "composer": herdr.composer_state("w1:p1"),
+                         "panel": herdr.panel_focused("w1:p1")})
     finally:
         herdr.run_raw = real
     S = "aaaaaaaa-0000-4000-8000-00000000000a"
