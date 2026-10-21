@@ -360,6 +360,24 @@ tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_nu
 tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:12-qnap:Q12],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[box:12-box:Q12],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:Q12-qnap:Q12],tests/test_deep_link.py,,todo,,
+tests/test_decision_edges.py::test_an_answer_without_a_pane_waits_for_check_answers,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_watched_idle_session_keeps_answers_its_hooks_missed_once[1],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_watched_idle_session_keeps_answers_its_hooks_missed_once[2],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_working_session_with_a_live_hook_keeps_answers_it_missed_once[1],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_working_session_with_a_live_hook_keeps_answers_it_missed_once[2],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_requeued_answer_waits_for_rest_unless_sent_now[False],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_requeued_answer_waits_for_rest_unless_sent_now[True],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_send_now_from_the_retry_path_types_into_a_focused_pane,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_an_agent_gone_right_before_typing_gets_nothing,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_text_lost_while_an_older_session_was_watched_is_not_verified,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_retry_never_types_into_a_conversation_that_replaced_the_asker,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_busy_status_other_than_working_gets_the_busy_grace_not_the_hook,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_text_typed_into_an_unknown_status_agent_and_lost_is_a_busy_miss,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_draft_in_the_input_box_holds_back_every_answer_of_the_message,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_failed_prompt_fails_every_answer_of_the_message,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_only_the_answer_not_yet_in_the_conversation_is_typed,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_long_answer_goes_in_a_message_of_its_own_as_a_reference,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_decision_edges.py::test_a_busy_answer_typed_into_an_older_session_is_recorded_as_such_not_retried,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_delivery.py::test_answer_is_prompted_into_the_asking_pane,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_long_question_is_truncated_in_delivery,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_failed_prompt_records_delivery_error,tests/test_delivery.py,,todo,,
