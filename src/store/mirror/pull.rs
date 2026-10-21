@@ -5,10 +5,11 @@ use std::time::{Duration, SystemTime};
 
 use rusqlite::types::Value as Sql;
 use rusqlite::{OptionalExtension, params};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 use super::{MACHINE_COLUMNS, Machine, Notice, first_line, iso};
 use crate::pyjson::dumps;
+use crate::remote::command::{FixedCommand, SafeTarget, Ssh};
 use crate::remote::validate::{Export, ExportError, py_int, validate_export};
 use crate::store::Store;
 
@@ -73,20 +74,16 @@ impl Store {
     }
 
     /// One pull of `id` into the mirror: `true` if it worked, and the
-    /// notices to send. `ssh` runs the remote's probe and `herdr plugin list`
-    /// while a path is not cached ([`Store::machine_paths`]); `call` runs
-    /// `inbox export` there with the cursor (`db_id`, `seq`) and whether to
-    /// ask for a full snapshot.
-    #[allow(clippy::too_many_arguments)]
+    /// notices to send. `ssh(target, command, stdin)` runs a fixed command
+    /// on the remote (the paths probe, `herdr plugin list`, `inbox export`
+    /// with its request on stdin); the commands are built and checked here.
     pub fn pull(
         &self,
         id: &str,
         label: Option<&str>,
         target: Option<&str>,
         now: SystemTime,
-        probe: impl FnOnce(&str) -> String,
-        plugin_list: impl FnOnce(&str, &str) -> String,
-        call: impl FnOnce(&Machine, Option<(String, Option<i64>)>, bool) -> CallResult,
+        ssh: Ssh<'_>,
     ) -> rusqlite::Result<(bool, Vec<Notice>)> {
         let rec = self.record_machine(id, label, target)?;
         if rec
@@ -96,7 +93,7 @@ impl Store {
         {
             return Ok((false, Vec::new()));
         }
-        let rec = match self.machine_paths(&rec, probe, plugin_list)? {
+        let rec = match self.machine_paths(&rec, ssh)? {
             Ok(r) => r,
             Err(e) => {
                 self.fail_pull(&rec, &e, now)?;
@@ -109,7 +106,17 @@ impl Store {
             .filter(|d| !d.is_empty())
             .map(|d| (d, rec.cursor_seq));
         let full = cursor.is_none() || rec.pulls.rem_euclid(FULL_EVERY) == 0;
-        let result = call(&rec, cursor, full);
+        let request = json!({"cursor": cursor.map(|(db, seq)| json!({"db_id": db, "seq": seq})), "full": full});
+        // Python call(): the target, then the cached paths, before ssh runs
+        let checked = SafeTarget::for_call(rec.target.as_deref())
+            .and_then(|t| Ok((t, FixedCommand::inbox(&rec, "export")?)));
+        let result = match checked {
+            Ok((target, command)) => ssh(&target, &command, Some(&dumps(&request))),
+            Err(e) => {
+                self.fail_pull(&rec, &e, now)?;
+                return Ok((false, Vec::new()));
+            }
+        };
         let failure = match result.code {
             2 => {
                 Some("upgrade needed: its inbox has no `export` (inbox remote upgrade)".to_string())

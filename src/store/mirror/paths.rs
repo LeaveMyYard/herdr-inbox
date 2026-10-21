@@ -6,6 +6,7 @@ use rusqlite::params;
 use serde_json::Value;
 
 use super::Machine;
+use crate::remote::command::{FixedCommand, SafeTarget, Ssh};
 use crate::store::Store;
 
 /// The plugin's id in `herdr plugin list` (Python `PLUGIN_ID`).
@@ -79,7 +80,7 @@ fn python_lines(text: &str) -> Vec<&str> {
 }
 
 /// Python's type name of a JSON value (for its AttributeError/TypeError texts).
-fn py_type(v: &Value) -> &'static str {
+pub(super) fn py_type(v: &Value) -> &'static str {
     match v {
         Value::Null => "NoneType",
         Value::Bool(_) => "bool",
@@ -129,22 +130,23 @@ fn plugin_root(stdout: &str) -> Result<Option<Value>, String> {
 
 impl Store {
     /// The remote's paths (Python `_paths`): `rec` as it is when all three
-    /// are cached; else `probe(target)` (the probe's stdout) and
-    /// `plugin_list(target, herdr)` (`herdr plugin list --json`'s stdout),
-    /// validated and written to `remote_machines`. `Err` is the pull's
-    /// failure text.
+    /// are cached; else the probe and `herdr plugin list --json` run through
+    /// `ssh(target, command)` (its stdout), validated and written to
+    /// `remote_machines`. `Err` is the pull's failure text.
     pub fn machine_paths(
         &self,
         rec: &Machine,
-        probe: impl FnOnce(&str) -> String,
-        plugin_list: impl FnOnce(&str, &str) -> String,
+        ssh: Ssh<'_>,
     ) -> Result<Result<Machine, String>, rusqlite::Error> {
         let have = |v: &Option<String>| v.as_deref().is_some_and(|s| !s.is_empty());
         if have(&rec.uv) && have(&rec.herdr) && have(&rec.plugin_root) {
             return Ok(Ok(rec.clone()));
         }
-        let target = rec.target.clone().unwrap_or_default();
-        let bins = probed(&probe(&target));
+        let target = match SafeTarget::for_ssh(rec.target.as_deref()) {
+            Ok(t) => t,
+            Err(e) => return Ok(Err(e)), // Python ssh() raises before the probe runs
+        };
+        let bins = probed(&ssh(&target, &FixedCommand::probe(), None).stdout);
         let bin = |n: &str| {
             bins.iter()
                 .find(|(name, _)| name == n)
@@ -153,7 +155,9 @@ impl Store {
         let (Some(uv), Some(herdr)) = (bin("uv"), bin("herdr")) else {
             return Ok(Err("uv/herdr not found on the remote".into()));
         };
-        let root = match plugin_root(&plugin_list(&target, &herdr)) {
+        let list = FixedCommand::plugin_list(&herdr).expect("probed paths are safe paths");
+        let listed = ssh(&target, &list, None).stdout;
+        let root = match plugin_root(&listed) {
             Ok(Some(Value::String(r))) if safe_path(&r) => r,
             Ok(_) => {
                 return Ok(Err(

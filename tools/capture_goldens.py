@@ -1084,6 +1084,22 @@ STORE_MIRROR_OPS = [
               "plugins": json.dumps({"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox",
                                                              "plugin_root": "/" + "b" * 500}]}}),
               "export": _ex("5" * 32, 4, [])}),  # '' is not cached: probed again; 500 characters is fine
+    # the ssh target and the fixed command lines are checked before any ssh runs (remote.ssh, call,
+    # remote_command): an unsafe target would be read as an ssh option on THIS machine
+    *[("pull", {"machine": {"id": f"t{i}", "label": None, "target": target}, "now": _T0 + 3000})
+      for i, target in enumerate(["-oProxyCommand=touch /x", "a b", "a\tb", "a\x00b", "h\u0085", "host;rm",
+                                  "user@host=1", "x" * 254, "", "é.lan", None])],
+    *[("pull", {"machine": {"id": f"ok{i}", "label": None, "target": target}, "now": _T0 + 3000,
+                "export": _ex("6" * 32, 1, [])})
+      for i, target in enumerate(["x" * 253, "user@host:22", "[::1]", "a-b_c.d@e"])],
+    ("sql", {"sql": "UPDATE remote_machines SET target = '-p22' WHERE machine_id = 'ok1'", "params": []}),
+    ("pull", {"machine": {"id": "ok1", "label": None, "target": "-p22"}, "now": _T0 + 3100}),  # cached paths: call() refuses
+    ("sql", {"sql": "UPDATE remote_machines SET uv = 'uv' WHERE machine_id = 'ok2'", "params": []}),
+    ("pull", {"machine": {"id": "ok2", "label": None, "target": "[::1]"}, "now": _T0 + 3100}),  # bad uv
+    ("sql", {"sql": "UPDATE remote_machines SET herdr = '/h;x' WHERE machine_id = 'ok3'", "params": []}),
+    ("pull", {"machine": {"id": "ok3", "label": None, "target": "a-b_c.d@e"}, "now": _T0 + 3100}),  # bad herdr
+    ("sql", {"sql": "UPDATE remote_machines SET plugin_root = '/r oot' WHERE machine_id = 'ok0'", "params": []}),
+    ("pull", {"machine": {"id": "ok0", "label": None, "target": "x" * 253}, "now": _T0 + 3100}),  # bad plugin_root
 ]
 # What validate_export makes of exports (the rows it keeps, cleaned, or the error it raises).
 _VROW = {"id": 1, "qkey": "0123abcd", "group": 1, "status": "open", "question": "Q?"}
@@ -1292,6 +1308,31 @@ def capture_store_alerts(out: Path, work: Path) -> Path:
     return target
 
 
+def _remote_run(remote, env: dict, effects: list):
+    """subprocess.run as remote.py's ssh() and call() use it, scripted per step: the probe and
+    `herdr plugin list` from the step (else _PROBE_OUT, _PLUGINS_OUT), `inbox export` from the
+    step's code/export/stdout/stderr, each `inbox apply` from the next of env["replies"]. Every
+    call is recorded (target, command, stdin)."""
+    import subprocess as sp
+
+    def run(argv, input=None, capture_output=True, text=True, timeout=None):
+        target, command, s = argv[-2], argv[-1], env["step"]
+        if input is None:
+            effects.append(["ssh", target, command])
+            if command == remote.PROBE:
+                return sp.CompletedProcess(argv, 0, s.get("probe", _PROBE_OUT), "")
+            return sp.CompletedProcess(argv, 0, s.get("plugins", _PLUGINS_OUT), "")
+        effects.append(["call", target, command, input])
+        if command.endswith(" inbox export"):
+            stdout = json.dumps(s["export"]) if "export" in s else s.get("stdout", "")
+            return sp.CompletedProcess(argv, s.get("code", 0), stdout, s.get("stderr", ""))
+        r = env["replies"].pop(0) if env.get("replies") else {"code": 255, "stderr": "ssh: no reply"}
+        stdout = json.dumps(r["reply"]) if "reply" in r else r.get("stdout", "")
+        return sp.CompletedProcess(argv, r.get("code", 0), stdout, r.get("stderr", ""))
+
+    return run
+
+
 def capture_store_mirror(out: Path, work: Path) -> Path:
     """remote.py's mirror over STORE_MIRROR_OPS, and validate_export over STORE_EXPORT_VECTORS."""
     import sqlite3
@@ -1304,27 +1345,13 @@ def capture_store_mirror(out: Path, work: Path) -> Path:
     env = {"now": _T0, "step": {}}
     effects: list = []
 
-    def ssh(target, command, timeout=None):
-        s = env["step"]
-        if command == remote.PROBE:
-            effects.append(["probe", target])
-            return sp.CompletedProcess([], 0, s.get("probe", _PROBE_OUT), "")
-        herdr_bin, _, rest = command.partition(" ")
-        assert rest == "plugin list --json", command
-        effects.append(["plugins", target, herdr_bin])
-        return sp.CompletedProcess([], 0, s.get("plugins", _PLUGINS_OUT), "")
-
-    def call(rec, sub, request):
-        effects.append(["call", request.get("cursor"), request.get("full")])
-        s = env["step"]
-        stdout = json.dumps(s["export"]) if "export" in s else s.get("stdout", "")
-        return sp.CompletedProcess([], s.get("code", 0), stdout, s.get("stderr", ""))
-
-    stubs = {"ssh": ssh, "call": call, "_now": lambda: datetime.fromtimestamp(env["now"], tz=timezone.utc),
+    run = _remote_run(remote, env, effects)
+    stubs = {"_now": lambda: datetime.fromtimestamp(env["now"], tz=timezone.utc),
              "_notify": lambda title, body: effects.append(["notify", title, body])}
     saved = {k: getattr(remote, k) for k in stubs}
     for k, fn in stubs.items():
         setattr(remote, k, fn)
+    real_run, remote.subprocess.run = remote.subprocess.run, run
 
     def tables():
         db = sqlite3.connect(path)
@@ -1370,6 +1397,7 @@ def capture_store_mirror(out: Path, work: Path) -> Path:
     finally:
         for k, fn in saved.items():
             setattr(remote, k, fn)
+        remote.subprocess.run = real_run
     vectors = []
     for v in STORE_EXPORT_VECTORS:
         raw = json.dumps(v)

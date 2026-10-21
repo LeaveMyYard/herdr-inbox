@@ -46,10 +46,48 @@ pub fn py_repr_str(v: &Value) -> String {
     }
 }
 
+/// Python's `repr()` of a str: `'x'` (or `"x"` when it holds a `'` and no
+/// `"`), backslash escapes for `\\`, the quote, `\t\n\r`, and `\xNN`/`\uNNNN`/
+/// `\UNNNNNNNN` for what `str.isprintable` rejects.
+pub fn py_str_repr(s: &str) -> String {
+    let quote = if s.contains('\'') && !s.contains('"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push(quote);
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c if c == quote => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if c != ' ' && !crate::store::norm::printable(c) => {
+                let n = c as u32;
+                out.push_str(&if n < 0x100 {
+                    format!("\\x{n:02x}")
+                } else if n < 0x10000 {
+                    format!("\\u{n:04x}")
+                } else {
+                    format!("\\U{n:08x}")
+                });
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(quote);
+    out
+}
+
 /// Python's `repr()` of a JSON scalar (`'x'`, `None`, `True`), JSON text otherwise.
 pub fn py_repr(v: &Value) -> String {
     match v {
-        Value::String(s) => format!("'{s}'"),
+        Value::String(s) => py_str_repr(s),
         Value::Null => "None".into(),
         Value::Bool(true) => "True".into(),
         Value::Bool(false) => "False".into(),

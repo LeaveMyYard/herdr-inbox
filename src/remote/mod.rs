@@ -3,6 +3,7 @@
 //! output) before anything of it reaches the mirror tables
 //! ([`crate::store::mirror`]).
 
+pub mod command;
 pub mod fields;
 pub mod pyvalue;
 pub mod validate;
