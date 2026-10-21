@@ -3,13 +3,14 @@ session's transcript; herdr accepting the prompt is not enough (live 0.4.0 bug).
 
 import json
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
 from herdr_inbox import cli, hook, service, transcript, tui
 from herdr_inbox.service import Caller
-from herdr_inbox.store import RESET_KEY, Store
+from herdr_inbox.store import RESET_KEY, Store, now
 from herdr_inbox.tui import GroupListView, InboxApp
 
 A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
@@ -146,8 +147,10 @@ async def test_popup_shows_pending_delivery(store, fake_herdr, monkeypatch):
         assert "1 pending delivery" in str(lv.query_one("#list-title").render())
 
 
-def _old_server_delivery(store, qid, when="2026-10-14T12:53:08+00:00"):
-    """What a pre-0.5.1 server records on "send": delivered and seen in the same instant."""
+def _old_server_delivery(store, qid, when=None):
+    """What a pre-0.5.1 server records on "send": delivered and seen in the same instant (by
+    default two days ago: relative to now, so it never drifts out of a window, #88)."""
+    when = when or now(-timedelta(days=2))
     store.db.execute("UPDATE questions SET delivered_at = ?, acknowledged_at = ?, delivery_error = NULL"
                      " WHERE id = ?", (when, when, qid))
 
