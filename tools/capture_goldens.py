@@ -712,6 +712,339 @@ def capture_herdr_screens(out: Path) -> Path:
     return path
 
 
+def _capture_plans(work: Path) -> dict:
+    """A conversation that continued (OLD -> NEW), an unrelated session X, and questions of
+    each: Python's question_family, older_conversation, _watch_paths and _verify_plans over
+    them. Paths are relative to the projects directory; the files' contents are kept so the
+    Rust side rebuilds the same world (tests/delivery_plans.rs)."""
+    from herdr_inbox import service, store as st, transcript
+
+    OLD, NEW, X = ("a58e3f68-0000-4000-8000-000000000001", "06acc80f-0000-4000-8000-000000000002",
+                   "77777777-0000-4000-8000-000000000007")
+    root = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects"
+    tdir = root / "-r"
+    tdir.mkdir(parents=True, exist_ok=True)
+
+    def write(session, records):
+        with open(tdir / f"{session}.jsonl", "a") as fh:
+            for r in records:
+                fh.write(json.dumps(r) + "\n")
+
+    write(OLD, [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": OLD,
+                 "message": {"role": "user", "content": "earlier work"}},
+                {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": OLD,
+                 "continuedInSessionId": NEW},
+                {"type": "cost-state", "sessionId": OLD}])
+    write(NEW, [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}])
+    write(X, [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": X,
+               "message": {"role": "user", "content": "other"}}])
+    with st.Store(work / "plans.db", migrate=True) as s:
+        asks = [(NEW, "2026-10-16T19:00:00+00:00"), (OLD, "2026-10-16T17:00:00+00:00"),
+                (OLD, "2026-10-16T19:00:00+00:00"), (None, "2026-10-16T19:00:00+00:00"), (X, "2026-10-16T19:00:00+00:00")]
+        ids = []
+        for i, (session, created) in enumerate(asks):
+            s.db.execute("INSERT INTO questions (created_at, pane_id, session_id, question, norm, status, answer)"
+                         " VALUES (?, 'w1:p1', ?, ?, ?, 'answered', 'yes')", (created, session, f"Q{i}?", f"q{i}"))
+            ids.append(s.db.execute("SELECT last_insert_rowid()").fetchone()[0])
+        qs = [s.get(i) for i in ids]
+        rel = lambda p: str(Path(p).relative_to(root))
+        sessions = [OLD, NEW, X, None, ""]
+        agents = [{"session_id": NEW, "reported_session_id": OLD}, {"session_id": NEW, "reported_session_id": NEW},
+                  {"session_id": None, "reported_session_id": OLD}, {"session_id": "", "reported_session_id": None},
+                  {"session_id": "88888888-0000-4000-8000-000000000008", "reported_session_id": X}]
+        watch = [(tdir / f"{NEW}.jsonl", 5), (tdir / f"{OLD}.jsonl", 0), (tdir / f"{X}.jsonl", 0)]
+        out = {
+            "files": {rel(p): p.read_text() for p in sorted(tdir.glob("*.jsonl"))},
+            "questions": [{"id": q.id, "session_id": q.session_id, "created_at": q.created_at} for q in qs],
+            "family": [{"id": q.id, "family": service.question_family(s, q)} for q in qs],
+            "older": [{"live": a, "asker": b, "older": service.older_conversation(s, a, b)}
+                      for a in sessions for b in sessions],
+            "watch_paths": [{"agent": a, "fresh": fresh,
+                             "paths": [[rel(p), off] for p, off in service._watch_paths(s, a, fresh=fresh)]}
+                            for a in agents for fresh in (False, True)],
+            "verify_plans": {"pane": "w1:p1", "watch": [[rel(p), off] for p, off in watch],
+                             "plans": {str(k): {"counting": [rel(c) for c in v["counting"]], "older_error": v["older_error"]}
+                                       for k, v in service._verify_plans(s, "w1:p1", watch, qs).items()}},
+        }
+    return out
+
+
+DELIVERY_A = "aaaaaaaa-0000-4000-8000-00000000000a"
+DELIVERY_OLD = "a58e3f68-0000-4000-8000-000000000001"
+DELIVERY_NEW = "06acc80f-0000-4000-8000-000000000002"
+DELIVERY_X = "77777777-0000-4000-8000-000000000007"
+
+
+def _delivery_scenarios():
+    """deliver_batch scenarios (tools/capture_goldens.py --only delivery): each a pane's world
+    (questions, transcripts, herdr's agent and screen, whether a typed prompt lands and where)
+    run through Python's deliver_batch, its result kept for tests/delivery/scenarios.rs."""
+    A, OLD, NEW, X = DELIVERY_A, DELIVERY_OLD, DELIVERY_NEW, DELIVERY_X
+
+    def agent(session=A, status="idle", focused=False, kind="claude"):
+        rec = {"pane_id": "w1:p1", "tab_id": "w1:t1", "agent": kind, "agent_status": status, "focused": focused}
+        if session:
+            rec["agent_session"] = {"kind": "id", "value": session}
+        return rec
+
+    def q(session=A, answer="yes", question="Merge it?", **kw):
+        return {"session": session, "question": question, "answer": answer, **kw}
+
+    hello = [{"type": "user", "message": {"role": "user", "content": "hello"}}]
+    continued = [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": OLD,
+                  "message": {"role": "user", "content": "earlier"}},
+                 {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": OLD,
+                  "continuedInSessionId": NEW}, {"type": "cost-state", "sessionId": OLD}]
+    empty = (ROOT / "tests" / "fixtures" / "composer" / "empty.ansi").read_text()
+    draft = (ROOT / "tests" / "fixtures" / "composer" / "draft.ansi").read_text()
+    panel = "──────\n❯\n──────\n  ↑/↓ to select · esc"
+    base = {"mode": {"retry": True, "force": False, "verify_later": False}, "transcripts": {A: hello},
+            "agent": agent(), "agents": [], "screen": empty, "prompt": "land", "land_in": A}
+    S = lambda name, **kw: {"name": name, **base, **kw}
+    return [
+        S("idle, typed and landed", questions=[q()]),
+        S("idle, typed and never seen", questions=[q()], prompt="none"),
+        S("a draft in the input box", questions=[q()], screen=draft),
+        S("send now onto a draft: not sent, said so", questions=[q()], screen=draft,
+          mode={"retry": True, "force": True, "verify_later": False}),
+        S("an unreadable input box", questions=[q(tab_label="node")], screen="plain output"),
+        S("working, within the grace", questions=[q(pending_ago=1)], agent=agent(status="working")),
+        S("working, the grace over, landed", questions=[q(pending_ago=60)], agent=agent(status="working")),
+        S("working, the grace over, never seen", questions=[q(pending_ago=60)], agent=agent(status="working"),
+          prompt="none"),
+        S("blocked", questions=[q()], agent=agent(status="blocked")),
+        S("no agent", questions=[q()], agent=None),
+        S("the background panel has focus", questions=[q()], screen=panel),
+        S("the operator is in the pane", questions=[q()], agent=agent(focused=True)),
+        S("a failed prompt", questions=[q(), q(question="Region?", answer="eu")], prompt="fail"),
+        S("three answers, one message", questions=[q(), q(question="Region?", answer="eu"),
+                                                   q(question="Squash?", answer="squash")]),
+        S("a long answer and a short one", questions=[q(answer="x" * 5000), q(question="Region?", answer="eu")]),
+        S("another conversation in the pane", questions=[q()], agent=agent(session=X),
+          transcripts={A: hello, X: hello}, land_in=X),
+        S("typed into an older session", questions=[q(session=NEW)], agent=agent(session=OLD),
+          transcripts={OLD: continued, NEW: [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}]}, land_in=OLD),
+        S("its conversation moved to another pane", questions=[q()], agent=agent(session=X),
+          agents=[{"pane_id": "w1:p2", "tab_id": "w1:t2", "agent": "claude", "agent_status": "idle",
+                   "agent_session": {"kind": "id", "value": A}}],
+          transcripts={A: hello, X: hello}, land_in=X),
+        S("already in the conversation", questions=[q(already=True)]),
+        S("no transcript to verify against", questions=[q()], transcripts={}, prompt="none"),
+        S("verified later", questions=[q(), q(question="Region?", answer="eu")],
+          mode={"retry": False, "force": False, "verify_later": True}),
+        S("a codex agent: no input box check", questions=[q()], agent=agent(kind="codex"), screen=draft),
+        # one scenario per branch the ones above leave open (#95-style mutant pass on D2)
+        S("an idle session its watcher wakes", questions=[q()], watch_stamp=True, watch_lock=True),
+        S("a watcher lock without a fresh stamp", questions=[q()], watch_lock=True),
+        S("its conversation's pane is this pane", questions=[q()], agent=agent(session=X),
+          agents=[{"pane_id": "w1:p1", "tab_id": "w1:t1", "agent": "claude", "agent_status": "idle",
+                   "agent_session": {"kind": "id", "value": A}}], transcripts={A: hello, X: hello}, land_in=X),
+        S("two panes run its conversation", questions=[q()], agent=agent(session=X),
+          agents=[{"pane_id": p, "tab_id": "w1:t2", "agent": "claude", "agent_status": "idle",
+                   "agent_session": {"kind": "id", "value": A}} for p in ("w1:p2", "w1:p3")],
+          transcripts={A: hello, X: hello}, land_in=X),
+        S("an asker without a session", questions=[q(session="")], agent=agent(session=X),
+          transcripts={X: hello}, land_in=X),
+        S("working, never pending", questions=[q()], agent=agent(status="working")),
+        S("already typed into an older session", questions=[q(session=NEW, older_landed=OLD)], agent=agent(session=OLD),
+          transcripts={OLD: continued, NEW: [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}]}, land_in=OLD),
+        S("an unreadable box without a tab label", questions=[q(tab_label="")], screen="plain output"),
+        S("an unreadable box, twice", questions=[q(tab_label="node")], screen="plain output", passes=2),
+        S("send now onto an empty box", questions=[q()], mode={"retry": True, "force": True, "verify_later": False}),
+        S("the transcript appears with the prompt", questions=[q()], transcripts={}),
+        S("only the reported session's transcript", questions=[q(session=NEW)], agent=agent(session=NEW),
+          reported=OLD, transcripts={OLD: continued}, land_in=OLD),
+        S("verified later onto a draft", questions=[q()], screen=draft,
+          mode={"retry": False, "force": False, "verify_later": True}),
+        S("moved, the tab without a label", questions=[q()], agent=agent(session=X), tab="",
+          agents=[{"pane_id": "w1:p2", "tab_id": "w1:t2", "agent": "claude", "agent_status": "idle",
+                   "agent_session": {"kind": "id", "value": A}}], transcripts={A: hello, X: hello}, land_in=X),
+    ]
+
+
+def _run_delivery_scenario(work: Path, n: int, sc: dict) -> dict:
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    from herdr_inbox import herdr, service, store as st
+
+    import fcntl
+
+    root = work / f"scenario-{n}"
+    claude = root / "claude"
+    folder = claude / "projects" / "-fake-project"
+    folder.mkdir(parents=True)
+    for session, records in sc["transcripts"].items():
+        (folder / f"{session}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in records))
+    os.environ["CLAUDE_CONFIG_DIR"] = str(claude)
+    os.environ["HERDR_INBOX_DB"] = str(root / "inbox.db")  # the rewake locks live beside it
+    prompts, notes = [], []
+
+    def call(*args, timeout=None):
+        cmd = " ".join(args[:2])
+        if cmd == "agent get":
+            if not sc["agent"]:
+                return {}, None
+            rec = dict(sc["agent"])
+            if sc.get("reported"):  # herdr reports this session; the agent runs the followed one
+                rec["agent_session"] = {"kind": "id", "value": sc["reported"]}
+            return {"agent": rec}, None
+        if cmd == "agent list":
+            return {"agents": sc["agents"]}, None
+        if cmd == "agent prompt":
+            prompts.append(args[3])
+            if sc["prompt"] == "fail":
+                return None, "fake failure"
+            if sc["prompt"] == "land":
+                with open(folder / f"{sc['land_in']}.jsonl", "a") as fh:
+                    fh.write(json.dumps({"type": "user", "message": {"role": "user", "content": herdr.clean(args[3])}}) + "\n")
+            return {}, None
+        if cmd == "notification show":
+            notes.append([args[2], args[4]])
+            return {}, None
+        if cmd == "tab get":
+            return {"tab": {"tab_id": args[2], "label": sc.get("tab", "❓ node")}}, None
+        return {}, None
+
+    saved = (herdr.call, herdr.run_raw, herdr.server_id, service._ensure_worker, service.later, service.VERIFY_SECONDS,
+             service.UNREADABLE_NOTIFY_AFTER)
+    herdr.call = call
+    herdr.run_raw = lambda *args, timeout=None: (sc["screen"], None)
+    herdr.server_id = lambda: "srv"
+    service._ensure_worker = lambda *a, **k: None
+    service.later = lambda fn: fn()
+    service.VERIFY_SECONDS = 1.0
+    service.UNREADABLE_NOTIFY_AFTER = 0.0
+    service._unreadable_since.clear()
+    service._unreadable_notified.clear()
+    jobs = []
+    try:
+        with st.Store(root / "inbox.db", migrate=True) as s:
+            ids = []
+            for i, qq in enumerate(sc["questions"]):
+                s.db.execute("INSERT INTO questions (created_at, pane_id, tab_id, tab_label, session_id, question, norm,"
+                             " status, answer, answered_at) VALUES (?, 'w1:p1', 'w1:t1', ?, ?, ?, ?, 'answered', ?, ?)",
+                             (st.now(timedelta(seconds=-120)), qq.get("tab_label"), qq["session"], qq["question"],
+                              f"n{i}", qq["answer"], st.now(timedelta(seconds=-60))))
+                qid = s.db.execute("SELECT last_insert_rowid()").fetchone()[0]
+                ids.append(qid)
+                if qq.get("pending_ago") is not None:
+                    s.db.execute("INSERT INTO question_ext (id, group_id, pending_since) VALUES (?, ?, ?)",
+                                 (qid, qid, st.now(timedelta(seconds=-qq["pending_ago"]))))
+            if sc.get("watch_stamp"):
+                s.db.execute("INSERT INTO sessions (session_id, watch_seen_at) VALUES (?, ?)", (DELIVERY_A, st.now()))
+            lock = None
+            if sc.get("watch_lock"):
+                (root / "rewake").mkdir(exist_ok=True)
+                lock = open(root / "rewake" / f"{DELIVERY_A}.lock", "a")
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            for qid, qq in zip(ids, sc["questions"]):
+                if qq.get("older_landed"):  # typed there before, by an earlier pass
+                    with open(folder / f"{qq['older_landed']}.jsonl", "a") as fh:
+                        fh.write(json.dumps({"type": "user", "message": {"role": "user",
+                                 "content": service.delivery_text([s.get(qid)])}}) + "\n")
+                if qq.get("already"):
+                    with open(folder / f"{qq['session']}.jsonl", "a") as fh:
+                        fh.write(json.dumps({"type": "user", "message": {"role": "user",
+                                 "content": service.delivery_text([s.get(qid)])}}) + "\n")
+            m = sc["mode"]
+            for _ in range(sc.get("passes", 1)):
+                service.deliver_batch(s, [s.get(i) for i in ids], retry=m["retry"], force=m["force"],
+                                      verify_later=jobs.append if m["verify_later"] else None)
+            if lock is not None:
+                lock.close()
+            states = []
+            for qid in ids:
+                r = s.db.execute("SELECT q.status, q.pane_id, q.delivered_at, q.delivery_error, q.acknowledged_at,"
+                                 " q.delivery_attempts, e.verified_at, e.busy_attempts, e.pending_since, q.tab_label"
+                                 " FROM questions q LEFT JOIN question_ext e ON e.id = q.id WHERE q.id = ?", (qid,)).fetchone()
+                error = r[3] or None
+                states.append({"status": r[0], "pane": r[1], "delivered": bool(r[2]),
+                               "error": "<claim>" if error and error.startswith("sending:") else error,
+                               "acknowledged": bool(r[4]), "attempts": r[5], "verified": bool(r[6]),
+                               "busy_attempts": r[7] or 0, "pending_since": bool(r[8]), "tab_label": r[9]})
+    finally:
+        (herdr.call, herdr.run_raw, herdr.server_id, service._ensure_worker, service.later, service.VERIFY_SECONDS,
+         service.UNREADABLE_NOTIFY_AFTER) = saved
+    projects = str(claude / "projects") + "/"
+    for job in jobs:
+        job["path"] = job["path"].replace(projects, "")
+        job["watch"] = [[p.replace(projects, ""), off] for p, off in job["watch"]]
+        for row in job["rows"]:
+            row["claim"] = "<claim>" if row["claim"] else None
+            row["counting"] = [p.replace(projects, "") for p in row["counting"]]
+    return {"name": sc["name"], "scenario": sc, "states": states, "prompts": prompts, "notifications": notes,
+            "jobs": jobs}
+
+
+def capture_delivery(out: Path, work: Path) -> Path:
+    """service.delivery_messages over sets of answers (the herdr argument cap, long answers sent
+    as a reference, batches split never truncated): what src/delivery/messages.rs returns."""
+    from herdr_inbox import herdr, service, store as st
+
+    cap = herdr.MAX_ARG
+    head = len("[inbox] Q1 answered — Q?: ")  # one short question's message, before its answer
+
+    def fits(n):  # an answer whose single message is exactly n characters long
+        return "a" * (n - head)
+
+    cases = [
+        ("one answer", [("Q?", "yes")]),
+        ("three short answers, one message", [("Q?", "yes"), ("Merge?", "squash"), ("Region?", "eu")]),
+        ("a message of exactly the cap", [("Q?", fits(cap))]),
+        ("one character over the cap: the reference", [("Q?", fits(cap + 1))]),
+        ("a long answer between short ones", [("Q?", "yes"), ("Long?", "x" * 5000), ("Region?", "eu")]),
+        ("a batch that overflows into a second message", [("A?", "a" * 1900), ("B?", "b" * 1900), ("C?", "c" * 1900)]),
+        ("two that exactly fill one message", [("A?", "a" * 1977), ("B?", "b" * 1987)]),
+        ("two one character too many", [("A?", "a" * 1977), ("B?", "b" * 1988)]),
+        ("a multi-line question", [("First line?\nsecond line\nthird", "ok"), ("Q?", "yes")]),
+        ("a question over 80 characters", [("x" * 120 + "?", "ok")]),
+        ("astral characters count once", [("Q?", "😀" * (cap - head)), ("R?", "😀" * (cap - head + 1))]),
+        ("combining marks count each", [("Q?", "e\u0301" * 100)]),
+        ("no answers", []),
+    ]
+    rows = []
+    for i, (name, items) in enumerate(cases):
+        with st.Store(work / f"delivery-{i}.db", migrate=True) as s:
+            caller = service.Caller("w1:p1", "w1:t1", "tab", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
+            ids = []
+            for question, answer in items:
+                qid = service.ask(s, caller, question)["id"]
+                s.set_answer(qid, answer)
+                ids.append(qid)
+            qs = [s.get(q) for q in ids]
+            rows.append({"name": name,
+                         "answers": [{"id": q.id, "question": q.question, "answer": q.answer} for q in qs],
+                         "messages": [{"text": text, "ids": [q.id for q in batch], "ack": ack}
+                                      for text, batch, ack in service.delivery_messages(qs)]})
+    from herdr_inbox import transcript
+
+    one = "[inbox] Q7 answered — Which region?: eu"
+    two = "[inbox] answered — Q7 Which region?: eu · Q8 Squash?: squash"
+    contains = [  # (text, qids, the whole typed message or None)
+        (one, [7], None), (one, [8], None), (one, [7], one), (two, [7, 8], None), (two, [7, 9], None),
+        ("draft text " + one, [7], one),  # typed onto a draft: the whole message after it
+        ("draft text " + one, [7], None),  # without the typed text, a later header never counts
+        ("see [inbox] Q7 answered — earlier", [7], one),  # a mere mention: not the whole message
+        ("draft " + one + " and more", [7], one),
+        ("draft   " + one.replace(" ", "  "), [7], one),  # whitespace folded
+        ("\n\n<pasted_content id=\"1\">\n" + one, [7], None),  # a long prompt's wrapper
+        ("  " + one, [7], None),
+        ("[inbox] Q70 answered — x", [7], None),
+        ("", [7], None),
+    ]
+    contained = [{"text": text, "qids": qids, "full": full, "contains": transcript.contains(text, qids, full)}
+                 for text, qids, full in contains]
+    plans = _capture_plans(work)
+    scenarios = [_run_delivery_scenario(work, n, sc) for n, sc in enumerate(_delivery_scenarios())]
+    doc = {"source": "service.delivery_messages, transcript.contains, service.question_family / older_conversation / "
+                     "_watch_paths / _verify_plans (tools/capture_goldens.py --only delivery)",
+           "max_arg": cap, "rows": rows, "contains": contained, "plans": plans, "scenarios": scenarios}
+    path = out / "delivery-messages.json"
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return path
+
+
 LANDED_QUESTIONS = [  # (id, question, answer, answered_at)
     (7, "Which region?", "eu", "2026-10-17T10:00:00+00:00"),
     (8, "Squash or merge?\nsecond line", "squash", "2026-10-17T10:00:00+00:00"),
@@ -2054,7 +2387,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store", "herdr"),
+    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store", "herdr", "delivery"),
                    help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
@@ -2077,6 +2410,8 @@ def main(argv: list[str] | None = None) -> int:
             written += capture_landed(args.out)
         if args.only in (None, "herdr"):
             written.append(capture_herdr_screens(args.out))
+        if args.only in (None, "delivery"):
+            written.append(capture_delivery(args.out, work))
         if args.only in (None, "store"):
             written += capture_store(args.out, work)
         if args.only in (None, "screens"):
