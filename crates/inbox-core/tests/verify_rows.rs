@@ -8,7 +8,7 @@
 //! as the store write would, must give `after`.
 
 use inbox_core::deliver::{BUSY_WAIT_IDLE, Outcome};
-use inbox_core::verify::{HOOK_UNSEEN, HookLook, HookOutcome, Landing, hook, landing};
+use inbox_core::verify::{HOOK_UNSEEN, HookLook, HookOutcome, JobLook, Landing, hook, job};
 use serde_json::{Map, Value, json};
 
 const TABLE: &str = include_str!("../../../tests/fixtures/decisions.json");
@@ -131,23 +131,52 @@ fn every_verify_hook_row_is_the_policys() {
     }
 }
 
-#[test]
-fn every_verify_job_row_is_the_policys() {
-    let rows = rows("verify_job");
-    assert!(rows.len() >= 5);
-    for row in &rows {
+/// One job's rows (answer `slot + 1` each): where each one's text landed.
+struct RowJob<'a>(&'a [&'a Value]);
+
+impl JobLook for RowJob<'_> {
+    fn landing(&mut self, id: i64) -> Landing {
+        let row = self.0[(id - 1) as usize];
         let flag = |key: &str| looked(row, "question", key).as_bool().unwrap();
-        let input = |key: &str| row["inputs"][key].as_bool().unwrap();
-        let seen = Landing {
+        Landing {
             counted: flag("landed_after_typing"),
             anywhere: flag("landed_anywhere_after_typing"),
             older_error: flag("older_session_watched").then(|| OLDER.to_string()),
-        };
-        let outcome = landing(seen, input("ack"), input("busy"));
-        assert_eq!(
-            job_applied(&row["before"], &outcome),
-            row["after"],
-            "{outcome:?}\n{row}"
-        );
+        }
     }
+}
+
+#[test]
+fn every_verify_job_is_the_policys() {
+    let rows = rows("verify_job");
+    assert!(rows.len() >= 10);
+    // a job: the rows of one `inbox verify` run, in their order
+    let mut jobs: Vec<(&str, Vec<&Value>)> = Vec::new();
+    for row in &rows {
+        let id = row["pass"].as_str().unwrap();
+        match jobs.iter_mut().find(|(p, _)| *p == id) {
+            Some((_, list)) => list.push(row),
+            None => jobs.push((id, vec![row])),
+        }
+    }
+    let mut several = 0;
+    for (_, list) in &mut jobs {
+        list.sort_by_key(|r| r["slot"].as_i64().unwrap());
+        assert!(
+            list.iter().enumerate().all(|(i, r)| r["slot"] == i as i64),
+            "a whole job"
+        );
+        several += usize::from(list.len() > 1);
+        let input = |key: &str| list[0]["inputs"][key].as_bool().unwrap();
+        let ids: Vec<i64> = (1..=list.len() as i64).collect();
+        let got = job(&ids, input("ack"), input("busy"), &mut RowJob(list));
+        for ((id, outcome), row) in got.iter().zip(list.iter()) {
+            assert_eq!(
+                job_applied(&row["before"], outcome),
+                row["after"],
+                "row {id}: {outcome:?}\n{row}"
+            );
+        }
+    }
+    assert!(several >= 2, "jobs with several rows: {several}");
 }

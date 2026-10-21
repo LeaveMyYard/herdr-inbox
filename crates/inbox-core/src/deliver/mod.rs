@@ -104,7 +104,10 @@ pub enum Outcome {
     /// Typed; a detached `inbox verify` records the outcome under the claim.
     /// Its job needs what this does not carry: the message's full-answer flag
     /// (from [`Look::messages`]) and whether the pane was busy (its agent's
-    /// status not `idle` or `done`), Python's `"ack"` and `"busy"`.
+    /// status not `idle` or `done`), Python's `"ack"` and `"busy"`; a job
+    /// read without them is `ack = true`, `busy = false` (Python
+    /// `job.get("ack", True)`, `job.get("busy")`). The job's outcome is
+    /// [`crate::verify::job`].
     VerifyLater,
 }
 

@@ -893,10 +893,12 @@ tests/test_verified_delivery.py::test_verified_delivery_is_written_in_one_transa
 tests/test_verify_edges.py::test_a_fresh_hook_send_not_yet_seen_is_left_for_the_next_tick,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
 tests/test_verify_edges.py::test_a_hook_send_without_a_transcript_stays_sent_and_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
 tests/test_verify_edges.py::test_a_long_answer_whose_reference_landed_is_verified_but_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
-tests/test_verify_edges.py::test_a_typed_answer_never_seen_at_rest_is_not_verified,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_row_is_the_policys,mapped,,P5
-tests/test_verify_edges.py::test_a_typed_answer_never_seen_while_busy_waits_for_idle,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_row_is_the_policys,mapped,,P5
-tests/test_verify_edges.py::test_a_typed_reference_that_landed_is_delivered_but_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_row_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_typed_answer_never_seen_at_rest_is_not_verified,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_typed_answer_never_seen_while_busy_waits_for_idle,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_typed_reference_that_landed_is_delivered_but_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
 tests/test_verify_edges.py::test_an_answer_whose_text_and_reference_both_landed_is_seen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_job_judges_every_row_by_its_own_plan,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
+tests/test_verify_edges.py::test_a_job_whose_text_never_showed_misses_every_row,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_job_is_the_policys,mapped,,P5
 tests/test_hook_interp.py::test_every_hook_goes_through_run_hook_sh,tests/test_hook_interp.py,,todo,,
 tests/test_hook_interp.py::test_cold_cache_resolves_once_and_writes_the_real_interpreter,tests/test_hook_interp.py,,todo,,
 tests/test_hook_interp.py::test_warm_cache_never_touches_python3,tests/test_hook_interp.py,,todo,,
