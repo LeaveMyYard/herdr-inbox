@@ -258,3 +258,55 @@ fn exports_validate_as_pythons() {
         }
     }
 }
+
+/// #86 final pass: a remote's probe or plugin list beyond the export cap fails
+/// the pull before it is parsed (Python reads any length).
+#[test]
+fn oversized_remote_output_fails_the_pull_unparsed() {
+    use herdr_inbox::store::mirror::TOO_LARGE;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), Duration::from_secs(5)).unwrap();
+    let rec = store
+        .record_machine("big", Some("big"), Some("big.lan"))
+        .unwrap();
+    let huge = format!("/a/uv\n/b/herdr\n{}", "x".repeat(2_000_000));
+    let mut probe_big = |_: &SafeTarget, _: &FixedCommand, _: Option<&str>| CallResult {
+        stdout: huge.clone(),
+        ..CallResult::default()
+    };
+    assert_eq!(
+        store.machine_paths(&rec, &mut probe_big).unwrap(),
+        Err(TOO_LARGE.to_string())
+    );
+    let mut calls = 0;
+    let mut list_big = |_: &SafeTarget, c: &FixedCommand, _: Option<&str>| {
+        calls += 1;
+        let stdout = if c.as_str() == PROBE {
+            "/a/uv\n/b/herdr\n".to_string()
+        } else {
+            "y".repeat(2_000_001)
+        };
+        CallResult {
+            stdout,
+            ..CallResult::default()
+        }
+    };
+    assert_eq!(
+        store.machine_paths(&rec, &mut list_big).unwrap(),
+        Err(TOO_LARGE.to_string())
+    );
+    let at_cap = format!("/a/uv\n/b/herdr\n{}", "z".repeat(2_000_000 - 15));
+    let mut probe_at = |_: &SafeTarget, c: &FixedCommand, _: Option<&str>| CallResult {
+        stdout: if c.as_str() == PROBE {
+            at_cap.clone()
+        } else {
+            "{}".into()
+        },
+        ..CallResult::default()
+    };
+    assert_eq!(
+        store.machine_paths(&rec, &mut probe_at).unwrap(),
+        Err("herdr-inbox is not installed there (inbox remote install)".to_string()),
+        "exactly the cap is read"
+    );
+}
