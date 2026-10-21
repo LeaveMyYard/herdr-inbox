@@ -136,3 +136,51 @@ def test_text_lost_while_an_older_session_was_watched_is_not_verified(store, fak
     assert len(prompts(fake_herdr)) == 1
     assert store.get(q.id).delivery_error == service.NOT_VERIFIED
     worker.tick(store)  # the retry loop types it again: still the ordinary cap
+
+
+def test_a_retry_never_types_into_a_conversation_that_replaced_the_asker(store, fake_herdr, monkeypatch, live_session):
+    """The pane switched sessions between the first look and the prompt (#92 review M1)."""
+    qid = waiting_answer(store, monkeypatch)
+    real, seen = herdr.live_agent, {"n": 0}
+
+    def live_agent(pane):
+        seen["n"] += 1
+        agent = real(pane)
+        return agent if seen["n"] == 1 else {**agent, "session_id": "cccccccc-0000-4000-8000-00000000000c"}
+
+    monkeypatch.setattr(herdr, "live_agent", live_agent)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "idle")
+    service.deliver_batch(store, [store.get(qid)], retry=True)
+    assert store.get(qid).delivery_error == "pending: waiting: the operator is in that pane"
+    assert prompts(fake_herdr) == []
+
+
+def test_a_busy_status_other_than_working_gets_the_busy_grace_not_the_hook(store, fake_herdr, monkeypatch, live_session):
+    """Any status outside idle/done (and not blocked) is busy; only `working` is hook-carried
+    (#92 review L2)."""
+    qid = waiting_answer(store, monkeypatch)
+    monkeypatch.setattr(type(store), "hook_live", lambda self, session, within: True)
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "unknown")
+    service.deliver_batch(store, [store.get(qid)], retry=True)
+    assert store.get(qid).delivery_error == "pending: busy: the agent is unknown"
+    assert prompts(fake_herdr) == []
+
+
+def test_text_typed_into_an_unknown_status_agent_and_lost_is_a_busy_miss(store, fake_herdr, monkeypatch, live_session):
+    """Past the busy grace an `unknown` agent is typed into like a working one; text it never
+    showed counts against the busy cap, not the idle one (#92 review L2)."""
+    from datetime import timedelta
+
+    from herdr_inbox.store import now
+
+    qid = waiting_answer(store, monkeypatch)
+    store.db.execute("INSERT INTO question_ext (id, group_id, pending_since) VALUES (?, ?, ?)"
+                     " ON CONFLICT(id) DO UPDATE SET pending_since = excluded.pending_since",
+                     (qid, qid, now(-timedelta(seconds=service.BUSY_GRACE + 1))))
+    monkeypatch.setenv("FAKE_HERDR_STATUS", "unknown")
+    monkeypatch.setenv("FAKE_HERDR_LAND", "none")
+    service.deliver_batch(store, [store.get(qid)], retry=True)
+    assert len(prompts(fake_herdr)) == 1
+    q = store.get(qid)
+    assert q.delivery_error == f"pending: {service.BUSY_WAIT_IDLE}" and q.delivery_attempts == 0
+    assert store.busy_attempts(qid) == 1

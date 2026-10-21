@@ -44,7 +44,8 @@ pub(super) fn type_them(
                 }
             }
         }
-        if let Some(error) = look.prompt(&batch) {
+        // Python `if err:`: an empty error is a success
+        if let Some(error) = look.prompt(&batch).filter(|e| !e.is_empty()) {
             for id in &batch {
                 out.insert(*id, Outcome::Failed(error.clone()));
             }
@@ -67,8 +68,11 @@ pub(super) fn type_them(
             let landing = look.landing(id);
             let o = if landing.counted {
                 Outcome::Delivered { ack }
-            } else if landing.anywhere && landing.older_error.is_some() {
-                Outcome::Failed(landing.older_error.unwrap_or_default())
+            } else if let Some(older) = landing
+                .older_error
+                .filter(|e| landing.anywhere && !e.is_empty())
+            {
+                Outcome::Failed(older)
             } else if busy {
                 Outcome::BusyMiss
             } else {
