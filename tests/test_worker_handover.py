@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,7 @@ import pytest
 from herdr_inbox import revision_wanted, store as st, worker, worker_handover as wh
 from herdr_inbox.store import Store, db_path
 
-from .conftest import leaked_workers
+from .conftest import TEST_RUN_VAR, _identity, is_own_worker, leaked_workers, signal_verified, stop_own_workers
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION = "aaaaaaaa-0000-4000-8000-00000000000a"
@@ -78,17 +79,14 @@ def world(migrated_db, tmp_path, monkeypatch):
     listed.write_text(str(r1))
     procs: list[subprocess.Popen] = []
     yield {"r1": r1, "r2": r2, "listed": listed, "procs": procs, "qid": q.id}
-    for pid in leaked_workers(tmp_path):
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except OSError:
-            pass
+    others = stop_own_workers(tmp_path, signal.SIGKILL)  # this run's own only, checked per pid
     for p in procs:
         p.kill()
         p.wait(timeout=10)
     deadline = time.monotonic() + 10
     while leaked_workers(tmp_path) and time.monotonic() < deadline:
         time.sleep(0.05)
+    assert others == [], f"workers not started by this run, left alone: {others}"
     assert leaked_workers(tmp_path) == [], "no worker of this test outlives it"
 
 
@@ -255,3 +253,90 @@ def test_a_worker_started_without_ensure_is_found_and_stopped(bystander, world, 
     found = leaked_workers(tmp_path)
     assert p.pid in found
     assert bystander.pid not in found, "a worker of another database is never listed"
+
+
+OUTSIDER_VAR = "INBOX_TEST_OUTSIDER"
+OUTSIDER = uuid.uuid4().hex  # the stand-in's own mark: the only proof a pid is still it
+
+
+def _is_outsider(pid: int, tmp_path: Path) -> bool:
+    """``pid`` is, right now, the stand-in this test started: its marker and its database."""
+    got = _identity(pid)
+    return got is not None and f"{OUTSIDER_VAR}={OUTSIDER}" in got[1] \
+        and f"HERDR_INBOX_DB={tmp_path / 'inbox.db'}" in got[1]
+
+
+def _outsider(tmp_path: Path) -> int:
+    """A stand-in for a worker this run did NOT start (the operator's own): argv like a worker's,
+    HERDR_INBOX_DB under ``tmp_path`` (so every database matcher lists it), but double-forked into
+    its own session (not a descendant of this process) and without this run's mark."""
+    (tmp_path / "worker.log").write_text("")
+    pidfile = tmp_path / "outsider.pid"
+    env = {k: v for k, v in os.environ.items() if k != TEST_RUN_VAR}
+    env["HERDR_INBOX_DB"] = str(tmp_path / "inbox.db")
+    env[OUTSIDER_VAR] = OUTSIDER
+    code = ("import os, sys, time\n"
+            "if os.fork(): os._exit(0)\n"
+            "os.setsid()\n"
+            "if os.fork(): os._exit(0)\n"
+            "open(sys.argv[1] + '.tmp', 'w').write(str(os.getpid())); os.replace(sys.argv[1] + '.tmp', sys.argv[1])\n"
+            "time.sleep(120)  # herdr_inbox.cli")
+    subprocess.run([sys.executable, "-c", code, str(pidfile), "worker"], env=env, timeout=30, check=True)
+    assert wait_for(pidfile.exists, 10)
+    return int(pidfile.read_text())
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+def test_a_worker_this_run_did_not_start_is_never_signalled(tmp_path, monkeypatch):
+    """The operator's live worker was killed once by a test whose matcher was broken (a mutation
+    run). Whatever the matcher lists, a test signals only this run's own workers."""
+    from . import conftest
+
+    pid = _outsider(tmp_path)
+    try:
+        assert pid in leaked_workers(tmp_path), "the database matcher lists it"
+        assert not is_own_worker(pid, tmp_path), "but it is not this run's"
+        assert stop_own_workers(tmp_path) == [pid] and _alive(pid), "reported, never signalled"
+        # a matcher broken to list it anyway (as the mutation did) still never gets it signalled
+        monkeypatch.setattr(conftest, "leaked_workers", lambda root: [pid])
+        assert conftest.stop_own_workers(tmp_path, signal.SIGKILL) == [pid]
+        time.sleep(0.2)
+        assert _alive(pid)
+    finally:
+        # the pid came from a file: kill it only while it is still provably the stand-in
+        assert signal_verified(pid, signal.SIGKILL, lambda p: _is_outsider(p, tmp_path)), "the stand-in is gone?"
+        (tmp_path / "worker.log").unlink()
+
+
+def test_a_run_token_is_never_inherited(tmp_path):
+    """#85 review L2: a nested run (another process) makes its own token even when it inherits one."""
+    out = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
+                          "import conftest; print(conftest.TEST_RUN)", str(Path(__file__).parent)],
+                         env=dict(os.environ), capture_output=True, text=True, timeout=60)
+    from .conftest import TEST_RUN
+    child = out.stdout.strip().splitlines()[-1] if out.stdout.strip() else ""
+    assert child and child != TEST_RUN, (out.stdout, out.stderr[-500:])
+    assert not child.startswith(f"{os.getpid()}:"), "the child's token names the child, not this process"
+
+
+def test_signal_verified_never_signals_what_fails_the_check(tmp_path):
+    """The kill path itself: a check that fails means no signal, whatever the pid."""
+    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        assert signal_verified(p.pid, signal.SIGKILL, lambda pid: False) is False
+        time.sleep(0.1)
+        assert p.poll() is None, "not signalled"
+        assert signal_verified(p.pid, signal.SIGKILL, lambda pid: pid == p.pid) is True
+        assert p.wait(timeout=10) == -signal.SIGKILL
+        assert signal_verified(p.pid, signal.SIGKILL, lambda pid: True) is False, "gone (reaped): nothing to signal"
+    finally:
+        if p.poll() is None:
+            p.kill()
+            p.wait(timeout=10)

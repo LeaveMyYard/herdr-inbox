@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -112,7 +113,9 @@ def test_an_old_servers_unverified_ack_is_requeued_and_delivered(store, fake_her
 def test_old_requeue_window_does_not_retype_old_answers(store, fake_herdr, monkeypatch, live_session):
     qid = service.ask(store, A, "Old?", options=["yes"])["id"]
     store.set_answer(qid, "yes")
-    old = "2026-10-14T00:00:00+00:00"
+    # inside the one-off 7-day sweep (RESET_WINDOW), outside the 1 h requeue and 24 h signature windows;
+    # relative to now: a fixed date drifts out of the window (#88)
+    old = now(-timedelta(days=2))
     store.db.execute("UPDATE questions SET delivered_at = ?, acknowledged_at = ?, answered_at = ? WHERE id = ?",
                      (old, old, old, qid))
     from herdr_inbox.store import RESET_KEY
