@@ -51,8 +51,9 @@ pub fn landing(landing: Landing, ack: bool, busy: bool) -> Outcome {
 pub trait JobLook {
     /// Where row `id`'s text landed, by its own plan: counted in its own
     /// `counting` transcripts, with its own `older_error`. A row without a
-    /// plan (an older popup's job) counts every watched transcript and has
-    /// no older state.
+    /// plan (an older popup's job: the `counting` key absent) counts every
+    /// watched transcript and has no older state; `"counting": []` or `null`
+    /// is a plan that counts nothing (Python `"counting" in r`).
     fn landing(&mut self, id: i64) -> Landing;
 }
 

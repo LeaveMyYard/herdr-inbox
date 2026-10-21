@@ -170,6 +170,7 @@ fn every_verify_job_is_the_policys() {
         let input = |key: &str| list[0]["inputs"][key].as_bool().unwrap();
         let ids: Vec<i64> = (1..=list.len() as i64).collect();
         let got = job(&ids, input("ack"), input("busy"), &mut RowJob(list));
+        assert_eq!(got.len(), list.len(), "every row of the job decided");
         for ((id, outcome), row) in got.iter().zip(list.iter()) {
             assert_eq!(
                 job_applied(&row["before"], outcome),
