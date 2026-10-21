@@ -10,6 +10,7 @@ mod delivery_golden;
 mod family;
 mod golden;
 mod liveness;
+mod migrate;
 mod mirror_golden;
 mod outbox_golden;
 mod pending;
