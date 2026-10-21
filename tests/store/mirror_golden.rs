@@ -6,10 +6,10 @@
 //! and `validate_export` over `STORE_EXPORT_VECTORS`. Time is injected, so
 //! nothing is masked.
 
-use std::cell::RefCell;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use herdr_inbox::pyjson;
+use herdr_inbox::remote::command::{FixedCommand, PROBE, SafeTarget};
 use herdr_inbox::remote::validate::{Export, ExportError, py_int, validate_export};
 use herdr_inbox::store::Store;
 use herdr_inbox::store::mirror::{CallResult, Machine, Notice};
@@ -89,6 +89,48 @@ fn notices(effects: &mut Vec<Value>, list: Vec<Notice>) {
     effects.extend(list.into_iter().map(|n| json!(["notify", n.title, n.body])));
 }
 
+/// capture_goldens `_remote_run` for a pull step: the probe and the plugin
+/// list from the step (else the defaults), `inbox export` from its
+/// code/export/stdout/stderr; every call recorded.
+fn scripted_ssh<'a>(
+    a: &'a Value,
+    effects: &'a mut Vec<Value>,
+) -> impl FnMut(&SafeTarget, &FixedCommand, Option<&str>) -> CallResult + 'a {
+    move |target, command, stdin| {
+        let (target, command) = (target.as_str(), command.as_str());
+        match stdin {
+            None => {
+                effects.push(json!(["ssh", target, command]));
+                let out = if command == PROBE {
+                    a.get("probe")
+                        .and_then(Value::as_str)
+                        .unwrap_or(PROBE_OUT)
+                        .to_string()
+                } else {
+                    a.get("plugins")
+                        .and_then(Value::as_str)
+                        .map_or_else(plugins_out, String::from)
+                };
+                CallResult {
+                    code: 0,
+                    stdout: out,
+                    stderr: String::new(),
+                }
+            }
+            Some(input) => {
+                effects.push(json!(["call", target, command, input]));
+                CallResult {
+                    code: a.get("code").and_then(Value::as_i64).unwrap_or(0) as i32,
+                    stdout: a
+                        .get("export")
+                        .map_or_else(|| s(a, "stdout").unwrap_or("").to_string(), pyjson::dumps),
+                    stderr: s(a, "stderr").unwrap_or("").into(),
+                }
+            }
+        }
+    }
+}
+
 /// One step: its result and effects.
 fn run(store: &Store, op: &str, a: &Value) -> (Value, Vec<Value>) {
     let mut effects = Vec::new();
@@ -99,33 +141,11 @@ fn run(store: &Store, op: &str, a: &Value) -> (Value, Vec<Value>) {
         }
         "pull" => {
             let m = &a["machine"];
-            let calls = RefCell::new(Vec::new());
+            let mut ssh = scripted_ssh(a, &mut effects);
             let (ok, got) = store
-                .pull(
-                    m["id"].as_str().unwrap(),
-                    m["label"].as_str(),
-                    m["target"].as_str(),
-                    at(a),
-                    |target| {
-                        calls.borrow_mut().push(json!(["probe", target]));
-                        a.get("probe").and_then(Value::as_str).unwrap_or(PROBE_OUT).to_string()
-                    },
-                    |target, herdr| {
-                        calls.borrow_mut().push(json!(["plugins", target, herdr]));
-                        a.get("plugins").and_then(Value::as_str).map_or_else(plugins_out, String::from)
-                    },
-                    |_, cursor, full| {
-                        let cursor = cursor.map_or(Value::Null, |(db, seq)| json!({"db_id": db, "seq": seq}));
-                        calls.borrow_mut().push(json!(["call", cursor, full]));
-                        CallResult {
-                            code: a.get("code").and_then(Value::as_i64).unwrap_or(0) as i32,
-                            stdout: a.get("export").map_or(String::new(), pyjson::dumps),
-                            stderr: s(a, "stderr").unwrap_or("").into(),
-                        }
-                    },
-                )
+                .pull(m["id"].as_str().unwrap(), m["label"].as_str(), m["target"].as_str(), at(a), &mut ssh)
                 .unwrap();
-            effects.extend(calls.into_inner());
+            drop(ssh);
             notices(&mut effects, got);
             json!(ok)
         }
