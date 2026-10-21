@@ -127,3 +127,11 @@ say why in the PR:
   notification are recorded as `effects`. `vectors`: `validate_export` over
   `STORE_EXPORT_VECTORS`, as the rows it keeps or the error it raises.
   `tests/store/mirror_golden.rs` replays both.
+- `store-outbox.json` (`--only store`): `remote.py`'s outbox over `STORE_OUTBOX_OPS`.
+  Covers enqueueing and its refusals, flushes against every reply a remote can give, retries
+  and backoff, re-validation against the mirror, expiry with the status query, a flush stopped
+  by Python raising, an unsafe target, the sweep, and the popup's `clearable`/`mark_seen`/
+  `outbox_rows`. ssh is scripted at `subprocess.run`, each `inbox apply` answered by the
+  step's next `replies` entry; `uuid4` counts up. The outbox and the mirrored alerts are
+  dumped after each step, unmasked. Every ssh call (with the row's `sending_at` while an apply
+  runs) and every notification are recorded. `tests/store/outbox_golden.rs` replays it.
