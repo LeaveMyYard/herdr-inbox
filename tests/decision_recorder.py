@@ -14,6 +14,7 @@ claim tokens), deduplicated, and written in a stable order with the tests that d
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -36,12 +37,14 @@ def text(value: str) -> str:
     return SESSION.sub("<session>", PATH.sub("<path>", TIME.sub("<time>", PANE.sub("<pane>", value))))
 
 
-def agent_view(agent) -> dict | None:
-    """What the policy reads from herdr's agent record (never its ids)."""
+def agent_view(agent, label=lambda session: None) -> dict | None:
+    """What the policy reads from herdr's agent record: never its ids, only which session it
+    runs, as a label of its own frame (``label``: s1, s2, ... in order of appearance), so a
+    pane that switched conversations between two looks shows."""
     if agent is None:
         return None
     return {"kind": agent.get("agent"), "status": agent.get("status"), "focused": bool(agent.get("focused")),
-            "session_known": bool(agent.get("session_id"))}
+            "session": label(agent.get("session_id"))}
 
 
 def value_of(key: str, value):
@@ -105,6 +108,12 @@ class Frame:
         self.qobs: dict[int, dict] = {}
         self.before: dict[int, dict | None] = {}
         self.db: str | None = None
+        self.sessions: dict[str, str] = {}
+        self.messages = 0  # deliver_batch's message batches, in typing order
+
+    def label(self, session: str | None) -> str | None:
+        """``session`` as this frame's s1, s2, ... (None when unknown)."""
+        return self.sessions.setdefault(session, f"s{len(self.sessions) + 1}") if session else None
 
     def track(self, store, qs) -> None:
         if store is None:
@@ -117,7 +126,11 @@ class Frame:
                 self.qobs[qid] = {}
 
     def note(self, key: str, value, qids=None) -> None:
-        v = value_of(key, value)
+        v = agent_view(value, self.label) if key in ("agent", "agent_again") else value_of(key, value)
+        if key == "full_answer_in_message" and qids is not None:  # one note per message: its batch
+            for qid in qids:
+                self.qobs.setdefault(qid, {})["message"] = self.messages
+            self.messages += 1
         if qids is None:
             self.obs[key] = v
         else:
@@ -129,7 +142,8 @@ class Frame:
         if not self.before:
             self.rec.add(base)
             return
-        for qid, before in self.before.items():
+        rows = []
+        for slot, (qid, before) in enumerate(self.before.items()):
             after = state(self.db, qid)
             row = {**base, "question": self.qobs.get(qid, {}), "before": before, "after": after}
             if before and after:
@@ -139,7 +153,12 @@ class Frame:
             for s in (before, after):
                 if s:
                     s.pop("_pane", None)
-            self.rec.add(row)
+            rows.append({**row, "slot": slot})
+        # the pass: every row of this frame carries the same id, made from the whole frame (so a
+        # replay can put a pane's answers back together; identical passes share one id)
+        digest = hashlib.sha256(json.dumps(rows, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
+        for row in rows:
+            self.rec.add({**row, "pass": digest})
 
 
 class Recorder:
