@@ -65,6 +65,10 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
         assert (FIX / "schema.json").read_text() == (tmp_path / "schema.json").read_text(), (
             "the schema changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
             "--only schema")
+        # what the Rust migration replays and must reproduce (tests/store/migrate.rs)
+        assert (FIX / "migrate.json").read_text() == (tmp_path / "migrate.json").read_text(), (
+            "the migration changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
+            "--only schema")
         return
     if kind == "landed":  # the Rust landing check replays it (src/claude/landed)
         assert (FIX / "landed.json").read_text() == (tmp_path / "landed.json").read_text(), (
