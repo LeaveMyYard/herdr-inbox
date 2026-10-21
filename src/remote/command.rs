@@ -53,6 +53,25 @@ impl SafeTarget {
     }
 }
 
+/// The two `inbox` subcommands a puller runs on a remote (Python
+/// `remote_command` asserts exactly these): nothing else can reach the line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InboxSub {
+    /// `inbox export`.
+    Export,
+    /// `inbox apply`.
+    Apply,
+}
+
+impl InboxSub {
+    fn as_str(self) -> &'static str {
+        match self {
+            InboxSub::Export => "export",
+            InboxSub::Apply => "apply",
+        }
+    }
+}
+
 /// A command line built here from constants and checked paths: the only
 /// kind ssh runs.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,9 +88,9 @@ impl FixedCommand {
         safe_path(herdr).then(|| FixedCommand(format!("{herdr} plugin list --json")))
     }
 
-    /// `inbox <sub>` (export or apply) with `rec`'s cached paths, each checked
+    /// `inbox export|apply` with `rec`'s cached paths, each checked
     /// again; else Python `remote_command`'s `bad <key>`.
-    pub fn inbox(rec: &Machine, sub: &str) -> Result<FixedCommand, String> {
+    pub fn inbox(rec: &Machine, sub: InboxSub) -> Result<FixedCommand, String> {
         let checked = |key: &str, v: &Option<String>| -> Result<String, String> {
             v.as_deref()
                 .filter(|p| safe_path(p))
@@ -82,7 +101,8 @@ impl FixedCommand {
         let herdr = checked("herdr", &rec.herdr)?;
         let root = checked("plugin_root", &rec.plugin_root)?;
         Ok(FixedCommand(format!(
-            "env HERDR_BIN_PATH={herdr} {uv} run --quiet --frozen --no-dev --project {root} inbox {sub}"
+            "env HERDR_BIN_PATH={herdr} {uv} run --quiet --frozen --no-dev --project {root} inbox {}",
+            sub.as_str()
         )))
     }
 

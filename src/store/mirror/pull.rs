@@ -9,7 +9,7 @@ use serde_json::{Map, Value, json};
 
 use super::{MACHINE_COLUMNS, Machine, Notice, first_line, iso};
 use crate::pyjson::dumps;
-use crate::remote::command::{FixedCommand, SafeTarget, Ssh};
+use crate::remote::command::{FixedCommand, InboxSub, SafeTarget, Ssh};
 use crate::remote::validate::{Export, ExportError, py_int, validate_export};
 use crate::store::Store;
 
@@ -109,7 +109,7 @@ impl Store {
         let request = json!({"cursor": cursor.map(|(db, seq)| json!({"db_id": db, "seq": seq})), "full": full});
         // Python call(): the target, then the cached paths, before ssh runs
         let checked = SafeTarget::for_call(rec.target.as_deref())
-            .and_then(|t| Ok((t, FixedCommand::inbox(&rec, "export")?)));
+            .and_then(|t| Ok((t, FixedCommand::inbox(&rec, InboxSub::Export)?)));
         let result = match checked {
             Ok((target, command)) => ssh(&target, &command, Some(&dumps(&request))),
             Err(e) => {
