@@ -2,14 +2,19 @@
 //! `stamped_revision`; plan §2.3, "The encoding").
 //!
 //! `PRAGMA user_version` holds `REVISION_BASE + revision`, a negative 32-bit
-//! value; anything else (a legacy crc32 stamp, 0) is "unknown". Only read
-//! here: the hooks never write the stamp.
+//! value; anything else (a legacy crc32 stamp, 0) is "unknown". Only the
+//! migrating open (`migrate`, the worker and the popup) writes the stamp;
+//! the hooks never do.
 
 /// The schema revision this code uses: the Python bridge's (0.10.6).
 pub const MIGRATION_REVISION: i64 = 1;
 
 /// The sign bit marks a revision: `-(1 << 31)`.
 pub const REVISION_BASE: i64 = -(1 << 31);
+
+/// The `user_version` that says "migrated to [`MIGRATION_REVISION`]" (Python
+/// `revision_stamp()`). Only a migrating open writes it.
+pub const STAMP: i64 = REVISION_BASE + MIGRATION_REVISION;
 
 /// The revision a `user_version` names, or `None` for a legacy crc32 stamp
 /// (always 0..2^31-1) or 0. `user_version` is a signed 32-bit value.
