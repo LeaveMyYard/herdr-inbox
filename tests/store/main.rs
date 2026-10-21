@@ -11,6 +11,7 @@ mod family;
 mod golden;
 mod liveness;
 mod mirror_golden;
+mod outbox_golden;
 mod pending;
 mod questions_golden;
 mod readiness;

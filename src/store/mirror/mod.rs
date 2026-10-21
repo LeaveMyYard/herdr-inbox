@@ -6,6 +6,9 @@
 //! notifies comes back as [`Notice`]s (before `herdr.clean`, which the caller
 //! applies).
 
+mod expiry;
+mod flush;
+mod outbox;
 mod paths;
 mod problems;
 mod pull;
@@ -15,6 +18,8 @@ use std::time::SystemTime;
 
 use rusqlite::Row;
 
+pub use flush::Flushed;
+pub use outbox::{Gone, OutboxRow, SENDING_STALE};
 pub use paths::{PLUGIN_ID, TOO_LARGE, probed, safe_path};
 pub use problems::{NOT_VERIFIED, Problem};
 pub use pull::{CallResult, FULL_EVERY};
