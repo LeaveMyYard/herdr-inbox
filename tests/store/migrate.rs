@@ -278,3 +278,25 @@ fn a_hook_open_never_migrates_and_works_once_the_worker_did() {
     drop(Store::open_migrating(&path, TIMEOUT).unwrap());
     Store::open(&path, TIMEOUT).expect("migrated");
 }
+
+#[test]
+fn a_failed_migration_rolls_back_and_releases_the_write_lock() {
+    // a caller that keeps its Store after a failed migrate() must not block the other workers
+    let dir = tempfile::tempdir().unwrap();
+    let path = migrated(dir.path());
+    let store = Store::open_migrating(&path, TIMEOUT).unwrap();
+    open(&path)
+        .execute_batch(
+            "DROP TABLE remote_outbox; CREATE VIEW remote_outbox AS SELECT 1 AS request_id; PRAGMA user_version = 0",
+        )
+        .unwrap(); // a view where a table is: adding its columns fails mid-migration
+    assert!(store.migrate().is_err());
+    let other = open(&path);
+    other.busy_timeout(Duration::ZERO).unwrap();
+    other
+        .execute_batch("BEGIN IMMEDIATE")
+        .expect("the write lock is free");
+    other.execute_batch("ROLLBACK").unwrap();
+    assert_eq!(stamp_of(&path), 0); // nothing of the failed pass stayed
+    drop(store);
+}
