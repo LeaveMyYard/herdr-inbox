@@ -12,6 +12,16 @@ use crate::store::Store;
 /// The plugin's id in `herdr plugin list` (Python `PLUGIN_ID`).
 pub const PLUGIN_ID: &str = "leavemyyard.herdr-inbox";
 
+/// The failure text for a probe or plugin list longer than the export cap.
+/// Python reads any length; a remote's output is untrusted, so this port
+/// refuses it before parsing (the ssh runner should also stop reading there).
+pub const TOO_LARGE: &str = "remote output too large";
+
+fn too_large(stdout: &str) -> bool {
+    stdout.len() > crate::remote::validate::MAX_EXPORT_BYTES
+        && stdout.chars().count() > crate::remote::validate::MAX_EXPORT_BYTES
+}
+
 /// Python `SAFE_PATH`: `/[A-Za-z0-9._/+-]{1,500}`, the whole line.
 pub fn safe_path(s: &str) -> bool {
     let rest = match s.strip_prefix('/') {
@@ -25,16 +35,21 @@ pub fn safe_path(s: &str) -> bool {
 }
 
 /// Python `probe`'s parse of the probe's stdout: `{basename: path}` for each
-/// stripped line that is a safe absolute path (a later one wins).
+/// stripped line that is a safe absolute path (a later one wins), in the
+/// order names first appear. Linear in the output, as Python's dict is.
 pub fn probed(stdout: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
+    let mut index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for line in python_lines(stdout) {
         let line = line.trim_matches(crate::text::py_isspace);
         if safe_path(line) {
             let name = line.rsplit('/').next().unwrap_or("").to_string();
-            match out.iter_mut().find(|(n, _)| *n == name) {
-                Some(slot) => slot.1 = line.to_string(),
-                None => out.push((name, line.to_string())),
+            match index.get(&name) {
+                Some(&i) => out[i].1 = line.to_string(),
+                None => {
+                    index.insert(name.clone(), out.len());
+                    out.push((name, line.to_string()));
+                }
             }
         }
     }
@@ -105,6 +120,11 @@ fn get<'a>(x: &'a Value, k: &str) -> Result<Option<&'a Value>, String> {
 
 /// The inbox's plugin root in `herdr plugin list --json`'s stdout, as
 /// Python reads it (`json.loads(stdout or "{}").get("result", {}).get("plugins", [])`).
+#[cfg(test)]
+pub(super) fn plugin_root_for_test(stdout: &str) -> Result<Option<Value>, String> {
+    plugin_root(stdout)
+}
+
 fn plugin_root(stdout: &str) -> Result<Option<Value>, String> {
     let text = if stdout.is_empty() { "{}" } else { stdout };
     let Ok(data) = crate::pyjson::loads(text) else {
@@ -114,13 +134,18 @@ fn plugin_root(stdout: &str) -> Result<Option<Value>, String> {
     let result = get(&data, "result")?.unwrap_or(&empty_map);
     let empty_list = Value::Array(Vec::new());
     let plugins = get(result, "plugins")?.unwrap_or(&empty_list);
-    let items: Vec<Value> = match plugins {
-        Value::Array(list) => list.clone(),
-        Value::String(s) => s.chars().map(|c| Value::String(c.to_string())).collect(),
-        Value::Object(m) => m.keys().map(|k| Value::String(k.clone())).collect(),
+    let items: &[Value] = match plugins {
+        Value::Array(list) => list,
+        // Python iterates a str (its characters) or a dict (its keys): each item is a str, and
+        // `.get` on the first one raises; an empty one yields nothing. Nothing is expanded here.
+        Value::String(s) if s.is_empty() => return Ok(None),
+        Value::Object(m) if m.is_empty() => return Ok(None),
+        Value::String(_) | Value::Object(_) => {
+            return Err("'str' object has no attribute 'get'".into());
+        }
         other => return Err(format!("'{}' object is not iterable", py_type(other))),
     };
-    for p in &items {
+    for p in items {
         if get(p, "plugin_id")?.and_then(Value::as_str) == Some(PLUGIN_ID) {
             return Ok(get(p, "plugin_root")?.cloned());
         }
@@ -146,7 +171,11 @@ impl Store {
             Ok(t) => t,
             Err(e) => return Ok(Err(e)), // Python ssh() raises before the probe runs
         };
-        let bins = probed(&ssh(&target, &FixedCommand::probe(), None).stdout);
+        let probe_out = ssh(&target, &FixedCommand::probe(), None).stdout;
+        if too_large(&probe_out) {
+            return Ok(Err(TOO_LARGE.into()));
+        }
+        let bins = probed(&probe_out);
         let bin = |n: &str| {
             bins.iter()
                 .find(|(name, _)| name == n)
@@ -157,6 +186,9 @@ impl Store {
         };
         let list = FixedCommand::plugin_list(&herdr).expect("probed paths are safe paths");
         let listed = ssh(&target, &list, None).stdout;
+        if too_large(&listed) {
+            return Ok(Err(TOO_LARGE.into()));
+        }
         let root = match plugin_root(&listed) {
             Ok(Some(Value::String(r))) if safe_path(&r) => r,
             Ok(_) => {

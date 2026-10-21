@@ -19,7 +19,13 @@
 //!   of `pull` without `_fail`;
 //! - a non-string `version` is stored as its JSON text (Python: its `str()`,
 //!   e.g. `['a']`); only `remote_machines.version` shows it;
-//! - a failed JSON parse records serde's message as `last_error`, not Python's.
+//! - a failed JSON parse records serde's message as `last_error`, not Python's;
+//! - `-0` as an `id`, `group`, `seq`, `ids` or `gone` entry: serde_json reads
+//!   it as the float -0.0 (no different from `-0.0`), so it is not an int here
+//!   (the row is dropped, the header refused); Python's `json.loads` makes it
+//!   the int 0. Python's `json.dumps` never writes it;
+//! - a probe or plugin list over [`MAX_EXPORT_BYTES`] characters fails the pull
+//!   (`remote output too large`); Python reads it whole.
 
 use serde_json::{Map, Value};
 

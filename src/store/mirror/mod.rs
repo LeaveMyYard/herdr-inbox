@@ -15,7 +15,7 @@ use std::time::SystemTime;
 
 use rusqlite::Row;
 
-pub use paths::{PLUGIN_ID, probed, safe_path};
+pub use paths::{PLUGIN_ID, TOO_LARGE, probed, safe_path};
 pub use problems::{NOT_VERIFIED, Problem};
 pub use pull::{CallResult, FULL_EVERY};
 pub use reads::group_key;
