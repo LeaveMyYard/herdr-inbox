@@ -18,7 +18,7 @@ use std::time::SystemTime;
 
 use rusqlite::Row;
 
-pub use flush::Flushed;
+pub use flush::{CORRUPT_DETAIL, Flushed};
 pub use outbox::{Gone, OutboxRow, SENDING_STALE};
 pub use paths::{PLUGIN_ID, TOO_LARGE, probed, safe_path};
 pub use problems::{NOT_VERIFIED, Problem};

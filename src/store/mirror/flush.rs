@@ -28,6 +28,10 @@ pub struct Flushed {
     pub aborted: Option<String>,
 }
 
+/// The start of a flush's abort text for a corrupt `detail_json` (Python's
+/// `json.loads` raising out of `flush`; serde's message follows).
+pub const CORRUPT_DETAIL: &str = "corrupt detail_json: ";
+
 pub(super) fn reply_of(stdout: &str) -> Option<Value> {
     pyjson::loads(stdout).ok()
 }
@@ -111,8 +115,13 @@ impl Store {
                 }
                 continue;
             }
-            out.notices
-                .extend(self.send_one(&rec, &row, &label, now, ssh)?);
+            match self.send_one(&rec, &row, &label, now, ssh)? {
+                Ok(notice) => out.notices.extend(notice),
+                Err(e) => {
+                    out.aborted = Some(e);
+                    return Ok(out);
+                }
+            }
         }
         Ok(out)
     }
@@ -125,7 +134,7 @@ impl Store {
         label: &str,
         now: SystemTime,
         ssh: Ssh<'_>,
-    ) -> rusqlite::Result<Option<Notice>> {
+    ) -> rusqlite::Result<Result<Option<Notice>, String>> {
         let reference = row.reference(label);
         let not_sent = format!("{reference}: {} not sent", row.action);
         let mirror: Option<(String, String, String)> = if row.action == "ack_alert" {
@@ -160,7 +169,7 @@ impl Store {
                 _ => "not that question any more".to_string(),
             };
             let body = format!("rejected: {reason}");
-            return Ok(self
+            return Ok(Ok(self
                 .settle(
                     &row.request_id,
                     "rejected",
@@ -168,14 +177,17 @@ impl Store {
                     Some((not_sent, body)),
                     now,
                 )?
-                .1);
+                .1));
         }
-        let detail = row
-            .detail_json
-            .as_deref()
-            .filter(|d| !d.is_empty())
-            .and_then(|d| pyjson::loads(d).ok())
-            .unwrap_or(Value::Null);
+        // Python: json.loads(detail_json) if detail_json else None, outside any try: a corrupt
+        // one raises out of flush before anything is sent (only corruption can produce one)
+        let detail = match row.detail_json.as_deref().filter(|d| !d.is_empty()) {
+            None => Value::Null,
+            Some(d) => match pyjson::loads(d) {
+                Ok(v) => v,
+                Err(e) => return Ok(Err(format!("{CORRUPT_DETAIL}{e}"))),
+            },
+        };
         let request = json!({"request_id": row.request_id, "db_id": row.db_id, "id": row.remote_id, "qkey": row.qkey,
                              "action": row.action, "detail": detail});
         // Python call(): the target, then the cached paths, before ssh runs
@@ -184,7 +196,7 @@ impl Store {
         let (target, command) = match checked {
             Ok(c) => c,
             Err(e) => {
-                return Ok(self
+                return Ok(Ok(self
                     .settle(
                         &row.request_id,
                         "failed",
@@ -192,7 +204,7 @@ impl Store {
                         Some((not_sent, e.clone())),
                         now,
                     )?
-                    .1);
+                    .1));
             }
         };
         let result = self.sending(&row.request_id, now, || {
@@ -200,7 +212,7 @@ impl Store {
         })?;
         if result.code == 2 {
             let msg = format!("upgrade {label} (inbox remote upgrade {label})");
-            return Ok(self
+            return Ok(Ok(self
                 .settle(
                     &row.request_id,
                     "failed",
@@ -208,7 +220,7 @@ impl Store {
                     Some((not_sent, msg.clone())),
                     now,
                 )?
-                .1);
+                .1));
         }
         let reply = reply_of(&result.stdout);
         let outcome = reply
@@ -217,12 +229,12 @@ impl Store {
             .and_then(|r| r.get("outcome"));
         match outcome.and_then(Value::as_str) {
             Some(o @ ("applied" | "already_applied")) => {
-                Ok(self.settle(&row.request_id, "done", o, None, now)?.1)
+                Ok(Ok(self.settle(&row.request_id, "done", o, None, now)?.1))
             }
             Some("rejected") => {
                 let reason = reason_of(reply.as_ref());
                 let title = format!("{reference}: {label} rejected your {}", row.action);
-                Ok(self
+                Ok(Ok(self
                     .settle(
                         &row.request_id,
                         "rejected",
@@ -230,7 +242,7 @@ impl Store {
                         Some((title, reason.clone())),
                         now,
                     )?
-                    .1)
+                    .1))
             }
             _ => {
                 // a transport error or a lost reply: retry with the SAME request id
@@ -241,7 +253,7 @@ impl Store {
                     "UPDATE remote_outbox SET attempts = attempts + 1, next_try_at = ?, result = ? WHERE request_id = ?",
                     params![iso(now + Duration::from_secs(delay)), tail, row.request_id],
                 )?;
-                Ok(None)
+                Ok(Ok(None))
             }
         }
     }
