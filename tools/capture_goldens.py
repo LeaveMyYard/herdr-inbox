@@ -433,6 +433,51 @@ def capture_schema(out: Path) -> list[Path]:
     return [path]
 
 
+def capture_herdr_screens(out: Path) -> Path:
+    """herdr.composer_state and herdr.panel_focused over every screen the tests use (the
+    captured Claude Code screens in tests/fixtures/composer, the shapes test_composer_draft and
+    test_delivery_worker build), each screen as the CLI's text mode reads it (universal
+    newlines): what the Rust parsers (src/delivery/screen) must return."""
+    import io
+
+    from herdr_inbox import herdr
+    from tests import test_composer_draft as tcd
+    from tests import test_delivery_worker as tdw
+
+    def read(raw: str) -> str:  # subprocess text mode: \r\n and a lone \r read as \n
+        return io.StringIO(raw, newline=None).read()
+
+    composer = [(f"{name}.ansi", read(tcd.screen(name)))
+                for name in sorted(p.stem for p in (ROOT / "tests" / "fixtures" / "composer").glob("*.ansi"))]
+    composer += [(f"variant {line!r}", read(tcd.variant(line))) for line in (
+        "\u276f\u00a0\x1b[0m\x1b[2m[Pasted text #1 +3 lines]\x1b[0m\r",
+        "\u276f\u00a0\x1b[0m\x1b[2m[Image #1]\x1b[0m\r",
+        "\u276f\u00a0\x1b[7mT\x1b[0m\x1b[2mry \"refactor <filepath>\"\x1b[0m\r",
+        "\u276f\u00a0\x1b[0m\x1b[2mTry \"x\"\x1b[0m and more\r",
+        "\u276f\u00a0Try \"x\"\r",
+        "\u276f\u00a0\r")]
+    composer += [(f"no box {text!r}", read(text)) for text in (
+        "", "plain output with no input box\n", "\x1b[2m────\x1b[0m\nno prompt\n\x1b[2m────\x1b[0m")]
+    panel = [("normal, the phrase in the body", tdw.SCREEN_NORMAL_WITH_PHRASE_IN_BODY),
+             ("panel focused", tdw.SCREEN_PANEL_FOCUSED), ("no input box", "↑/↓ to select"), ("empty", "")]
+    real = herdr.run_raw
+    try:
+        rows = []
+        for name, text in composer:
+            herdr.run_raw = lambda *a, text=text, **k: (text, None)
+            rows.append({"name": name, "screen": text, "composer": herdr.composer_state("w1:p1")})
+        for name, text in panel:
+            herdr.run_raw = lambda *a, text=read(text), **k: (text, None)
+            rows.append({"name": name, "screen": read(text), "panel": herdr.panel_focused("w1:p1")})
+    finally:
+        herdr.run_raw = real
+    doc = {"source": "herdr.composer_state / herdr.panel_focused (tools/capture_goldens.py --only herdr)",
+           "rows": rows}
+    path = out / "herdr-screens.json"
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return path
+
+
 LANDED_QUESTIONS = [  # (id, question, answer, answered_at)
     (7, "Which region?", "eu", "2026-10-17T10:00:00+00:00"),
     (8, "Squash or merge?\nsecond line", "squash", "2026-10-17T10:00:00+00:00"),
@@ -1775,7 +1820,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store"), help="one of the sets")
+    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store", "herdr"),
+                   help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
                         "other test drives no traced decision, so the table comes out the same)")
@@ -1795,6 +1841,8 @@ def main(argv: list[str] | None = None) -> int:
             written += capture_schema(args.out)
         if args.only in (None, "landed"):
             written += capture_landed(args.out)
+        if args.only in (None, "herdr"):
+            written.append(capture_herdr_screens(args.out))
         if args.only in (None, "store"):
             written += capture_store(args.out, work)
         if args.only in (None, "screens"):

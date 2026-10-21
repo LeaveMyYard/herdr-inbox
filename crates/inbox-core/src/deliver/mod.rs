@@ -12,7 +12,6 @@ mod decide;
 mod reasons;
 mod typing;
 
-pub use crate::verify::Landing;
 pub use decide::decide;
 pub use reasons::{
     BLOCKED_WAIT, BUSY_WAIT_IDLE, CHANGED, COMPOSER_DRAFT, COMPOSER_UNKNOWN, HOOK_WAIT, NO_AGENT,
@@ -76,6 +75,17 @@ pub enum Composer {
     Unknown,
 }
 
+/// Where a typed answer landed (Python `_record_outcome`'s hits and plan).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Landing {
+    /// In a transcript of the asker's forward family: delivered.
+    pub counted: bool,
+    /// Anywhere watched.
+    pub anywhere: bool,
+    /// The row's state if it landed only in an older session of its conversation.
+    pub older_error: Option<String>,
+}
+
 /// What becomes of one answer (the store write Python makes).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {
@@ -104,10 +114,7 @@ pub enum Outcome {
     /// Typed; a detached `inbox verify` records the outcome under the claim.
     /// Its job needs what this does not carry: the message's full-answer flag
     /// (from [`Look::messages`]) and whether the pane was busy (its agent's
-    /// status not `idle` or `done`), Python's `"ack"` and `"busy"`; a job
-    /// read without them is `ack = true`, `busy = false` (Python
-    /// `job.get("ack", True)`, `job.get("busy")`). The job's outcome is
-    /// [`crate::verify::job`].
+    /// status not `idle` or `done`), Python's `"ack"` and `"busy"`.
     VerifyLater,
 }
 
