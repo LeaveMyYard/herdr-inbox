@@ -17,7 +17,7 @@ pub const PLUGIN_ID: &str = "leavemyyard.herdr-inbox";
 /// refuses it before parsing (the ssh runner should also stop reading there).
 pub const TOO_LARGE: &str = "remote output too large";
 
-fn too_large(stdout: &str) -> bool {
+pub(super) fn too_large(stdout: &str) -> bool {
     stdout.len() > crate::remote::validate::MAX_EXPORT_BYTES
         && stdout.chars().count() > crate::remote::validate::MAX_EXPORT_BYTES
 }

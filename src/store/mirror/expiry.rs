@@ -2,14 +2,12 @@
 //! a send whose reply was lost is asked about, never applied late; the rest
 //! fail with a notice.
 
-use std::time::SystemTime;
-
 use rusqlite::OptionalExtension;
 use serde_json::{Value, json};
 
 use super::flush::{reason_of, reply_of};
 use super::outbox::{OUTBOX_COLUMNS, OutboxRow};
-use super::{Machine, Notice, iso};
+use super::{Clock, Machine, Notice, iso};
 use crate::pyjson::dumps;
 use crate::remote::command::{FixedCommand, InboxSub, SafeTarget, Ssh};
 use crate::store::Store;
@@ -22,21 +20,23 @@ impl Store {
         rec: &Machine,
         row: &OutboxRow,
         label: &str,
-        now: SystemTime,
+        clock: Clock<'_>,
         ssh: Ssh<'_>,
         notices: &mut Vec<Notice>,
     ) -> rusqlite::Result<Result<(), String>> {
         let reference = format!("{label}:Q{}", row.remote_id);
-        let checked = SafeTarget::for_call(rec.target.as_deref())
-            .and_then(|t| Ok((t, FixedCommand::inbox(rec, InboxSub::Apply)?)));
-        let (target, command) = match checked {
-            Ok(c) => c,
+        let request = json!({"request_id": row.request_id, "action": "status"});
+        // Python call() inside _sending: the stamp, then the target and the cached paths
+        let stamp = clock();
+        let sent = self.sending(&row.request_id, stamp, || {
+            let target = SafeTarget::for_call(rec.target.as_deref())?;
+            let command = FixedCommand::inbox(rec, InboxSub::Apply)?;
+            Ok::<_, String>(ssh(&target, &command, Some(&dumps(&request))))
+        })?;
+        let result = match sent {
+            Ok(r) => r,
             Err(e) => return Ok(Err(e)), // Python: the ValueError escapes flush
         };
-        let request = json!({"request_id": row.request_id, "action": "status"});
-        let result = self.sending(&row.request_id, now, || {
-            ssh(&target, &command, Some(&dumps(&request)))
-        })?;
         let reply = reply_of(&result.stdout).unwrap_or_else(|| json!({}));
         let Some(r) = reply.as_object() else {
             return Ok(Err(format!(
@@ -55,7 +55,7 @@ impl Store {
                         format!("{reference}: your {} reached {label} after all", row.action),
                         "it was applied before the expiry".into(),
                     )),
-                    now,
+                    clock(),
                 )?
                 .1
             }
@@ -67,7 +67,7 @@ impl Store {
                     "rejected",
                     &reason,
                     Some((title, reason.clone())),
-                    now,
+                    clock(),
                 )?
                 .1
             }
@@ -82,11 +82,11 @@ impl Store {
                             "{label} never applied it (not sent); answer again if still needed"
                         ),
                     )),
-                    now,
+                    clock(),
                 )?
                 .1
             }
-            Some("rejected") => self.expire(row, label, now)?,
+            Some("rejected") => self.expire(row, label, clock())?,
             _ => None, // no reply: left as is; the sweep or the next tick decides
         };
         notices.extend(notice);
@@ -96,18 +96,18 @@ impl Store {
     /// Expires queued actions past their time for every machine (Python
     /// `expire_sweep`); one sent at least once to a reachable machine waits
     /// for flush's status query instead.
-    pub fn expire_sweep(&self, now: SystemTime) -> rusqlite::Result<Vec<Notice>> {
+    pub fn expire_sweep(&self, clock: Clock<'_>) -> rusqlite::Result<Vec<Notice>> {
         let rows: Vec<OutboxRow> = {
             let mut stmt = self.db().prepare(&format!(
                 "SELECT {OUTBOX_COLUMNS}, m.label FROM remote_outbox o LEFT JOIN remote_machines m USING (machine_id) \
                  WHERE o.state = 'queued' AND o.expires_at <= ?"
             ))?;
-            stmt.query_map([iso(now)], OutboxRow::from_row)?
+            stmt.query_map([iso(clock())], OutboxRow::from_row)?
                 .collect::<rusqlite::Result<_>>()?
         };
         let mut notices = Vec::new();
         for row in rows {
-            if row.in_flight(now) {
+            if row.in_flight(clock) {
                 continue;
             }
             let reachable = row.label.is_some()
@@ -128,7 +128,7 @@ impl Store {
                 .clone()
                 .filter(|l| !l.is_empty())
                 .unwrap_or_else(|| row.machine_id.clone());
-            notices.extend(self.expire(&row, &label, now)?);
+            notices.extend(self.expire(&row, &label, clock())?);
         }
         Ok(notices)
     }

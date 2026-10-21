@@ -90,6 +90,14 @@ impl Replay {
             self.now = n;
         }
         let now = self.at();
+        // remote._now() as the capture scripts it: `now`, then `tick` seconds later at every read
+        let tick = a.get("tick").and_then(Value::as_u64).unwrap_or(0);
+        let ticking = std::cell::Cell::new(self.now);
+        let mut clock = || {
+            let t = UNIX_EPOCH + Duration::from_secs(ticking.get());
+            ticking.set(ticking.get() + tick);
+            t
+        };
         let mut effects: Vec<Value> = Vec::new();
         let mut replies: Vec<Value> = a
             .get("replies")
@@ -131,7 +139,7 @@ impl Replay {
                         }
                     }
                     Some(input) => {
-                        let rid = serde_json::from_str::<Value>(input).unwrap()["request_id"]
+                        let rid = pyjson::loads(input).unwrap()["request_id"]
                             .as_str()
                             .unwrap()
                             .to_string();
@@ -145,10 +153,19 @@ impl Replay {
                             .ok()
                             .flatten();
                         fx.push(json!(["sending", rid, sending]));
-                        fx.push(json!(["call", target, command, input]));
                         let r = replies
                             .pop()
                             .unwrap_or_else(|| json!({"code": 255, "stderr": "ssh: no reply"}));
+                        if r.get("sweep").is_some_and(|v| v == true) {
+                            // another worker's expiry sweep, on a clock of its own: the time now
+                            let mut theirs = || UNIX_EPOCH + Duration::from_secs(ticking.get());
+                            let got = store.expire_sweep(&mut theirs).unwrap();
+                            fx.extend(
+                                got.into_iter()
+                                    .map(|n| json!(["notify-other", n.title, n.body])),
+                            );
+                        }
+                        fx.push(json!(["call", target, command, input]));
                         if let Some(before) = r.get("before").and_then(Value::as_str) {
                             // another worker settles the row while this send is under way
                             store.db().execute_batch(before).unwrap();
@@ -195,13 +212,19 @@ impl Replay {
                                 s(a, "action").unwrap(),
                                 a.get("detail").filter(|d| !d.is_null()),
                                 &rid,
-                                now,
+                                &mut clock,
                                 EXPIRY,
                             )
                             .unwrap()
                     } else {
                         let got = store
-                            .enqueue_alert_ack(s(a, "machine_id").unwrap(), data, &rid, now, EXPIRY)
+                            .enqueue_alert_ack(
+                                s(a, "machine_id").unwrap(),
+                                data,
+                                &rid,
+                                &mut clock,
+                                EXPIRY,
+                            )
                             .unwrap();
                         if got.is_ok() {
                             self.uuids += 1; // only after the lookup succeeded
@@ -215,7 +238,7 @@ impl Replay {
                 }
                 "flush" => {
                     let got = store
-                        .flush(s(a, "machine_id").unwrap(), now, &mut ssh)
+                        .flush(s(a, "machine_id").unwrap(), &mut clock, &mut ssh)
                         .unwrap();
                     notices(&mut effects_cell.borrow_mut(), got.notices);
                     match got.aborted {
@@ -233,12 +256,16 @@ impl Replay {
                 "expire_sweep" => {
                     notices(
                         &mut effects_cell.borrow_mut(),
-                        store.expire_sweep(now).unwrap(),
+                        store.expire_sweep(&mut clock).unwrap(),
                     );
                     Value::Null
                 }
                 "clearable" => {
-                    json!(store.clearable(s(a, "request_id").unwrap(), now).unwrap())
+                    json!(
+                        store
+                            .clearable(s(a, "request_id").unwrap(), &mut clock)
+                            .unwrap()
+                    )
                 }
                 "mark_seen" => {
                     store.mark_seen(s(a, "request_id").unwrap()).unwrap();
@@ -250,6 +277,7 @@ impl Replay {
                 other => panic!("no Rust call for {other}"),
             }
         };
+        self.now = ticking.get();
         (result, effects)
     }
 }
@@ -289,4 +317,82 @@ fn every_outbox_step_leaves_pythons_rows_calls_and_notices() {
             "step {n} {op}: tables"
         );
     }
+}
+
+/// The golden's state after its last step (machines with cached paths, a mirror).
+fn replayed() -> (tempfile::TempDir, Replay) {
+    let golden: Value = serde_json::from_str(GOLDEN).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&migrated(dir.path()), Duration::from_secs(5)).unwrap();
+    let mut replay = Replay {
+        store,
+        now: 0,
+        uuids: 0,
+    };
+    for step in golden["steps"].as_array().unwrap() {
+        replay.run(step["op"].as_str().unwrap(), &step["args"]);
+    }
+    (dir, replay)
+}
+
+/// One flush of m2 whose `inbox apply` replies `stdout`: the requests it sent.
+fn flush_replying(replay: &Replay, at: u64, stdout: &str) -> Vec<String> {
+    let mut sent = Vec::new();
+    let mut ssh = |_: &SafeTarget, _: &FixedCommand, stdin: Option<&str>| {
+        sent.push(stdin.unwrap_or_default().to_string());
+        CallResult {
+            code: 0,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    };
+    let mut clock = || UNIX_EPOCH + Duration::from_secs(at);
+    let got = replay.store.flush("m2", &mut clock, &mut ssh).unwrap();
+    assert_eq!(got, Default::default());
+    sent
+}
+
+fn big_row(replay: &Replay) -> (String, i64) {
+    replay
+        .store
+        .db()
+        .query_row(
+            "SELECT state, attempts FROM remote_outbox WHERE request_id = 'big'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap()
+}
+
+/// A reply of `len` characters that applies the request.
+fn applied_reply(len: usize) -> String {
+    let head = r#"{"outcome": "applied", "pad": ""#;
+    format!("{head}{}\"}}", "x".repeat(len - head.len() - 2))
+}
+
+#[test]
+fn an_apply_reply_over_the_export_cap_counts_as_lost_and_is_retried_with_the_same_request() {
+    use herdr_inbox::remote::validate::MAX_EXPORT_BYTES;
+
+    let (_dir, replay) = replayed();
+    let now = replay.now + 1000;
+    replay
+        .store
+        .db()
+        .execute_batch(&format!(
+            "UPDATE remote_outbox SET state = 'seen' WHERE machine_id = 'm2' AND state = 'queued'; \
+             INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at) \
+             VALUES ('m2', '{d}', 40, '00000028', 'open', '{{}}', '2001-01-01T00:00:00+00:00'); \
+             INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at, expires_at, \
+             attempts, state) VALUES ('big', 'm2', '{d}', 40, '00000028', 'answer', '2001-01-01T00:00:00+00:00', \
+             '2099-01-01T00:00:00+00:00', 0, 'queued')",
+            d = "d".repeat(32)
+        ))
+        .unwrap();
+    let first = flush_replying(&replay, now, &applied_reply(MAX_EXPORT_BYTES + 1));
+    assert_eq!(first.len(), 1);
+    assert_eq!(big_row(&replay), ("queued".into(), 1)); // not settled: retried later
+    let second = flush_replying(&replay, now + 3600, &applied_reply(MAX_EXPORT_BYTES));
+    assert_eq!(second, first); // the same request id, the same request
+    assert_eq!(big_row(&replay), ("done".into(), 1)); // at the cap: read
 }

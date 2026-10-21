@@ -25,6 +25,10 @@ pub use problems::{NOT_VERIFIED, Problem};
 pub use pull::{CallResult, FULL_EVERY};
 pub use reads::group_key;
 
+/// The time, read wherever Python calls `remote._now()` (once per call:
+/// a flush that runs for a while reads a later time for its later rows).
+pub type Clock<'a> = &'a mut dyn FnMut() -> SystemTime;
+
 use crate::clock::iso_seconds;
 use crate::text::py_isspace;
 
