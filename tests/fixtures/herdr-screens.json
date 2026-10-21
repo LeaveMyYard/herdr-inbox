@@ -212,6 +212,21 @@
    "composer": "empty"
   },
   {
+   "name": "rules in the output above a draft",
+   "screen": "────────────────────\ntable\n────────────────────\nmore\noutput\n────────────────────\n❯ draft text\n────────────────────\n  ? for shortcuts",
+   "composer": "draft"
+  },
+  {
+   "name": "rules in the output above an empty box",
+   "screen": "────────────────────\n❯ x\n────────────────────\noutput\n────────────────────\n❯ \n────────────────────\n  ? for shortcuts",
+   "composer": "empty"
+  },
+  {
+   "name": "a whitespace-only second box line",
+   "screen": "out\n────────────────────\n❯ \n   \n────────────────────\nfooter",
+   "composer": "empty"
+  },
+  {
    "name": "normal, the phrase in the body",
    "screen": "● The panel footer reads \"↑/↓ to select\" when it has focus.\n✻ Waiting for 3 background agents to finish\n──────────────────────────────────────────────\n❯\n──────────────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · ↓ to manage\n  ● main\n  ◯ general-purpose Compute (1)",
    "panel": false
@@ -245,6 +260,3616 @@
    "name": "a border with trailing spaces",
    "screen": "────────────────────\n❯\n────────────────────   \n  ↑/↓ to select · esc",
    "panel": true
+  },
+  {
+   "name": "blank lines above the footer",
+   "screen": "────────────────────\n❯\n────────────────────\n\n  \n  ↑/↓ to select · esc",
+   "panel": true
+  },
+  {
+   "name": "a rule in the output, the footer below the box",
+   "screen": "────────────────────\nout\n────────────────────\n❯\n────────────────────\n  ↑/↓ to select",
+   "panel": true
+  },
+  {
+   "name": "generated 0",
+   "screen": "\n\n\u001b[38;5;246m\u001b[1m\u001b[0mTry \"aTry \"fix the bug\"\n\u001b[❯ 　  \n\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[2mTry \"x\" \n\n \n──────────────────────────────────────── node ─\n? for shortcuts\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 1",
+   "screen": "\u001b]0;title\u0007x❯  \u001b[0m\n\u001b[2;3m❯ \u001b[0mTry \"fix the bug\"\u001b[1;2m\u001b[38;5;246m\n\u001b]0;title\u0007日本語\u001b]0;title\u0007\n\u001b[2m\u001b[38;5;246m\n❯ 日本語\u001b[\u001b[1m日本語\n\u001b[1;2m\u001b[38;5;246m\u001b]x\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n? for shortcuts\n\u001chello\u001b[22mTry \"a\u001b[1m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 2",
+   "screen": "　\u001b[02m\u001b]0;title\u0007\u001b[0m\n│\n❯ ❯Try \"\"\n日本語\n　❯ \u001b[1;2m\u001b[1;2m\u001c╭\n───── t ─\n❯ Try \"x\" \n──────────────────────────────\n ❯ \u001b[2mTry \"x\" \n\u001b[2m──────────────────────────────\u001b[0m\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 3",
+   "screen": "\n\n\u001b[m\u001b[1m\n──────────────────────────────────────── node ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 4",
+   "screen": "\n\u001b[Try \"aTry \"a\t\u001b]x日本語\n╭　\n\u001b[\nx\u001b[m\u001b[02m\u001b]0;title\u0007 ╭\nTry \"\"\u001b[1m\u001b[0m\n\u001b[2m──────────────────────────────\u001b[0m\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 5",
+   "screen": "\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\" \n \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯\n  \n────────── a b ─────\n\u001b[1m❯  \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 6",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m \n↑/↓ to select · enter\n\u001b[2m❯",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 7",
+   "screen": "❯❯\n\t│╭日本語\n\n❯ 🙂❯ ❯ \n\u001b[1m\u001b[02mTry \"\"\u001b[1m \n───\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 8",
+   "screen": "❯ \u001cTry \"fix the bug\"❯ \u001b[\n│\n───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n  \n───── ─ ─\n\u001b[1m❯ Try \"x\"\n───── ─ ─\n\u001b[2m\u001b[?25l\u001b[2m\u001b[22m\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 9",
+   "screen": "──\n \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 10",
+   "screen": "\u001b]xhello\nTry \"a \u001b[m\n \u001b[K\n\u001b[1m\nTry \"fix the bug\"\u001b[K\u001b]x\u001b[22;2mhello\n日本語\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ draft \nTry \"fix the bug\"\n? for shortcuts\n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 11",
+   "screen": "❯ \u001b[38;5;246m\n│\u001b[02m\n──────────────────────────────────────── node ─\n ❯ \n  \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯\u001b[0m\n  \n\u001b[22;2m\u001b[7m\n────────── a b ─────\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 12",
+   "screen": "\u001b[2m　\n\u001b[7m\u001c  \u001b[2m│\n───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n─────  x ─\n ❯  \n❯ \u001c\u001b[22;2mx\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \n\u001b[2m──────────────────────────────\u001b[0m\n\n? for shortcuts\n\u001c\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 13",
+   "screen": "│　\u001b]x\n日本語\t \n\u001b[1m\u001b[38;5;246m\n╭─\u001b[1m\u001b[38;5;246m ❯ \n\u001b[2;3m\u001b[1m\u001b[38;5;246m\u001b[?25l\u001b[7m\n❯ Try \"ahello\u001b[0m\n────────── a b ─────\n ❯ draft \n\u001c\u001b[22;2m❯\u001b[2m\n───── \tt ─\n\u001b[1m❯ Try \"x\" \n \n  ────────────────────  \n> x \n \u001b[02m ❯ \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 14",
+   "screen": "❯ \t \u001b[❯\u001b[K\n❯ \n─────  x ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 15",
+   "screen": "\t\n  ────────────────────  \n\u001b]0;title\u0007日本語Try \"\"日本語\u001b[mTry \"fix the bug\"\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 16",
+   "screen": "x❯ \u001b[1mTry \"fix the bug\"\u001b[m\nTry \"\" \u001b[K\u001b[　\u001b]0;title\u0007\n\n───── t ─\n\u001b[2m❯ draft \n\u001b[38;5;246m\u001b[\t\u001c\n \n  ────────────────────  \n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n───\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 17",
+   "screen": "\n\n\u001b[0m\u001b[02m\n\u001b[1m\u001b[m\u001b]0;title\u0007\t\u001b]x\n\u001b[K　\u001b]x\u001b[?25l\n\u001c\u001b[38;5;246m\n─────  x ─\n❯ \u001b[2mT\u001b[0mry \"x\" \n\n\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\n \n\tTry \"\"❯ \u001b[02m─❯ \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 18",
+   "screen": "\u001b[22;2m\u001b[0m╭\u001b[1;2m  \n　\u001b[m\n❯Try \"fix the bug\"\u001b[2m\u001b[2m\n❯ 日本語\n\u001b[2m──────────────────────────────\u001b[0m\n❯ draft \n \n  \n─────  x ─\n\n  ↑/↓ to select\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 19",
+   "screen": "\u001b[m\u001b[02m\u001b[38;5;246m│\u001b[\n ❯  \n\u001b[7m\u001b[22m \n───── t ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 20",
+   "screen": "\n🙂\t╭ \u001b[38;5;246m🙂\n　─❯ \t\n\u001b[22;2m\u001b[?25l\n──────────────────────────────────────── node ─\n ❯ Try \"x\" \n\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯  \n\n  \n  ────────────────────  \n\n\u001b[1m日本語\u001b[m\u001b]x\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 21",
+   "screen": "hello─\u001b[2;3m│\u001b[38;5;246m\u001b[22;2m\n\t\t\u001b[1m\u001c\u001b]xhello\nx│Try \"a\n❯ \u001b[38;5;246m\u001b[22;2m\u001b[?25l│\u001b[38;5;246m\n\u001b[2;3m\u001b[m─hello \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m\u001b[\u001b[1;2m\u001c\u001b[7mx\u001b[1m \n───── t ─ \n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n  \n  ────────────────────  \n❯ Try \"x\"\u001b[0m\n \n \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 22",
+   "screen": "───── ─ ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 23",
+   "screen": "❯\u001b[2;3m\u001b[K\u001b]0;title\u0007　hello\n╭\n──\n ❯ \n \n \n\u001b[2m──────────────────────────────\u001b[0m\n > x\u001b[0m\n　\u001b[22m\n\u001b[mx\u001b[1;2m\tTry \"fix the bug\"\u001b[1m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ draft\u001b[0m\n───── t ─ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 24",
+   "screen": "\u001b[0m\u001b[K\nx\n\u001b[22mTry \"aTry \"fix the bug\" \n  \n\u001b]0;title\u0007Try \"a❯ \u001b[2;3m\n\u001b[22;2m🙂\n───── t ─ \n\u001b[1m❯ Try \"x\" \n \n───── t ─\n\u001b]x\u001b]0;title\u0007❯ \u001b[02m\u001b[22m\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 25",
+   "screen": "\t\n\n\u001b]x\u001b[7m\u001b[0m❯ \n\u001c\u001b[m\u001b[22;2mTry \"\"Try \"a\n\n──────────────────────────────────────── node ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 26",
+   "screen": "\u001b[1;2m\n\u001b]0;title\u0007\u001b[\u001b[22;2m\nhello\u001b[22;2mTry \"fix the bug\"─\n\u001b[22;2m\u001b[38;5;246m \u001b]0;title\u0007\n  ────────────────────  \n ❯ draft\u001b[0m\n↑/↓ to select · enter\n ❯\u001b[?25l\u001b[1mTry \"a\n❯ ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 27",
+   "screen": "\u001b[0m\nhello\nhelloTry \"a\n\u001b[22m🙂Try \"\" \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯  \n╭Try \"\"❯ \n\u001b]0;title\u0007│Try \"fix the bug\"\n────────────────────────────────────────\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 28",
+   "screen": "hello❯ Try \"a\u001b[38;5;246m\n\u001b]x\u001b[7m\u001b[1;2m╭\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n \n  ────────────────────  \n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n\n──────────────────────────────────────── node ─\n  ↑/↓ to select\n\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 29",
+   "screen": "\n│\u001b[2mhello\t\n──────────────────────────────────────── node ─\n ❯ \u001b[2mTry \"x\"\n \n \n──────────────────────────────────────── node ─\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 30",
+   "screen": "\u001b]0;title\u0007\n\u001b[7m❯ \n───",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 31",
+   "screen": "　─ \n\u001b[38;5;246m\u001b[2m│\n───── ─ ─\n\u001b[m \u001b[0m\u001b[02m\n\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 32",
+   "screen": "\u001b[2;3m\u001b[7m\n\n\n　🙂Try \"a\n\u001b[\u001b[0m│\n\u001b[K❯ \u001b[02m \n  ────────────────────  \n❯ draft\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n　 \n\n  \n──────────────────────────────────────── node ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\n───\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 33",
+   "screen": "\n \u001b[m\u001b[38;5;246m\n❯\u001b[K│❯ \n  ────────────────────  \n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n───── t ─\n❯  \n\n  \n─────  x ─\n  ↑/↓ to select\n? for shortcuts\n\u001b[?25l❯\u001b[?25l❯ \u001b[?25lTry \"fix the bug\"\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 34",
+   "screen": "hello\u001b[?25l\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft\u001b[0m\n───── t ─x\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 35",
+   "screen": " \u001b]0;title\u0007\n🙂\u001b[2m\n─x\nTry \"a\n───── ─ ─\n\u001b[╭ \u001b[?25l \n  \n日本語  \u001b[22;2m\u001b]0;title\u0007\u001b[1m\n───── t ─x\n↑/↓ to select · enter\n  ↑/↓ to select\n \u001c\u001b[2;3m\u001b[1;2m│\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 36",
+   "screen": "xTry \"a\u001b[22m❯\t\u001b]0;title\u0007\n───── t ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 37",
+   "screen": "  ────────────────────  \n\u001b[1m❯ \n\n─────  x ─\n  ↑/↓ to select\n  ↑/↓ to select\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 38",
+   "screen": "\n───── t ─\n\u001b[2m❯ \u001b[0m\n────────── a b ─────\n\u001b[1m❯ Try \"x\"\n───── t ─ \n\n  ↑/↓ to select\n\u001b[K\u001b[1m\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 39",
+   "screen": "❯ ╭\u001b]0;title\u0007❯ ╭\n───────────────────────────────\n  ↑/↓ to select\n\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 40",
+   "screen": "🙂Try \"a❯ \n\u001c \u001b[2;3mx \nx \u001b[7m\u001b[m│\u001b[02m\n\u001b[\t\u001b[22m x\u001b[2;3m\n❯\u001b[?25l\n───── t ─ \n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n─\u001b]0;title\u0007╭\u001b[38;5;246m❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n \n───── t ─\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 41",
+   "screen": "  Try \"a❯ \n\u001b]0;title\u0007\n\u001b[1;2m \nhello \u001b]0;title\u0007\u001b]0;title\u0007\n❯ Try \"a╭\n\u001b[02m\u001b[7m\n──────────────────────────────────────── node ─\n❯\u001b[0m\n\n───── t ─\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n  \n \n─────  x ─\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 42",
+   "screen": "\u001b]0;title\u0007\u001c\u001b]xTry \"a\n❯ ❯ \u001b[m\u001b[02m\n\t╭\u001b[22;2m\u001b[22;2m❯ \n\u001b[7m\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b]x\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 43",
+   "screen": "\nhello\u001b[m日本語日本語\n\u001b[0m\u001b[K\n\u001b[2;3m❯ \u001b[22mx\n\u001b]x\u001b[38;5;246mTry \"a\u001b[m\u001b[\n\n───\n \u001b[?25l\n───── t ─ \n  ↑/↓ to select\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 44",
+   "screen": "\n \n\t\u001c\u001b[2m\nhello\u001b[7m\n\u001b[7m\u001b[K\u001b[02mTry \"a\u001b]0;title\u0007│\n──────────────────────────────────────── node ─\n\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 45",
+   "screen": "\u001b[7mx\n日本語─│\u001c─\u001b[m\n ❯ \u001b[02m\n\u001c\u001b[1m\u001b[2m\u001b[K\n\n\n───\n\u001b[2m❯ \n───── ─ ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n  \n \n  ↑/↓ to select\n\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 46",
+   "screen": "╭\u001chello\n│Try \"a\u001b[7m\u001b[7m\n\u001b[02m\n\u001b[m\u001b[?25l││\n─\u001b[m\t \n\u001b[?25lTry \"\"\n───── ─ ─\n\t\u001b[22m\u001b[0m❯ \n──\n\u001b[1m❯  \nhello\u001b[22;2m\u001b[2m\n───── t ─ \n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n \n───── t ─x\n\tx\u001b[1m\u001b[38;5;246m\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 47",
+   "screen": "─\u001b[7m\t\u001b[K\u001b]x\n\u001b[38;5;246m\u001b[2;3mTry \"\"\u001b[\u001b[1;2m\u001b[02m\n\u001b[Khello\u001b[2;3m \u001b[2;3m❯ \n \u001b[22m\n\t\u001b[2mx\u001b[\u001b[38;5;246m\n──────────────────────────────────────── node ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n\u001b[22;2m\n \n───── t ─ ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 48",
+   "screen": " 🙂\u001b[22;2m🙂 \n\u001b[02m─🙂\u001b[2;3m \nTry \"fix the bug\"\u001b[?25l\n\u001c\u001b[\n────────── a b ─────\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n> x\u001b[0m\n───── ─ ─\n\u001b[2m❯ Try \"x\"\u001b[0m\n\n───── ─ ─\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 49",
+   "screen": "\u001b[0m\n\t\n\u001c\n\u001b]0;title\u0007\u001b[22;2m\u001b]x\t\u001b[\n─────  x ─\n\u001b[1m❯ ╭ ╭\u001b]0;title\u0007❯ \n\u001b[hello日本語\u001b[7m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 50",
+   "screen": "───\n\u001b[2m❯ \u001b[2mTry \"x\" \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n\u001b[22m\u001b[2m\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 51",
+   "screen": "❯ \u001b[❯❯ \t\n\n────────── a b ─────\n ❯ \n \n  \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\n\n\n↑/↓ to select · enter",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 52",
+   "screen": "\u001b[2;3m\u001b[0m\u001b[7m\u001b[7m\n───── \tt ─\n ❯  \n　\u001b]x─❯\u001b[K\n╭\u001b[7m\u001b[22;2m\u001b[22;2mhello\u001b[m\n  ────────────────────  \n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 53",
+   "screen": "Try \"a\u001b[1;2m\u001b[1m\u001b[22m\n\u001b[?25l\n❯  \u001b]0;title\u0007❯ \u001b[\nx❯\u001b[38;5;246m\u001b[1;2m \n───\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 54",
+   "screen": "Try \"\"\t\u001b[1m\u001b[2m\u001b[02m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ Try \"x\"\u001b[0m\n \n\u001b[22;2m \n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 55",
+   "screen": "\u001b[0m\u001b[1;2m\n\u001b[2m──────────────────────────────\u001b[0m\n > x \n  \n\n──\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 56",
+   "screen": "\u001c\u001b]0;title\u0007❯\t\n──\n\u001b[1m❯ Try \"x\"\u001b[0m\n───── t ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n  ────────────────────  \n\u001b[1m❯ Try \"x\"\n ❯ \u001b[02m\u001b[1;2m\u001b[1;2m\u001b]x\n\n  ────────────────────  \n↑/↓ to select · enter\n\t\u001b[38;5;246m ❯ \u001b[38;5;246m\u001b[\n 🙂\u001b[7m \u001b[2m",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 57",
+   "screen": "\u001b[02m❯ \u001b[m日本語\u001b[1m\u001b[1;2m\n\u001b[\u001b[?25l\u001b[1;2mTry \"a❯ \n\u001b[K❯Try \"fix the bug\"　\n❯ \n\u001b[02m\u001b[7m\n\n  ────────────────────  \n\u001b[2m❯ \u001b[2mTry \"x\" \n\n───\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\n↑/↓ to select · enter\n↑/↓ to select · enter\n \u001b]x\u001b]x\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 58",
+   "screen": "──────────────────────────────────────── node ─\n\u001b[1;2m\u001b[2;3m\u001b[22;2m\u001b[1;2m❯ \n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 59",
+   "screen": "\u001b[38;5;246m\n  ────────────────────  \n ❯ \u001b[2mTry \"x\"\u001b[0m \n \n─────  x ─\n\u001b[2m❯ Try \"x\"\n\u001b[1;2m\u001b[?25l\n───── t ─\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 60",
+   "screen": "\u001b[7m\u001b[2;3m─\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"\n\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 61",
+   "screen": "\u001b[02m\u001b[│\n\u001b[22;2m\u001b[ \u001b]0;title\u0007\u001b[❯ \n\n\u001b[1m\u001b[K日本語 \u001b[02m\u001b[?25l\n───────\n❯ \u001b[2mTry \"x\" \n  \n\u001b[2m──────────────────────────────\u001b[0m\n ❯\u001b[0m\n\n───── t ─x\n > x \n\u001b[K\tTry \"fix the bug\"\n\n──",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 62",
+   "screen": "╭\n\u001b]x\n\u001b[?25l\n　\u001c\u001b[0m\u001b[02m\n🙂🙂　\u001b[02m \n───\n\u001b[2m❯ Try \"x\"\n  \n \n───── ─ ─\n  ↑/↓ to select\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 63",
+   "screen": "───── t ─x\n ❯ draft \n \n───── t ─\n↑/↓ to select · enter\n\u001b[1;2m\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 64",
+   "screen": "\n───── ─ ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 65",
+   "screen": "\u001b[2;3m日本語\u001c─\n───── t ─ \n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 66",
+   "screen": "\n\u001b[22m\u001b[K❯ \nTry \"\"\u001b[1m\u001b[2m\n\u001b[K　日本語Try \"a\u001b[2m\u001b[2m\n❯\u001b[K\u001b[\u001b[38;5;246m\u001b[日本語\n\u001b[2;3m\u001b[2;3m\n\u001b[2m──────────────────────────────\u001b[0m\n❯ \u001b[0m\n \n \n───── t ─\n\u001b[2m❯ draft \n───── t ─ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 67",
+   "screen": "\u001b[38;5;246m\u001b]0;title\u0007\u001c─\u001b[7m\n❯ \u001c\u001b[K\n❯ \u001b[\u001b[02m\u001b[2m　\u001b[2m\n\u001b[38;5;246m\u001b[7m\u001b[2;3m\n───\n ❯ \n───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n\n\n───── t ─x\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 68",
+   "screen": "─────  x ─\n\u001b[1m❯ draft \n \n───── t ─ ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 69",
+   "screen": "\u001b[mTry \"a\nTry \"ahello❯ \n  ────────────────────  \n\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 70",
+   "screen": "\u001b[1;2m\u001b[K　\u001b[7mTry \"a\n\u001b[38;5;246m\n❯ \u001b[1m\u001b]x\u001b[2;3m \n\u001b[m\u001b[2m╭│x\u001b[02m\n──────────────────────────────────────────\n > x\n \n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[0m\n───── t ─ \n? for shortcuts\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 71",
+   "screen": "\u001b[\n\u001b[02m❯ \n　\u001b[1m\n\n❯ \nTry \"\"\u001c❯\n───── t ─x\n ❯  \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ Try \"x\"\n\n────────── a b ─────\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 72",
+   "screen": "\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\" \n─────  x ─\n\u001b[2m❯ \u001b[2mTry \"x\"\n───── t ─ \n\u001b[1m❯ draft\n\n───\n\u001b[1m\u001c\u001b]0;title\u0007─x\n\u001b[1mhello\u001b[22;2m \u001b[0m\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 73",
+   "screen": "\u001b[?25l\u001b[1;2m\u001b[mTry \"fix the bug\"\n╭\n\u001b[22;2m\n❯hello\u001b[38;5;246m\n\n↑/↓ to select · enter\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 74",
+   "screen": "\u001b[38;5;246m\u001b[0m❯ \nTry \"a\n  ────────────────────  \n\u001b[22;2mTry \"\"\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 75",
+   "screen": " \u001b[2m\u001b[7mhello❯ \n\u001b[1m\u001b[K\u001b[02m│❯\n\u001b[m\u001b[22m🙂 \u001b[02m\n \u001b]x\u001b]x\u001b[1mTry \"fix the bug\"\u001c\n\nTry \"aTry \"\"❯\u001b[0mTry \"a\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n───── t ─\n\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 76",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ Try \"x\"\u001b[0m\n  \n───\n ❯ \n  \n──\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n \n───── \tt ─\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 77",
+   "screen": "❯\u001b[0m\u001b[1;2m\u001b[K\n🙂🙂\u001b[1m\u001b[7m\u001b[K \n───\n ❯ \u001b[2mTry \"x\"\u001b[0m \n──────\n ❯ \u001b[0m\n \n  \n───── t ─ \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 78",
+   "screen": "──\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m \n  \n \n────────── a b ─────\n\u001b[02m 🙂\u001b[7m\u001b[0m\n\n────────── a b ─────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 79",
+   "screen": "\n\u001b[2m\u001b[1m\n❯ \u001b[K\u001b[22mTry \"fix the bug\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n─\u001b[1;2m\u001b[K\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 80",
+   "screen": "───── t ─\n\u001b[1m❯ Try \"x\"\n \n───── \tt ─\n\u001b[2m❯ \u001b[2mTry \"x\"\n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯\u001b[0m\n↑/↓ to select · enter\n\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 81",
+   "screen": "───── ─ ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n\n\u001b[02m\t\n──\n ❯ \u001b[2mTry \"x\" \n───── \tt ─\n\u001b[2m❯ \u001b[0m\n  \n───── t ─x",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 82",
+   "screen": "\u001b[\u001b[22;2m\n\u001b[0m\u001b]x❯\u001b[1;2m╭\u001b[22;2m\n\t\u001b[1m\t\u001b[m\n\n │╭\n───── t ─ \n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n──\nhello\n\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 83",
+   "screen": "╭\u001b[22;2m\n\nhellohelloTry \"fix the bug\"\n\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[22m\u001b[1;2m─\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 84",
+   "screen": "\u001b[02m \u001b[02m\u001b[?25l\n\u001b[1m❯\t\u001b[38;5;246m\u001b]0;title\u0007\n\n\u001b[m\u001b[m\n  ────────────────────  \n❯ draft\n─────  x ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n─────  x ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 85",
+   "screen": "───── \tt ─\n ❯ draft\n \n \n  ────────────────────  \n\u001b[1m❯\u001b[0m\n─────────────────────────\n ❯ \u001b[2mTry \"x\"\n\n  \n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 86",
+   "screen": "\u001c\u001b[22m\n\u001c\n╭\u001b[02m\nTry \"fix the bug\"│\u001b]0;title\u0007\n\u001b[2;3m\u001b[mTry \"fix the bug\"\t\n\n──\n ❯ \u001b[2mT\u001b[0mry \"x\"\n\u001b[7mTry \"a \n\u001b[22m\u001b[22;2m\n───── t ─x\n> x\u001b[0m\n \n \n───── t ─ \n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 87",
+   "screen": "\u001b]0;title\u0007\u001b[22m\n\u001b[2;3m\u001cTry \"\"\t\n\n❯ \tx│Try \"\"\u001b[1;2m\n\u001b[m\u001b[22;2m❯hello\nx\n───\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n\n  ────────────────────  \n 日本語 \n❯ Try \"a　　\u001b[02m　\n\u001b[2m──────────────────────────────\u001b[0m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 88",
+   "screen": "\u001b[1m\u001b[0m\u001b[K\u001b[mTry \"a\n\n│\u001b[m日本語\n\n \u001b[m\u001b[2;3m\u001c╭╭\n───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n───── t ─x\n   \n───── t ─ \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 89",
+   "screen": "\u001b[❯\n❯Try \"fix the bug\" ❯\nTry \"\"\u001b[22;2m \u001b[1;2mTry \"\"\n\u001b[22m\thello\u001b[2m\n\u001b[m\u001b[22;2mTry \"fix the bug\"╭\n───\n ❯ Try \"x\"\n─────  x ─\n\u001b[1m❯ \u001b[2mTry \"x\" \n\u001b[22;2m\u001b[2;3m日本語 \u001b]x\n\n❯ Try \"\"─hello❯ \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 90",
+   "screen": "\u001c\n\u001b[22m\u001c\n\n\n🙂 \u001b[2;3m\u001b]0;title\u0007\u001b[7m　\n───── \tt ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 91",
+   "screen": "日本語\n\u001b[K \n\u001b[38;5;246m❯ \u001b]0;title\u0007\u001b[?25l\nTry \"\"\n\u001b[02m\u001c\u001b[38;5;246m\n\u001b[1;2m\t\u001b[22;2m日本語Try \"\"Try \"a\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 92",
+   "screen": " 🙂\u001b[1;2m\u001b[K\n Try \"a\t─\n\n  ❯ \n\u001b[7m\n╭\u001b[0m\u001b[?25l╭╭\n─────  x ─\n\u001b[1;2mhello\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 93",
+   "screen": "──\n\u001b[2m> x \n\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 94",
+   "screen": "\u001b[m│\u001b]x\u001b[2m\n\u001c\u001b[?25l\u001b]0;title\u0007❯\u001b[0m\n\u001c\u001b[?25l\u001b]x\t\u001b]0;title\u0007 \n\n\n\u001b[0m\u001b[?25l\u001b[K\u001b[2;3m\u001b]x\n──────────────────────────────────────── node ─\n❯ \u001b[2mTry \"x\"\u001b[0m \n───\n ❯ draft \nx\u001b[?25lTry \"fix the bug\"\u001b[22;2m Try \"\"\n\u001b[2m──────────────────────────────\u001b[0m\n╭❯\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 95",
+   "screen": "\t│🙂🙂\nTry \"aTry \"fix the bug\"\u001b[1;2m\u001b[7m│\n\u001b[22;2m\u001b[1m\u001b[38;5;246m\n\u001b[?25l\u001b[2;3m \nTry \"aTry \"a\u001b[22;2m│\u001b[m\u001b]x\n\u001b[7m\u001b]x\u001b[2mx\u001b[2m\u001b[2;3m\n──\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n\n───────────────────────────────────────────\n ❯ Try \"x\" \n─────  x ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 96",
+   "screen": "Try \"fix the bug\"\u001b]x\u001b[0m\n\u001b]x\u001b[1;2m\u001b[1m│\u001b[2;3m\n❯\u001b[1;2m\u001b[1;2m\u001b[22;2m\u001b[7m\n❯\u001b[22mx\n \u001b[0m\u001b]0;title\u0007\u001b[\nxx\u001b[2;3m 🙂\n───── t ─x\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 97",
+   "screen": "\u001b[2m──────────────────────────────\u001b[0m\n 日本語\u001b[0m\n  ────────────────────  \n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n  \n  \n────────── a b ─────\n\u001b[1m❯ \u001b[2mTry \"x\" \n \n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 98",
+   "screen": "\u001b[1m \u001b[7m\u001b[1;2m\nTry \"\"\u001b[1;2m\u001b[22m\u001b[\u001b[2;3m \n\u001b]0;title\u0007││ \n \u001b[2;3mx\n│❯ \n\u001b[2m──────────────────────────────\u001b[0m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 99",
+   "screen": "\u001b[2m　Try \"fix the bug\"\u001b[2m\u001b[\n───── t ─\n❯\n───── t ─ \n ❯ draft \n　\u001b[7m \n\n───── \tt ─\n\u001b[1m❯ Try \"x\"\u001b[0m\n \n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\nhello\u001b[m\u001b]0;title\u0007\u001b]x\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 100",
+   "screen": "\u001b[02m\u001b[\u001b]x❯ \n\u001b[2m\u001b[K\n\u001b[22;2m\n│hello日本語🙂\u001b[0m\n──────────────────────────────────────── node ─\n ❯ Try \"x\"\n \n───\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\n❯ x\u001b[7m─\n───── ─ ─\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 101",
+   "screen": "\u001b[0m　\u001b[38;5;246m\u001b]0;title\u0007Try \"a\u001b[?25l\n  ────────────────────  \n ❯ Try \"x\" \n\n  \n───── \tt ─\n❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ draft\u001b[0m\n \n  \n↑/↓ to select · enter",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 102",
+   "screen": "\u001b[0m \n\u001b[2m╭\u001b]0;title\u0007\u001b[1;2m\t\n─────────────────────────────────────────────────────────\n\u001b[7mTry \"fix the bug\"╭\u001b[38;5;246m\u001b[22m \n\u001b[1;2m\u001b]0;title\u0007❯ ╭\u001b[22m\n─────  x ─\n\u001b[1m> x\n \n  \n───── ─ ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\nTry \"\"\u001b[0m\u001b[22;2m\u001b[?25lTry \"\"\n\n───\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 103",
+   "screen": "───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n\t日本語\u001b[0m\n \n───── \tt ─\n↑/↓ to select · enter\n\n╭\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 104",
+   "screen": "Try \"fix the bug\"\n\t\n \u001b[│Try \"\"\n\nTry \"a\u001b[\n　╭\u001b[22;2m\u001b]0;title\u0007 ╭\n───── t ─ \n\u001b[2m> x \n───\n\u001b[1m❯ \n\n \n──\n\u001b[1m❯ draft\u001b[0m\n\u001b[02m\u001b[2m\n  \n───── ─ ─\n\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 105",
+   "screen": "❯日本語\u001b[1;2m\n❯ hello\t　❯ ❯ \n\u001b[0m\u001b]0;title\u0007\n\n \u001b[1;2m\u001b[02m╭\n❯🙂\n─────────────────────────────\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n \n───── ─ ─\n\u001b[2m\u001b[02m\u001b[02m \n\n  \n───── t ─x\n\u001b[1m\u001b[K\u001b[K\u001b[38;5;246m\u001b[0m \n\u001b[22m🙂\n──────────────────────────────────────── node ─\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 106",
+   "screen": "\u001c \t\n\n❯ \u001b[1;2m\n\u001b[0m\u001b[0m\u001b[7m\u001b[22;2m\u001b[K\n\u001b[\u001b[22m\u001b[1m\n❯ \u001b[02m\n\u001b[2m──────────────────────────────\u001b[0m\n \u001b[7m\u001b[K\u001b[2m\u001b[0m\n──\n ❯ Try \"x\" \n───── t ─\n\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 107",
+   "screen": "\u001b[ \t\u001b]0;title\u0007\u001b[7m─\n\u001b[38;5;246m─🙂│\n\u001b[02m\u001b[0m\nTry \"a❯╭　\t\u001b[\n\n\u001b[K\u001b[02m🙂\u001c\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 108",
+   "screen": "\u001b[1;2m\nTry \"fix the bug\"\u001b[7m\u001b]0;title\u0007\u001b[22m\n\u001b]x\n\u001b[1m\u001b[38;5;246m\n\u001b[?25l\u001b]0;title\u0007🙂\n─────  x ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[0mTry \"fix the bug\"\u001b[38;5;246m\u001b[1m\u001b]x\n \n  ────────────────────  \n ❯ \u001b[2mTry \"x\"\n \n─────  x ─\n ❯ Try \"x\"\u001b[0m\n\u001b]x\u001b[22m\u001b[K \n──\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 109",
+   "screen": " ❯ \u001b[1;2m\u001b[2;3m\u001c\nhello日本語\u001b[?25l\u001b[22;2m\u001b[02m\n❯ ❯ 日本語\u001b[?25l\u001b[0m\u001b[7m\n\u001b[2;3m\u001b[38;5;246m\n\u001b[02m\u001b[38;5;246m \u001b]0;title\u0007\n╭ \u001b[22;2m日本語🙂\n──\n\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 110",
+   "screen": "───── t ─ \n❯ Try \"x\" \n───── \tt ─\n\u001b[2m❯ Try \"x\" \n  \n日本語  \u001b[K\u001b[7m\t\n\u001b[2m──────────────────────────────\u001b[0m\n  Try \"a\u001b[🙂 \n　╭\u001b[\u001b[m\u001b[K\n \n───── ─ ─",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 111",
+   "screen": "Try \"a\u001b[K\u001b[2;3m\t\u001b[\n─\t\u001b[m　\n\u001b[2;3m\u001b[0m\u001b]x\u001b]0;title\u0007x\n\u001b]x　\u001b[02m\n───── t ─x\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n──\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 112",
+   "screen": "\n────────── a b ─────\n\u001b[2m> x \n\u001b[m─\u001b]0;title\u0007\n───── t ─ \n❯ \u001b[0m\n  \n───── \tt ─\n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 113",
+   "screen": "\u001b[m\u001b[7m日本語 \u001b]x\nTry \"\"\u001b[22m\t\u001b[m\n\u001b]0;title\u0007\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 114",
+   "screen": "\n\u001b[38;5;246m\n────────────────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 115",
+   "screen": "hello\u001b]0;title\u0007❯ \u001b[1m\n─\n\n\u001b[?25l❯❯\u001b[Khello\n\u001b[Try \"fix the bug\"Try \"a─\u001b[0m\n───── t ─ \n ❯ Try \"x\"\n \n────────── a b ─────\n\u001b[1m❯ Try \"x\" \n───── ─ ─\n? for shortcuts\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 116",
+   "screen": "─\u001b]xhello\u001b[2;3m\n──\n ❯\n────────── a b ─────\n ❯  \n \n\n─❯ \u001c❯\u001b]0;title\u0007\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 117",
+   "screen": "❯\u001b[38;5;246m\n ❯ \u001b[m❯ \n╭\n\n\n\u001b[0m\u001b[\u001b[1;2mxx\n──\n > x \n\u001b[2m──────────────────────────────\u001b[0m\n  ↑/↓ to select\n  ↑/↓ to select\n　\u001b[7m\u001b[1m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 118",
+   "screen": "\u001b]x\u001b[22m\u001b]0;title\u0007  \u001b[02m\n\n \u001b[2;3m ╭Try \"a\n───── ─ ─\n ❯ \u001b[0m\n\u001b]xhelloTry \"fix the bug\" \n \n───── \tt ─\n\u001b[1m❯ Try \"x\"\u001b[0m\n───── \tt ─\n❯ \u001b[7m\t🙂─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 119",
+   "screen": "\u001b[m \u001b[1;2m❯ ❯\n\u001b[?25l\u001b[K　\u001b[22;2mTry \"\"\u001b[0m\n\u001b[1;2m❯\u001b[m╭\n\n───\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\u001b[02m │❯ \u001b[0m\n \n──────────────────────────────────────── node ─\n\u001b[2m❯ \n  \n─\n\u001b[2m──────────────────────────────\u001b[0m\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 120",
+   "screen": "❯ Try \"\"\u001b[22;2m　\u001b]0;title\u0007\nx\u001b[7m\n──\n❯  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[0m\n \n \n───── t ─x\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 121",
+   "screen": "\u001b[38;5;246m\n\n──────────────────────────────────────────\n❯ \u001b[0m\n\n\n─────  x ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ Try \"x\" \n  ↑/↓ to select\nTry \"a❯ \u001b[1;2m",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 122",
+   "screen": "hello\n\u001b[m\u001b[?25l \nTry \"a\u001b[2mTry \"a\u001b[\n────────── a b ─────\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n\n \n────────── a b ─────\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 123",
+   "screen": "\u001b[0m\u001b[0m\u001b[0m \n❯ \t\n│\n\t\u001b]0;title\u0007🙂\u001b[1;2m─\t\n─────  x ─\n ❯ draft\n\n───── t ─\n\n\u001b[1;2m\u001b[7m\u001b[02m\u001b[\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 124",
+   "screen": "\u001b[02m \u001b]x\u001b[1;2m\n❯x\u001b[2;3m \n\u001b[m\u001b[2;3m\u001c\n　\n───── \tt ─\n❯ \u001b[2mTry \"x\"\n───\n\u001b[1m❯ draft\u001b[0m\n \n───── t ─x\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 125",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 126",
+   "screen": "│日本語\u001b[1;2m\u001b]x\u001b[1;2m \n日本語\u001b[?25lhello日本語hello🙂\n❯\u001b[22;2m\u001b[m\u001b[m \u001b[2;3m\n🙂Try \"\"Try \"ax\n\u001b[22m\u001c─\n───── t ─ \n> x \n  \n───────────────────────────────────────\n ❯ \u001b[2mTry \"x\"\u001b[0m \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n \u001b[0m\n\n────────── a b ─────\n\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 127",
+   "screen": "❯ 　\u001b]x\n\n────────── a b ─────\n❯ \u001b[2mT\u001b[0mry \"x\" \n\n╭❯ \t\u001b[2;3m\n───── t ─\n ❯ \u001b[2mTry \"x\"\u001b[0m \n \n\n───── t ─ ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 128",
+   "screen": "\u001b[22;2m\u001b[22;2m \u001b[?25l\n\u001b]x\u001b[2m\n\nx\u001b[2;3m\u001b[22m❯ \u001b[m\n│\u001b]x\nTry \"\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n───── t ─ \n\u001b[2m❯ \u001b[2mTry \"x\"\n───── t ─ \n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 129",
+   "screen": "\u001b[1;2m🙂Try \"\"\u001b[m\n\u001b[7m \u001b[38;5;246m\u001b[22;2m❯ \n\u001b[1m\u001b]0;title\u0007 \n\u001b[m\u001b[2m╭\u001b[m🙂Try \"\"\n───────────────────────────────────────────────────\n > x\n  \n───── t ─ \n ❯ \u001b[2mTry \"x\" \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 130",
+   "screen": "\n❯ \u001b[?25l\u001c Try \"fix the bug\"\n───\n ❯ Try \"x\"\u001b[0m\n\n───\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n  \n───── ─ ─\n? for shortcuts\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 131",
+   "screen": " \u001b[K\u001b[m\u001b[?25lx\n? for shortcuts\n↑/↓ to select · enter\nhello\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 132",
+   "screen": "🙂\u001b[?25l\u001b[7m\n─ ❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m日本語\u001b[2;3m\u001b[K \n\nTry \"fix the bug\"\u001b[7m\u001b]x❯ \u001b[m\u001b[\n───\n\u001b[2m❯ \u001b[2mTry \"x\" \n  \n───── t ─ \n\u001b[2m❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 133",
+   "screen": "\u001b[02m❯ \n───── t ─ \n\nTry \"a\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 134",
+   "screen": "\u001b[7m\n───── t ─ \n \u001b[K❯  \n───── ─ ─\n❯ \u001b[0m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 135",
+   "screen": "\u001b[02m\u001b[7m\u001b[1;2m\u001b[02m\u001b[1;2m\n\u001b[\u001b[2m🙂\nTry \"ax\u001b]x\n───── \tt ─\n ❯\n───── \tt ─\n\u001b[2m> x \n  \n \n────────── a b ─────\n\u001b[2m❯ Try \"x\" \n \n  \n──────────────────────────────────────── node ─\n╭\u001b[38;5;246m\u001c╭❯ ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 136",
+   "screen": "❯ \u001b[\u001b[m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 137",
+   "screen": "\t\u001b[?25l\u001b[22;2m\u001b[K\n\u001b[2;3m\u001b[2;3m日本語 \u001b[m\u001b[22m\n\n────────── a b ─────\n\u001b[1m❯ Try \"x\"\n\n───── t ─ \n ❯ Try \"x\"\u001b[0m\n──────────────────────────────────────── node ─\n\u001b[1m> x\u001b[0m\n─────  x ─\n\n❯ hello\n↑/↓ to select · enter",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 138",
+   "screen": "\u001b[K❯\u001b[22mTry \"\"❯\n\u001c\n\t\u001b[m\t\n\u001b[\u001b[0m\u001b[1;2m\u001b[1;2m\t\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ Try \"x\" \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ Try \"x\" \n  \n───── t ─",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 139",
+   "screen": "\nTry \"fix the bug\" \u001b[K\u001b[0m\n\u001b[2;3m\u001b[22mx  \n──\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 140",
+   "screen": "───── ─ ─\n\u001b[2m❯ Try \"x\" \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select\n\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 141",
+   "screen": "　\u001b[2mTry \"fix the bug\" \n───────\n\u001b[0m\n\n──\n❯ draft\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 142",
+   "screen": "\u001b[02m❯ \u001b[\n\n\tTry \"\"\u001b[\n──\n ❯ \u001b[2mTry \"x\"\u001b[0m\n  ────────────────────  \n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n\n\n─────  x ─\n? for shortcuts\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 143",
+   "screen": "╭\u001c\u001b[hello\u001b[0m\n\n\nhello─ \t \nTry \"a\n\n─────────────────────────────────────────\n > x \n\n\u001b[Try \"a\u001b[7m\u001b[2m \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 144",
+   "screen": "\u001b[22;2m\n\u001b]0;title\u0007\n─────  x ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n\n\n───── t ─x\n↑/↓ to select · enter\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 145",
+   "screen": "─\n❯ \u001b[m\u001b[K\u001b[22;2m\n\n\u001b[1mxTry \"\"╭\n───── t ─ \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 146",
+   "screen": "\t\n🙂日本語 \n\n\u001b]0;title\u0007\u001b[2;3m\u001b[2m　\u001b[22m\n\u001c \n\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 147",
+   "screen": "  ────────────────────  \n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\n \n─────  x ─\n? for shortcuts\n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 148",
+   "screen": "\u001b[K\nx\u001b[?25l\n \n❯\u001b[38;5;246mTry \"aTry \"\"\u001c\n\u001b[22;2m日本語\u001b[?25l\n───── ─ ─\n\u001b[1m日本語 \n  ────────────────────  \n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 149",
+   "screen": "　\u001b[0m\n───\n❯ \u001b[2mTry \"x\"\n\u001b[02m\tTry \"fix the bug\" \n───── t ─ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 150",
+   "screen": "\u001b[K\n──\n> x\u001b[0m\n  ────────────────────  \n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n \n  \n─────  x ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 151",
+   "screen": "\n\u001b]0;title\u0007❯Try \"\"\u001b[1;2m\n\u001c \n\u001b]0;title\u0007🙂\n\u001b]x❯ \u001b]x\u001b[2mTry \"a\n\u001b[2m──────────────────────────────\u001b[0m\n❯ Try \"x\" \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m> x\u001b[0m\n\n────────── a b ─────\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 152",
+   "screen": "\u001b[2m\n \u001b[2;3m\u001b[22;2m\u001b[\n\t\n  ────────────────────  \n❯  \n  \n  \n───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n───\n↑/↓ to select · enter",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 153",
+   "screen": "↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 154",
+   "screen": "\u001b[Khello\n \u001b[\n\u001b[\nTry \"\" \n─hello\u001c\n──────────\n\u001b[1m\u001b[?25l\u001b[2;3m\t\u001b[2;3m \n \n  \n─────  x ─\n\u001b[2m❯  \n\n \n───\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 155",
+   "screen": "　\n\u001b[1;2m\u001b]0;title\u0007\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n > x \n日本語　\n───── t ─\n\u001b[1m> x\u001b[0m\n\n\u001b[38;5;246m\u001b[22;2m🙂\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 156",
+   "screen": " \u001b[m\u001b[m\n\u001b]x\u001c\u001b[0m\n\nhello\u001b[22m\u001b[m\tTry \"\"\n────────── a b ─────\n\u001b[2m❯\u001b[0m\n\n \n───\n> x \n \n───── \tt ─\n  ↑/↓ to select\n╭❯ ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 157",
+   "screen": "🙂Try \"fix the bug\"日本語\u001b[\u001b[7m\n\u001b[7m\u001b[m\u001b[38;5;246m\u001b]0;title\u0007Try \"fix the bug\"\u001b[\n\u001b[KhelloTry \"a\n\u001b[2;3m\u001b]0;title\u0007─\u001b[22;2m\n日本語Try \"fix the bug\"\nhello\n─────  x ─\n\u001b[1m❯ draft \n───── \tt ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 158",
+   "screen": "\u001b]0;title\u0007Try \"a\n ╭\u001b[?25l🙂\u001b[m \n───── t ─x\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 159",
+   "screen": "Try \"\"❯  \t　 \nTry \"fix the bug\"\n\n│❯\tTry \"\"\u001b[22m \n\n───────────────────────────────────────────\n❯ \n \n  \n───── t ─x\n ❯ \n\n? for shortcuts\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 160",
+   "screen": "Try \"\"\u001c\n\nTry \"a─\u001b]0;title\u0007\u001b[2;3m\n ❯ \u001b[7m─\n\n\u001b[2;3m\u001c\u001b[m\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ \n🙂\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n  \n  ────────────────────  \n\u001b[1m❯\n\n───── t ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 161",
+   "screen": "\n\u001b[1;2m\n\u001b[7mhello\u001b[mTry \"fix the bug\"\n❯ ╭─\u001cx\u001b[2;3m\n──│\u001b[22m\u001b[\n───── t ─\n\u001b[1m❯ draft \n  \n───── t ─\n ❯ draft \n──\n\n\u001b[22m─\u001b[1;2m\n\u001b[K\u001b[2;3m\u001b[7m❯ ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 162",
+   "screen": "\u001b]0;title\u0007\u001b[K \u001b[?25l\u001b[1;2mTry \"fix the bug\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n \n \n───────────\n\u001b[1m❯ draft \n\n──────────────────────────────────────\n > x\n \n\u001b[m\u001b]0;title\u0007　x\n──────────────────────────────────────── node ─\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 163",
+   "screen": "❯ \nTry \"fix the bug\"\u001b[?25l\u001b[38;5;246m❯ ╭\n　\u001b[2m\u001b[K\n❯ \u001b[m│\u001b[m　\u001b[\nx\u001b[22;2m\n\u001b[22m│\u001c\n─────────────────────────────────────────────────────────\n\u001b[1m🙂─\u001b[2m\u001c\u001b[38;5;246m\u001b[ \n \n \n? for shortcuts\n  ↑/↓ to select\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 164",
+   "screen": "\u001b[m\u001c─\u001b]x　　\n────────── a b ─────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 165",
+   "screen": "\u001b[38;5;246m\u001b]x🙂 ─ \n\n❯ \u001b[7m\u001b[m❯ \u001b[22;2m\u001b]0;title\u0007\n❯ \u001b[02mTry \"a\u001b[1mTry \"\"\n│Try \"\"╭╭\n─❯ \n──────────────────────────────────────── node ─\n ❯ draft \n───── ─ ─\n\u001b[22m❯─\nTry \"\"\u001b[7m\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 166",
+   "screen": "\u001b]0;title\u0007\u001b[m  ❯\n\u001b[1m\u001b[22m\u001b]x\u001b[1;2m\u001b[m\n\u001b]0;title\u0007Try \"\"\u001b[\u001b[1m \n───── \tt ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n───── \tt ─\n ❯ Try \"x\"\n\n────────── a b ─────\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n \n───",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 167",
+   "screen": "╭\n───\n\u001b[2m\u001b[7m \tTry \"a\u001b[22m🙂\u001b[0m\n❯ \n───── \tt ─\n? for shortcuts\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 168",
+   "screen": "hello❯ \n日本語Try \"\"\n\n╭　\u001c─Try \"\"\n─────  x ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n\n─────  x ─\n\u001b]0;title\u0007\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 169",
+   "screen": "\n\n\u001b[1m\t\n \n───\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n\n───── t ─x\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n───── ─ ─\n\u001b[2;3m\u001b[22m\u001b[22m\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 170",
+   "screen": "\u001b]x\n ❯xhello❯\u001b[0m\n \n\u001b[22m日本語\u001c\nTry \"\"─ \n\u001b[K\u001b]x─\n──────────────────────────────────────── node ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n───── ─ ─\n 日本語│\u001b[38;5;246m\u001b[2m╭ \n \n  ────────────────────  \n❯ \n\n──\n\n  ↑/↓ to select\n❯❯ \n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 171",
+   "screen": "────────── a b ─────\n ❯ draft\u001b[0m\n  \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m> x \n　❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ draft\n──\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 172",
+   "screen": "\n\t\u001b[mhelloTry \"a\u001b[m\u001b[1m\n　\u001b[2;3m❯\u001b]x\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 173",
+   "screen": "\n\u001b[22m\u001b[K\u001b[22m\n❯ │ Try \"\"\n───── t ─ \n \u001b[02m ❯ \u001b[22;2m\u001b[m\u001b[7m \n \n  \n───── t ─\n❯ draft\n──\n\u001b[2m\u001b[02m─\u001b[m\u001b[0m\n\n\n───── t ─",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 174",
+   "screen": "hello\u001b[1m　\u001b[x\n\n\u001chello\n────────────────────────────\n> x \n\n─────  x ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n───── t ─\n\u001b[2m❯  \n\n───\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 175",
+   "screen": "x\t\u001b[K \u001b[0m\n\u001b[0m\u001b[?25l\u001cTry \"a\n───── t ─x\n\u001b[2m\u001b]0;title\u0007\t日本語 \n \n  ────────────────────  \n❯ \n ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 176",
+   "screen": "Try \"\"\u001b[0mTry \"\"\n\u001b[0m─\u001b[22m\u001b[?25l\n──────────────────────────────────────────────────\n\u001b[1mhello│\n\n  \n────────── a b ─────\n> x\n───── t ─\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 177",
+   "screen": "\u001b[1m\t\u001b[?25l\u001b[2;3m│\n❯ \n\u001b]0;title\u0007\u001b[22;2m\n──\n ❯ draft \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯  \n───── t ─ ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 178",
+   "screen": "\u001b[02m日本語\n❯\u001b[02m \n───\n❯ Try \"x\"\u001b[0m\n \n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 179",
+   "screen": "\u001b[m\n\n\n\u001b[?25l\u001b[1;2mTry \"a╭\n\u001b[2;3m\u001b[2m❯ │\n\u001b[m╭\u001b[?25l日本語\n\u001b[2m──────────────────────────────\u001b[0m\n? for shortcuts\nTry \"\"❯\u001b]0;title\u0007\u001b[22m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 180",
+   "screen": "  ────────────────────  \n\u001c\u001b[?25l\u001b[1m\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 181",
+   "screen": "╭\u001b[1mTry \"fix the bug\"\n╭x\n\u001b]0;title\u0007\u001cTry \"fix the bug\"hello　\u001b[22;2m\n\n\n  ────────────────────  \n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 182",
+   "screen": "─　\n─\u001b[22;2m日本語\n│\n─\n\u001cTry \"a│╭Try \"\"\n\u001b[2m\u001c\t 日本語\n──────────────────────────────────────── node ─\n\u001b[1m❯ \u001b[2mTry \"x\" \n───── ─ ─\n ❯  \n───────────────────────────\n? for shortcuts\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 183",
+   "screen": "───── ─ ─\n\u001b[1;2m\t\nTry \"a\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 184",
+   "screen": "\u001b[02m\n\u001b[ \n \u001b[38;5;246m❯ 日本語 \n──\n\u001b]x❯ x\u001b[❯ \n\n───── t ─ \n ❯\u001b[0m\n ─ \u001b[?25l\n───── t ─\n\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 185",
+   "screen": "\u001b[22;2m日本語\n────────── a b ─────",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 186",
+   "screen": "Try \"fix the bug\"\u001b[7mhello\n\u001b[7m\u001b[22m\u001b[1;2m\n───── t ─ \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 187",
+   "screen": "\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m> x\n \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \n───── t ─ \n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 188",
+   "screen": "\u001b[2;3m日本語❯\n\u001b[38;5;246m\u001b[22m\u001b[1;2m\n\u001b[2m│\n 日本語\n\u001b[❯ \u001b[m❯ \u001b[02m\nTry \"\"Try \"a\u001b]x\u001b[38;5;246m　\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 189",
+   "screen": "\n\t🙂\n\u001b]x─\u001b[02m\n❯ ❯ \u001b[ \n Try \"\"\u001b[K\u001b[1;2m\u001b[K\u001b[1;2m\n───── t ─ \n> x\u001b[0m\n───── t ─x\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 190",
+   "screen": "\u001b[Kx❯ \u001b[m\u001b[0m\n─\n \u001b[38;5;246m\n\u001b[2mx\n\u001b[02mTry \"\"\u001b[38;5;246m│─日本語\n───── t ─x\n\u001b[1m❯ Try \"x\" \n  \n \n───── ─ ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 191",
+   "screen": "╭ \n\u001b[0m❯\u001b[38;5;246m\u001b[22;2m\u001b[\n\u001b[7m\u001b[02m\n──────────────────────────────────────── node ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n\n───── t ─ \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 192",
+   "screen": "\u001b[1mTry \"fix the bug\"\n\u001b[1m\u001b[?25l❯\n\u001b[?25l╭\u001b[1m❯  Try \"fix the bug\"\n Try \"\"❯ ❯ \n\u001b[7m❯ Try \"a\n\n───── ─ ─\n\u001b[1m❯ \u001b[0m\n  \n──\n\u001b[1m> x \n \n─────  x ─\n❯ \nxTry \"a│\u001b[22m\u001b[K\u001b[22;2m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 193",
+   "screen": "hello❯\u001b[1m│\n\u001b]x❯　\u001b[Kxx\nx❯ \u001b[?25lx\t\n\u001c\u001b[?25l\u001b[?25l\u001b[m\u001b[22;2m\n──────────────────────────────────────── node ─\n\u001b[2m> x \n───── t ─x\n ❯ \n  \n  ────────────────────  \n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 194",
+   "screen": "🙂\u001b[?25l\n─────  x ─\n❯\n\n\u001b[2m\u001b[m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 195",
+   "screen": "\u001b[1;2m\u001b]0;title\u0007\u001b[7m　\n───────────────────────────────────────────────────────────\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n───── t ─\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 196",
+   "screen": "│\u001b]0;title\u0007─╭\u001c\n\u001b[7m\n\u001b]0;title\u0007╭\t─\t\n\u001b[02m \n\u001b[0m\n \n─────  x ─\n ❯ Try \"x\"\n  ────────────────────  \n? for shortcuts\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 197",
+   "screen": "─\u001b[7m\u001b[38;5;246m\u001b[1;2m 🙂\n\u001b[0m\u001b[22m❯ \n──────────────────────────────────────── node ─\n ❯\n────────────────────────\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n  \n  ↑/↓ to select\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 198",
+   "screen": "│hello\u001b[02m\u001b[0m\u001b[0m\n\u001b[2m\t\u001b[0m╭\u001b]x\n\u001c\u001c\u001b[?25l❯ \u001b[7mx\n───── t ─x\n\u001b[2m> x\n \n────────────────────────────────────────────────\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n──\n\u001b[1m❯ \n───\n↑/↓ to select · enter\n\n\n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 199",
+   "screen": "\u001b[0m\n╭❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n  \n  ────────────────────  \n❯ Try \"x\" \n\t日本語\u001b[mx│\n \n──────────────────────────────────────── node ─\n\u001b[2m> x \n\n \n───── t ─ \n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 200",
+   "screen": "Try \"fix the bug\"\n \u001b[1m日本語\n\u001b[\u001b[2;3m\n❯ \u001b[2m─\u001b[22;2m\u001b]x\n\n───── t ─ \n❯ Try \"x\" \n\n\n───── t ─x\n\u001b[2m❯ draft\n───── \tt ─\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 201",
+   "screen": "  ────────────────────  \n ❯ \n───── t ─x\n\n↑/↓ to select · enter\n \u001b[\u001b[2m ❯",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 202",
+   "screen": "\u001b[m ❯❯\n\u001b[1;2mx\u001b[1m\u001b]0;title\u0007\u001b[1mx\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 203",
+   "screen": "\n\u001b[7m\u001b[7m\u001b]xx\u001b[2m\u001b[\n　Try \"\"\u001b[0m\nTry \"fix the bug\"\n────────── a b ─────\n❯ \u001b[2mT\u001b[0mry \"x\" \n──\n ❯ Try \"x\" \n───── \tt ─\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 204",
+   "screen": "\u001b[7m\n\t❯ \u001b[?25l  \u001b[1;2m\n───\n \n \n────────── a b ─────\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 205",
+   "screen": "Try \"a\u001b[38;5;246m\n ╭\n\u001b[22;2m\u001b[2;3m \u001b[0m\u001b[?25l\u001b[?25l\n\u001b[2m\n❯\u001b[1m\u001b[0m\u001b[1;2m\n  ────────────────────  \n> x\n──\n ❯ \n\u001b[2m\u001b[1m│❯ \n\u001c\u001b[m日本語x\u001b[1m\n───── ─ ─\n\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 206",
+   "screen": "│　hello\n\t \u001b[1;2m　❯ \u001b[m\n\u001b[hello\u001b]x🙂\n  ────────────────────  \n \u001b[2;3m\u001b[1;2m\u001b]x \n────────── a b ─────\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\n  ↑/↓ to select\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 207",
+   "screen": "───\n ❯ Try \"x\"\u001b[0m\n \n\n───── t ─\n ❯ Try \"x\" \n日本語Try \"\"❯ \n❯ ╭x\n───── t ─\n\u001b[2m❯ \u001b[2mTry \"x\" \n\n \n───── t ─\n\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 208",
+   "screen": "Try \"ax─🙂│\n─────  x ─\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 209",
+   "screen": "\u001b[22;2m Try \"fix the bug\"日本語❯ \u001b[2;3m\n\n───── ─ ─\n> x \n\n\n───\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n \n──────────────────────────────────────── node ─\n\u001b[02mTry \"a \n\u001b[1m\u001b]0;title\u0007\n\n  ↑/↓ to select\n \u001b[7m \u001b[0m─\u001b[02m",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 210",
+   "screen": "\tTry \"fix the bug\"\u001b[1;2m\nxhello\n──────────────────────────────────────── node ─\n\u001b]x\u001c日本語 Try \"\"\t\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 211",
+   "screen": "❯ Try \"fix the bug\"　 日本語\n\u001b[1;2m\u001b[38;5;246m\n\u001b[22m\n\tTry \"\"Try \"a\u001b[─\n\n\u001b[?25l\u001b[0m❯ \u001b[?25l\u001b[1;2m\u001b[1;2m\n─────  x ─\n ❯\n───── t ─x\n\u001b[1mTry \"\"\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n  \n─────  x ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 212",
+   "screen": "────────── a b ─────\n ❯ \u001b[0m\nTry \"\"\u001b[38;5;246m\t\u001b[2m\n───── t ─x\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n───── t ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 213",
+   "screen": "日本語Try \"a \t\u001b[2;3m\n\u001b[2m\nx\n───",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 214",
+   "screen": "日本語❯Try \"fix the bug\"\n\t🙂\n\n\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 215",
+   "screen": "🙂\u001b[1;2m\n❯ \u001c\u001b[1;2m\u001b[38;5;246m \u001b]0;title\u0007\n\n  ────────────────────  \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 216",
+   "screen": "Try \"fix the bug\"🙂\u001b[1;2m\t　\nTry \"aTry \"fix the bug\"\n───── t ─x\n\u001b[1m❯  \n\n\u001b[2mTry \"\"🙂🙂\u001b]x\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \u001b[2mTry \"x\"\u001b[0m \n  \n\n\u001b[2m──────────────────────────────\u001b[0m\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 217",
+   "screen": " Try \"a─\u001b[7m\n\u001b[K\u001b[│\u001b[2m\nTry \"fix the bug\" \u001b[1m x\n\u001b[m\n\u001b[2mTry \"a\u001b]x\u001b[2m\u001b[K\u001b[38;5;246m\n───\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 218",
+   "screen": "\u001b[22;2m❯ \u001b[?25l❯ \n\u001b[?25l\u001b[38;5;246m\n\u001b[0m\nTry \"fix the bug\"\n\u001b[0m\u001b[1;2mTry \"fix the bug\"\n───── \tt ─\n─Try \"fix the bug\"╭\u001b[K\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 219",
+   "screen": "\u001b[\u001b]x\n───\n ❯ \u001b[2mTry \"x\"\u001b[0m \n───\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n \n──\n❯\n────────── a b ─────",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 220",
+   "screen": "\u001b]x─\n　│Try \"a\t─\n\u001b[Try \"\"\u001b[02m\nx　\u001b[\n\u001b[K\u001b[1m╭  \n───── \tt ─\n\u001b[1m❯\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select\n? for shortcuts\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 221",
+   "screen": "│ \n───\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n\n \n───── t ─x\n ❯ draft \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \n───── ─ ─\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 222",
+   "screen": "\u001b[38;5;246mTry \"fix the bug\"  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n────────── a b ─────\n↑/↓ to select · enter\n? for shortcuts\n─Try \"a\u001b[7m\u001b[02m\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 223",
+   "screen": "\n────────── a b ─────\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 224",
+   "screen": "───\n ❯ Try \"x\" \n \n \n───── \tt ─\n ❯  \n\u001b[m\u001b[0m\u001b[0m\u001b[?25l\n───────────────────────────────\n\u001b[1m❯ Try \"x\"\u001b[0m\n \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 225",
+   "screen": "\u001b[7m\u001b[2m\u001b[2;3m\t\u001b[38;5;246m\nTry \"fix the bug\"　🙂\u001b[22m\n\u001b]0;title\u0007\u001b[?25l\u001b[m\n\n\n───── t ─\n\u001b]0;title\u0007\u001b]0;title\u0007\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 226",
+   "screen": "\u001b[38;5;246m\u001b[2m\u001b[1;2m❯ Try \"fix the bug\"\n───── t ─x\n\u001b[1m❯  \n──────────────────────────────────────── node ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 227",
+   "screen": "\tx\u001b[hello \nx\n───── t ─x\n ❯ \n \n───────────────────\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n  \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯  \n  \n \n\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 228",
+   "screen": "❯\u001b[1m\u001b[2m\u001b[Try \"\"\n\u001b[K\u001b]0;title\u0007\u001b[7m❯ \u001b]x\n────────── a b ─────\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n \n  ────────────────────  \n \u001b[38;5;246m\u001b[2m \n───── t ─x\n\n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 229",
+   "screen": "───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n\n\n─────────────────────────────────────────────────────\n❯\u001b[0m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 230",
+   "screen": "\n\u001b[?25l❯ xTry \"a\n 日本語\u001b[m\n\thello\n❯\n\u001b[38;5;246m\u001b[Try \"\" \n──────────────────────────────────────── node ─\n↑/↓ to select · enter\n↑/↓ to select · enter\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 231",
+   "screen": "Try \"\"─日本語\n\nTry \"fix the bug\"\n\u001b[K❯ \n\u001b[?25lTry \"\"\u001b]0;title\u0007❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n🙂　hello\u001b[m\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 232",
+   "screen": "\nhellohello\u001b[7mhello\u001b[1;2m \n\t❯ Try \"\"　\u001b[38;5;246m\n❯ \nTry \"a🙂\n\u001b[1;2m\u001b[K\u001b[7m─　\t\n───── t ─ \n ❯ draft \n  \n  \n───── t ─ \n ❯ \u001b[0m\n \nTry \"a\u001b[2;3m\n───── t ─\n\u001b[1m❯  \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 233",
+   "screen": "❯ \t日本語 \n\u001b]0;title\u0007\n❯ \n❯ \n\n───── t ─ \n > x \n \n \n───── \tt ─\n❯ draft \n \n  \n────────── a b ─────\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\t\u001b[7m\u001b[02m\n \n───── ─ ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 234",
+   "screen": "───── t ─ \n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n──────────────────────────────────────── node ─\n❯ Try \"x\" \n \n  \n\n\n\u001b[2;3m\u001b[02m",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 235",
+   "screen": "\u001b[02m\u001b[KTry \"aTry \"fix the bug\"\u001b[?25l\u001b[22;2m\n│Try \"fix the bug\"│hello \n───\n> x\n \n \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ Try \"x\"\u001b[0m\n \n \n───── t ─\n❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 236",
+   "screen": " Try \"aTry \"\"─ \u001b]0;title\u0007\n\u001b[2;3m\u001b[02m\u001b[22;2mTry \"a \u001b]0;title\u0007\n──────────────────────────────────────── node ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\n──────────────────────────────────────── node ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n❯ \u001b[K\u001c\u001c\u001b[\n───── t ─x\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 237",
+   "screen": "x\u001b[02m\u001b[?25l\n\n\u001b[?25l─\n\t\n\n\u001c \n────────── a b ─────\n ❯ \u001b[0m\n\n\n  ↑/↓ to select\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 238",
+   "screen": "🙂❯\n\n\u001b[?25l\u001b[m日本語\n\u001b[K\n\t\t\u001b[\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n \u001b[1;2m\u001b]xx❯  \n\u001b[7mhello\u001chello\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 239",
+   "screen": " Try \"a \nTry \"fix the bug\" \u001b[2mx\u001b[22;2m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n \u001b[2mx\n\u001b]0;title\u0007 \u001b[m\u001b[m│Try \"\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n? for shortcuts\n🙂\u001b]x",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 240",
+   "screen": "\u001b[1;2m\u001b[2;3m　\n\u001b[2;3mTry \"fix the bug\"❯ Try \"fix the bug\"❯ \n \u001b[22;2mTry \"fix the bug\"─\u001b[\n\n───\n❯ \u001b[2mTry \"x\" \n───── t ─\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n──\n ❯  \n───── t ─ \n╭\u001b[7m\u001b[?25l日本語　\u001b[1m\nx\u001b[02m❯\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 241",
+   "screen": "\u001b[1;2m🙂\u001b[02m\u001b[7m╭\n─────  x ─\n❯ \u001b[2mTry \"x\" \n\n──\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 242",
+   "screen": " Try \"a\u001c\n\u001b[K🙂\u001b[1m\u001b[0m\u001b[m\n\u001b[\n\u001b[1m\u001b[1;2m\u001b[22m❯\u001b[38;5;246m❯ \n─────────────────────────────────────────\n\u001b[1m❯ Try \"x\"\u001b[0m\n───── t ─\n\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 243",
+   "screen": "日本語🙂\u001b[m\n\n \n\n\u001b[K\t\n───── ─ ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 244",
+   "screen": "\n ╭│hello\n\u001b]0;title\u0007\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n  \n───── t ─x\n  ↑/↓ to select\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 245",
+   "screen": "　\u001b[38;5;246m\u001b[7m\nTry \"fix the bug\"\u001b[1;2m　x\n\u001b[K\u001b]0;title\u0007❯  \n─────────────────────────────────────────────────────────\n\u001b[1m\u001b[22;2m\u001b[2;3m\u001b[0m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 246",
+   "screen": "\u001b[7m\n\n───── t ─x\n\u001c\n\u001b[7m\u001b[0m\u001b]x❯ \u001b[1;2m\u001b[2;3m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 247",
+   "screen": "Try \"fix the bug\"\n\u001b[38;5;246m❯ \u001b[22;2m　\n\u001b[7mx\n❯\n────────────────────────────────\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n\n\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n──────────────────────────────────────── node ─\n\u001b[2m❯\u001b[0m\n❯\u001b[02m\u001b[m\u001c\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 248",
+   "screen": "\n\n❯\nTry \"aTry \"fix the bug\"\u001b[7m　\u001b[0m\n─────  x ─\n ❯ \u001b[0m\n───\n日本語Try \"a\n↑/↓ to select · enter\n\u001b[22;2m Try \"\"╭╭\u001b[1m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 249",
+   "screen": "\u001b[38;5;246m\u001b[7m\t\n❯ \n\u001b[2;3m❯ \n\u001b]x\u001b[1m\n\u001b[2m❯ ❯ ─❯\n──\n ❯\u001b[0m\n↑/↓ to select · enter\n\u001b[1;2m ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 250",
+   "screen": "x❯ \u001b[38;5;246m\n日本語\u001b[mTry \"fix the bug\"\n\u001c\n\nTry \"\"\u001b[1m \u001c🙂\n \t\n───── ─ ─\n❯ \u001b[2mTry \"x\"\u001b[0m \n│\u001b[?25l❯\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n───── ─ ─\n\u001b[1m❯  \n───── \tt ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 251",
+   "screen": "\n───\n  ↑/↓ to select\n  ↑/↓ to select\n\u001b[2;3m\u001b[2;3mTry \"fix the bug\"🙂\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 252",
+   "screen": "\u001b[1m日本語\n❯ 日本語\n\u001b[?25l\nhello\t\n\u001b[?25l 🙂\n──────────────────────────────────────── node ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n───── t ─\n❯ \u001b[2mTry \"x\"\u001b[0m \n───── t ─x\n  ↑/↓ to select\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 253",
+   "screen": "╭\t\n\n╭ \n\u001b[22;2m\n\u001b[0mhello\u001b[K─ \u001b[1m\n─────  x ─\n❯\u001b[0m\n \n \n─────  x ─\n> x\u001b[0m\n\n───── \tt ─\n hello╭\u001b[2;3m \n\n───── ─ ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 254",
+   "screen": "　\n❯\nTry \"a\u001b[K\n───── t ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n \u001b[1;2m　\u001b[02mTry \"fix the bug\"\u001b[22m\u001b[m\u001b[0m\n───── \tt ─\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 255",
+   "screen": "\u001b[1;2m\n　Try \"fix the bug\"Try \"a╭ \u001b[7m\n\u001b[K\u001c\u001b[K　\n\u001b[22;2m\u001b[22;2m\u001c\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 256",
+   "screen": "───── \tt ─\n ❯  \n  ────────────────────  \n❯❯ ❯\u001b[38;5;246mTry \"fix the bug\"\u001b[?25l\n  ↑/↓ to select\n\t\u001b[?25l❯Try \"\"",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 257",
+   "screen": "╭\n\u001b]x\n─Try \"a\u001b[0mhello\u001b[m\n\u001b[m─xTry \"\"\n\n──────────────────────────────────────── node ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 258",
+   "screen": "\n───── t ─\n\u001b[1m❯ Try \"x\" \n  \n───── t ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[1m日本語│\u001b[x\n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft \n──────────────────────────────────────── node ─\n\n\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 259",
+   "screen": "\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[2mTry \"x\" \n \n \n───── ─ ─\n? for shortcuts\n\t🙂│\nTry \"a\u001b[7m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 260",
+   "screen": "\u001b[02m❯   \n日本語\u001b[0mTry \"fix the bug\"Try \"fix the bug\"─\t\n\u001b[0m\u001b[1m\n\n───── \tt ─\n\u001b[2m❯ \n 🙂\u001b[7mTry \"fix the bug\"\n───\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 261",
+   "screen": "\u001b[0mx\n日本語　╭x❯ \n Try \"fix the bug\"\u001b[2m \nTry \"a\u001b]0;title\u0007\u001b[22;2m\u001b[❯ \n🙂╭\n───── t ─\n \t│\u001b[K\u001b[K \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \n───\n\u001b[1m❯ Try \"x\"\u001b[0m\n  \n\u001b[2m──────────────────────────────\u001b[0m\n❯\u001b[Try \"\"\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 262",
+   "screen": "\u001b[?25l\n❯Try \"a\u001b[2m\u001b]x\u001b[?25l❯\n──────────────────────────────────────── node ─\n\u001b[1m \u001b[K❯ \u001b[22;2m\n\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n↑/↓ to select · enter\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 263",
+   "screen": "Try \"a　　\nTry \"aTry \"\" Try \"\"\n\u001b]0;title\u0007\u001b[Kx\u001b[?25l\n❯\u001b[1m\u001b[0m\n\n\u001b[0m\u001b[22;2m\u001b[",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 264",
+   "screen": "\n\n\n \n\u001b[2;3m\n\n───\n > x\n\n\u001b[\u001b[2m\n───── t ─x\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n\u001b[│Try \"fix the bug\"❯\u001b[K\n  ────────────────────  \n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 265",
+   "screen": "\u001b[2mTry \"\"\u001b]0;title\u0007hello\n\n \n\u001cTry \"\" ─ \n\u001b[38;5;246m\u001b[1;2m\n──────────────────────────────────────── node ─\n❯  \n \u001b[0m\u001b[2m\n──\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n\u001b[?25l\u001b[22m\u001b[2m \u001b[?25l　\n❯Try \"fix the bug\"\u001b]x\u001b[1;2m\u001b[2;3m\u001b[\n───\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 266",
+   "screen": "\u001b[2;3m\u001b[?25l\u001b[02m \n\u001b[38;5;246m\u001b]0;title\u0007\u001b[38;5;246m\u001b[22m\nTry \"\"\u001b[m\u001b[7m\u001b[22m🙂\n\u001c  \n\n \u001b[K\t\n───────────────────────────\n\u001b[1m❯ Try \"x\"\u001b[0m\n───── t ─ \n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 267",
+   "screen": " \u001b[7m \u001b]x\n\u001b[0m❯\u001b[22m\u001b[22m \n\u001b[K\u001b[ \u001b[1m\u001b[K\n\n\n\u001b[2m──────────────────────────────\u001b[0m\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n \n \n───── t ─ \n > x\u001b[0m\n \n \n───\n \n  \n────────── a b ─────\n❯ ❯ \u001b[0m│\u001b]x\u001b[22;2m\nTry \"\"╭❯\t╭\n\u001b[7m\u001b[38;5;246mx\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 268",
+   "screen": "\u001b[1m\u001b]0;title\u0007\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n  \n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 269",
+   "screen": "\n\n\u001b[2m──────────────────────────────\u001b[0m\n ❯  \n───── ─ ─\n\u001b[1m❯  \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ draft \n \nTry \"fix the bug\" ❯ \u001b[K\n　\u001b[2;3m\tTry \"a🙂\n? for shortcuts\n 🙂\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 270",
+   "screen": "\n\u001b[m\n\u001b[?25l❯╭\n│　\u001b[2;3m\u001b[7m\n\u001b[7m🙂hello\n\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\"\u001b[0m\n \n  ↑/↓ to select\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 271",
+   "screen": "? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 272",
+   "screen": "\u001b[2;3m\n　 ╭Try \"a\n───── \tt ─\n❯ \n \n\u001b[2m──────────────────────────────\u001b[0m\n ❯\u001b[0m\n──────────────────────────────────────── node ─\n\u001b[1m❯ \n───── t ─\n↑/↓ to select · enter\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 273",
+   "screen": "x\n❯ ╭\u001b[2m　\n─────  x ─\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 274",
+   "screen": "\u001b[1m\u001b[K\t\n🙂\u001b[m\u001b[0m\u001b[2;3m\n──\u001b[02m\u001b[K\u001b[\n\u001b[2;3mTry \"fix the bug\"\u001b[0m\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 275",
+   "screen": "Try \"\"\u001b[K\u001b[02mTry \"a\t\n─\u001b[22;2m\u001b[1m \u001b[2;3m\u001b[38;5;246m\n───── t ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n\u001b[7m\u001b[22;2m\u001b[02m 　\n───── ─ ─\n? for shortcuts\n日本語\nTry \"\"\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 276",
+   "screen": "\u001b[  \u001b[1;2m\n───── \tt ─\n\u001b]x❯ ❯╭\u001b[2m\u001b]0;title\u0007\n日本語\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 277",
+   "screen": "\u001b[0m\u001b[2;3m日本語\u001b]0;title\u0007\u001b[?25l\n\u001b[2m\u001b]x\u001b[1m\n\n\n ╭Try \"fix the bug\"│\u001b[02m─\n\n───── ─ ─\n❯ \u001b[0m\n\n\n───── t ─ \n\n\u001b[helloTry \"fix the bug\"\u001b[02mx\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 278",
+   "screen": "\n───\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n  \n\u001b[1m\u001b[1;2m ─\n───── t ─ \n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 279",
+   "screen": "\u001b[2m\n─\u001b[1m❯ hello\u001b[02m\t\n\u001b[0m❯─\u001b[22m\n\u001b[m\u001b[?25lhello\n───\n? for shortcuts\n? for shortcuts\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 280",
+   "screen": "\n╭\nTry \"\"日本語x Try \"\"\n? for shortcuts\n? for shortcuts\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 281",
+   "screen": "\u001b[38;5;246m╭\u001b[7m\u001b]0;title\u0007日本語\n\u001b[2;3m\n\u001b[2m\u001b]0;title\u0007╭\u001b[22m\n\u001c\u001b[2m\u001b[?25l\nTry \"a日本語╭\t\n────────── a b ─────\n ❯ \u001b[2mT\u001b[0mry \"x\" \n  \n  \n───\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n───\n↑/↓ to select · enter\n\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 282",
+   "screen": "Try \"fix the bug\"Try \"a\n───\n\u001b[1m❯  \n───── \tt ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m \n──────────────────────────────────────── node ─\n> x \n\n\u001b]x\n───── t ─x\n  ↑/↓ to select\n↑/↓ to select · enter\n　\u001b]x ─\u001b[22mTry \"\"\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 283",
+   "screen": "🙂 \n\u001b]0;title\u0007\u001c\u001b[K　\u001b[2m\u001b]x\n\u001b[1;2m\n🙂\n \n─────  x ─\n❯ Try \"x\"\n \u001b[38;5;246m\n\n───── t ─\n❯\n  \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 284",
+   "screen": "❯\u001b[7mTry \"fix the bug\"\u001b[\u001b[38;5;246m\nx \u001b[?25l\u001b[7m日本語\u001b]0;title\u0007\n\u001b[02m\u001b[22;2m❯\n\n│\n───── ─ ─\n❯ \u001b[0m\n│\n \n──────────────────────────────────────── node ─\n\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 285",
+   "screen": " 日本語\n  ────────────────────  ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 286",
+   "screen": "xTry \"a\u001b[m❯\u001b[1;2m\u001b[2;3m\n\u001b[38;5;246m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ Try \"x\" \n \u001b[22m❯ ─\u001b[K\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 287",
+   "screen": "\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n───── t ─x\n\u001b[1m❯ Try \"x\" \n  \n──\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n\u001b[22;2m\n───── \tt ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 288",
+   "screen": "日本語\u001c\n🙂  \u001c\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ Try \"x\"\n───── \tt ─\n\u001b[1m❯ draft \n \n───── ─ ─\n\u001b[1m❯ \n\n───── \tt ─\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 289",
+   "screen": "　\n\n\u001b[1mhello\u001b]x\u001b]0;title\u0007\n日本語\u001b[KTry \"fix the bug\"\n\u001b]x\u001b[02m\u001b[2m\n\u001b[1;2m\u001c\u001b[1m\n───── t ─ \n\u001b[7m\u001b[2;3m　\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 290",
+   "screen": "\n─ \n🙂\n\u001b[1m\u001b]0;title\u0007\u001b]0;title\u0007\u001b[?25l│\n──────────────────────────────────────── node ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ draft \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n  ↑/↓ to select\n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 291",
+   "screen": "\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ \u001b[2mTry \"x\" \n\n───── t ─\n  ↑/↓ to select\n\u001b[?25l\u001b[2;3m \n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 292",
+   "screen": "───── ─ ─\n❯ draft \n\u001b[2m──────────────────────────────\u001b[0m\n> x \n  \n  ────────────────────  \n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n──\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 293",
+   "screen": "❯ \u001b[?25l\u001b[m　\u001b[02m\n\n\u001b[22m\n❯ 　Try \"\"x\u001b[22m\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ Try \"x\" \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft \n\n───── t ─x\n❯ \n\u001c\u001b[22;2m\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 294",
+   "screen": "\t\u001b]x\n\u001b[?25l\u001b[7m\n hello\n─\u001b[2m\u001b[\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 295",
+   "screen": "　\u001b[22;2m\n \u001b[2;3m\u001b]x─\u001b[1m\u001b[1;2m\nTry \"a\u001b[1;2mTry \"\"Try \"fix the bug\"\n\u001b[2m\u001b[2mTry \"\"\n───── t ─\n \u001b[02m\u001b]x\u001b[22;2m\u001b[K\u001b[2m\u001b[22;2m\u001b[0m\n\u001b]0;title\u0007Try \"fix the bug\"\u001b[7m│\u001b[\u001b[\n───── t ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m \n \n────────── a b ─────\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 296",
+   "screen": "\u001b[22;2m\u001b[22;2m\u001b[22;2mx \n\u001b[0mTry \"a│❯ \n\u001b[22;2m \u001b[7m\u001b[1m\n\t\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 297",
+   "screen": "x日本語\u001c\u001b]0;title\u0007\n\u001b[1m🙂\tx\u001b[7m\n\u001b[2;3m\n\n  ────────────────────  \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 298",
+   "screen": "\u001b[1m\n❯  \n\u001b[22;2m╭\t\u001b[1;2m❯ \n\u001b[22;2m\u001b[22m\u001b[Try \"\"\u001b[ \n\t❯\u001b[2;3m\n\u001b[02m \u001b]0;title\u0007\u001b[02m│ \n──────────────────────────────────────── node ─\n\u001b[22m\n\u001b]0;title\u0007\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n  \n \n───── ─ ─\n\u001b]0;title\u0007\u001b[0m\n  \n \n───── t ─\n↑/↓ to select · enter\n  ↑/↓ to select\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 299",
+   "screen": "│\u001b[7m╭\u001b]0;title\u0007\u001b[1;2m─\n日本語╭\t🙂\t\n❯ \u001b[?25l\n\u001b[m\n────────── a b ─────\n > x\n\n \n───── t ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 300",
+   "screen": "╭\u001b[1m\u001b[1m\u001b[22m\n🙂\u001b[1m\u001b[0m\u001c🙂 \n\u001b[38;5;246m\u001b]x\u001b[38;5;246m❯ \n───── t ─\n❯ Try \"x\"\n───── t ─ \n  ↑/↓ to select\n? for shortcuts\nTry \"fix the bug\"",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 301",
+   "screen": "\u001b[m　\nTry \"\" x\u001c\u001b[22m\n\u001b[22;2m\u001b[38;5;246m─🙂\u001b[?25l│\n│\u001b[2;3m\u001b[m\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\n│\t\n────────── a b ─────\n❯ \u001b[2mTry \"x\"\u001b[0m \n───── ─ ─\n\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 302",
+   "screen": "日本語\n日本語\u001b[7m╭\t\n\u001b[22;2m\u001b[38;5;246m\u001b[0m\u001b[22m\t\n\u001b[m\u001b]0;title\u0007hello\u001b[m\u001b[?25l\u001b[K\n\u001b[7m \u001b[m　\u001b[02m\u001b[22;2m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n  \n───── t ─x\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n───\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n\nTry \"a❯ \u001b[7m\n? for shortcuts",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 303",
+   "screen": "\u001b[\u001b[22m\u001b]x╭\n\u001b[2;3m Try \"a❯ \u001b[7m\u001b]0;title\u0007\n───── \tt ─\n > x \n \n───\n❯ draft \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[7m\u001b[─\u001b[2;3m\u001b[0m\n\n \n───── t ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 304",
+   "screen": "x❯ 　\u001b[38;5;246m\u001c\nhello\u001b[?25l❯ \n\u001b[?25l\n╭　 \n───── ─ ─\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n───── t ─\n \u001b[7m\u001b[\u001cx\u001b[0m\n\n  \n───── t ─\n❯ \u001b[2mT\u001b[0mry \"x\" \n───── ─ ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 305",
+   "screen": "\n\u001b[1;2m  \u001b[2m\u001b[1;2m❯\n \u001b[02mx\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[7m\u001b[22;2mx\u001b[2m❯ \n\t\u001b[22m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 306",
+   "screen": "\n\n\u001b[22;2m\u001b[02mTry \"fix the bug\"\n───── ─ ─\n❯ draft \n───── t ─x\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[2m──────────────────────────────\u001b[0m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 307",
+   "screen": "\u001b[2m\u001b[2;3m\u001b]0;title\u0007\u001b[22;2m日本語\u001b[22;2m\n🙂\nhello🙂\u001b]0;title\u0007Try \"\"\n日本語 ─\u001b[2m\u001b[m\u001b[02m\n───── t ─\n ❯  \n───── t ─\n  \u001b[\u001b[1;2m \n───── \tt ─\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 308",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m> x \n  \n───\n❯ \u001b[2mT\u001b[0mry \"x\" \n──\n❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 309",
+   "screen": "\u001b[7m\t\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\" \n───── ─ ─\n\u001b[1m❯ Try \"x\"\u001b[0m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m> x\n────────── a b ─────\n 　\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 310",
+   "screen": "│xhello\u001b[0m x\n\u001b[K╭hello╭╭\n\n─────  x ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n \n　x\u001b[38;5;246m❯\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n\u001b[2m──────────────────────────────\u001b[0m\n\n? for shortcuts",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 311",
+   "screen": "\u001b[02mx\u001b[1m\n\u001b[K❯ \u001b[0m\u001b[38;5;246mTry \"a\u001b[02m\n\nhello\u001b[2m hello\u001b[38;5;246m\n\u001b[7mTry \"\"╭\u001b[m╭\n  ────────────────────  \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 312",
+   "screen": "\u001b[?25l\u001b[38;5;246m \u001b[1;2m\u001b[22m\n\n\u001c　日本語─\u001b[2;3m\n╭\n\n\n───── t ─\n\u001b[2m❯ Try \"x\"\u001b[0m\n\u001b[22m\u001b[K❯ Try \"fix the bug\"\n───\n\u001b[2m❯ Try \"x\"\n\u001b]x\u001b[1;2m╭\n  \n───── t ─ ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 313",
+   "screen": "───\n\u001b[1m> x \n  \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 314",
+   "screen": "\u001b[K\u001b[K\n\u001b[1m\u001b[38;5;246m\n❯\u001b[7m\u001c\n\u001b[22m日本語\u001b[2m\u001b]x\u001b]x\n\u001b[7m\u001b[02m\u001b[K🙂─\n❯ \u001b[?25l\u001b[K\u001b[\u001b[0m\u001b[7m\n───── \tt ─\n❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n  \n───── \tt ─\n\u001b[1m❯ draft\n───\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 315",
+   "screen": "\u001b[38;5;246m\n\n\u001b[0m\u001b[0m\u001b[1m\n \n──────────\n   \n\u001b]x\u001b]xx\n───\n  ↑/↓ to select\n\u001b[1m\u001b[7m\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 316",
+   "screen": "Try \"aTry \"fix the bug\"│\t\n\u001b[7mTry \"fix the bug\"\u001b[0m\u001b[K\n\u001b]x\u001b[0m\u001c\u001b[38;5;246m❯\n ─　\n\n \n──\n❯\u001b[0m\n───── ─ ─\n\u001b[1m❯ draft \n \n───── t ─x\n ❯ draft \n\n \n───── t ─ \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 317",
+   "screen": "\u001b[1;2m\u001b[22;2m\u001b[1;2m\tTry \"a\n\u001b[?25l🙂Try \"fix the bug\"\u001b[m\u001b[K🙂\n　\u001b[22m─❯ 🙂\n\u001b[02mx\n──\n❯ \u001b[2mTry \"x\"\u001b[0m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 318",
+   "screen": "Try \"fix the bug\"日本語\n\n\u001b[7m\u001b[1;2m\n \u001b]0;title\u0007\n❯ 🙂x─🙂\u001b[\n──────────────────────────────────────── node ─\n ❯ \u001b[2mTry \"x\" \n  \n───── \tt ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 319",
+   "screen": "\n🙂╭\n──────────────────────────────────────── node ─\n\u001b[2mhello\u001b[0m\n\n────────── a b ─────\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 320",
+   "screen": "❯ \u001b[7m╭\u001b[\n\u001b[02m\u001b[x\u001b[2;3m\nTry \"a \nx\u001b[2;3m　\u001b[02m　\u001b[1;2m\n\n ─Try \"fix the bug\"\n  ────────────────────  \n\u001b[1m❯ \n───── ─ ─\n\u001b[1m❯ \n\n\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 321",
+   "screen": "─\n\n\n\u001b[2mTry \"\"\u001b[2;3m\n\n───── t ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n───\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 322",
+   "screen": "\u001b[02m  \n\u001b[0m\n────────── a b ─────\n↑/↓ to select · enter\n  ↑/↓ to select\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 323",
+   "screen": "❯ \n─xTry \"a╭\n\n\tTry \"fix the bug\"Try \"\"\n \n\u001b[1;2m🙂❯ ❯ \u001b[1m　\n───── t ─x\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n─────────────────────────────────────\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 324",
+   "screen": "\u001b[2;3m\n❯ \u001b[0m🙂x\n  \n───── t ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n──\n╭\u001b[  \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \n  ────────────────────  \n↑/↓ to select · enter\n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 325",
+   "screen": "🙂\u001b[1;2m\u001b[22m日本語\u001b]0;title\u0007\n 　\u001b[mhello \n\u001b[22;2m\u001b[\u001b[0m\nTry \"a\u001b[K\u001b[2m\n\u001b[22;2m\u001b[22;2m\u001c\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ draft \n  \n\u001b]0;title\u0007\n───── t ─\n\u001b[2m❯ draft \n  \n  ────────────────────  \n ❯ \u001b[2mTry \"x\"\u001b[0m \n \n🙂\u001b[38;5;246mhello\n─────  x ─\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 326",
+   "screen": "╭ Try \"fix the bug\"❯ \n\n───── t ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 327",
+   "screen": "\n\u001b[Kx\nhello\u001b[2m\u001b[m❯ \u001b]0;title\u0007\n\u001b[7m \t\u001b[?25l\n🙂\u001b[2;3m\u001b[mTry \"fix the bug\"\u001b]x\nhello\n──────────────────────────────────────── node ─\n\u001b[1m> x\u001b[0m\n \n \n───── t ─x\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 328",
+   "screen": "\u001b[02mhello\n\nx\u001b[7m\u001b[2;3m❯ \u001b[K─\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ Try \"x\"\n \n───── ─ ─\n ❯ Try \"x\" \n \n \n─────  x ─\n\u001b[2m❯ draft\u001b[0m\n \n───── ─ ─\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 329",
+   "screen": "\n──────────────────────────────────────── node ─\n ❯ \u001b[0m\n \n\n───── \tt ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 330",
+   "screen": "──\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 331",
+   "screen": "╭x\tx─\n🙂\t\u001b[2;3m❯\n\u001b[2m──────────────────────────────\u001b[0m\n❯ \u001b[2mTry \"x\"\u001b[0m \n  \n───── t ─x\n❯ \u001b[2mTry \"x\"\u001b[0m \n \n \n─────\n❯ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 332",
+   "screen": "\u001b]0;title\u0007❯ \u001b[22m\u001b[7m \u001b[K\n\t\u001b]0;title\u0007─\u001b[m─\n\u001b[x\n日本語\n  ────────────────────  \n? for shortcuts\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 333",
+   "screen": "hello\u001b[02m\u001b]0;title\u0007　🙂\n🙂\nTry \"fix the bug\"\n───── ─ ─\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 334",
+   "screen": "─　　\n──\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n\n\u001b[m　",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 335",
+   "screen": "╭\n\u001b[?25l\u001b]0;title\u0007\nTry \"a\u001b]0;title\u0007\t❯   \n\u001b[22;2m\u001b[1m\n───── t ─x\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 336",
+   "screen": "───── t ─ \n ❯ \u001b[2mT\u001b[0mry \"x\"\n \n───── ─ ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ Try \"x\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 337",
+   "screen": "hello \u001b[1;2m\u001b]x日本語 \n\u001b[7mTry \"fix the bug\"\u001b[38;5;246m\u001c\u001b[38;5;246mx\n\u001c\u001b[2;3m日本語Try \"a\u001b[7m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n↑/↓ to select · enter\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 338",
+   "screen": "\nTry \"a─❯ ❯ Try \"a\nTry \"fix the bug\"\n日本語\u001b[1m❯ \u001b]0;title\u0007\n──────────────────────────────────────── node ─\n\u001b[2m❯ draft\n\n \n──\n\u001b[1m❯  \n\n────────── a b ─────\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 339",
+   "screen": "\n\u001b[22;2m\u001b]x❯  x\n \u001b[2m\u001b[0m─\n───\n日本語\u001b[02m\u001b[2mhello\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 340",
+   "screen": "\u001b]0;title\u0007│\u001b[1;2m日本語\nx\u001b[22m\u001b[?25lx\u001b[7m\u001b[22m\n──\n ❯ draft \n────────\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n──\n ❯ Try \"x\"\n? for shortcuts\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 341",
+   "screen": "\u001b[1m❯ Try \"fix the bug\" \n❯\u001b[38;5;246m\n \u001b[1;2m\n日本語Try \"fix the bug\"❯\u001b]0;title\u0007\u001b[2m\nx　\u001b]0;title\u0007❯ \u001b[38;5;246m\n \u001b[m \n  ────────────────────  \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 342",
+   "screen": "\n  ────────────────────  \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 343",
+   "screen": "\u001c\u001b[22;2m🙂\n\n ❯ \u001b[38;5;246m\u001b[2;3m\n───── t ─ \n ❯ Try \"x\" \n  ────────────────────  \n❯ \u001b[0m\n  \n  ────────────────────  \n\u001b[2m❯ \u001b[2mTry \"x\" \n\u001b[K\u001b[22;2m🙂\u001b[02m\u001b]0;title\u0007\n─\n\u001b]0;title\u0007　❯ \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 344",
+   "screen": "\u001b[K\u001c\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n\u001b[2m\n───── t ─\n\u001b[2m❯ \u001b[2mTry \"x\"\n  \n \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n\n──────────────────────────────────────── node ─\n  ↑/↓ to select\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 345",
+   "screen": "───── t ─\n❯ Try \"x\" \n──\n\n  ↑/↓ to select\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 346",
+   "screen": " ─ ─\n\u001b[K \n\t\u001b[1;2m\n\u001b[Try \"fix the bug\"　\u001b[K─ \n ─❯ \n\u001b[2m──────────────────────────────\u001b[0m\n❯ \u001b[2mT\u001b[0mry \"x\"\n\n───── ─ ─\n\u001b[1m \u001b[2m\u001b[22;2mTry \"fix the bug\"Try \"a\n❯ │🙂\n\n───\n❯ \u001b[2mTry \"x\"\u001b[0m\n\n─────  x ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 347",
+   "screen": "🙂\u001b[1;2m \u001b[m🙂\n\u001b[?25l\n─\u001b[0m Try \"\"Try \"fix the bug\"日本語\nTry \"a\n  ─\u001b]0;title\u0007　\n\n\u001b[2m──────────────────────────────\u001b[0m\n❯ draft \n──────────────────────────────────────── node ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\n────────── a b ─────\n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 348",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ Try \"x\" \n\n  \n\u001b[2m──────────────────────────────\u001b[0m\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 349",
+   "screen": "\u001b[7m\n\t\n\u001b[2mx\t\t\t\u001b[2m\n\n\u001b[1;2m\n\u001b[❯ helloTry \"a\n───── t ─ \n❯ \u001b[2mT\u001b[0mry \"x\" \n\u001b[0m\u001b[22m\n\n───── t ─ \n↑/↓ to select · enter\n? for shortcuts\n│\u001b[22;2m日本語\u001b[1m\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 350",
+   "screen": "❯ 　 \u001b[22;2m❯ \u001b]x\n\nhello \u001b]0;title\u0007\u001b[38;5;246m\u001b[02m\n──\n ❯ Try \"x\" \n\u001b[1;2m\u001b]xTry \"a\n \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[22m\u001b[38;5;246m\u001b[38;5;246m\u001b[2;3m \n \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 351",
+   "screen": "\u001b[2;3mx\u001b]0;title\u0007\u001b[\u001b]x\u001b[7m\n\u001c\n╭🙂Try \"\"\u001b[2;3m\n\u001b[1m\u001b[2m\u001b[?25l🙂─\n\u001b[1m\u001b[02m\n\u001b[38;5;246m\u001c\u001b[\n───── ─ ─\n\u001b[1m❯ Try \"x\"\n\u001b]x\u001b[02m❯ x\u001b[22m\n───── \tt ─\n\u001b[1m❯ Try \"x\"\n \n──────────────────────────────────────── node ─\n❯ ❯ \u001b[38;5;246mTry \"fix the bug\"\u001b]x\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 352",
+   "screen": "───\n↑/↓ to select · enter\n\u001b[38;5;246m\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 353",
+   "screen": "hello\n\n\u001b[7m\u001b[0m日本語\u001b[1;2m\n\u001b[\n 日本語❯ \u001b[38;5;246m\n─Try \"\"Try \"fix the bug\"\u001b[1m\u001b[22;2m\u001b[0m\n───\n ❯ Try \"x\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n? for shortcuts\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 354",
+   "screen": "\n│\u001b[1;2m \n────────── a b ─────\n❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n  ────────────────────  ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 355",
+   "screen": "❯   \u001b[1;2m\u001b[K\n\u001b[1;2m \n　 　\n\n\u001b[22m\u001b[K\u001b[0m\n───── \tt ─\n 日本語日本語\u001b[0m \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ Try \"x\"\n \n \n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 356",
+   "screen": "\n❯ \n❯🙂\u001b[2;3m\u001b]x\n　日本語\u001b[1m\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 357",
+   "screen": "\u001b]x\u001b]0;title\u0007🙂\n\u001b[\n\u001b[1m\n\u001b[7m日本語\u001b[38;5;246m│ \n│❯\u001b[02mTry \"a\n❯\n───── t ─\n \u001b]0;title\u0007\u001b[0m\n \n──────────────────────────────────────── node ─\n ❯ \n───── ─ ─\n\u001b[2m❯ draft \n\u001b[K\u001b[02m\u001b[22m╭\n│\n─────  x ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 358",
+   "screen": "Try \"\"\u001b[22;2m\n\u001b[1;2m\u001b[m\u001b]0;title\u0007\n\n─x\n \u001b[2m　hello Try \"a\n\u001b[m\u001b[02m\u001b[1mhello \n  ────────────────────  \n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n───── \tt ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 359",
+   "screen": "\n\u001c\u001b[1;2m\n───\n > x\n \n─────  x ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n  ────────────────────  \n│ \u001b]x\n? for shortcuts\n\u001b[38;5;246mhellohellox❯ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 360",
+   "screen": "\u001b[0m  \nTry \"a\n───\n hello　\u001b]x\u001b[0m\n────────── a b ─────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 361",
+   "screen": "❯ \u001b[0m\u001c\n─\n\n\n\u001c\u001b[?25l\u001b]0;title\u0007\t\u001b[22m\n──\n ❯ \u001b[2mT\u001b[0mry \"x\"\n \n───── t ─x\n\u001b[2m\u001b[0m\n \n───── t ─ \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 362",
+   "screen": "│\u001b]0;title\u0007\u001b[22;2m\u001b[02m\n\u001b[?25l\u001b[m❯ \n日本語\n\t❯ \u001b[7m❯\n\u001b[02m　hello\n───────────────────────────────\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n─────  x ─\n\u001b[1m❯\n───── t ─x\n❯ draft \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 363",
+   "screen": "\n───── t ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 364",
+   "screen": "\nx日本語\u001b[02m─Try \"fix the bug\"\u001b[38;5;246m\n\u001b[2;3m╭❯ \u001b[2;3m\n❯ \n───── t ─\n ❯ \n\n\u001b[?25l日本語\t\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n\u001b[2m\u001b[1m\n\n──────\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n\n───── t ─x\n\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 365",
+   "screen": "\u001b[K\n\n\n? for shortcuts\n\u001b[7m Try \"a\u001b[7m　\u001b[7m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 366",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \u001b[2mTry \"x\"\u001b[0m \n─\u001b[38;5;246mx🙂\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 367",
+   "screen": "x　 \u001c\n\u001b]x\u001b[2;3m\u001b[\u001c \n\u001b[?25l \n❯ \t\u001b[22;2m\n───── \tt ─\n\u001b[1m❯ Try \"x\"\u001b[0m\n  \n \n  ────────────────────  \n ❯\u001b[0m\n\u001b[\u001b[22;2m │\u001b[m❯\n\n─────  x ─\n\u001b[2m❯  \n  ────────────────────  ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 368",
+   "screen": "\u001b[22m日本語\u001b[2;3m\u001b[22m\u001b[22;2m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 369",
+   "screen": "\n──────────────────────────────────────── node ─\n\u001b[2m❯ \u001b[2mTry \"x\" \n\n \n───── t ─ \n ❯ \u001b[2mTry \"x\"\u001b[0m \n  \n───── t ─ \n  ↑/↓ to select\n↑/↓ to select · enter",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 370",
+   "screen": "\t❯ \u001b[0m─\u001b]x\n\u001c\u001b[1;2m\u001b[7m\u001b]0;title\u0007x \n\nx\u001b[K\n\nTry \"fix the bug\"",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 371",
+   "screen": "\t\n\u001b]x\u001b]x\u001b[?25l\n\n \u001b[7m\u001b[1m\u001b[m\n───────────────────\n❯ Try \"x\" \n \n  \n──────────────────────────────────────── node ─\n\u001b[2m❯ \n \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ Try \"x\"\u001b[0m\n \n───── t ─ ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 372",
+   "screen": "───── t ─\n\u001b[1m❯ Try \"x\"\n\n──────────────────────────────────────── node ─\n> x\u001b[0m\n \n────────── a b ─────",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 373",
+   "screen": "Try \"a\n│\n\u001b[22;2m\n───── ─ ─\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 374",
+   "screen": "\u001b[1;2mx╭\u001b[2;3m\u001b[K\n\u001b[02m\n\u001b[22;2m\u001b[2;3m\u001b[38;5;246m\u001b[1m\nTry \"\"\u001b[22;2m\u001b[22m─\nx\u001b[22mTry \"a🙂\n↑/↓ to select · enter\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 375",
+   "screen": "\n❯ \u001b[02mTry \"a\u001b[2m\u001b[38;5;246m\n\n\u001b[2mTry \"\"\nTry \"fix the bug\"\u001b[?25l\u001b[2m\n────────── a b ─────\n> x \n\u001b[2m\nx\u001b[1m\n───── ─ ─\n\u001b[2m❯ Try \"x\"\n日本語❯❯\n───── ─ ─\n ❯ Try \"x\"\u001b[0m\n  ────────────────────  \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 376",
+   "screen": "\u001b[0m \n\u001b[38;5;246m\n───── ─ ─\n ❯  \n  \n \n──────────────────────────────────────── node ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n\n──────────\n ❯ \u001b[2mTry \"x\"\u001b[0m\n \nx\u001b[02m\u001b[KTry \"fix the bug\"\n───── \tt ─\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 377",
+   "screen": "\u001b[\n─\u001b[0m\n\u001b]x ❯ \n\nTry \"a\u001b[0m\u001b[22;2m \n\u001c\n───── t ─x\n❯ \u001b[2mTry \"x\" \n \n\n───── ─ ─\n❯ \u001b[2mT\u001b[0mry \"x\"\n\n───── ─ ─\n\u001b[1m❯ \u001b[2mTry \"x\" \n\n \n  ↑/↓ to select\n↑/↓ to select · enter\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 378",
+   "screen": "x\n\u001b[2;3m\n❯ \u001b[0m\nTry \"a Try \"\"\u001b[2m\n\u001b[m　\n❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯  \n \n \n───── t ─x\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 379",
+   "screen": " \n\u001b[02m\n\u001b[1;2m\u001b[\n❯ Try \"\"Try \"a\n\u001b[2m──────────────────────────────\u001b[0m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 380",
+   "screen": "Try \"a❯╭🙂\u001b[\nTry \"a\n❯\n──────────────────────────────────────── node ─\n  ↑/↓ to select\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 381",
+   "screen": "\u001b[0m❯ ╭hello ❯ \n──\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n───── ─ ─\n ❯ \n──\n❯ \u001b[2mT\u001b[0mry \"x\" \n\u001b[2m──────────────────────────────\u001b[0m\n\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 382",
+   "screen": "Try \"\"│\u001b[2;3m\n\u001b[2;3m\u001b[22m日本語❯ \u001b[hello\n  ────────────────────  \n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n  ────────────────────  \n\n───── ─ ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n\u001b[02m\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 383",
+   "screen": "日本語\u001b[1;2m \u001b]x \t\n\n─────  x ─\n\u001b[2m\u001b]x\u001c\u001b[K  \n─────\n ❯ \u001b[2mTry \"x\"\n \n─────  x ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n \n\u001b[02m\u001b[2;3m日本語╭\u001b[m\n─────  x ─\n  ↑/↓ to select\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 384",
+   "screen": " 🙂\u001b[02m\u001b[0m\u001b]0;title\u0007\u001b[?25l\n🙂\u001b[2;3mx \n❯ \t\u001b[1;2m\u001b[m\u001b[22;2m\n\u001b[38;5;246m\u001b[2;3m│╭│ \n\u001b[0mTry \"fix the bug\"\u001b]0;title\u0007\u001b[1m\u001b]x│\n🙂\u001b[38;5;246m\u001b[?25lTry \"a\n───── t ─\n❯ \u001b[2mT\u001b[0mry \"x\" \n───── t ─ \n ❯ Try \"x\"\u001b[0m\n\n  \n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2mTry \"\"\u001b[❯x\u001b[1m\n \n ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 385",
+   "screen": "│─\u001b[7m\u001b[1;2m\n\n│\u001b[22;2m\u001b]x\n╭🙂\u001b[2m\n  Try \"fix the bug\"\u001b[?25l\u001b[22;2mTry \"\"\nTry \"a╭\u001b[1m\n  ────────────────────  \n\u001b[2m❯ draft\n\n \n──────────────────────────────────────── node ─\n❯ \u001b[2mT\u001b[0mry \"x\" \n\u001b[?25l Try \"a\n \n───\n\u001b[1m❯ Try \"x\"\u001b[0m\n\n───── t ─x\n╭\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 386",
+   "screen": "　　 \nTry \"fix the bug\"Try \"\"Try \"a　\n  x❯╭\u001b[2m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯  \n  ────────────────────  \n❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[K❯\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 387",
+   "screen": "─　\u001b]xhello\u001b[2m╭\n\u001b[22m\u001b[2;3m Try \"\"\u001b[1m\u001b[m\n╭ x\n\u001b[m\u001b[1m\n\u001b]x╭Try \"a\n─────  x ─\n > x\n  \n \n───\n ❯ \u001b[2mTry \"x\" \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n  \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 388",
+   "screen": "\u001b[0m\u001b[2;3mhello　\u001b[02m\u001b]x\n\n \u001b]x\t\n\u001b[02m\nTry \"\"\u001c\u001b[22;2m  \n\u001b[2m\n───── t ─x\n ❯ \u001b[2mTry \"x\" \n \u001b[2;3m\u001b[K\n  \n───── t ─\n ❯ draft\u001b[0m\n───\n↑/↓ to select · enter\n\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 389",
+   "screen": "Try \"\"\u001b[22m\nx\u001b[38;5;246m\u001b[02m\u001b[hello\u001b[1m\n\u001b[m│\u001b[38;5;246m \n 日本語\t\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \n  \n───── t ─\n❯ \n  \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\u001b[38;5;246m \n \n───── \tt ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 390",
+   "screen": "─\t\u001b[1;2m❯日本語❯ \n\u001b[22m \u001b[02m╭\u001b[\u001b[22m\n\nx\n\u001c\n───── \tt ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n\n  ────────────────────  ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 391",
+   "screen": "Try \"fix the bug\"\n\n日本語\u001b[1;2mTry \"\"\n　\n│\n\u001b[7mTry \"a\u001c─\u001b[\n──────────────────────────────────────── node ─\n ❯\u001b[0m\n  \n─────────────────────\n ❯ Try \"x\"\u001b[0m\n──\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 392",
+   "screen": "\n\u001b[🙂Try \"fix the bug\"\nx\u001b[22m╭\u001b[22;2m日本語\n\u001b[\u001b[?25l─ \n　\n───── t ─\n\u001b[1m❯ \u001b[2mTry \"x\" \n  \n\n─────────────────────────────────────────────\n  ↑/↓ to select\n↑/↓ to select · enter\n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 393",
+   "screen": "───── t ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n───── ─ ─\n\u001b[2m❯ \n  \n───── t ─ \n 　\u001b[0m\n  \n \n───── \tt ─\n? for shortcuts\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 394",
+   "screen": "\u001b[\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n  \n\n───\n\u001b[1m\u001b[1;2m\u001b[hello \n  \n \n\u001b[2m──────────────────────────────\u001b[0m\n❯ \u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n  ↑/↓ to select\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 395",
+   "screen": "\u001b[K\n──\n ❯ \u001b[2mT\u001b[0mry \"x\"\n \n\u001b[2m──────────────────────────────\u001b[0m\n \t🙂\u001b[?25l\u001b[1;2m日本語 \n  \n──────────────────────────────────────── node ─\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 396",
+   "screen": "\u001b[1;2m\u001b]x\n \u001b[7m\n─\u001b[2;3m\u001b[22m\u001b[0mx\nTry \"\"│\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 397",
+   "screen": "日本語❯x\n\u001b[?25l\u001b[1m\u001b[38;5;246m \n\n\u001b]0;title\u0007\u001b[2m\u001b[02m\u001b[m❯ \u001b[7m\n──────────────────────────────────────── node ─\n \u001b[7mxTry \"fix the bug\"\u001b[2m🙂\u001b]0;title\u0007 \n╭Try \"fix the bug\"\u001b[1m\n───── t ─\n ❯ \u001b[0m\n───── t ─ \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 398",
+   "screen": "❯  \u001b[K🙂\u001c\u001b[1;2m\n╭Try \"\"╭\t\n❯Try \"a\t\n\u001b]0;title\u0007Try \"a\n│\n\u001b]x\u001b[K\u001b[02m日本語\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m> x \n日本語Try \"a\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[?25l　\u001b]0;title\u0007\u001b[7m\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 399",
+   "screen": "\n\n　\u001b[?25l Try \"a \n\n───── ─ ─\n ❯\u001b[0m\n \n  ────────────────────  ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 400",
+   "screen": "　\u001b]x🙂Try \"fix the bug\"\u001b[2;3m\n\u001b[2;3m╭\n\u001b[1;2m\u001b[1;2m─hello\n\u001b[0m　 \n \u001b[2;3m\u001b[22;2mhello\n───── t ─\n\u001b[1m❯ \u001b[2mTry \"x\" \n───── t ─",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 401",
+   "screen": "❯ Try \"axhello\u001b[m\n────────────────────────────────────────────────",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 402",
+   "screen": "─日本語\n\u001b]x\n\u001b[K \u001b[\n  ────────────────────  \n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n────────── a b ─────\n  ↑/↓ to select\n❯ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 403",
+   "screen": "Try \"\"\t🙂\n\n\u001b[2mx \n\u001b[2m🙂 \u001b[7m🙂🙂\n\u001b[2m\n────────── a b ─────\n❯ \u001b[2mTry \"x\" \n────────── a b ─────\n ❯ \u001b[2mTry \"x\"\u001b[0m\nTry \"\"─\u001c\n────────── a b ─────\n\u001b[2m\u001b[1m \u001b[0m\n\n  ────────────────────  ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 404",
+   "screen": "──\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n \n\n───── t ─ \n ❯ \u001b[2mTry \"x\"\u001b[0m\n  ────────────────────  \n↑/↓ to select · enter\n\u001b]0;title\u0007│\u001b[K🙂\u001b[1m\n\n",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 405",
+   "screen": "\u001b[1;2m\n❯ \u001b[7mTry \"\"\u001c❯ \n───── t ─\n ❯  \n \n \n───── t ─\n\u001b[1m❯ \n──────────────────────────────────────── node ─\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 406",
+   "screen": "Try \"\"\n日本語\n\n\u001c\u001b[22;2m\u001cTry \"a❯Try \"\"\n❯ Try \"\"Try \"\"\u001b[1;2m\n────────── a b ─────\n ❯\n  \n  ────────────────────  \n ❯ \u001b[0m\n　\n\n────────── a b ─────\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n\u001b[2m──────────────────────────────\u001b[0m\n↑/↓ to select · enter\n? for shortcuts\n ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 407",
+   "screen": "\u001b]0;title\u0007\u001b[K\u001b[1;2m❯ \u001b[2m\n\u001b[KTry \"a─ Try \"fix the bug\"\n\u001c\n\n\u001b[38;5;246m\n───── \tt ─\n ❯ Try \"x\" \n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 408",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n \n───\n❯ 　　\n \n───── ─ ─\n\u001b[1m❯  \n\n \n───── ─ ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 409",
+   "screen": "\u001b[K\u001b]0;title\u0007\u001b[2;3m　\n🙂\u001b[1m\u001b[22m\tTry \"fix the bug\"Try \"a\n\u001b[22m\u001c　Try \"\" \n───── t ─ ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 410",
+   "screen": "\n─────  x ─\n> x \n\n───── t ─x\n ❯\u001b[0m\n\n \n─────────────────────────────────\n\u001b[2m> x \n\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 411",
+   "screen": " \n\n　🙂\u001b[K\u001b[\n╭\u001b[K 　　\u001b[22m\n \u001b[2mTry \"\"\n───── t ─ \n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 412",
+   "screen": "hello❯ \u001b[K❯ ╭\u001b[1m\nTry \"a\t  ❯\u001b[38;5;246m\n\u001b[22;2m　Try \"fix the bug\"\n──\n\u001b[1m❯\n───\n\u001b[2m❯ Try \"x\" \n\n \n─────────────────────────────────\n\n\u001c\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 413",
+   "screen": "\n\u001b[22;2m\u001b[1;2m\u001b]x\u001b[2;3mTry \"fix the bug\"\u001b[22;2m\nTry \"fix the bug\"hello\u001b[2m\n\u001b[2;3m❯─\n\u001b[38;5;246m\u001b[1m\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n \n──────────────────────────────\n↑/↓ to select · enter\n↑/↓ to select · enter\n││\n",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 414",
+   "screen": "\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 415",
+   "screen": " ❯ \u001b[\u001b[02m\n\u001b[m\u001b[\n日本語\nTry \"\" \u001b[K╭│\u001b[0m\n │\u001b]0;title\u0007 \n───── t ─ \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 416",
+   "screen": "\n\t\u001b[7m\t\n❯ 🙂x\u001b[1;2m❯ \n\u001b[02m❯ \n↑/↓ to select · enter\n  ↑/↓ to select\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 417",
+   "screen": "Try \"\"\u001b[22m❯ 　Try \"\"\n────────────────────────────\n\u001b[2m❯ \u001b[2mTry \"x\" \n \n──\n❯ \u001b[2mTry \"x\" \n \n\n\u001b[2m──────────────────────────────\u001b[0m\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 418",
+   "screen": "\u001b[22;2m\u001b[38;5;246m\u001b[\u001b[Try \"a\n\n\u001b[0m\u001b[38;5;246m\u001b[\u001b[02m\n│\u001b[0m 　\n\u001b[22m\n\thello╭\n───\n❯ Try \"x\"\n──────────────────────────────────────── node ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n\n───── ─ ─\n ❯  \n \n──────────────────────────────────────── node ─\n  ↑/↓ to select\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 419",
+   "screen": "\u001b[02m\u001c\u001b]x\nTry \"fix the bug\"\n❯  \n\u001b[22;2m╭\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 420",
+   "screen": "\u001b[02m\u001b]x \u001b[m\n\u001b[1;2m\u001b[m❯ \u001b[7m\n\u001b[22m\u001b[7m\n❯Try \"\"Try \"\"Try \"a🙂❯\n\t\u001b]0;title\u0007\u001b[1m\u001b[1;2m \u001b[K\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 421",
+   "screen": "\u001b[\u001b]x\u001b[02m\u001b[2m\n\u001b[7m\u001b[1m\u001b[22;2m\nTry \"aTry \"fix the bug\"│\u001b[22m\u001b[7m\n❯\u001b[1;2m\n❯ \n\u001b[mTry \"a\u001b[m╭\n────────────\n \u001b[1;2m\u001b[38;5;246m\u001b]x \n\u001b[22;2m❯\u001b[7m\n────────── a b ─────\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 422",
+   "screen": "\u001b[K\u001b[0m❯\n　日本語🙂Try \"\"🙂\n\u001b[2;3m\n \n  ────────────────────  \n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n\n────────── a b ─────\n ❯ \u001b[2mTry \"x\" \n───── t ─ \n\u001b[1m❯ \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter\n\n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 423",
+   "screen": "\t\u001b[?25l\u001b[0m　\u001b[K\u001b[1;2m\n\u001b[❯\u001c\u001b]x\u001b[K日本語\n\u001b[22m│\n\u001b[m\nTry \"\"\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯  \n\u001b]0;title\u0007\u001b[2;3m\n───── t ─\n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 424",
+   "screen": "❯   \u001b[02m\n\u001b[2m\u001b[1m\u001b[2;3m日本語─日本語\n\n\u001b]x\n\u001b[1;2m日本語❯ \t\n──────────────────────────────────────────────\n\u001b[1m❯ \n─────────────────────────────────────────────────────\n ❯ draft \n \n\nTry \"fix the bug\"│❯ \u001b[02m \t\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 425",
+   "screen": "\n　\u001b[K🙂\u001b[38;5;246m\u001b[22m\u001b[22m\n\u001b]0;title\u0007\u001b[22m\u001b[22m　❯\n\u001b[\u001b[2m\u001b[\u001b]0;title\u0007❯ \t\n───── t ─x\n\u001b[1m❯ \u001b[0m\n────────── a b ─────\n│\u001b[22m\u001b[\u001b[1;2m\n　╭│hello\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 426",
+   "screen": "Try \"a\tTry \"fix the bug\"\u001b[38;5;246m\n Try \"a\u001b[22m\u001b[1;2m\u001b[0m \n❯ \u001b[\u001b[1;2m\u001b[22m🙂\u001b[38;5;246m\n─────  x ─\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\n? for shortcuts\n日本語\u001b[2m🙂╭│❯\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 427",
+   "screen": "────────── a b ─────\n❯ \n\n───\n  ↑/↓ to select\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 428",
+   "screen": "\n│❯\t\u001b[38;5;246m\n\u001b]xTry \"ax\n\u001b[m\u001b[22;2m\n\u001b[7mTry \"fix the bug\" x \n───── t ─ \n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯  \n \n───────────────────\n\u001b[2m\u001b[7mTry \"fix the bug\"\u001b[02m\u001b[38;5;246m \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 429",
+   "screen": "\u001b[02m日本語\u001b[1;2m\u001c\n╭\u001b[0m\u001b[　\u001b]x\n╭Try \"\"\t╭\n───\n \u001b]0;title\u0007 \n  ────────────────────  \n❯ \u001b[2mTry \"x\"\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft\n  \n? for shortcuts\n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 430",
+   "screen": "\u001c\u001b[2;3m❯ \nTry \"a─\u001b[2;3m\u001b[1;2m🙂\n❯ Try \"fix the bug\"\u001b[\u001b]xhello\u001b[38;5;246m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 431",
+   "screen": "❯  ❯\u001b[22m\n\u001b]0;title\u0007\u001b[38;5;246mTry \"aTry \"fix the bug\"\u001b]x\n───── ─ ─\n ❯ \u001b[2mTry \"x\" \n───\n > x\n \n \n───── ─ ─\n↑/↓ to select · enter\n\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 432",
+   "screen": "\u001b[1m❯ Try \"a\n❯ \u001b[1;2m\u001b[\n\u001b]0;title\u0007\t❯ ❯\u001b[K\n❯❯ Try \"\"\u001b]0;title\u0007\n\n  ────────────────────  \n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n───\n? for shortcuts\n  ↑/↓ to select\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 433",
+   "screen": "hello╭\u001c\u001b[22;2m\u001b]x\n\u001b[2m\u001b[22;2m\u001b[KTry \"a\n\u001b[22m\u001b[38;5;246m\tTry \"\"\n❯ │hello\nx\u001b[m\u001b[\n\n───── t ─ \n❯ Try \"x\"\u001b[0m\n\u001b[2m──────────────────────────────\u001b[0m\n\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 434",
+   "screen": "❯\u001b[02m\u001b[38;5;246m\u001b[\n 　 \n\u001b]x\n───── ─ ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n───── \tt ─\n  ↑/↓ to select\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 435",
+   "screen": "\n\u001b]0;title\u0007 \u001b[?25l\n❯ \u001b]0;title\u0007\n日本語\u001b[2m🙂\n \u001b[\u001b[?25l\u001b[7m\n───── t ─x\n\n│\u001b[1;2mTry \"fix the bug\"",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 436",
+   "screen": "\u001b[2;3m \n──\n ❯ draft\u001b[0m\n───── t ─\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\n──────────────────────────────────────── node ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n\u001b[?25l  \u001b[2;3m \n───── t ─x\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 437",
+   "screen": "❯ ❯\u001b[02m\u001b[2;3m\u001b[2m\n\u001b[2m\nTry \"\"\u001b[38;5;246m\u001b[KTry \"a\n\n　\n───── t ─ \n\n\u001b[mTry \"fix the bug\"\u001b[0m\u001b[?25l",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 438",
+   "screen": "\u001b[K\u001b[1m\n\u001b[?25lhello\n\n\u001b[1;2m❯ \n───",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 439",
+   "screen": "　\u001b]x❯❯ \n\u001b[1;2m \t\u001b[22m\n\n\u001b[2m──────────────────────────────\u001b[0m\n Try \"a\u001b[2mx\u001b[2;3m\u001b[m\u001b[0m\n  ────────────────────  \n\n  ↑/↓ to select\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 440",
+   "screen": "\u001b[2;3m\n\n\u001b[\u001b[22m🙂\n───\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 441",
+   "screen": "\n\n\n  \u001b[22;2m \u001b[K\n\n\u001b[\u001b]x\u001b[22;2m│\u001b[22m\n────────── a b ─────\n❯ draft \n  \n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 442",
+   "screen": "\u001b[02m\n\n─────  x ─\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n───── \tt ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 443",
+   "screen": "──────────────────────────────────────── node ─\n ❯ draft \n───── t ─ \n\u001b[1m❯ \u001b[2mTry \"x\" \n \n  \n─────  x ─\n\u001b[1m❯ \u001b[2mTry \"x\"\n\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[\u001b[2m❯ \n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 444",
+   "screen": "│\n\t🙂│\u001b[38;5;246m\n\u001b[m❯\nTry \"fix the bug\"│Try \"a日本語\t\n─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n \n──\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 445",
+   "screen": "\nTry \"aTry \"a \u001b[2m\n\nhello\u001b[0m\nTry \"aTry \"a ─\u001b[KTry \"a\n─────  x ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 446",
+   "screen": "\n\u001b[?25l❯\u001b[22;2m\n\u001b[02mx\n\n───\n \u001c\u001c\u001b[K\u001b[02mTry \"fix the bug\"",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 447",
+   "screen": "❯  日本語❯ \u001b[22;2m❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m \n───────────────────────────────────────────────────\n ❯ Try \"x\"\n  \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\"\n\u001b]x\u001b]0;title\u0007\u001b[22;2m\n───── \tt ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 448",
+   "screen": "\u001b[02mhello❯ │\u001b[02m\n────────────────────────\n > x \n  \n─────  x ─\n \u001b[22;2m\u001b[K\u001b[m \n───── t ─\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 449",
+   "screen": "\u001b[2m\u001b[22;2m\n───── t ─\n ❯ \u001b[2mTry \"x\"\n \n \n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 450",
+   "screen": "\u001b[22m\n─────────────────────────────────────────────────────\n ❯\u001b[0m\n \n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select\n  ↑/↓ to select\n\t\u001b[38;5;246m\u001b[02m\u001b[1;2m\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 451",
+   "screen": "\n\u001b[2m\u001b[38;5;246mTry \"a\n\n\u001b[?25l\n\u001b]0;title\u0007 \n\u001b[?25l\u001b[m│\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 452",
+   "screen": "\n  ────────────────────  \n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n\n  ↑/↓ to select\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 453",
+   "screen": "\u001b[m\u001b[2m\n❯ \u001b[22;2m\u001b[0m\u001c\nTry \"fix the bug\"\n  \u001b[Try \"\"─\n\u001b[K日本語helloTry \"\"\n\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n──\n ❯ Try \"x\" \n──\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 454",
+   "screen": "　\n\u001b[7m\u001b[22;2mx\n\u001c\n───────────────────────────────────────────────────────────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 455",
+   "screen": " \n❯  \u001b]0;title\u0007\u001b[7m\n╭   hello\n🙂Try \"a❯ \n🙂\u001b[7m\nxTry \"\"　\n───",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 456",
+   "screen": "╭❯ ─\n \nTry \"\"\n\u001b[1;2m\n\u001b[K\u001b[Khello╭\n\u001b[02m🙂 🙂─\u001b[1m\n───── t ─x\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft \n  ────────────────────  \n\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 457",
+   "screen": "────────── a b ─────\n  ↑/↓ to select\n\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 458",
+   "screen": "\u001b[22mTry \"ahello\n\u001b[2m\n────────── a b ─────\n\u001b[1m❯\u001b[0m\n  \n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 459",
+   "screen": "\u001b[?25l\u001b[2m\u001b]0;title\u0007❯\n\u001b[1m\t\u001b[1m\n\nTry \"\"\u001b[❯\u001b[38;5;246m\u001b[02m─\nTry \"fix the bug\"\u001b[1m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft \n\t\u001b]0;title\u0007\u001b[1;2m❯ \u001b[7m\u001b[38;5;246m\n \n───── ─ ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 460",
+   "screen": "\u001b[1;2m\u001b[2m\u001b[7m \u001b]x\n\u001b[K🙂❯\nTry \"a \n日本語　\n───────────────────────────────────────────\n❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 461",
+   "screen": "\n  ────────────────────  \n\u001b[2m❯  \n──\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 462",
+   "screen": "╭\u001b[\t\u001b[\u001b[22;2m\n\u001b[1m\u001b[2m\n──────────────────────────────────────── node ─\n\u001b[1m❯ draft\u001b[0m\n  \n───── t ─x\n\u001b[1m❯  \n───── t ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 463",
+   "screen": "\u001b[1;2m\u001b[38;5;246m\u001b[2;3m\u001c\u001b[2;3m\t\n\n❯Try \"a\u001b[22;2m\u001b]x\n───── ─ ─\n 　─\u001b[02m\u001b[m \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ draft \n \n───\n\u001b[2m> x \n───\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 464",
+   "screen": "\n\u001b]0;title\u0007\nTry \"\"日本語\n日本語\u001c\u001b[22;2m\u001b[2m\n\u001b[m\u001b[1m❯ \n───── ─ ─\n\u001b[1m❯ Try \"x\" \n \n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m\u001b[1m\u001b[1m\u001b[22m\u001b[38;5;246m \n\u001b[38;5;246m\n───── t ─ \n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 465",
+   "screen": "Try \"a\t\u001b[2m\n\u001b[╭\u001b[38;5;246mTry \"fix the bug\"\n日本語\n\n↑/↓ to select · enter\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 466",
+   "screen": "\u001b[22;2m\u001b]0;title\u0007\u001b[?25l\tTry \"a\nTry \"a \u001b[1m \u001b[m\n　\u001b[m\n❯ hello\u001b[0m\n❯ hello\u001b[K\n─────  x ─\n\u001b[02m\u001b[K\n\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 467",
+   "screen": "x\u001b[22m\n\u001b[7m\u001b[02m\u001b[1;2m\u001b[0m❯ \n\n\u001b[\n───── \tt ─\n ❯ draft \nTry \"a \u001b[1mx\u001b[m\n🙂\u001b[22m\n──\n❯ Try \"x\" \n  \n  \u001b]x\u001b[7mhello\u001b[38;5;246m\n────────── a b ─────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 468",
+   "screen": "❯ \u001c\nx \n\u001b[2m\u001b[7m\n───── t ─ \n↑/↓ to select · enter\n\u001b]x\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 469",
+   "screen": "\u001b[?25l🙂 \n\u001b[?25l日本語xxTry \"a╭\n\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 470",
+   "screen": "\nTry \"\"　\u001c\u001b]0;title\u0007\n　hello\t\n───── t ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n\n  \n───── t ─ \n ❯ \u001b[2mTry \"x\"\u001b[0m\n──────────────────────────────────────── node ─",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 471",
+   "screen": "日本語日本語Try \"a\u001b[2;3m❯\n❯ \n\u001b[22;2m\u001b[22m\u001b[\u001cTry \"fix the bug\"\t\n───── t ─\n ❯  \n\u001b[\u001b[0m\u001b[ hello\n────────── a b ─────\n ❯ 🙂hello\u001b[7m\n  \nhello\u001b[1m─\u001b[1mx\n───── t ─ \n❯ \n \n\u001b[K\u001b]x\u001b[22;2m❯❯ \n \u001b[0m\n\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 472",
+   "screen": "────────── a b ─────\n\u001b[2m❯ \u001b[2mTry \"x\" \n───── t ─\n\n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 473",
+   "screen": "x\n\u001b[xx\u001b[2;3m\n\u001b[m \n \u001b[m│╭─│\n\u001b[?25l\u001b[38;5;246m\u001c\n\n───── t ─\n \u001b[1;2m│\u001b[K❯ \u001b[0m\n  ────────────────────  \n↑/↓ to select · enter\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 474",
+   "screen": "\u001b[7m日本語日本語\nhello \n❯ \u001b[02m\u001b[K\n────────── a b ─────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 475",
+   "screen": "日本語hello\u001b[2;3mTry \"\"❯ \n\u001b[22;2m\u001b[2m\n\n\u001b[7m\n──\n\u001b[1m> x \n\n \n\u001b[2m──────────────────────────────\u001b[0m\n❯ \n \n\n❯ \u001b]0;title\u0007\u001b[2;3m│Try \"\"\u001b]0;title\u0007",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 476",
+   "screen": "\u001b[\u001b[22;2m\u001b[\n\u001b[02m\u001b[m\n\nTry \"\"╭\u001b[7m\u001b[22m\u001b]x\u001b[\n\n\u001b[m\u001b[mTry \"a\n────────── a b ─────\n  ↑/↓ to select\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 477",
+   "screen": "───── \tt ─\n\u001b[2m❯ Try \"x\"\n───── ─ ─\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 478",
+   "screen": "\u001b[22;2m\u001b[38;5;246m╭Try \"fix the bug\"日本語│\n───── t ─x\n\u001b[1m❯  \n\n───── \tt ─\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 479",
+   "screen": "\n\n \u001b[7m\n🙂\u001b[38;5;246m\u001b[1m╭\u001b[1m\u001b]x\n\u001b[K\u001b]x日本語\u001b[22;2m\n日本語❯❯ \u001b[02m\u001b[\n───── t ─\n\u001b[2m❯ \u001b[2mTry \"x\" \n \nTry \"\"\u001b[\u001b[02m🙂\u001b[02m\n─────  x ─\n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n\n\u001b[│\u001b[0m\u001b[K🙂\n───\n> x \n\n───── t ─x\n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 480",
+   "screen": "\u001b[22;2m\u001b[\u001b[1m\u001b[\n\u001b[m\u001b[K─🙂 \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ draft \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 481",
+   "screen": "Try \"a \n\u001b[38;5;246m\thello\n\u001b[22;2m　\u001b[m❯  \u001b[02m\n \u001b]x\n\u001c\u001b[m─\u001b[22m\n───\n\u001b[1m❯ \n \n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n \u001b[ \u001b[22m\u001b[2;3m\u001b[7m \n\n 日本語\u001b[02mTry \"a\u001c \n───",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 482",
+   "screen": "🙂\u001b[38;5;246m\u001b[\u001b[22m\n╭Try \"fix the bug\"\n\u001b[0m\u001b]x\u001b[\u001b]xx\n \u001b[?25l\t\u001b[m\u001b[\u001b]x\n\t\nTry \"fix the bug\"\u001b]x\n───── t ─\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\n─────  x ─\n❯ \u001b[2mT\u001b[0mry \"x\"\n \n───── t ─\n\u001b[2;3m　 ❯\n? for shortcuts\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 483",
+   "screen": "───── \tt ─\n \u001b[22mTry \"a\n  \n↑/↓ to select · enter\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 484",
+   "screen": "🙂🙂🙂Try \"\"\u001b[?25l\n\u001b[2m\n\u001b[2;3m  \u001b[22m─\n───── \tt ─\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n \n \n─────  x ─\n > x\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 485",
+   "screen": "────────── a b ─────\n ❯ \n\u001c─日本語　\u001b[38;5;246m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 486",
+   "screen": "\u001b]x\u001b[7m\n\u001b[7m\u001b]x\u001b[7m日本語🙂\n\u001b[m日本語\u001b[KTry \"a\n\u001b[7mTry \"fix the bug\"\u001b[02mTry \"\"│\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m> x\n───── \tt ─\n❯ Try \"x\" \n \n─────  x ─\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 487",
+   "screen": "\u001cx\u001b[22m\u001b[2;3m\u001b[2m \n\u001b[0m─\n\u001b[ \u001b[0mx\n\n\u001b[2m\u001b[22;2m❯ ❯ \n───── t ─\n\u001b[1m> x \n \n \n\n? for shortcuts\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 488",
+   "screen": "│❯Try \"fix the bug\"│Try \"fix the bug\"\u001b[K\n\tx\u001b[2;3m\n\u001b[1;2m─\n\n\t \u001b[1;2m日本語\u001b[02m\n❯ \u001b[m\u001b[0m\u001b[2m\n───\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n  \n  \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\u001b[2;3m\n───── t ─x\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n ",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 489",
+   "screen": "❯ \n───\n\u001b[2m❯ \u001b[2mTry \"x\" \n \n \n  ────────────────────  \n ❯ \u001b[2mTry \"x\"\u001b[0m \n \n\n──────────────────────────────────────── node ─\n\u001b[1m❯ \u001b[2mTry \"x\"\n  \n───── t ─\n↑/↓ to select · enter\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 490",
+   "screen": "\u001b[2m\u001b[0m\u001b]0;title\u0007❯ \n\u001b[7m│\u001b[ \u001c\n\u001b[7mxTry \"a\u001b[02m\n──────────────────────────────────────── node ─\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 491",
+   "screen": "\u001b[7m\u001b[KTry \"\"\u001b[1m　 \n❯╭\u001b[7m\u001b[\nTry \"fix the bug\"│Try \"\" \u001b[2;3m\u001b[7m\n\n\u001b[m\n  ────────────────────  \n > x \n  \n───\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 492",
+   "screen": "\n\u001b[?25l\u001b[\u001b[7m　❯ \n\u001b[2;3m \n\u001b[1m❯ \u001b[?25l\u001b[1;2m\u001b[1;2m\n─\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ draft\u001b[0m\n───",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 493",
+   "screen": "\u001b[1m\t─🙂\n 日本語\u001b[\n\u001b[22;2m\u001b[1;2m\u001b[22;2m\n\u001b[1m\u001b[2;3m\n╭\n\n───── ─ ─\n ❯ draft\n──────────────────────────────────────── node ─\n\u001b[1m❯ Try \"x\" \n \n────────\n ❯ \u001b[2mT\u001b[0mry \"x\"\n─\n───── \tt ─\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 494",
+   "screen": "\u001b[38;5;246m\u001c\n\n\u001b[0m\u001b[7m\u001b[2m \n\u001b[22;2m \u001b[22;2m─\n\u001b[22m🙂\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n  \n \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 495",
+   "screen": "\u001b]xTry \"\"Try \"fix the bug\"\u001b[1;2m\n\u001b[38;5;246m x\u001b[m\u001b[2m│\n╭❯ │─\u001b[2m\u001b]x\n \u001b[K│\n\u001b[0m\n\u001b[02m\n  ────────────────────  \n\u001b[2m❯ Try \"x\"\n──────────────────────────────────────────────\n\u001b[1m\n│\n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 496",
+   "screen": "──\n ❯ \u001b[2mTry \"x\"\u001b[0m\n\n─────  x ─\n ❯ \u001b[2mTry \"x\"\n───\n↑/↓ to select · enter\n\u001b[38;5;246m\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 497",
+   "screen": "───── t ─x\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m \n\n───── ─ ─\n ❯ \u001b[0m\n  \n❯ x\u001b[m\u001b[1;2m╭\n───── t ─x\n\u001b[2m> x\n───── t ─x\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 498",
+   "screen": "───── t ─ \n \u001b[22;2mTry \"a❯ \u001b[0m\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m❯ \u001b[0m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 499",
+   "screen": "\u001b[2m\u001c❯ \n \n 日本語日本語❯ Try \"fix the bug\"\n\u001b[\n\u001b[1;2m │\t❯ \u001b[1;2m\nhello🙂Try \"\"\n\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 500",
+   "screen": "\n\u001b[22m\u001b[m\u001b[1m\n❯hello\u001b[0m\n\u001b[m\u001b[2;3mTry \"a🙂\u001b]0;title\u0007hello\n\n\u001b[02mhello\u001b[?25l🙂\n───\n > x \n \n───── \tt ─\n\u001b[22;2m❯ \u001c\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 501",
+   "screen": " Try \"a\u001b[38;5;246m\u001b[K\n\u001b[K\u001b[\u001b[KTry \"\"\u001b[1;2m \nTry \"fix the bug\"\n\nTry \"\"\u001b[7m\u001b[❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1m❯ Try \"x\" \n \n  \n  ────────────────────  \n\n\u001b[0m \u001b]x❯ Try \"\"",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 502",
+   "screen": "Try \"a❯ \n\u001b[m ❯\n╭x\u001b[02m\n─────  x ─\n ❯ \u001b[2mTry \"x\"\u001b[0m\n  \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 503",
+   "screen": "\n\u001b[?25l\n\u001b[2m\n\n\n\n─────  x ─\n\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 504",
+   "screen": "\n\n❯ \u001b[1;2mhello\u001b[1m\n─\n\u001c\n\u001b[\u001c \u001b[1;2m\n\u001b[2m──────────────────────────────\u001b[0m\n❯ \n───\n\u001b[1m❯\n \n  \n───── t ─x\n│hello\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 505",
+   "screen": "\u001b[1m\u001b[38;5;246m\n───────────────────────────\n\u001b[2m❯ Try \"x\"\u001b[0m\n\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\"\nhelloTry \"a\u001b[0m│\n \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\"\u001b[0m \n──\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 506",
+   "screen": "───",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 507",
+   "screen": "\u001b[?25lTry \"fix the bug\"\u001b]xTry \"\"\u001b[22;2m\n\n🙂\u001b[7m\u001b[K \u001b[2;3m\n\u001b[02mTry \"\" ❯\u001c\n───────────────\n ❯ \n \n \n────────── a b ─────\n  ↑/↓ to select\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 508",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ Try \"x\" \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mT\u001b[0mry \"x\"\n \n─────  x ─\n ❯ \u001b[2mTry \"x\" ",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 509",
+   "screen": "🙂\u001b[02m \n\n\u001b[02m\u001b[22;2m\u001b[1;2m\u001b[K\n\u001b[02mhelloTry \"a\u001b[38;5;246m❯ \n \u001b[22;2m\u001b[ \n\u001b[38;5;246m\u001b[2;3m\t\u001c\n──────────────────────────────────────\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 510",
+   "screen": "\u001b[m│\t\u001b[m\nTry \"a\n\u001b[7m\n\u001b[38;5;246m\u001b[2m\u001b[m❯\u001b[m\u001b[22;2m\n\u001b[1;2m\u001b]xhelloTry \"\"hello\n\n──\n\u001b[2m❯  \n  \n\n────────── a b ─────\n\u001b[2m❯ draft \n  \n───── t ─\n❯ ╭╭\u001b[38;5;246m\u001b[22;2m",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 511",
+   "screen": "\u001b[22m \u001b[K\nTry \"fix the bug\"Try \"fix the bug\" 🙂❯ 日本語\n\u001b]0;title\u0007\u001b[mx\u001b[38;5;246m❯ 🙂\n────────────────────────────────────────────────────────\n❯  \n  \n─────  x ─\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 512",
+   "screen": "\u001b]x❯❯ \n\n\u001b[38;5;246m \u001b[2m\u001b[m\t\nTry \"\"\u001b[1mTry \"fix the bug\"─Try \"fix the bug\"\u001c\n───── t ─ \n❯ Try \"x\"\n\n \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ \u001b[2mTry \"x\" \n \nTry \"\"\u001b[22;2mTry \"fix the bug\"\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1m \n──\n\n\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 513",
+   "screen": "\u001b]x\n\u001b]x\u001b]0;title\u0007\u001b[K\u001c│\n\n\n\u001b[22m\n\u001b[2;3mxTry \"a\u001b[2m\u001b[02m\n───── t ─\n❯ \u001b[2mTry \"x\"\u001b[0m\n\n──\n? for shortcuts\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 514",
+   "screen": "↑/↓ to select · enter\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 515",
+   "screen": "\u001b[2;3m\n\u001b[2mTry \"\"\u001b[\u001b[0mTry \"a\u001b[2;3m\n\u001b[2;3m│❯ \u001b[0m\n\n\nTry \"fix the bug\"　\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 516",
+   "screen": "\u001b[1m\u001b[0m\u001b[?25l\u001b[0m\u001b[m\u001b]x\n\n\n\n Try \"\"\n  ────────────────────  \n\u001b[2m❯ \u001b[2mTry \"x\" \n  ────────────────────  \n ❯ \u001b[2mTry \"x\"\n \n───\n↑/↓ to select · enter\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 517",
+   "screen": "　\u001c\nhello \u001b[K\n\nTry \"fix the bug\" \u001c\n❯\n│\u001cTry \"\"\u001b]0;title\u0007\u001b[1;2m\u001b[22m\n──\n > x\u001b[0m\n\n────────── a b ─────\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n \n  \n────────── a b ─────\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n───── ─ ─\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 518",
+   "screen": "hello\n❯ \u001b[2m\u001b[?25l\n\u001b]x\n\t\u001b[22;2mTry \"a\nTry \"a\u001b[2m\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ \u001b[2mTry \"x\" \n \n\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[1mhello\tx\u001b[22;2m❯ \u001b[7m \n \n──\n ❯ \u001b[2mTry \"x\" \n\n────────────────────────────────────────────────────────\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 519",
+   "screen": "\u001b[2m🙂❯🙂🙂\nhello\tTry \"fix the bug\"Try \"fix the bug\"❯ \n\u001c\u001b]0;title\u0007─　Try \"\"─\n───── t ─ \n  ↑/↓ to select\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 520",
+   "screen": "\u001b[02m\u001b]x\u001b[0m \n🙂Try \"fix the bug\"\n　\u001b[2m🙂🙂 \n\u001b[22;2m\n\u001b]xTry \"fix the bug\"\u001b[38;5;246m\n\u001b[02m\n───── t ─\n❯ draft\n  ────────────────────  \n❯ draft \n \n  ────────────────────  \n\u001b[38;5;246m\u001b[1;2m",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 521",
+   "screen": "\n 日本語\u001b[38;5;246m 　\u001b[1m\n\u001b[\u001b[0m \n\u001b[02m\u001b[7m\u001b[22m❯日本語\n\u001b]x\u001b[7m\n\n───\n ❯ \u001b[2mTry \"x\"\u001b[0m \n────────── a b ─────\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 522",
+   "screen": "❯\u001b[m\n────────── a b ─────\n\u001b[2m> x \n  \n  \n───── ─ ─\n❯  \n───────────────────────────────────\n❯\u001b[0m\n  \n────────── a b ─────\n↑/↓ to select · enter\n↑/↓ to select · enter",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 523",
+   "screen": "\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯Try \"\" \n \n  ↑/↓ to select\n\u001b[1m\u001b[02m日本語　Try \"a",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 524",
+   "screen": "\u001b[\u001b[0mTry \"\"Try \"a\n\u001b[38;5;246m\u001b[38;5;246m❯ 日本語❯ \n───\n\u001b[2m❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n > x \n\n───── t ─ \n❯ \u001b[2m \u001b[?25lTry \"fix the bug\"\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 525",
+   "screen": "  ────────────────────  \n ❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[7mhello│\n───── \tt ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 526",
+   "screen": "日本語\u001b[\u001b[38;5;246m\u001b[7m\nTry \"a\u001b[38;5;246m❯x日本語Try \"fix the bug\"\n\n\u001b[0m\u001b[?25l\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯\n  \n  ────────────────────  \n\u001b[2m\u001cTry \"a\u001b[22m\u001c \n  \n───── ─ ─\n\u001b[Try \"\"🙂\u001b[m\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 527",
+   "screen": "x\u001b[2m\u001b[1m日本語\n\u001b]x　\u001b[KTry \"fix the bug\"\n❯日本語\n\u001c\u001b[\n\u001b[2;3m　\u001b[38;5;246m❯╭\n│\u001b[K\n───── t ─x\n\u001b[1m❯ draft \n────────────\n  ↑/↓ to select\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 528",
+   "screen": "\u001b[02m日本語\u001b]x日本語\n🙂\n\u001b[KTry \"fix the bug\"\u001b[🙂\u001b[K\n\u001b[02m日本語\u001b[m 🙂\n\u001b[22;2mx\u001b[22m🙂\n❯ 日本語日本語\u001b[1m\n───── ─ ─\n\u001b[1m❯ draft \n Try \"a\u001b[22;2m\n \n───── t ─\n > x\u001b[0m\n\n \n\u001b[2m──────────────────────────────\u001b[0m\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 529",
+   "screen": "",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 530",
+   "screen": " \u001b[7m\u001b[02m\n\u001b[02mTry \"\"\n\u001b[22;2m❯\t　Try \"a\n─────  x ─\n\u001b[1m> x \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[0m\n\n───── \tt ─\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 531",
+   "screen": " 　\u001b[2m\n\u001b[22m\u001b[2;3m🙂 \u001b[38;5;246m　\n❯ \t\u001b[7m\u001b[?25lTry \"fix the bug\"│\n──────────────────────────────────────── node ─\n\u001b[2m❯  \n \n───── t ─ \n\u001b[2m❯ Try \"x\"\u001b[0m\n  \n─────────────────────────────────────────────────\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n───── t ─x\n\n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 532",
+   "screen": "\u001b[?25l\u001b[7m\t\u001b[38;5;246m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n \u001b[7m\n  ────────────────────  \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 533",
+   "screen": "❯\u001b[m─\n\u001b[22;2mTry \"fix the bug\"\u001b[2;3m\u001b[0m\u001c│\n\u001b[22m\u001b[38;5;246m\u001b[2m\u001c\n\n\u001b[1;2m❯ \u001b[\n──\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[2m──────────────────────────────\u001b[0m\n❯ \u001b[2mTry \"x\"\u001b[0m\n \n \n───── t ─x\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n \n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 534",
+   "screen": "──\n\u001b[2m❯ \u001b[2mTry \"x\" \n────────── a b ─────\n\u001b[2m\t\u001b[38;5;246m❯ \n \n \n───\n❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n\u001b[7m \u001b[mTry \"aTry \"aTry \"\"\n───── t ─\n? for shortcuts\n\n❯ \u001b[02m日本語\tx",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 535",
+   "screen": "│❯ \u001b[日本語─Try \"\"\nhello\u001b[22;2m\u001b[7m\u001b[2m\n\u001b[0m\u001c❯ \u001c\u001b[\n\u001b[m\u001b[22m日本語\n\u001b[2;3m日本語 \n\u001b[\n──────────────────────────────────────── node ─\n ❯\u001b[0m\n  \n  ────────────────────  \n  ↑/↓ to select\n",
+   "composer": "empty",
+   "panel": true
+  },
+  {
+   "name": "generated 536",
+   "screen": "日本語\u001b[38;5;246m\u001b[0m\u001b]x\n\u001b[38;5;246m\u001b[1m❯hello\n❯ \u001c\u001b[Try \"\"\u001b[22;2m\t\n\u001b[1;2m\u001b[1;2m\u001b[38;5;246m\n──────────────────────────────────────── node ─\n ╭❯Try \"fix the bug\"\u001b[1;2m\u001b[22m \n❯ \u001b[?25lx\n \n─────────────────────────────────────────────────────────\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 537",
+   "screen": "❯ \u001c日本語\u001b[02mhello\n日本語\u001b[22;2m\u001b]x🙂\n\u001b[2;3m\u001b[m╭\u001b[7m \n \u001chello╭│\n────────── a b ─────\n\u001b[2m❯  \nTry \"\"\u001b[1;2mTry \"\"日本語\t\n\n────────── a b ─────\n> x\n \n \n──\n\n  ↑/↓ to select\nhello\u001b[m日本語\u001b]0;title\u0007\u001b[2m\u001b[22;2m",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 538",
+   "screen": "\n\u001b[0m\n\u001b]0;title\u0007\u001b[1m\n\u001b]x\n  ────────────────────  \n\u001b[2m❯ Try \"x\" \n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n > x\u001b[0m\n  \n───── t ─\n  ↑/↓ to select\n↑/↓ to select · enter\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 539",
+   "screen": "❯ Try \"a\u001b]0;title\u0007\u001b[m\n─🙂Try \"a❯\n───\n\u001b[1m🙂日本語\u001b[22;2m \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m> x \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b]x\u001b[1m\u001b[2m\u001b[7m\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 540",
+   "screen": "\u001b]x│\u001c\n─ 🙂\u001b]0;title\u0007　\n\nTry \"\"\u001b[1m\n╭🙂\n\n───\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \nx❯ helloTry \"a\n\n───── \tt ─\n> x \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 541",
+   "screen": "\u001b[0m \u001b[2;3m❯ \u001b[2m\nTry \"\" \n╭\n─\u001b[7mhello\u001b[\tTry \"a\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ Try \"x\"\n \n───── t ─\n  \n  \n────────── a b ─────\n\u001b[1m❯ \n\u001b]0;title\u0007\u001b[1m \u001b[22;2m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select\n? for shortcuts\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 542",
+   "screen": "─────  x ─\n❯ \n\n───────────────────────\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 543",
+   "screen": "❯ x╭\t\n\u001b[2m\n x\u001b[m\n🙂\u001b[2;3m\u001b[m\u001b[38;5;246m \n\u001b]x\n\u001b[38;5;246m─　  \u001b[\n────────── a b ─────\n > x \n  \n───── t ─ \n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\" \n\u001b[K❯ \u001b[38;5;246m\u001b[K\n\n───── t ─\n❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n  \n\u001b]0;title\u0007\u001b[1mTry \"\"\n───── t ─\n\n\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 544",
+   "screen": "\u001b[\n🙂\n\n\u001b[ \u001b[2m\u001b[1;2m\u001b[02m日本語\n \u001b[1m│\u001b]0;title\u0007\u001b[\u001b]x\n\u001b[38;5;246m  \n────────── a b ─────\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 545",
+   "screen": "\u001b[22;2mTry \"ax❯x\n\u001c\u001b[m\u001b[22m \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 546",
+   "screen": "hello\u001b[1;2m\u001b[1;2mTry \"fix the bug\"Try \"fix the bug\"\n───── ─ ─\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n\n───\n\u001b[2m❯ Try \"x\" \n  \n \n───── ─ ─\n? for shortcuts\n❯ \u001b[2;3m\u001b[1;2m❯ \u001b[?25l\u001b[1m\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 547",
+   "screen": "\u001b[22;2m🙂\u001b[1m\u001b[7m\u001b[1;2m\n───────────────\n ❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n\u001b]x \u001b[2m\u001b[1;2m╭\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ draft \n\u001b]0;title\u0007 Try \"a╭❯ \n───",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 548",
+   "screen": " \nTry \"\"日本語❯\u001b[1m\n hello\u001b]0;title\u0007Try \"a \n\u001b[22m\u001b[?25l日本語x\n\u001c\u001b]0;title\u0007\u001c\u001b]0;title\u0007\u001b[0mTry \"\"\n🙂\u001b[02m ❯\n────────── a b ─────\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\u001b[0m\n  \n───── t ─x\n ❯\n  \n  \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n────────── a b ─────\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 549",
+   "screen": "❯\u001b[7m\u001b[22;2m\n\u001b[1m\u001b[22;2m\n\n\u001b[22;2mTry \"a\u001b[m\u001b[　 \n───── ─ ─\n\u001b[2m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n \n────────────────────────────────────────────\n> x\n❯\u001b[K╭\n─────────────────────────────────────\n ❯ Try \"x\"\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n  ↑/↓ to select\n\u001b]0;title\u0007\u001b[2mTry \"fix the bug\"\u001b[7m\u001c",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 550",
+   "screen": "\u001cTry \"\"❯ ╭\u001b[\n　\u001b[m\u001b[02m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\" \n? for shortcuts\n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 551",
+   "screen": "\u001b[1m\nTry \"fix the bug\"🙂日本語 \u001b]0;title\u0007　\n\u001b[1m\u001b[2mx\nhello\t\u001b[2mTry \"a\u001b[2m\u001b[02m\n─────────────────\n > x \n  \n\n─────  x ─\n \n \n────────── a b ─────\n─❯ ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 552",
+   "screen": "\n\t\u001b[?25l\u001b[7m❯ \u001b[?25l\u001b[38;5;246m\n\u001b[?25lTry \"a\u001b[1;2m❯ \n　❯ \n─────  x ─\n❯  \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 553",
+   "screen": "\u001b[2m\n\n│ \u001b[02m\n───── ─ ─\n\u001b[2m> x\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \u001b[0m\n \n\n───── t ─\n❯ Try \"x\"\n　\t\u001b]0;title\u0007│日本語\n  \n日本語 \u001b[1m\u001b[02mx\n  ↑/↓ to select\n \u001b[38;5;246m\u001b[7m─",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 554",
+   "screen": "───── t ─x\n\u001b[1m─\u001b[\u001b[38;5;246m❯ \u001b[22m \n───── \tt ─\n? for shortcuts\n↑/↓ to select · enter",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 555",
+   "screen": "\u001b[1;2mTry \"fix the bug\"\nTry \"fix the bug\"\n\u001b]x\n\u001b[❯ Try \"fix the bug\"\u001b[?25l\n───── \tt ─\n ❯ \n \n  \n───── t ─x\n ❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m \n  \n  \n  ────────────────────  \n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 556",
+   "screen": "\u001b[2;3m❯ \u001b[1;2m╭\n\n❯ x\u001b[22m\n\u001b]0;title\u0007\u001b[02m\u001b[m\u001c\n\u001b[\u001b[38;5;246m\u001b[02m \u001b[7m\n  ────────────────────  \n\u001b[1m❯ \u001b[2mTry \"x\" \n───\n\u001b[2m❯ draft\n\u001b[2m──────────────────────────────\u001b[0m\n❯ draft \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n? for shortcuts\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 557",
+   "screen": "  ────────────────────  \n\u001b[2m❯  \n  \nTry \"a\u001b[2;3m❯\u001b[K❯ \u001b[22;2m\n──────────────────────────────────────── node ─\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 558",
+   "screen": "───── ─ ─\n❯ \u001b[2mT\u001b[0mry \"x\" \n \n\t ❯   \u001b[1m\n─────────────\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\" \n────────────\n ❯\u001b[\u001b[\u001b[0m \u001b[0m\n \n\n  ↑/↓ to select\n  ↑/↓ to select\n↑/↓ to select · enter\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 559",
+   "screen": "\u001b[38;5;246m╭\u001b[m\n \u001c\n\u001b[K\n───── t ─x\n\u001b[2m│\u001b[0m\n\n──\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[1mTry \"a\u001b[?25l╭\u001b[38;5;246m\n \n───\n? for shortcuts\n  ↑/↓ to select\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 560",
+   "screen": "╭日本語\n\n╭Try \"a\u001b[7m╭\n\u001b[02m│\u001b[38;5;246mTry \"fix the bug\"\u001b[22;2m日本語\n\u001b[0m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n> x \n\n? for shortcuts\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 561",
+   "screen": "│hello\u001b[2;3mhello\n\u001b]0;title\u0007\u001b[?25l\u001b[m\n\u001b]x \u001b[22;2m\n────────── a b ─────\n\u001b[2mhello\u001b[0m\tTry \"\" \n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 562",
+   "screen": "\u001b[ ❯\u001b]x\u001b[38;5;246m\u001c\n\u001b[7m\u001b[22m❯ \n \u001b[22;2m─\u001b[7m\u001b[7m\n╭\n\n\u001b[\u001b[  \u001b[2m\u001c\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯\u001b]x\u001b[m\u001b]0;title\u0007\n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 563",
+   "screen": "\nhello \t\u001b[02m❯ hello\n\u001b[02m\nTry \"fix the bug\"🙂Try \"\" \u001b[?25l\n\u001b[2m──────────────────────────────\u001b[0m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 564",
+   "screen": "\u001b[╭\u001b[1;2mTry \"fix the bug\"│\nTry \"a ─\u001b[02m\u001b[1;2m\n Try \"\"❯\u001cTry \"a\n\t\n\u001b[2m──────────────────────────────\u001b[0m\n ❯ Try \"x\" \n \n\u001b[7m \u001b[22;2m─\u001b[7m\n───── t ─\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 565",
+   "screen": "─────  x ─\n❯ \u001b[0m\n \u001b[KTry \"a❯ ╭\n───\n ❯ Try \"x\"\u001b[0m\n\n\n────────── a b ─────\n > x\n\u001b[02m\u001b[❯   \n───────────────────────────────────\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 566",
+   "screen": "\u001b[2;3m\u001b[22m\u001b[22;2m\t\n\u001b[2;3m \u001b[0m　\n　\u001b[m ❯ 　\n───\n ❯ \u001b[2mT\u001b[0mry \"x\"\n  \n \u001b[0mTry \"fix the bug\"│\u001b[02m",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 567",
+   "screen": "\n❯ \n\u001b]x\u001b]0;title\u0007\n\u001b[m日本語\u001b[0m\u001b[0m🙂\n❯ \u001b[1;2m\n\u001b[2m──────────────────────────────\u001b[0m\n ❯  \n───── ─ ─\n\u001b[2m\t\u001b[22m\u001b[1;2m🙂Try \"\"\u001b[K\u001b[0m\n \n \n───── \tt ─\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 568",
+   "screen": "\u001b]x❯ \u001b[2;3mTry \"fix the bug\"\n\u001b[m\n\u001b[38;5;246m\t\u001b[1;2m❯\u001b[22m\u001b]x\n  ────────────────────  \n\u001b[2m Try \"a \n\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n? for shortcuts\n↑/↓ to select · enter\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 569",
+   "screen": "\nTry \"a\n\u001b[0m\n\u001b[ \n\n \n─────  x ─\n\u001b[2m> x \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2;3m  \n───── t ─ \n > x\u001b[0m\n \n↑/↓ to select · enter\n? for shortcuts\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 570",
+   "screen": "\u001b[22m❯ \u001b[m  \u001b[2m\n\u001b]x\u001b[7m🙂\u001b[?25l\u001b[?25l\n\n───── \tt ─\n ❯ \u001b[2mTry \"x\"\u001b[0m \n \n \n  ↑/↓ to select\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 571",
+   "screen": "\u001c╭╭\u001c\u001b[7m\u001b[2m\n\n\n\u001b[7m\n\u001b[1m \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ \u001b[2mTry \"x\" \n\u001b[2m──────────────────────────────\u001b[0m\n > x \n─────  x ─\n\u001b[1m❯ \u001b[7m \u001b[0m\u001b[2mry \"x\"\u001b[0m\n  ────────────────────  \n\n? for shortcuts\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 572",
+   "screen": "\u001b[7m　\u001b[mTry \"a\n\u001c❯\n\u001b]xhello\n　x\u001b[1m❯ \u001b]0;title\u0007\u001b[22m\nx\n────────── a b ─────\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 573",
+   "screen": "\u001b[?25l \n\u001b[7mTry \"a日本語\u001b[2;3mTry \"fix the bug\"\n\nhello \n\u001b[22;2m\t \n\n───── ─ ─\n ❯ \u001b[2mT\u001b[0mry \"x\" \n \n\n─────  x ─\n\u001b[1m❯ \u001b[2mTry \"x\"\u001b[0m\n  \n──────────────────────────────────────── node ─",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 574",
+   "screen": "\u001b[m\u001b[2m\u001b[0mTry \"fix the bug\"\n\u001b[0m\n────────── a b ─────\n\u001b[1m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n \n───── t ─ \n  ↑/↓ to select\n  ↑/↓ to select",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 575",
+   "screen": "\n\u001b[K\u001b[1m　\u001c\t\n\u001b[1m\u001b[38;5;246m\u001b]x\u001b]0;title\u0007🙂\n\t\u001b[0m\u001b[K\u001b[02m\n❯ \u001b[?25l🙂\u001b[1;2m\u001b[02m\u001b]0;title\u0007\n───── t ─\n❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n──\n\u001b[1m \nTry \"fix the bug\"\u001b[38;5;246m\n─────  x ─\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 576",
+   "screen": "　\u001b[7m\u001b[0m\n\u001b[2m\u001b]x\n\u001b[22;2mTry \"a\u001b]x\u001b[?25l\n\u001b[1mhello\u001b[2;3mx\u001b[1;2m\nhello\u001b[mTry \"fix the bug\"\n\t❯ \n  ────────────────────  \n\u001b[2m❯ \u001b[2mT\u001b[0mry \"x\"\u001b[0m\n\u001b[2;3m\n───── t ─x\n? for shortcuts\nTry \"fix the bug\"\u001b[02m\u001b[hello\u001b[2;3m\t\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 577",
+   "screen": "❯ Try \"fix the bug\"\u001b[02m│\nx\u001c❯  \u001b[1m\n\n\u001b[2m\tTry \"a\n❯\t日本語\n　\t\u001b]x \n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 578",
+   "screen": "───── ─ ─\n\u001b[2m❯ Try \"x\" \n日本語\u001b[1;2m\u001b[2;3m\u001b[K\n  \n───── t ─x\n↑/↓ to select · enter\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 579",
+   "screen": "\u001b[1;2m\u001b[2;3m\u001c\n\n\u001b[22;2m  \u001b[22;2m\n\u001b]x\u001b[0m\u001b[2m\u001b[?25l\u001b[0m\nTry \"\" Try \"fix the bug\"\u001b[1;2m\n───── t ─ ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 580",
+   "screen": "\u001b[1m\u001b[38;5;246m ❯ x\u001b[0m\n\u001b[38;5;246m\n\u001b[2m\t\n  ────────────────────  \n \u001b[38;5;246m\u001b[Try \"fix the bug\"\u001b[2;3m \u001b[0m\n───────────────────────────────────────────────\n❯ \u001b[2mTry \"x\"\n──────────────────────────\n ❯ \u001b[2mTry \"x\"\u001b[0m\n───── \tt ─\n\u001b[22;2mTry \"\"\u001b[02m\u001b[ ❯ \n\n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 581",
+   "screen": "─────  x ─\n> x\n\n\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 582",
+   "screen": "日本語╭\n❯ \u001b[2;3m❯ Try \"\"\n\u001b[2m──────────────────────────────\u001b[0m\n\u001b[2m❯ draft \n \n\n\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 583",
+   "screen": "───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n❯ \n \n \n──────────────────────────────────────── node ─\n❯ Try \"x\" \n \n  \n\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 584",
+   "screen": "  ────────────────────  \n ❯ Try \"x\" \n──\n❯ \u001b[2mTry \"x\"\u001b[0m\u001b[0m\n \u001b[22m\n\n  ↑/↓ to select\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 585",
+   "screen": "\n│ Try \"fix the bug\"\u001b[22;2m\n───\n❯ \u001b[2mTry \"x\"\u001b[0m\n\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[2m──────────────────────────────\u001b[0m\n ❯ Try \"x\" \n\n───── t ─x\n\n↑/↓ to select · enter\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 586",
+   "screen": "hello日本語╭\nTry \"a　\u001b[2;3m\n\n\u001b]0;title\u0007─\u001b]x \u001c\n\u001b[1m Try \"a\u001b[\n\n──────────────────────────────────────── node ─\n\u001b[?25l\u001b[1m\u001b[m❯ \u001b[?25lTry \"a\n? for shortcuts\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 587",
+   "screen": "Try \"a\u001b]x 🙂❯ \n│\u001b]x\u001b[0m \u001b[1;2m\n\u001b[K\n\u001b]x \u001b[0m\n\u001b]xTry \"\"hello\n───\n\u001b[1m\u001b[02m\n  ↑/↓ to select\n─\u001b]0;title\u0007\n",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 588",
+   "screen": " \u001b[\u001b[38;5;246m🙂\u001b[22;2m\n　❯\u001b[m\u001b[K\n╭\n\u001b[　\u001b[1;2m\n\n  ────────────────────  \n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 589",
+   "screen": "\n\n\u001b[7mhello \n───── \tt ─\n \u001b]x❯ \u001b[m\n─────  x ─\n\u001b[38;5;246mx\t\u001b[02m \n\u001b[02m\u001b[2;3m\u001b[38;5;246m\u001b[m\n \n───── t ─x\n ❯ Try \"x\"\n───── t ─x\n  ↑/↓ to select",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 590",
+   "screen": "Try \"fix the bug\"\u001b[7m\u001b[\n\u001b[7m\u001c\n \u001b[1;2m\n─\n\u001b[1;2m日本語\u001b[38;5;246m\n\u001b]0;title\u0007\n─────  x ─\n hello\u001b[0m\n\n  \n─────  x ─\n Try \"a \n❯ \n──────────────────────────────────────── node ─\n\u001b[2m❯ \u001b[2mTry \"x\"\u001b[0m\n\n───── t ─ \n  ↑/↓ to select",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 591",
+   "screen": "\u001b[02m\n\u001b[2m\t\n\u001b[0mTry \"a\u001b[K\n \u001b[2mTry \"\"\u001b[0m日本語│\n───── t ─\n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 592",
+   "screen": "❯Try \"fix the bug\"\u001b[1m\u001b[1m\n\u001b]0;title\u0007\n\u001b[0m──❯ \n❯❯ \n\u001b[?25l\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ draft\u001b[0m\n \n \n───── ─ ─\n > x \n \n \n───\n> x \n \n──\n↑/↓ to select · enter\n\n\n",
+   "composer": "draft",
+   "panel": true
+  },
+  {
+   "name": "generated 593",
+   "screen": "❯\u001b[22;2m❯ ❯\nTry \"a\n❯ \n\u001b[2m──────────────────────────────\u001b[0m\n? for shortcuts\n↑/↓ to select · enter\n? for shortcuts",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 594",
+   "screen": "hello❯ \nTry \"a\u001b[1;2m╭\u001b[2;3m│\u001b]0;title\u0007\n\u001b[0m─❯ \n\n────────── a b ─────\n\u001b[1m❯ \n \n \n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n ❯ \u001b[2mTry \"x\"\u001b[0m \n\u001b[22mTry \"fix the bug\"─\u001b]xx\n \n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 595",
+   "screen": " \u001b[1;2m\n\u001b[K日本語　\u001b[02m\u001b[2;3m🙂\n \u001b[0m\u001b]0;title\u0007\n\nhello─🙂\u001b[38;5;246m\u001b[7m\u001b[K\n\u001b[1m\n───── yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ─\n\u001b[2m❯ draft\u001b[0m\n \n  \n───── t ─x\n ❯  \n \n \n──\n\u001b[22;2mTry \"a \u001b[22;2m─🙂 \n  \n  \n───── t ─\n↑/↓ to select · enter\n  ↑/↓ to select\n",
+   "composer": "draft",
+   "panel": false
+  },
+  {
+   "name": "generated 596",
+   "screen": "\u001b[2;3m\u001b[K─\n\u001cTry \"a\u001b]0;title\u0007Try \"\"╭\n❯\u001c\n───\n  ↑/↓ to select\n",
+   "composer": "unknown",
+   "panel": true
+  },
+  {
+   "name": "generated 597",
+   "screen": "hello\u001b[1mx hello\n❯\u001b[38;5;246m\u001b[7m❯ \u001b[02m\n\u001b[02m \nx\u001b[22;2m\u001b[0m\n───── t ─\n\u001b[1m❯ \n──────────────────────────────────────────────────────\n\u001b[38;5;246mTry \"a\u001b[1;2m\u001b[22m\n↑/↓ to select · enter\n",
+   "composer": "empty",
+   "panel": false
+  },
+  {
+   "name": "generated 598",
+   "screen": "\u001b[1;2m │\n\u001b[\n\u001b[02m─❯ \u001b[2m\n\u001b[?25l\u001b[22m\n\u001b[2;3m　Try \"a \n\u001b]0;title\u0007\u001b[22;2m\u001b[38;5;246m❯\n\u001b]0;title\u0007❯ ",
+   "composer": "unknown",
+   "panel": false
+  },
+  {
+   "name": "generated 599",
+   "screen": "\n❯ Try \"fix the bug\"\u001b[?25l\u001b[2;3m\u001b[02m\n───── \tt ─",
+   "composer": "unknown",
+   "panel": false
   },
   {
    "name": "a claude agent",
