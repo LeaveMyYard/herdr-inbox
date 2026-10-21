@@ -47,6 +47,26 @@ pub fn landing(landing: Landing, ack: bool, busy: bool) -> Outcome {
     }
 }
 
+/// The lookup of a verify job: where each row's text landed.
+pub trait JobLook {
+    /// Where row `id`'s text landed, by its own plan: counted in its own
+    /// `counting` transcripts, with its own `older_error`. A row without a
+    /// plan (an older popup's job) counts every watched transcript and has
+    /// no older state.
+    fn landing(&mut self, id: i64) -> Landing;
+}
+
+/// Python `verify_job`: the outcome of each row of a typed batch, all
+/// checked against the one wait for the typed text, each by its own landing
+/// (never another row's). `ack` and `busy` are the job's; Python reads them
+/// with `job.get("ack", True)` and `job.get("busy")`, so a job without them
+/// is `ack = true`, `busy = false` (the caller's parse of the job JSON).
+pub fn job(ids: &[i64], ack: bool, busy: bool, look: &mut impl JobLook) -> Vec<(i64, Outcome)> {
+    ids.iter()
+        .map(|&id| (id, landing(look.landing(id), ack, busy)))
+        .collect()
+}
+
 /// What becomes of a hook-sent answer this tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HookOutcome {
