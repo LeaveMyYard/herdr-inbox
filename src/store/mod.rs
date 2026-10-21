@@ -3,13 +3,15 @@
 //!
 //! The rules of this side of the database, shared with the Python bridge:
 //!
-//! - **No migration, no stamp.** Only the worker and the popup migrate. A
-//!   hook opens the database, checks that the schema it uses is there
-//!   ([`readiness`]) and does nothing if not. Nothing here writes
-//!   `user_version`.
+//! - **No migration, no stamp, except for the worker and the popup.** Only
+//!   they open with [`Store::open_migrating`] ([`migrate`]), which brings the
+//!   schema forward and writes `user_version`. A hook opens the database,
+//!   checks that the schema it uses is there ([`readiness`]) and does
+//!   nothing if not.
 //! - **Bounded lookups.** A busy or locked database never holds a session:
 //!   the hook's lookups give up after a wall-clock deadline ([`busy`]).
-//! - **Never create the database.** Every open needs the file to exist.
+//! - **Never create the database**, except the migrating open: every other
+//!   open needs the file to exist.
 //!
 //! The SQL is Python's (`store.py`, `hook.py`), statement for statement.
 
@@ -20,6 +22,7 @@ pub mod claims;
 pub mod connect;
 pub mod family;
 pub mod liveness;
+pub mod migrate;
 pub mod mirror;
 pub mod norm;
 pub mod outcomes;
