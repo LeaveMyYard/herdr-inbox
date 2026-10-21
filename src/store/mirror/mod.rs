@@ -6,6 +6,7 @@
 //! notifies comes back as [`Notice`]s (before `herdr.clean`, which the caller
 //! applies).
 
+mod paths;
 mod problems;
 mod pull;
 mod reads;
@@ -14,6 +15,7 @@ use std::time::SystemTime;
 
 use rusqlite::Row;
 
+pub use paths::{PLUGIN_ID, probed, safe_path};
 pub use problems::{NOT_VERIFIED, Problem};
 pub use pull::{CallResult, FULL_EVERY};
 pub use reads::group_key;

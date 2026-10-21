@@ -20,6 +20,15 @@ use crate::common::migrated;
 use crate::golden::{i, s, sql};
 
 const GOLDEN: &str = include_str!("../fixtures/store-mirror.json");
+/// capture_goldens `_PROBE_OUT`: what the paths probe prints unless a step says otherwise.
+const PROBE_OUT: &str = "/home/u/.local/bin/uv\n/usr/local/bin/herdr\nmissing:claude\n";
+
+/// capture_goldens `_PLUGINS_OUT` (Python's `json.dumps`).
+fn plugins_out() -> String {
+    pyjson::dumps(&json!({"result": {"plugins": [
+        {"plugin_id": "other.plugin", "plugin_root": "/x"},
+        {"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "/home/u/.config/herdr/plugins/inbox"}]}}))
+}
 
 fn at(a: &Value) -> SystemTime {
     UNIX_EPOCH + Duration::from_secs(a["now"].as_u64().unwrap())
@@ -97,9 +106,13 @@ fn run(store: &Store, op: &str, a: &Value) -> (Value, Vec<Value>) {
                     m["label"].as_str(),
                     m["target"].as_str(),
                     at(a),
-                    |rec| match a.get("paths_error").and_then(Value::as_str) {
-                        Some(e) => Err(e.to_string()),
-                        None => Ok(rec.clone()),
+                    |target| {
+                        calls.borrow_mut().push(json!(["probe", target]));
+                        a.get("probe").and_then(Value::as_str).unwrap_or(PROBE_OUT).to_string()
+                    },
+                    |target, herdr| {
+                        calls.borrow_mut().push(json!(["plugins", target, herdr]));
+                        a.get("plugins").and_then(Value::as_str).map_or_else(plugins_out, String::from)
                     },
                     |_, cursor, full| {
                         let cursor = cursor.map_or(Value::Null, |(db, seq)| json!({"db_id": db, "seq": seq}));

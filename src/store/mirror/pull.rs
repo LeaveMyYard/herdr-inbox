@@ -73,16 +73,19 @@ impl Store {
     }
 
     /// One pull of `id` into the mirror: `true` if it worked, and the
-    /// notices to send. `paths` fills in the remote's uv/herdr/plugin root
-    /// (Python `_paths`), `call` runs `inbox export` there with the cursor
-    /// (`db_id`, `seq`) and whether to ask for a full snapshot.
+    /// notices to send. `ssh` runs the remote's probe and `herdr plugin list`
+    /// while a path is not cached ([`Store::machine_paths`]); `call` runs
+    /// `inbox export` there with the cursor (`db_id`, `seq`) and whether to
+    /// ask for a full snapshot.
+    #[allow(clippy::too_many_arguments)]
     pub fn pull(
         &self,
         id: &str,
         label: Option<&str>,
         target: Option<&str>,
         now: SystemTime,
-        paths: impl FnOnce(&Machine) -> Result<Machine, String>,
+        probe: impl FnOnce(&str) -> String,
+        plugin_list: impl FnOnce(&str, &str) -> String,
         call: impl FnOnce(&Machine, Option<(String, Option<i64>)>, bool) -> CallResult,
     ) -> rusqlite::Result<(bool, Vec<Notice>)> {
         let rec = self.record_machine(id, label, target)?;
@@ -93,7 +96,7 @@ impl Store {
         {
             return Ok((false, Vec::new()));
         }
-        let rec = match paths(&rec) {
+        let rec = match self.machine_paths(&rec, probe, plugin_list)? {
             Ok(r) => r,
             Err(e) => {
                 self.fail_pull(&rec, &e, now)?;
@@ -201,7 +204,7 @@ impl Store {
                 db.execute("DELETE FROM remote_questions WHERE machine_id = ? AND remote_id = ?", params![mid, rid])?;
             }
             if data.full {
-                let keep: Vec<i64> =
+                let keep: std::collections::HashSet<i64> =
                     data.ids.iter().copied().chain(data.questions.iter().filter_map(|r| py_int(&r["id"]))).collect();
                 let have: Vec<i64> = {
                     let mut stmt = db.prepare("SELECT remote_id FROM remote_questions WHERE machine_id = ?")?;

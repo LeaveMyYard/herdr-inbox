@@ -932,6 +932,11 @@ _DBA, _DBB = "a" * 32, "b" * 32
 _M1 = {"id": "m1", "label": "box", "target": "box.lan"}
 _M2 = {"id": "m2", "label": None, "target": "other.lan"}
 _NV = "not verified: herdr accepted the text but it never reached the conversation"
+# What the remote's paths probe and `herdr plugin list --json` print, unless a step says otherwise.
+_PROBE_OUT = "/home/u/.local/bin/uv\n/usr/local/bin/herdr\nmissing:claude\n"
+_PLUGINS_OUT = json.dumps({"result": {"plugins": [
+    {"plugin_id": "other.plugin", "plugin_root": "/x"},
+    {"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "/home/u/.config/herdr/plugins/inbox"}]}})
 
 
 def _rq(i, status="open", group=None, **kw):
@@ -961,7 +966,7 @@ def _ex(db, seq, questions, full=False, ids=None, gone=None, alerts=None, **kw):
 
 
 STORE_MIRROR_OPS = [
-    ("pull", {"machine": _M1, "now": _T0, "paths_error": "uv/herdr not found on the remote"}),
+    ("pull", {"machine": _M1, "now": _T0, "probe": "/home/u/.local/bin/uv\nmissing:herdr\n"}),  # no herdr there
     ("pull", {"machine": _M1, "now": _T0 + 1}),  # backing off: no call
     ("pull", {"machine": _M1, "now": _T0 + 6, "code": 2}),  # no `export` there
     ("pull", {"machine": _M1, "now": _T0 + 20, "code": 255, "stderr": "  ssh: connect refused\n"}),
@@ -1012,7 +1017,7 @@ STORE_MIRROR_OPS = [
     # one step per remaining predicate (#83's rule, applied before review)
     ("alert_by_key", {"key": "m1|9"}),  # m2's alert 9, not m1's
     ("pull", {"machine": {"id": "m4", "label": "four", "target": "t4"}, "now": _T0 + 900,
-              "paths_error": "probe failed"}),
+              "plugins": "[]"}),  # json.loads -> list: list.get is an AttributeError
     ("pull", {"machine": {"id": "m4", "label": "four", "target": "t4"}, "now": _T0 + 905,  # exactly backoff_until
               "export": _ex("d" * 32, 1, [{**_rq(1), "id": True}], full=True, ids=[1])}),  # a bool id: QTrue
     ("sql", {"sql": "UPDATE remote_machines SET db_id = '', pulls = 5 WHERE machine_id = 'm2'", "params": []}),
@@ -1040,6 +1045,45 @@ STORE_MIRROR_OPS = [
     ("open_groups", {}),  # group 1 of another db_id is another group
     ("pull", {"machine": {**_M1, "label": ""}, "now": _T0 + 909, "export": _ex("f" * 32, 1, [])}),  # reset: r4, r7 fail
     ("pull", {"machine": {**_M1, "label": ""}, "now": _T0 + 910, "export": _ex("0" * 32, 1, [])}),  # reset, nothing queued
+    # the paths probe and its cache (#86 review M2): each failure, then the paths cached for good
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1000,
+              "probe": "  /opt/uv  \r\nnot/absolute/herdr\n/bad path/herdr\n"}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1100, "plugins": "not json"}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1200,
+              "plugins": json.dumps({"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox",
+                                                             "plugin_root": "relative/root"}]}})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1300,
+              "plugins": json.dumps({"result": {"plugins": [5, {"plugin_id": "leavemyyard.herdr-inbox"}]}})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1400,
+              "plugins": json.dumps({"result": [1]})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1500,
+              "plugins": json.dumps({"result": {"plugins": 7}})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1600,
+              "plugins": json.dumps({"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox"}]}})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1700,
+              "probe": "  /a/uv\n /b/uv \n\t/c/herdr\n", "export": _ex("5" * 32, 1, [
+                  _rq(1, "answered", delivery_error=_NV, delivery_attempts=2, verified_at=STORE_FIXED),
+                  _rq(2, "answered", delivery_error=_NV, delivery_attempts=2, acknowledged_at=STORE_FIXED)])}),  # cached now
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1701,
+              "probe": "", "export": _ex("5" * 32, 2, [])}),  # cached: no probe at all
+    ("problem_rows", {}),  # m5's verified answer is no problem
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1702, "code": 1,
+              "stderr": "e" * 100 + "\n" + "x" * 350 + "\n"}),  # only the last 300 characters
+    ("sql", {"sql": "UPDATE remote_machines SET uv = NULL, backoff_until = NULL WHERE machine_id = 'm5'", "params": []}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1703, "plugins": ""}),  # re-probed; '' -> {}
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1800,
+              "plugins": json.dumps({"result": {"plugins": "ab"}})}),  # a string: its characters
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 1900,
+              "plugins": json.dumps({"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "/"}]}})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 2000,
+              "plugins": json.dumps({"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox",
+                                                             "plugin_root": "/" + "a" * 501}]}})}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 2100, "export": _ex("5" * 32, 3, [])}),
+    ("sql", {"sql": "UPDATE remote_machines SET plugin_root = '' WHERE machine_id = 'm5'", "params": []}),
+    ("pull", {"machine": {"id": "m5", "label": "five", "target": "t5"}, "now": _T0 + 2101,
+              "plugins": json.dumps({"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox",
+                                                             "plugin_root": "/" + "b" * 500}]}}),
+              "export": _ex("5" * 32, 4, [])}),  # '' is not cached: probed again; 500 characters is fine
 ]
 # What validate_export makes of exports (the rows it keeps, cleaned, or the error it raises).
 _VROW = {"id": 1, "qkey": "0123abcd", "group": 1, "status": "open", "question": "Q?"}
@@ -1084,6 +1128,18 @@ STORE_EXPORT_VECTORS = [
     _ex(_DBA, 1, [], full=[], gone=[]),
     _ex(_DBA, 1, [], alerts=[0] * 1000 + [_ra(1)]),  # only the first 1000 entries are looked at
     _ex(_DBA, 1, [], gone=list(range(1001))),
+    _ex(_DBA, 1, [{**_VROW, "qkey": "ghijklmn"}], alerts=[_ra(1, akey="ghijklmn"), _ra(2, status="x")]),  # non-hex; unknown status
+    _ex("ghijklmn" * 4, 1, []),  # a non-hex db_id
+    _ex(_DBA, 1, [{**_VROW, "options": ["l" * 201, {"label": "m" * 201}]}]),  # labels cut to 200
+    {**_ex(_DBA, 1, []), "version": "v" * 21},  # cut to 20
+    _ex(_DBA, 1, [{**_VROW, "qkey": "gggggggg"}], alerts=[_ra(1, akey="gabcdefa")]),  # g is not hex
+    _ex("g" * 32, 1, []),
+    _ex(_DBA, 1, [{**_VROW, **{k: ("f" if k == "qkey" else "z") * (cap + 1) for k, cap in (
+        ("question", 4000), ("header", 60), ("tab_label", 120), ("pane_id", 64), ("asked_by", 120), ("title", 120),
+        ("answer", 4000), ("delivery_error", 300), ("created_at", 40), ("answered_at", 40), ("delivered_at", 40),
+        ("verified_at", 40), ("acknowledged_at", 40), ("qkey", 64))}}]),  # every field one over its cap
+    _ex(_DBA, 1, [{**_VROW, "options": [{"label": "o", "preview": "p" * 4001, "description": "d" * 501}]}],
+        alerts=[_ra(1, message="m" * 2001, tab_label="t" * 121, pane_id="p" * 81, asked_by="a" * 121, created_at="c" * 41)]),
 ]
 # What normalize_options makes of malformed options (the MCP schema allows strings only; a stored
 # row or another writer may hold anything): its result, or the exception it raises.
@@ -1248,10 +1304,15 @@ def capture_store_mirror(out: Path, work: Path) -> Path:
     env = {"now": _T0, "step": {}}
     effects: list = []
 
-    def paths(store, rec):
-        if env["step"].get("paths_error"):
-            raise RuntimeError(env["step"]["paths_error"])
-        return rec
+    def ssh(target, command, timeout=None):
+        s = env["step"]
+        if command == remote.PROBE:
+            effects.append(["probe", target])
+            return sp.CompletedProcess([], 0, s.get("probe", _PROBE_OUT), "")
+        herdr_bin, _, rest = command.partition(" ")
+        assert rest == "plugin list --json", command
+        effects.append(["plugins", target, herdr_bin])
+        return sp.CompletedProcess([], 0, s.get("plugins", _PLUGINS_OUT), "")
 
     def call(rec, sub, request):
         effects.append(["call", request.get("cursor"), request.get("full")])
@@ -1259,7 +1320,7 @@ def capture_store_mirror(out: Path, work: Path) -> Path:
         stdout = json.dumps(s["export"]) if "export" in s else s.get("stdout", "")
         return sp.CompletedProcess([], s.get("code", 0), stdout, s.get("stderr", ""))
 
-    stubs = {"_paths": paths, "call": call, "_now": lambda: datetime.fromtimestamp(env["now"], tz=timezone.utc),
+    stubs = {"ssh": ssh, "call": call, "_now": lambda: datetime.fromtimestamp(env["now"], tz=timezone.utc),
              "_notify": lambda title, body: effects.append(["notify", title, body])}
     saved = {k: getattr(remote, k) for k in stubs}
     for k, fn in stubs.items():
