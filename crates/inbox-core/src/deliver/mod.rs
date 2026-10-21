@@ -12,6 +12,7 @@ mod decide;
 mod reasons;
 mod typing;
 
+pub use crate::verify::Landing;
 pub use decide::decide;
 pub use reasons::{
     BLOCKED_WAIT, BUSY_WAIT_IDLE, CHANGED, COMPOSER_DRAFT, COMPOSER_UNKNOWN, HOOK_WAIT, NO_AGENT,
@@ -73,17 +74,6 @@ pub enum Composer {
     Draft,
     /// Unreadable: counts as not empty.
     Unknown,
-}
-
-/// Where a typed answer landed (Python `_record_outcome`'s hits and plan).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Landing {
-    /// In a transcript of the asker's forward family: delivered.
-    pub counted: bool,
-    /// Anywhere watched.
-    pub anywhere: bool,
-    /// The row's state if it landed only in an older session of its conversation.
-    pub older_error: Option<String>,
 }
 
 /// What becomes of one answer (the store write Python makes).
