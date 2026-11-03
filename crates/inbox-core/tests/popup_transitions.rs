@@ -75,30 +75,178 @@ fn replay(scenario: &Value) -> Result<(), String> {
     Ok(())
 }
 
+fn golden() -> Value {
+    serde_json::from_str(GOLDEN).unwrap()
+}
+
+/// Replay the golden's scenario `name`.
+fn scenario(name: &str) {
+    let golden = golden();
+    let scenario = golden["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == name);
+    let scenario = scenario.unwrap_or_else(|| panic!("no scenario {name} in the golden"));
+    if let Err(diff) = replay(scenario) {
+        panic!("{diff}");
+    }
+}
+
+/// One test per scenario, named after the Python test it replays
+/// (`<test file without test_>::<test without test_>`); the ledger maps the
+/// Python tests to these.
+macro_rules! scenarios {
+    ($($module:ident { $($test:ident = $name:literal,)* })*) => {
+        $(mod $module { $( #[test] fn $test() { super::scenario($name) } )* })*
+        const LISTED: &[&str] = &[$($($name,)*)*];
+    };
+}
+
+scenarios! {
+    tui {
+        group_list_rows_and_order = "tui.group_list_rows_and_order",
+        single_question_layout_and_keys = "tui.single_question_layout_and_keys",
+        single_pick_sends_immediately_and_closes = "tui.single_pick_sends_immediately_and_closes",
+        type_something_and_multi_select = "tui.type_something_and_multi_select",
+        multi_select_submit_needs_a_pick = "tui.multi_select_submit_needs_a_pick",
+        chat_about_this_and_escape = "tui.chat_about_this_and_escape",
+        chat_about_this_and_escape_esc = "tui.chat_about_this_and_escape.esc",
+        empty_state_closes_on_any_key = "tui.empty_state_closes_on_any_key",
+        answering_drafts_and_moves_to_the_next_tab = "tui.answering_drafts_and_moves_to_the_next_tab",
+        submit_is_per_group_and_keeps_blanks = "tui.submit_is_per_group_and_keeps_blanks",
+        cancel_and_drafts_survive_a_restart = "tui.cancel_and_drafts_survive_a_restart",
+        cancel_and_drafts_survive_a_restart_again = "tui.cancel_and_drafts_survive_a_restart.again",
+        new_groups_never_join_an_open_group = "tui.new_groups_never_join_an_open_group",
+        one_becomes_several_while_open = "tui.one_becomes_several_while_open",
+        dismiss_question_in_group_and_whole_group_in_list = "tui.dismiss_question_in_group_and_whole_group_in_list",
+        tab_order_focused_pane_first_groups_adjacent = "tui.tab_order_focused_pane_first_groups_adjacent",
+    }
+    background_keys {
+        arrival_into_the_empty_popup_does_not_take_over = "background_keys.arrival_into_the_empty_popup_does_not_take_over",
+        arrival_then_deliberate_tab_enables_immediate_send = "background_keys.arrival_then_deliberate_tab_enables_immediate_send",
+        typing_after_the_question_closes_never_reaches_app_keys = "background_keys.typing_after_the_question_closes_never_reaches_app_keys",
+        keys_are_swallowed_briefly_after_a_background_view_change = "background_keys.keys_are_swallowed_briefly_after_a_background_view_change",
+        gone_tab_disables_g_and_d = "background_keys.gone_tab_disables_g_and_d",
+        dismiss_needs_y = "background_keys.dismiss_needs_y",
+    }
+    cursor_targets {
+        cancel_stays_cancel_when_a_question_arrives = "cursor_targets.cancel_stays_cancel_when_a_question_arrives",
+        item_cursor_follows_its_question = "cursor_targets.item_cursor_follows_its_question",
+        vanished_target_parks_on_nothing = "cursor_targets.vanished_target_parks_on_nothing",
+    }
+    group_list {
+        opens_straight_into_the_only_group = "group_list.opens_straight_into_the_only_group",
+        opens_straight_into_the_only_group_not_with_a_warning_entry = "group_list.opens_straight_into_the_only_group.not_with_a_warning_entry",
+        closed_row_is_inert_until_the_operator_moves = "group_list.closed_row_is_inert_until_the_operator_moves",
+        cursor_target_vanishing_from_a_return_parks_inert = "group_list.cursor_target_vanishing_from_a_return_parks_inert",
+        g_from_the_list_goes_to_the_groups_agent = "group_list.g_from_the_list_goes_to_the_groups_agent",
+        last_group_sent_closes_the_popup = "group_list.last_group_sent_closes_the_popup",
+    }
+    arrivals {
+        tab_enter_after_arrival_never_answers_the_new_question = "arrivals.tab_enter_after_arrival_never_answers_the_new_question",
+        arrivals_are_list_rows_and_never_move_the_cursor = "arrivals.arrivals_are_list_rows_and_never_move_the_cursor",
+        arrival_into_the_empty_view_still_opens_with_tab = "arrivals.arrival_into_the_empty_view_still_opens_with_tab",
+        question_view_is_armed_only_after_a_moment = "arrivals.question_view_is_armed_only_after_a_moment",
+        list_and_lone_question_are_armed_too = "arrivals.list_and_lone_question_are_armed_too",
+    }
+    race {
+        withdraw_mid_typing_never_answers_the_other_agent = "race.withdraw_mid_typing_never_answers_the_other_agent",
+        cursor_on_an_option_when_the_question_closes = "race.cursor_on_an_option_when_the_question_closes",
+        several_to_one_does_not_make_enter_send = "race.several_to_one_does_not_make_enter_send",
+        new_question_mid_typing_keeps_the_text = "race.new_question_mid_typing_keeps_the_text",
+        go_to_agent_works_for_multi_select = "race.go_to_agent_works_for_multi_select",
+        failed_delivery_entry_retry_and_hide = "race.failed_delivery_entry_retry_and_hide",
+    }
+    real_timing {
+        list_wrap_with_real_arming = "real_timing.list_wrap_with_real_arming",
+        list_row_that_just_arrived_is_not_selectable = "real_timing.list_row_that_just_arrived_is_not_selectable",
+        question_view_ignores_keys_until_armed = "real_timing.question_view_ignores_keys_until_armed",
+        submit_tab_ignores_keys_until_armed = "real_timing.submit_tab_ignores_keys_until_armed",
+        undelivered_view_ignores_keys_until_armed = "real_timing.undelivered_view_ignores_keys_until_armed",
+    }
+    alerts {
+        popup_shows_alerts_first_unnumbered_and_d_acknowledges = "alerts.popup_shows_alerts_first_unnumbered_and_d_acknowledges",
+        popup_d_acknowledges_an_alert_and_g_goes_to_the_pane = "alerts.popup_d_acknowledges_an_alert_and_g_goes_to_the_pane",
+        popup_g_goes_to_the_alerts_pane = "alerts.popup_g_goes_to_the_alerts_pane",
+        an_alert_withdrawn_while_on_screen_becomes_inert = "alerts.an_alert_withdrawn_while_on_screen_becomes_inert",
+        m1_enter_enter_never_goes_to_a_blocked_agent = "alerts.m1_enter_enter_never_goes_to_a_blocked_agent",
+        m1_a_blocked_alert_view_goes_only_on_a_deliberate_g = "alerts.m1_a_blocked_alert_view_goes_only_on_a_deliberate_g",
+        h1_habitual_sequences_with_an_alert_open = "alerts.h1_habitual_sequences_with_an_alert_open",
+        h1_habitual_1_g_with_an_alert_open = "alerts.h1_habitual_1_g_with_an_alert_open",
+        h1_the_only_question_still_opens_directly_with_an_alert_open = "alerts.h1_the_only_question_still_opens_directly_with_an_alert_open",
+        a_held_g_never_passes_the_pause = "alerts.a_held_g_never_passes_the_pause",
+        a_double_tapped_g_never_passes_the_pause = "alerts.a_double_tapped_g_never_passes_the_pause",
+        a_deliberate_g_after_a_pause_still_goes = "alerts.a_deliberate_g_after_a_pause_still_goes",
+        m1_enter_enter_never_acknowledges_an_agent_alert = "alerts.m1_enter_enter_never_acknowledges_an_agent_alert",
+    }
+    failed_pile {
+        q167_gone_answers_collapse_into_one_row_and_d_hides_them_all = "failed_pile.q167_gone_answers_collapse_into_one_row_and_d_hides_them_all",
+        q167_a_single_gone_answer_keeps_its_own_row = "failed_pile.q167_a_single_gone_answer_keeps_its_own_row",
+        q167_a_gone_answer_arriving_later_never_joins_the_open_summary = "failed_pile.q167_a_gone_answer_arriving_later_never_joins_the_open_summary",
+    }
+    agent_gone {
+        pending_rows_say_they_are_already_answered = "agent_gone.pending_rows_say_they_are_already_answered",
+        popup_does_not_list_hidden_rows = "agent_gone.popup_does_not_list_hidden_rows",
+    }
+    deep_link {
+        popup_opens_on_the_requested_question = "deep_link.popup_opens_on_the_requested_question",
+        popup_opens_on_the_group_for_each_target_kind = "deep_link.popup_opens_on_the_group_for_each_target_kind",
+        gone_target_falls_back_to_the_list_with_a_notice = "deep_link.gone_target_falls_back_to_the_list_with_a_notice",
+        a_deep_linked_view_waits_for_a_deliberate_key = "deep_link.a_deep_linked_view_waits_for_a_deliberate_key",
+        no_hold_opens_like_a_normal_popup = "deep_link.no_hold_opens_like_a_normal_popup",
+        no_request_keeps_the_normal_start = "deep_link.no_request_keeps_the_normal_start",
+    }
+    edge {
+        note_box_keys = "edge.note_box_keys",
+        confirm_under_tab = "edge.confirm_under_tab",
+        empty_view_keys = "edge.empty_view_keys",
+        empty_view_up_closes = "edge.empty_view_up_closes",
+        review_keys = "edge.review_keys",
+        list_digits_skip_alerts = "edge.list_digits_skip_alerts",
+        closed_group_poll_inside_list = "edge.closed_group_poll_inside_list",
+        tab_wraps_and_switch_in_list = "edge.tab_wraps_and_switch_in_list",
+        tab_in_the_list = "edge.tab_in_the_list",
+        tab_in_a_failed_view = "edge.tab_in_a_failed_view",
+        tab_in_an_alert_view = "edge.tab_in_an_alert_view",
+        tab_in_the_empty_view = "edge.tab_in_the_empty_view",
+        held_deep_link_takes_no_key_until_tab = "edge.held_deep_link_takes_no_key_until_tab",
+        poll_under_a_confirmation = "edge.poll_under_a_confirmation",
+        gone_summary_row_keys = "edge.gone_summary_row_keys",
+        sent_nothing = "edge.sent_nothing",
+        sent_part = "edge.sent_part",
+        focus_failed = "edge.focus_failed",
+        failed_entry_ends_on_screen = "edge.failed_entry_ends_on_screen",
+        question_closed_in_a_lone_group = "edge.question_closed_in_a_lone_group",
+        multi_select_arming_and_digits = "edge.multi_select_arming_and_digits",
+        reopen_a_note_and_the_typed_text = "edge.reopen_a_note_and_the_typed_text",
+        selected_text_in_a_reopened_box = "edge.selected_text_in_a_reopened_box",
+    }
+}
+
 #[test]
-fn every_scenario_replays_as_the_python_popup_ran_it() {
-    let golden: Value = serde_json::from_str(GOLDEN).unwrap();
+fn every_scenario_of_the_golden_has_its_test() {
+    let golden = golden();
+    let mut names: Vec<&str> = golden["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["name"].as_str().unwrap())
+        .collect();
+    let mut listed = LISTED.to_vec();
+    names.sort_unstable();
+    listed.sort_unstable();
     assert_eq!(golden["schema"], 1);
-    let scenarios = golden["scenarios"].as_array().unwrap();
-    assert!(
-        scenarios.len() >= 70,
-        "the golden lost scenarios: {}",
-        scenarios.len()
-    );
-    let failures: Vec<String> = scenarios.iter().filter_map(|s| replay(s).err()).collect();
-    assert!(
-        failures.is_empty(),
-        "{} of {} scenarios differ:\n\n{}",
-        failures.len(),
-        scenarios.len(),
-        failures.join("\n\n")
+    assert_eq!(
+        names, listed,
+        "the golden was regenerated: list its scenarios here"
     );
 }
 
 #[test]
 fn the_delays_are_the_pythons() {
     use inbox_core::popup::{GO_PAUSE, GRACE, RELEASE, ROW_ARM, VIEW_ARM};
-    let golden: Value = serde_json::from_str(GOLDEN).unwrap();
+    let golden = golden();
     let d = &golden["delays_ms"];
     assert_eq!(
         ["arm", "row_arm", "grace", "release", "go"].map(|k| d[k].as_u64().unwrap()),

@@ -3,42 +3,42 @@ tests/test_agent_gone.py::test_worker_marks_a_gone_agent_once_notifies_once_then
 tests/test_agent_gone.py::test_gone_notification_says_the_answer_is_kept,tests/test_agent_gone.py,,todo,,
 tests/test_agent_gone.py::test_hidden_gone_rows_are_not_polled,tests/test_agent_gone.py,,todo,,
 tests/test_agent_gone.py::test_legacy_rows_of_a_gone_pane_are_not_polled_every_tick,tests/test_agent_gone.py,,todo,,
-tests/test_agent_gone.py::test_popup_labels_a_gone_row_and_d_hides_it,tests/test_agent_gone.py,,todo,,
-tests/test_agent_gone.py::test_popup_does_not_list_hidden_rows,tests/test_agent_gone.py,,todo,,
+tests/test_agent_gone.py::test_popup_labels_a_gone_row_and_d_hides_it,tests/test_agent_gone.py,inbox-core --test popup_transitions failed_pile::q167_a_single_gone_answer_keeps_its_own_row,mapped,,P6
+tests/test_agent_gone.py::test_popup_does_not_list_hidden_rows,tests/test_agent_gone.py,inbox-core --test popup_transitions agent_gone::popup_does_not_list_hidden_rows,mapped,,P6
 tests/test_agent_gone.py::test_pending_rows_say_they_are_already_answered,tests/test_agent_gone.py,,todo,,
 tests/test_alerts.py::test_raise_notifies_counts_in_the_badge_and_dedupes,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_bad_input_and_outside_herdr,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_withdraw_and_acknowledge,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_mcp_tools,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_popup_shows_alerts_first_unnumbered_and_d_acknowledges,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_popup_shows_alerts_first_unnumbered_and_d_acknowledges,tests/test_alerts.py,inbox-core --test popup_transitions alerts::popup_shows_alerts_first_unnumbered_and_d_acknowledges,mapped,,P6
+tests/test_alerts.py::test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,tests/test_alerts.py,inbox-core --test popup_transitions alerts::popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,mapped,,P6
 tests/test_alerts.py::test_an_agent_stuck_at_a_prompt_becomes_an_alert_and_clears_itself,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_a_short_prompt_never_raises_an_alert,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_markup_escape_keeps_upper_case_brackets_and_trailing_backslashes,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_the_worker_stays_alive_while_herdr_reports_agents_and_exits_without,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_tick_counts_the_agents_it_watches,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_an_alert_withdrawn_while_on_screen_becomes_inert,tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_an_alert_withdrawn_while_on_screen_becomes_inert,tests/test_alerts.py,inbox-core --test popup_transitions alerts::an_alert_withdrawn_while_on_screen_becomes_inert,mapped,,P6
 tests/test_alerts.py::test_a_dismissed_blocked_alert_holds_until_the_prompt_ends,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_l_a_flickering_status_neither_clears_nor_renotifies,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_l_an_agent_gone_from_the_list_clears_at_once,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_l_another_herdr_servers_alert_for_the_same_pane_id_does_not_suppress,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_m1_enter_enter_never_goes_to_a_blocked_agent,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_m1_enter_enter_never_acknowledges_an_agent_alert,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_m1_a_blocked_alert_view_goes_only_on_a_deliberate_g,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7[keys0],tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_m1_enter_enter_never_goes_to_a_blocked_agent,tests/test_alerts.py,inbox-core --test popup_transitions alerts::m1_enter_enter_never_goes_to_a_blocked_agent,mapped,,P6
+tests/test_alerts.py::test_m1_enter_enter_never_acknowledges_an_agent_alert,tests/test_alerts.py,inbox-core --test popup_transitions alerts::m1_enter_enter_never_acknowledges_an_agent_alert,mapped,,P6
+tests/test_alerts.py::test_m1_a_blocked_alert_view_goes_only_on_a_deliberate_g,tests/test_alerts.py,inbox-core --test popup_transitions alerts::m1_a_blocked_alert_view_goes_only_on_a_deliberate_g,mapped,,P6
+tests/test_alerts.py::test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7[keys0],tests/test_alerts.py,inbox-core --test popup_transitions alerts::h1_habitual_sequences_with_an_alert_open,mapped,,P6
 tests/test_alerts.py::test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7[keys1],tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7[keys2],tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_h1_habitual_sequences_with_an_alert_open_behave_as_in_0_7[keys2],tests/test_alerts.py,inbox-core --test popup_transitions alerts::h1_habitual_sequences_with_an_alert_open,mapped,,P6
 tests/test_alerts.py::test_m1_an_agent_alerts_pane_turned_blocked_needs_a_deliberate_g,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_l1_the_blocked_clock_survives_a_worker_restart,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_h1_the_only_question_still_opens_directly_with_an_alert_open,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_a_held_g_never_passes_the_pause,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_a_double_tapped_g_never_passes_the_pause,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_a_deliberate_g_after_a_pause_still_goes,tests/test_alerts.py,,todo,,
-tests/test_arrivals.py::test_tab_enter_after_arrival_never_answers_the_new_question,tests/test_arrivals.py,,todo,,
-tests/test_arrivals.py::test_arrivals_are_list_rows_and_never_move_the_cursor,tests/test_arrivals.py,,todo,,
-tests/test_arrivals.py::test_arrival_into_the_empty_view_still_opens_with_tab,tests/test_arrivals.py,,todo,,
-tests/test_arrivals.py::test_question_view_is_armed_only_after_a_moment,tests/test_arrivals.py,,todo,,
-tests/test_arrivals.py::test_list_and_lone_question_are_armed_too,tests/test_arrivals.py,,todo,,
+tests/test_alerts.py::test_h1_the_only_question_still_opens_directly_with_an_alert_open,tests/test_alerts.py,inbox-core --test popup_transitions alerts::h1_the_only_question_still_opens_directly_with_an_alert_open,mapped,,P6
+tests/test_alerts.py::test_a_held_g_never_passes_the_pause,tests/test_alerts.py,inbox-core --test popup_transitions alerts::a_held_g_never_passes_the_pause,mapped,,P6
+tests/test_alerts.py::test_a_double_tapped_g_never_passes_the_pause,tests/test_alerts.py,inbox-core --test popup_transitions alerts::a_double_tapped_g_never_passes_the_pause,mapped,,P6
+tests/test_alerts.py::test_a_deliberate_g_after_a_pause_still_goes,tests/test_alerts.py,inbox-core --test popup_transitions alerts::a_deliberate_g_after_a_pause_still_goes,mapped,,P6
+tests/test_arrivals.py::test_tab_enter_after_arrival_never_answers_the_new_question,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::tab_enter_after_arrival_never_answers_the_new_question,mapped,,P6
+tests/test_arrivals.py::test_arrivals_are_list_rows_and_never_move_the_cursor,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::arrivals_are_list_rows_and_never_move_the_cursor,mapped,,P6
+tests/test_arrivals.py::test_arrival_into_the_empty_view_still_opens_with_tab,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::arrival_into_the_empty_view_still_opens_with_tab,mapped,,P6
+tests/test_arrivals.py::test_question_view_is_armed_only_after_a_moment,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::question_view_is_armed_only_after_a_moment,mapped,,P6
+tests/test_arrivals.py::test_list_and_lone_question_are_armed_too,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::list_and_lone_question_are_armed_too,mapped,,P6
 tests/test_arrivals.py::test_orphaned_answer_shows_as_failed,tests/test_arrivals.py,,todo,,
 tests/test_arrivals.py::test_claim_refuses_answers_the_agent_already_fetched,tests/test_arrivals.py,,todo,,
 tests/test_async_actions.py::test_popup_records_hands_delivery_off_and_closes_at_once,tests/test_async_actions.py,,todo,,
@@ -70,12 +70,12 @@ tests/test_async_actions.py::test_a_reopened_store_skips_schema_work_and_tools_s
 tests/test_async_actions.py::test_a_failing_verify_spawn_does_not_break_the_send,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_waiting_for_the_operator_to_leave_the_pane_says_so,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_seven_processes_migrating_an_unstamped_db_at_once,tests/test_async_actions.py,,todo,,
-tests/test_background_keys.py::test_arrival_into_the_empty_popup_does_not_take_over,tests/test_background_keys.py,,todo,,
-tests/test_background_keys.py::test_arrival_then_deliberate_tab_enables_immediate_send,tests/test_background_keys.py,,todo,,
-tests/test_background_keys.py::test_typing_after_the_question_closes_never_reaches_app_keys,tests/test_background_keys.py,,todo,,
-tests/test_background_keys.py::test_keys_are_swallowed_briefly_after_a_background_view_change,tests/test_background_keys.py,,todo,,
-tests/test_background_keys.py::test_gone_tab_disables_g_and_d,tests/test_background_keys.py,,todo,,
-tests/test_background_keys.py::test_dismiss_needs_y,tests/test_background_keys.py,,todo,,
+tests/test_background_keys.py::test_arrival_into_the_empty_popup_does_not_take_over,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::arrival_into_the_empty_popup_does_not_take_over,mapped,,P6
+tests/test_background_keys.py::test_arrival_then_deliberate_tab_enables_immediate_send,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::arrival_then_deliberate_tab_enables_immediate_send,mapped,,P6
+tests/test_background_keys.py::test_typing_after_the_question_closes_never_reaches_app_keys,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::typing_after_the_question_closes_never_reaches_app_keys,mapped,,P6
+tests/test_background_keys.py::test_keys_are_swallowed_briefly_after_a_background_view_change,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::keys_are_swallowed_briefly_after_a_background_view_change,mapped,,P6
+tests/test_background_keys.py::test_gone_tab_disables_g_and_d,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::gone_tab_disables_g_and_d,mapped,,P6
+tests/test_background_keys.py::test_dismiss_needs_y,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::dismiss_needs_y,mapped,,P6
 tests/test_background_keys.py::test_delivery_claims_the_row_before_sending,tests/test_background_keys.py,,todo,,
 tests/test_bridge_inbox.py::test_a_nested_claude_is_found_whatever_the_install[inner0-outer0],tests/test_bridge_inbox.py,,todo,,
 tests/test_bridge_inbox.py::test_a_nested_claude_is_found_whatever_the_install[inner1-outer1],tests/test_bridge_inbox.py,,todo,,
@@ -295,9 +295,9 @@ tests/test_composer_draft.py::test_send_now_after_a_merged_landing_records_it_in
 tests/test_composer_draft.py::test_l1_a_draft_with_a_blank_first_line_is_a_draft,tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_composer_draft.py::test_l2_an_unreadable_input_box_says_why_once,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_l2_a_brief_unreadable_read_does_not_notify,tests/test_composer_draft.py,,todo,,
-tests/test_cursor_targets.py::test_cancel_stays_cancel_when_a_question_arrives,tests/test_cursor_targets.py,,todo,,
-tests/test_cursor_targets.py::test_item_cursor_follows_its_question,tests/test_cursor_targets.py,,todo,,
-tests/test_cursor_targets.py::test_vanished_target_parks_on_nothing,tests/test_cursor_targets.py,,todo,,
+tests/test_cursor_targets.py::test_cancel_stays_cancel_when_a_question_arrives,tests/test_cursor_targets.py,inbox-core --test popup_transitions cursor_targets::cancel_stays_cancel_when_a_question_arrives,mapped,,P6
+tests/test_cursor_targets.py::test_item_cursor_follows_its_question,tests/test_cursor_targets.py,inbox-core --test popup_transitions cursor_targets::item_cursor_follows_its_question,mapped,,P6
+tests/test_cursor_targets.py::test_vanished_target_parks_on_nothing,tests/test_cursor_targets.py,inbox-core --test popup_transitions cursor_targets::vanished_target_parks_on_nothing,mapped,,P6
 tests/test_cursor_targets.py::test_stranded_claim_shows_as_failed,tests/test_cursor_targets.py,,todo,,
 tests/test_cursor_targets.py::test_error_paths_never_overwrite_someone_elses_claim,tests/test_cursor_targets.py,,todo,,
 tests/test_cursor_targets.py::test_retry_that_backs_off_releases_its_claim,tests/test_cursor_targets.py,,todo,,
@@ -307,12 +307,12 @@ tests/test_deep_link.py::test_stale_request_is_ignored_and_removed,tests/test_de
 tests/test_deep_link.py::test_garbage_request_is_ignored,tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_concurrent_popups_consume_a_request_exactly_once,tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_targets_resolve_to_a_group_and_question,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_popup_opens_on_the_requested_question,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[group-3],tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_popup_opens_on_the_requested_question,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_requested_question,mapped,,P6
+tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[group-3],tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_group_for_each_target_kind,mapped,,P6
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[pane-w1:p2],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[session-bbbbbbbb-0000-4000-8000-00000000000b],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_gone_target_falls_back_to_the_list_with_a_notice,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_no_request_keeps_the_normal_start,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_gone_target_falls_back_to_the_list_with_a_notice,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::gone_target_falls_back_to_the_list_with_a_notice,mapped,,P6
+tests/test_deep_link.py::test_no_request_keeps_the_normal_start,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_request_keeps_the_normal_start,mapped,,P6
 tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args0-expected0],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args1-expected1],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args2-expected2],tests/test_deep_link.py,,todo,,
@@ -324,10 +324,10 @@ tests/test_deep_link.py::test_a_manual_open_does_not_take_someone_elses_request,
 tests/test_deep_link.py::test_the_nonce_is_passed_to_the_popup,tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_open_reports_a_popup_that_is_already_open,tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_the_popup_marks_itself_running,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_a_deep_linked_view_waits_for_a_deliberate_key,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_without_no_hold_the_popup_stays_held,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_no_hold_opens_like_a_normal_popup,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_no_hold_still_arms,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_a_deep_linked_view_waits_for_a_deliberate_key,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::a_deep_linked_view_waits_for_a_deliberate_key,mapped,,P6
+tests/test_deep_link.py::test_without_no_hold_the_popup_stays_held,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::a_deep_linked_view_waits_for_a_deliberate_key,mapped,,P6
+tests/test_deep_link.py::test_no_hold_opens_like_a_normal_popup,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
+tests/test_deep_link.py::test_no_hold_still_arms,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
 tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,,todo,,
@@ -427,9 +427,9 @@ tests/test_failed_pile.py::test_an_acknowledged_answer_never_keeps_a_failure,tes
 tests/test_failed_pile.py::test_a_truly_gone_answer_that_never_landed_stays_visible,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_reconcile_backs_off_per_answer,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_q167_a_single_gone_answer_keeps_its_own_row,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_q167_a_gone_answer_arriving_later_never_joins_the_open_summary,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,mapped,,P6
+tests/test_failed_pile.py::test_q167_a_single_gone_answer_keeps_its_own_row,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_a_single_gone_answer_keeps_its_own_row,mapped,,P6
+tests/test_failed_pile.py::test_q167_a_gone_answer_arriving_later_never_joins_the_open_summary,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_a_gone_answer_arriving_later_never_joins_the_open_summary,mapped,,P6
 tests/test_failed_pile.py::test_q167_gone_answers_leave_the_popup_after_a_day,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_reconcile_never_counts_an_answer_an_older_session_gave_itself,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_mere_id_mention_with_a_short_answer_is_not_evidence,tests/test_failed_pile.py,,todo,,
@@ -471,11 +471,11 @@ tests/test_goldens.py::test_the_goldens_are_what_the_code_does[schema],tests/tes
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[store],tests/test_goldens.py,herdr-inbox --test store questions_golden::every_step_leaves_pythons_rows_and_returns_pythons_result,mapped,,P5
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[herdr],tests/test_goldens.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_goldens.py::test_the_decision_table_is_a_function,tests/test_goldens.py,,todo,,
-tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,,todo,,
-tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,,todo,,
-tests/test_group_list.py::test_cursor_target_vanishing_from_a_return_parks_inert,tests/test_group_list.py,,todo,,
-tests/test_group_list.py::test_g_from_the_list_goes_to_the_groups_agent,tests/test_group_list.py,,todo,,
-tests/test_group_list.py::test_last_group_sent_closes_the_popup,tests/test_group_list.py,,todo,,
+tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,inbox-core --test popup_transitions group_list::opens_straight_into_the_only_group_not_with_a_warning_entry,mapped,,P6
+tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,inbox-core --test popup_transitions group_list::closed_row_is_inert_until_the_operator_moves,mapped,,P6
+tests/test_group_list.py::test_cursor_target_vanishing_from_a_return_parks_inert,tests/test_group_list.py,inbox-core --test popup_transitions group_list::cursor_target_vanishing_from_a_return_parks_inert,mapped,,P6
+tests/test_group_list.py::test_g_from_the_list_goes_to_the_groups_agent,tests/test_group_list.py,inbox-core --test popup_transitions group_list::g_from_the_list_goes_to_the_groups_agent,mapped,,P6
+tests/test_group_list.py::test_last_group_sent_closes_the_popup,tests/test_group_list.py,inbox-core --test popup_transitions group_list::last_group_sent_closes_the_popup,mapped,,P6
 tests/test_group_title.py::test_title_is_stored_per_group_in_the_side_table,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_title_is_sanitised,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_fallback_name_for_untitled_groups,tests/test_group_title.py,,todo,,
@@ -584,12 +584,12 @@ tests/test_poll_teardown.py::test_a_send_finishing_after_the_popup_exits_does_no
 tests/test_poll_teardown.py::test_poll_does_nothing_once_unmounting,tests/test_poll_teardown.py,,todo,,
 tests/test_poll_teardown.py::test_an_error_inside_the_send_report_still_surfaces,tests/test_poll_teardown.py,,todo,,
 tests/test_poll_teardown.py::test_a_runtime_error_while_the_app_still_runs_is_not_swallowed,tests/test_poll_teardown.py,,todo,,
-tests/test_race.py::test_withdraw_mid_typing_never_answers_the_other_agent,tests/test_race.py,,todo,,
-tests/test_race.py::test_cursor_on_an_option_when_the_question_closes,tests/test_race.py,,todo,,
-tests/test_race.py::test_several_to_one_does_not_make_enter_send,tests/test_race.py,,todo,,
-tests/test_race.py::test_new_question_mid_typing_keeps_the_text,tests/test_race.py,,todo,,
-tests/test_race.py::test_go_to_agent_works_for_multi_select,tests/test_race.py,,todo,,
-tests/test_race.py::test_failed_delivery_entry_retry_and_hide,tests/test_race.py,,todo,,
+tests/test_race.py::test_withdraw_mid_typing_never_answers_the_other_agent,tests/test_race.py,inbox-core --test popup_transitions race::withdraw_mid_typing_never_answers_the_other_agent,mapped,,P6
+tests/test_race.py::test_cursor_on_an_option_when_the_question_closes,tests/test_race.py,inbox-core --test popup_transitions race::cursor_on_an_option_when_the_question_closes,mapped,,P6
+tests/test_race.py::test_several_to_one_does_not_make_enter_send,tests/test_race.py,inbox-core --test popup_transitions race::several_to_one_does_not_make_enter_send,mapped,,P6
+tests/test_race.py::test_new_question_mid_typing_keeps_the_text,tests/test_race.py,inbox-core --test popup_transitions race::new_question_mid_typing_keeps_the_text,mapped,,P6
+tests/test_race.py::test_go_to_agent_works_for_multi_select,tests/test_race.py,inbox-core --test popup_transitions race::go_to_agent_works_for_multi_select,mapped,,P6
+tests/test_race.py::test_failed_delivery_entry_retry_and_hide,tests/test_race.py,inbox-core --test popup_transitions race::failed_delivery_entry_retry_and_hide,mapped,,P6
 tests/test_race.py::test_focus_pane_comes_from_the_plugin_context,tests/test_race.py,,todo,,
 tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-font],tests/test_radar.py,,todo,,
 tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-no-vendors],tests/test_radar.py,,todo,,
@@ -611,11 +611,11 @@ tests/test_radar.py::test_a_symlinked_config_is_edited_through_the_link,tests/te
 tests/test_radar.py::test_step_aside_needs_a_real_extra_tokens_entry_and_never_blocks_remove,tests/test_radar.py,,todo,,
 tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[array-of-tables],tests/test_radar.py,,todo,,
 tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[multiline-string],tests/test_radar.py,,todo,,
-tests/test_real_timing.py::test_list_wrap_with_real_arming,tests/test_real_timing.py,,todo,,
-tests/test_real_timing.py::test_list_row_that_just_arrived_is_not_selectable,tests/test_real_timing.py,,todo,,
-tests/test_real_timing.py::test_question_view_ignores_keys_until_armed,tests/test_real_timing.py,,todo,,
-tests/test_real_timing.py::test_submit_tab_ignores_keys_until_armed,tests/test_real_timing.py,,todo,,
-tests/test_real_timing.py::test_undelivered_view_ignores_keys_until_armed,tests/test_real_timing.py,,todo,,
+tests/test_real_timing.py::test_list_wrap_with_real_arming,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::list_wrap_with_real_arming,mapped,,P6
+tests/test_real_timing.py::test_list_row_that_just_arrived_is_not_selectable,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::list_row_that_just_arrived_is_not_selectable,mapped,,P6
+tests/test_real_timing.py::test_question_view_ignores_keys_until_armed,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::question_view_ignores_keys_until_armed,mapped,,P6
+tests/test_real_timing.py::test_submit_tab_ignores_keys_until_armed,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::submit_tab_ignores_keys_until_armed,mapped,,P6
+tests/test_real_timing.py::test_undelivered_view_ignores_keys_until_armed,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::undelivered_view_ignores_keys_until_armed,mapped,,P6
 tests/test_release_manifest.py::test_release_toml_and_exactly_the_version_lines,tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[missing target],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_release_manifest.py::test_bad_sums_are_refused_and_nothing_is_written[extra file],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
@@ -843,21 +843,21 @@ tests/test_tabs.py::test_reconcile_adds_missing_and_removes_stale,tests/test_tab
 tests/test_tabs.py::test_remove_prefixes_before_uninstall,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_custom_mark_never_touches_operator_labels,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_base_label_strips_only_our_marks,tests/test_tabs.py,,todo,,
-tests/test_tui.py::test_tab_order_focused_pane_first_groups_adjacent,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_group_list_rows_and_order,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_single_question_layout_and_keys,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_single_pick_sends_immediately_and_closes,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_type_something_and_multi_select,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_chat_about_this_and_escape,tests/test_tui.py,,todo,,
+tests/test_tui.py::test_tab_order_focused_pane_first_groups_adjacent,tests/test_tui.py,inbox-core --test popup_transitions tui::tab_order_focused_pane_first_groups_adjacent,mapped,,P6
+tests/test_tui.py::test_group_list_rows_and_order,tests/test_tui.py,inbox-core --test popup_transitions tui::group_list_rows_and_order,mapped,,P6
+tests/test_tui.py::test_single_question_layout_and_keys,tests/test_tui.py,inbox-core --test popup_transitions tui::single_question_layout_and_keys,mapped,,P6
+tests/test_tui.py::test_single_pick_sends_immediately_and_closes,tests/test_tui.py,inbox-core --test popup_transitions tui::single_pick_sends_immediately_and_closes,mapped,,P6
+tests/test_tui.py::test_type_something_and_multi_select,tests/test_tui.py,inbox-core --test popup_transitions tui::type_something_and_multi_select,mapped,,P6
+tests/test_tui.py::test_chat_about_this_and_escape,tests/test_tui.py,inbox-core --test popup_transitions tui::chat_about_this_and_escape,mapped,,P6
 tests/test_tui.py::test_old_string_only_options,tests/test_tui.py,,todo,,
 tests/test_tui.py::test_preview_layout,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_empty_state_closes_on_any_key,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_answering_drafts_and_moves_to_the_next_tab,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_submit_is_per_group_and_keeps_blanks,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_cancel_and_drafts_survive_a_restart,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_new_groups_never_join_an_open_group,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_one_becomes_several_while_open,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_dismiss_question_in_group_and_whole_group_in_list,tests/test_tui.py,,todo,,
+tests/test_tui.py::test_empty_state_closes_on_any_key,tests/test_tui.py,inbox-core --test popup_transitions tui::empty_state_closes_on_any_key,mapped,,P6
+tests/test_tui.py::test_answering_drafts_and_moves_to_the_next_tab,tests/test_tui.py,inbox-core --test popup_transitions tui::answering_drafts_and_moves_to_the_next_tab,mapped,,P6
+tests/test_tui.py::test_submit_is_per_group_and_keeps_blanks,tests/test_tui.py,inbox-core --test popup_transitions tui::submit_is_per_group_and_keeps_blanks,mapped,,P6
+tests/test_tui.py::test_cancel_and_drafts_survive_a_restart,tests/test_tui.py,inbox-core --test popup_transitions tui::cancel_and_drafts_survive_a_restart_again,mapped,,P6
+tests/test_tui.py::test_new_groups_never_join_an_open_group,tests/test_tui.py,inbox-core --test popup_transitions tui::new_groups_never_join_an_open_group,mapped,,P6
+tests/test_tui.py::test_one_becomes_several_while_open,tests/test_tui.py,inbox-core --test popup_transitions tui::one_becomes_several_while_open,mapped,,P6
+tests/test_tui.py::test_dismiss_question_in_group_and_whole_group_in_list,tests/test_tui.py,inbox-core --test popup_transitions tui::dismiss_question_in_group_and_whole_group_in_list,mapped,,P6
 tests/test_tui.py::test_busy_database_never_crashes_the_popup,tests/test_tui.py,,todo,,
 tests/test_tui.py::test_tab_row_scrolls_to_keep_the_current_tab_visible,tests/test_tui.py,,todo,,
 tests/test_venvs.py::test_scope_older_settled_versions_only,tests/test_venvs.py,,todo,,
@@ -998,3 +998,4 @@ tests/test_worker_handover.py::test_a_worker_started_without_ensure_is_found_and
 tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_signalled,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_a_run_token_is_never_inherited,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_signal_verified_never_signals_what_fails_the_check,tests/test_worker_handover.py,,todo,,
+tests/test_goldens.py::test_the_popup_transition_golden_is_what_the_popup_does,tests/test_goldens.py,inbox-core --test popup_transitions every_scenario_of_the_golden_has_its_test,mapped,,P6

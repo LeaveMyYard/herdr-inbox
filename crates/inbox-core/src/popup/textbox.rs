@@ -1,6 +1,8 @@
 //! The inline text box under an option (a note) or under "Type something."
 //! (Textual's `Input`, as the popup uses it): printable keys insert at the
 //! cursor, ←/→/Home/End move it, Backspace/Delete remove, Enter submits.
+//! A box opened on existing text starts with all of it selected (Textual's
+//! select-on-focus): typing or deleting replaces it, ← and → go to its ends.
 
 use super::key::Key;
 
@@ -9,6 +11,7 @@ use super::key::Key;
 pub struct TextBox {
     chars: Vec<char>,
     cursor: usize,
+    selected: bool,
 }
 
 /// What a key did to the box.
@@ -27,7 +30,12 @@ impl TextBox {
     pub fn new(value: &str) -> TextBox {
         let chars: Vec<char> = value.chars().collect();
         let cursor = chars.len();
-        TextBox { chars, cursor }
+        let selected = !chars.is_empty();
+        TextBox {
+            chars,
+            cursor,
+            selected,
+        }
     }
 
     /// The text.
@@ -40,8 +48,26 @@ impl TextBox {
         self.cursor
     }
 
+    /// All of the text is selected (the box was opened on it, untouched since).
+    pub fn selected(&self) -> bool {
+        self.selected
+    }
+
     /// Take a key.
     pub fn key(&mut self, key: &Key) -> BoxKey {
+        if std::mem::take(&mut self.selected) {
+            match key {
+                Key::Left => return self.moved(0),
+                Key::Right => return self.moved(self.chars.len()),
+                Key::Backspace | Key::Delete => return self.moved_after_clear(),
+                _ if key.printable().is_some() => {
+                    self.chars.clear();
+                    self.cursor = 0;
+                }
+                Key::Home | Key::End => {}
+                _ => self.selected = true, // Enter, Escape, ...: the selection stays
+            }
+        }
         if let Some(c) = key.printable() {
             self.chars.insert(self.cursor, c);
             self.cursor += 1;
@@ -64,5 +90,15 @@ impl TextBox {
             _ => return BoxKey::Ignored,
         }
         BoxKey::Edited
+    }
+
+    fn moved(&mut self, to: usize) -> BoxKey {
+        self.cursor = to;
+        BoxKey::Edited
+    }
+
+    fn moved_after_clear(&mut self) -> BoxKey {
+        self.chars.clear();
+        self.moved(0)
     }
 }
