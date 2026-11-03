@@ -20,12 +20,15 @@
 //!   polls and IO results in, effects out; it reproduces the popup
 //!   transition golden, `tests/fixtures/popup-transitions.json`
 //!   (`tests/popup_transitions.rs`).
+//! - [`empty_inbox`]: the empty inbox's animated scene, design 2C, as cell
+//!   grids (no Python counterpart: the popup gains it in the port, Q179).
 //!
 //! Every rule here reproduces the delivery decision table,
 //! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`,
 //! `tests/verify_rows.rs`).
 
 pub mod deliver;
+pub mod empty_inbox;
 pub mod hook;
 pub mod popup;
 pub mod rewake;
