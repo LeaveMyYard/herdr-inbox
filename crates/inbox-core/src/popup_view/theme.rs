@@ -53,6 +53,8 @@ pub struct Theme {
     pub input: Rgb,
     /// `$border`: a focused `Input`'s frame.
     pub border: Rgb,
+    /// `$input-selection-background` over the `Input`: its selected text.
+    pub selection: Rgb,
     /// `$text-disabled` over the `Input`: an empty one's placeholder.
     pub disabled: Rgb,
     /// `$scrollbar`: the thumb.
@@ -72,6 +74,7 @@ impl Theme {
         panel: Rgb::hex(0x242f38),
         input: Rgb::hex(0x272727),
         border: Rgb::hex(0x0178d4),
+        selection: Rgb::hex(0x2d4e74),
         disabled: Rgb::hex(0x797979),
         thumb: Rgb::hex(0x003054),
         track: Rgb::hex(0x000000),

@@ -1,7 +1,8 @@
 //! Textual's `Input` with the focus, as the popup's note and "Type
 //! something." boxes show it: a tall frame in `$border`, two cells of
-//! padding, the text with a block cursor (a placeholder when empty), the
-//! window scrolled to keep the cursor in it.
+//! padding, the text with a block cursor (a placeholder when empty; all of
+//! it selected when the box opened on it), the window scrolled to keep the
+//! cursor in it.
 
 use super::text::{Line, Ln, Look, char_width};
 use super::theme::Theme;
@@ -16,6 +17,8 @@ pub(crate) struct Field<'a> {
     /// In characters from the start.
     pub cursor: usize,
     pub placeholder: &'a str,
+    /// All of the text is selected (a box opened on existing text).
+    pub selected: bool,
 }
 
 /// The box's three rows, `width` cells wide, on a screen filled `outer`.
@@ -45,6 +48,11 @@ pub(crate) fn rows(field: &Field, width: u16, outer: Rgb, theme: &Theme) -> Vec<
 fn text(field: &Field, width: usize, theme: &Theme) -> Ln {
     let cursor = Look::fg(theme.background).on_bg(theme.foreground);
     let plain = Look::fg(theme.foreground).on_bg(theme.input);
+    let text = if field.selected {
+        plain.on_bg(theme.selection)
+    } else {
+        plain
+    };
     if field.value.is_empty() {
         let mut chars = field.placeholder.chars();
         let first = chars.next().map_or(" ".to_string(), String::from);
@@ -60,10 +68,16 @@ fn text(field: &Field, width: usize, theme: &Theme) -> Ln {
     if at == chars.len() {
         chars.push(' ');
     }
+    let len = field.value.chars().count();
+    let look = |i: usize| match i {
+        _ if i == at => cursor,
+        _ if i < len => text,
+        _ => plain,
+    };
     let cells: Vec<(char, Look)> = chars
         .iter()
         .enumerate()
-        .map(|(i, &c)| (c, if i == at { cursor } else { plain }))
+        .map(|(i, &c)| (c, look(i)))
         .collect();
     let start = scroll(&cells, at, width);
     let mut out = Ln::new();
