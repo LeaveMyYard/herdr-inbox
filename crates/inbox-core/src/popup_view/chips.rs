@@ -1,5 +1,5 @@
 //! Above an open group's view: its name (Python `render_group_title`) and
-//! its tabs (`render_chips`): "│ <tab>", then each question's chip (✔ when
+//! its tabs (`render_chips`): `│ tab`, then each question's chip (✔ when
 //! drafted, ● when not, ✕ when it closed) and Submit, the current one
 //! reversed, in a row that scrolls sideways to keep it in view.
 

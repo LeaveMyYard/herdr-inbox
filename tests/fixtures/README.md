@@ -24,7 +24,10 @@ say why in the PR:
 - `screens/*.json` (§5.2 item 2, app-screen goldens; the inbox popup's spec, since it has no JS
   design goldens): the popup (`InboxApp`) run headless with Textual's `run_test` through the
   scenarios in `capture_goldens.py` (taken from `tests/make_screenshots.py` and
-  `tests/test_tui.py`). One file per screen size:
+  `tests/test_tui.py`): `popup.json` (110x30), `popup-narrow.json` (40x20), and
+  `popup-extra.json` (110x30, `extra_screens`: the views the others do not reach, such as
+  pending and gone-agent answers, a note, an empty note box, a tab closed under the operator,
+  a long list that scrolls and a blocked alert):
 
   ```
   {"source": "...", "size": [width, height], "screens": {
@@ -46,6 +49,11 @@ say why in the PR:
   0 (as in the tests), text cursors held on, and a held clock: every row's `created_at` is fixed
   relative to `HELD`, in id order, and the popup's ages are formatted by the real `cli._age` as of `HELD`.
   Nothing of the operator's (inbox, config, transcripts, herdr) is read.
+
+  `crates/inbox-core/tests/popup_screens.rs` drives the Rust popup model through the same
+  scenarios (`tests/screens/`) and compares `inbox_core::popup_view::render` with every screen
+  cell for cell. One exception: the empty popup is design 2C there (Q179, `design_empty_inbox.json`
+  below), so `popup.json`'s `empty` screen is Python's alone.
 
 - `decisions.json` (§5.2 item 5, the delivery decision table; `inbox-core::decide` must
   reproduce it): every delivery decision the test suite drives, recorded by the test-only trace

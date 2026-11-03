@@ -465,7 +465,7 @@ tests/test_final_review.py::test_mcp_ask_returns_the_open_receipt_when_markers_f
 tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_closing_the_popup_waits_for_an_in_flight_send,tests/test_final_review.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[decisions],tests/test_goldens.py,,todo,,
-tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,,todo,,
+tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,inbox-core --test popup_screens every_golden_screen_is_drawn_cell_for_cell,mapped,,P6
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[landed],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[schema],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[store],tests/test_goldens.py,herdr-inbox --test store questions_golden::every_step_leaves_pythons_rows_and_returns_pythons_result,mapped,,P5
@@ -850,7 +850,7 @@ tests/test_tui.py::test_single_pick_sends_immediately_and_closes,tests/test_tui.
 tests/test_tui.py::test_type_something_and_multi_select,tests/test_tui.py,inbox-core --test popup_transitions tui::type_something_and_multi_select,mapped,,P6
 tests/test_tui.py::test_chat_about_this_and_escape,tests/test_tui.py,inbox-core --test popup_transitions tui::chat_about_this_and_escape,mapped,,P6
 tests/test_tui.py::test_old_string_only_options,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_preview_layout,tests/test_tui.py,,todo,,
+tests/test_tui.py::test_preview_layout,tests/test_tui.py,inbox-core --test popup_screens a_preview_shows_beside_the_options,mapped,,P6
 tests/test_tui.py::test_empty_state_closes_on_any_key,tests/test_tui.py,inbox-core --test popup_transitions tui::empty_state_closes_on_any_key,mapped,,P6
 tests/test_tui.py::test_answering_drafts_and_moves_to_the_next_tab,tests/test_tui.py,inbox-core --test popup_transitions tui::answering_drafts_and_moves_to_the_next_tab,mapped,,P6
 tests/test_tui.py::test_submit_is_per_group_and_keeps_blanks,tests/test_tui.py,inbox-core --test popup_transitions tui::submit_is_per_group_and_keeps_blanks,mapped,,P6
@@ -859,7 +859,7 @@ tests/test_tui.py::test_new_groups_never_join_an_open_group,tests/test_tui.py,in
 tests/test_tui.py::test_one_becomes_several_while_open,tests/test_tui.py,inbox-core --test popup_transitions tui::one_becomes_several_while_open,mapped,,P6
 tests/test_tui.py::test_dismiss_question_in_group_and_whole_group_in_list,tests/test_tui.py,inbox-core --test popup_transitions tui::dismiss_question_in_group_and_whole_group_in_list,mapped,,P6
 tests/test_tui.py::test_busy_database_never_crashes_the_popup,tests/test_tui.py,,todo,,
-tests/test_tui.py::test_tab_row_scrolls_to_keep_the_current_tab_visible,tests/test_tui.py,,todo,,
+tests/test_tui.py::test_tab_row_scrolls_to_keep_the_current_tab_visible,tests/test_tui.py,inbox-core --test popup_screens the_tab_row_scrolls_to_keep_the_current_tab_in_view,mapped,,P6
 tests/test_venvs.py::test_scope_older_settled_versions_only,tests/test_venvs.py,,todo,,
 tests/test_venvs.py::test_a_live_holder_blocks_deletion_and_a_released_lock_allows_it,tests/test_venvs.py,,todo,,
 tests/test_venvs.py::test_a_symlinked_or_relative_data_dir_changes_nothing,tests/test_venvs.py,,todo,,
