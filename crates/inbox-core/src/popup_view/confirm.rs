@@ -37,7 +37,7 @@ pub(crate) fn fade(buf: &mut Buffer, inner: Rect, theme: &Theme) {
     }
 }
 
-/// Draw the box: "Dismiss <what> without answering?", the dim `detail`,
+/// Draw the box: `Dismiss what without answering?`, the dim `detail`,
 /// then "y to dismiss · any other key to keep it".
 pub(crate) fn draw(buf: &mut Buffer, inner: Rect, what: &str, detail: &str, theme: &Theme) {
     let lines: Vec<Line> = vec![

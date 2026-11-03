@@ -30,7 +30,7 @@ pub(crate) fn gone(buf: &mut Buffer, mut area: Rect, view: &GoneView, ctx: &Ctx)
     layout::text(buf, &mut stack, &[meta], (0, 0), t.muted);
 }
 
-/// `Q7 · <tab> · <asker>`.
+/// `Q7 · tab · asker`.
 pub(crate) fn meta(q: &Question) -> String {
     let mut meta = format!("{} · {}", q.r#ref(), tab_name(Some(q)));
     if let Some(by) = q.asked_by.as_deref().filter(|b| !b.is_empty()) {

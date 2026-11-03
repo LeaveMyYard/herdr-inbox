@@ -33,6 +33,9 @@ mod text;
 pub mod theme;
 mod wrap;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 
 use ratatui_core::buffer::Buffer;

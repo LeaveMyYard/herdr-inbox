@@ -345,6 +345,83 @@ async def popup_screens(shots: Shots, work: Path) -> None:
     store.close()
 
 
+async def extra_screens(shots: Shots, work: Path) -> None:
+    """The views the scenarios above do not reach (the Rust renderer's goldens, P6-B): pending and
+    gone-agent answers in the list and opened, a group dismissed from the list, a note, an empty
+    note box, a typed answer, a tab closed under the operator, a long list that scrolls, a
+    blocked alert."""
+    from herdr_inbox import service
+    from herdr_inbox.store import AGENT_GONE, PENDING
+    from herdr_inbox.tui import InboxApp
+
+    billing, search, docs = callers()
+    size = (110, 30)
+    src = "InboxApp, the views the other popup screens do not reach, focus pane w1:p1"
+    file = "popup-extra"
+
+    store = fresh_store(work, "piles")
+    populate(store)
+    ids = [service.ask(store, who, text, options=["yes", "no"], header="H")["id"]          # Q5 to Q8
+           for who, text in ((docs, "Bump the timeout?"), (search, "Rename the index?"),
+                             (search, "Drop the cache?"), (billing, "Retry the export?"))]
+    for qid in ids:
+        store.set_answer(qid, "yes", {"choices": ["yes"]})
+    store.record_delivery(ids[0], PENDING + "blocked: prompt")
+    store.record_delivery(ids[1], AGENT_GONE + "pane w1:p2 closed")
+    store.record_delivery(ids[2], AGENT_GONE + "pane w1:p2 closed")
+    store.record_delivery(ids[3], PENDING + "requeued: earlier miss")
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add(file, src, size, "piles", app, pilot)
+        await pilot.press("down", "down", "down", "down")
+        await shots.add(file, src, size, "piles, cursor on a requeued answer", app, pilot)
+        await pilot.press("enter")
+        await shots.add(file, src, size, "requeued answer opened", app, pilot)
+        await pilot.press("escape", "down")
+        await shots.add(file, src, size, "piles, cursor on the gone summary", app, pilot)
+        await pilot.press("up", "up", "up", "d")
+        await shots.add(file, src, size, "group dismiss from the list", app, pilot)
+    store.close()
+
+    store = fresh_store(work, "group")
+    populate(store)
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await pilot.press("enter", "down", "n", *"keep it small", "enter")
+        await shots.add(file, src, size, "a note under SQLite", app, pilot)
+        await pilot.press("down", "n")
+        await shots.add(file, src, size, "an empty note box", app, pilot)
+        await pilot.press("escape", "4", "enter", *"Firebird", "enter")
+        await shots.add(file, src, size, "typed answer drafted, next tab", app, pilot)
+        await pilot.press("space", "tab")
+        await shots.add(file, src, size, "review with a typed draft", app, pilot)
+        await pilot.press("shift+tab")
+        service.close(store, 3, "withdrawn")
+        app.poll()
+        await shots.add(file, src, size, "the tab closed under the operator", app, pilot)
+    store.close()
+
+    store = fresh_store(work, "long")
+    store.db.execute("INSERT INTO alerts (created_at, kind, severity, title, pane_id, tab_label, asked_by)"
+                     " VALUES (?, 'blocked', 'warning', 'Approval prompt', 'w1:p2', 'Search refactor', 'claude')",
+                     (HELD,))
+    store.db.commit()
+    for i in range(14):
+        service.ask(store, (billing, search, docs)[i % 3], f"Question {i} with a fairly long text that goes on?",
+                    options=["a", "b"])
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await shots.add(file, src, size, "a long list", app, pilot)
+        await pilot.press(*["down"] * 13)
+        await shots.add(file, src, size, "a long list, scrolled", app, pilot)
+        await pilot.press(*["up"] * 20, "enter")
+        await shots.add(file, src, size, "blocked alert opened", app, pilot)
+    store.close()
+
+
 def capture_screens(out: Path, work: Path) -> list[Path]:
     from tests.conftest import FakeHerdr
 
@@ -363,6 +440,7 @@ def capture_screens(out: Path, work: Path) -> list[Path]:
     hold_clock()
     shots = Shots()
     asyncio.run(popup_screens(shots, work))
+    asyncio.run(extra_screens(shots, work))
     written = []
     for name, doc in shots.files.items():
         doc["source"] += "; TZ=UTC; tools/capture_goldens.py"

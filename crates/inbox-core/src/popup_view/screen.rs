@@ -6,10 +6,11 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 
 use super::layout::{self, Stack};
-use super::text::{Ln, Look};
+use super::text::{Line, Ln, Look};
 use super::{
     Ctx, ViewState, alerts, canvas, chips, confirm, empty, fmt, list, question, review, small,
 };
+use crate::empty_inbox::Rgb;
 use crate::popup::{Entry, Mode, Popup, View};
 
 /// Python `RADAR_HINT` and `HELD_HINT`.
@@ -49,33 +50,15 @@ pub(crate) fn render(popup: &Popup, ctx: &Ctx, state: &mut ViewState, buf: &mut 
             .map(|i| i + 1);
         state.chips_x = chips::draw_chips(buf, &mut stack, &row, current, state.chips_x, t);
     }
-    let mut below = Vec::new();
+    let hint = |line: Line| layout::rows(&[line], inner.width);
+    let mut below_rows: Vec<(Vec<Line>, Rgb)> = Vec::new();
     if ctx.radar_missing {
-        below.push((Ln::new().plain(RADAR_HINT).done(), Look::fg(t.muted)));
+        below_rows.push((hint(Ln::new().plain(RADAR_HINT).done()), t.muted));
     }
     if popup.held() {
-        below.push((
-            Ln::new().plain(HELD_HINT).done(),
-            Look::bold(t.cc.suggestion),
-        ));
+        let bold = Look::default().with_bold();
+        below_rows.push((hint(Ln::new().on(bold, HELD_HINT).done()), t.cc.suggestion));
     }
-    let below_rows: Vec<_> = below
-        .iter()
-        .map(|(l, look)| {
-            let styled: Vec<_> = l
-                .iter()
-                .cloned()
-                .map(|mut s| {
-                    s.look.bold = look.bold;
-                    s
-                })
-                .collect();
-            (
-                layout::rows(&[styled], inner.width),
-                look.fg.unwrap_or(t.foreground),
-            )
-        })
-        .collect();
     let under: u16 = below_rows.iter().map(|(r, _)| r.len() as u16).sum();
     let body = stack.rest((0, under));
     let mut y = body.bottom();

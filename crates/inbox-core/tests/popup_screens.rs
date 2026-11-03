@@ -1,192 +1,27 @@
 //! The renderer against the app-screen goldens (tests/fixtures/screens/
 //! {popup,popup-narrow}.json, captured from the Python popup by
 //! tools/capture_goldens.py): the same data and the same keys give the same
-//! screens, cell for cell (char, fg, bg, bold). The empty screen is the
-//! exception: the port draws design 2C there (Q179).
+//! screens, cell for cell (char, fg, bg, bold); popup-extra.json holds the
+//! views the others do not reach. The empty screen is the exception: the
+//! port draws design 2C there (Q179).
 
 mod screens;
 
-use std::collections::BTreeMap;
-
 use inbox_core::empty_inbox;
-use inbox_core::popup::{Detail, QOption};
-use ratatui_core::buffer::Buffer;
-use screens::data::{BILLING, DOCS, SEARCH, alert, db, opts, populate, question, snapshot};
-use screens::drive::{self, Pilot};
+use screens::base::Shots;
+use screens::drive;
 use screens::golden;
 use serde_json::Value;
 
 const POPUP: &str = include_str!("../../../tests/fixtures/screens/popup.json");
 const NARROW: &str = include_str!("../../../tests/fixtures/screens/popup-narrow.json");
+const EXTRA: &str = include_str!("../../../tests/fixtures/screens/popup-extra.json");
 
-/// Every screen of the capture's scenarios, by golden file and name.
-fn screens() -> BTreeMap<(&'static str, String), Buffer> {
-    let mut out = BTreeMap::new();
-    let size = (110, 30);
-    let mut shot = |file: &'static str, name: &str, p: &mut Pilot| {
-        out.insert((file, name.to_string()), p.screen());
-    };
-
-    let mut p = Pilot::open(snapshot(vec![], vec![], vec![]), size);
-    shot("popup", "empty", &mut p);
-
-    let mut qs = populate();
-    let mut late = question(
-        5,
-        5,
-        DOCS,
-        "Bump the docs build timeout to 90 s?",
-        opts(&["yes", "no"]),
-        "Timeout",
-    );
-    (late.status, late.answer) = ("answered".into(), Some("yes".into()));
-    late.delivery_error = Some("no live agent in the pane".into());
-    qs.push(late);
-    qs[1].draft = Some(Detail {
-        choices: vec!["SQLite".into()],
-        ..Detail::default()
-    });
-    let mut p = Pilot::open(snapshot(qs, vec![5], vec![]), size);
-    shot("popup", "list", &mut p);
-    p.press(&["down"]);
-    shot("popup", "list, cursor on the second row", &mut p);
-    p.press(&["up", "enter", "left"]);
-    shot("popup", "group: DB choice tab (drafted)", &mut p);
-    p.press(&["right"]);
-    shot("popup", "group: Cache tab (multi-select)", &mut p);
-    p.press(&["space", "down", "space"]);
-    shot("popup", "group: Cache, two picked", &mut p);
-    p.press(&["tab"]);
-    shot("popup", "group: Submit tab", &mut p);
-    p.press(&["shift+tab", "shift+tab", "n"]);
-    p.type_text("no server to run");
-    shot("popup", "group: note box open", &mut p);
-    p.press(&["escape", "d"]);
-    shot("popup", "dismiss confirmation", &mut p);
-    p.press(&["escape", "escape"]);
-    shot("popup", "back on the list", &mut p);
-    p.press(&["down", "down", "down"]);
-    shot("popup", "list, cursor on the ⚠ entry", &mut p);
-    p.press(&["enter"]);
-    shot("popup", "⚠ entry opened", &mut p);
-
-    let mut q = question(
-        1,
-        1,
-        BILLING,
-        "Which database should the invoice store use?",
-        db(),
-        "DB choice",
-    );
-    (q.context, q.asked_by) = (Some("Invoice rows ~1M/day".into()), Some("planner".into()));
-    let mut p = Pilot::open(snapshot(vec![q], vec![], vec![]), size);
-    shot("popup", "single", &mut p);
-    p.press(&["down"]);
-    shot("popup", "single, cursor on SQLite", &mut p);
-    p.press(&["4", "enter"]);
-    p.type_text("MariaDB");
-    shot("popup", "single, typing something else", &mut p);
-
-    let preview = |label: &str, desc: &str, n: u8, mem: &str, cpu: &str| QOption {
-        label: label.into(),
-        description: Some(desc.into()),
-        preview: Some(format!(
-            "[worker]\nthreads = {n}\nmemory = \"{mem}\"\ncpu = \"{cpu}\""
-        )),
-    };
-    let options = vec![
-        preview("Small", "2 workers", 2, "1Gi", "500m"),
-        preview("Large", "8 workers", 8, "4Gi", "2"),
-        QOption::label("Custom"),
-    ];
-    let q = question(
-        1,
-        1,
-        BILLING,
-        "Which worker profile for the invoice exporter?",
-        options,
-        "Profile",
-    );
-    let mut p = Pilot::open(snapshot(vec![q], vec![], vec![]), size);
-    shot("popup", "preview", &mut p);
-    p.press(&["down", "down"]);
-    shot("popup", "preview, no preview for Custom", &mut p);
-
-    let a = alert(
-        1,
-        SEARCH,
-        "Deploy needs your eyes",
-        "prod rollout paused at 50%",
-        "urgent",
-        "deployer",
-    );
-    let q1 = question(
-        1,
-        1,
-        DOCS,
-        "Publish the v2 docs now or after the release?",
-        opts(&["now", "after"]),
-        "Rollout",
-    );
-    let q2 = question(
-        2,
-        2,
-        SEARCH,
-        "Keep the old query syntax as an alias?",
-        opts(&["yes", "no"]),
-        "Syntax",
-    );
-    let mut p = Pilot::open(snapshot(vec![q1, q2], vec![], vec![a]), size);
-    shot("popup", "alert and questions", &mut p);
-    p.press(&["up", "enter"]);
-    shot("popup", "alert opened", &mut p);
-
-    let mut p = Pilot::open(snapshot(populate(), vec![], vec![]), size);
-    shot("popup", "before arrivals", &mut p);
-    let mut qs = populate();
-    qs.push(question(
-        5,
-        5,
-        SEARCH,
-        "Keep the old query syntax as an alias?",
-        opts(&["yes", "no"]),
-        "Syntax",
-    ));
-    qs.push(question(
-        6,
-        6,
-        DOCS,
-        "Which landing page copy do you prefer?",
-        opts(&["A", "B"]),
-        "Copy",
-    ));
-    p.poll(snapshot(qs.clone(), vec![], vec![]));
-    shot("popup", "after one poll", &mut p);
-    qs[0].status = "withdrawn".into();
-    p.poll(snapshot(qs, vec![], vec![]));
-    shot("popup", "a row withdrawn by its agent", &mut p);
-
-    let narrow = (40, 20);
-    let four: Vec<_> = (1..=4)
-        .map(|i| {
-            let mut q = question(
-                i,
-                1,
-                BILLING,
-                &format!("Question number {i}?"),
-                opts(&["yes", "no"]),
-                &format!("Head{i}"),
-            );
-            q.group_title = Some("Four at once".into());
-            q
-        })
-        .collect();
-    let mut p = Pilot::open(snapshot(four, vec![], vec![]), narrow);
-    shot("popup-narrow", "first tab", &mut p);
-    p.press(&["right", "right", "right"]);
-    shot("popup-narrow", "fourth tab", &mut p);
-    p.press(&["right"]);
-    shot("popup-narrow", "submit tab", &mut p);
+/// Every scenario's screens.
+fn screens() -> Shots {
+    let mut out = Shots::new();
+    screens::base::screens(&mut out);
+    screens::extra::screens(&mut out);
     out
 }
 
@@ -195,7 +30,11 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
     let shots = screens();
     let mut failures = Vec::new();
     let mut compared = 0;
-    for (file, text) in [("popup", POPUP), ("popup-narrow", NARROW)] {
+    for (file, text) in [
+        ("popup", POPUP),
+        ("popup-narrow", NARROW),
+        ("popup-extra", EXTRA),
+    ] {
         let doc: Value = serde_json::from_str(text).unwrap();
         let size = &doc["size"];
         for (name, rows) in doc["screens"].as_object().unwrap() {
@@ -221,7 +60,7 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
         }
     }
     assert_eq!(
-        compared, 24,
+        compared, 37,
         "every golden screen but the empty one is compared"
     );
     assert!(
@@ -264,4 +103,135 @@ fn the_empty_popup_is_design_2c_centred() {
         }
     }
     assert_eq!(cells, empty_inbox::W * empty_inbox::H);
+}
+
+/// The screen's rows as text.
+fn rows(buf: &ratatui_core::buffer::Buffer) -> Vec<String> {
+    golden::got(buf)
+        .iter()
+        .map(|r| r.iter().map(|c| c.0.as_str()).collect())
+        .collect()
+}
+
+/// Python `test_tab_row_scrolls_to_keep_the_current_tab_visible`: at 40
+/// columns the tab row scrolls so the current chip (reversed) is whole.
+#[test]
+fn the_tab_row_scrolls_to_keep_the_current_tab_in_view() {
+    use screens::data::{BILLING, opts, question, snapshot};
+    let four = (0..4)
+        .map(|i| {
+            question(
+                i + 1,
+                1,
+                BILLING,
+                &format!("Question number {i}?"),
+                opts(&[]),
+                &format!("Header {i:02}"),
+            )
+        })
+        .collect();
+    let mut p = drive::Pilot::open(snapshot(four, vec![], vec![]), (40, 20));
+    p.press(&["right"; 4]);
+    let buf = p.screen();
+    let row = &golden::got(&buf)[3];
+    let reversed: Vec<usize> = (0..row.len())
+        .filter(|&x| row[x].2.as_deref() == Some("#e0e0e0"))
+        .collect();
+    let text: String = reversed.iter().map(|&x| row[x].0.as_str()).collect();
+    assert_eq!(
+        text,
+        " Submit ",
+        "the current chip, whole: {:?}",
+        rows(&buf)[3]
+    );
+    assert!(
+        !rows(&buf)[3].contains("│ Billing API"),
+        "scrolled past the first chips"
+    );
+    assert!(
+        reversed.iter().all(|&x| (2..38).contains(&x)),
+        "inside the row"
+    );
+}
+
+/// Python `test_preview_layout`: the focused option's preview beside the
+/// options, "No preview available" for one without.
+#[test]
+fn a_preview_shows_beside_the_options() {
+    use inbox_core::popup::QOption;
+    use screens::data::{BILLING, question, snapshot};
+    let small = QOption {
+        preview: Some("workers = 2\nmemory = 1Gi".into()),
+        ..QOption::label("Small")
+    };
+    let large = QOption {
+        description: Some("x".into()),
+        ..QOption::label("Large")
+    };
+    let q = question(1, 1, BILLING, "Which config?", vec![small, large], "");
+    let mut p = drive::Pilot::open(snapshot(vec![q], vec![], vec![]), (100, 30));
+    let first = rows(&p.screen());
+    let at = |rows: &[String], s: &str| {
+        rows.iter()
+            .find_map(|r| r.find(s).map(|i| r[..i].chars().count()))
+    };
+    let (rule, preview) = (at(&first, "│").unwrap(), at(&first, "workers = 2").unwrap());
+    assert!(at(&first, "Small").unwrap() < rule && rule < preview);
+    p.press(&["down"]);
+    let second = rows(&p.screen());
+    assert!(at(&second, "No preview available").is_some() && at(&second, "workers").is_none());
+}
+
+/// Python's `#radar-hint` and `#held-hint`: under the view, in that order,
+/// the view (and its own hint) shortened by them.
+#[test]
+fn the_radar_and_deep_link_hints_sit_under_the_view() {
+    use inbox_core::popup::{DeepLink, Entry, Open, Popup};
+    use inbox_core::popup_view::{Ctx, ViewState, render};
+    use ratatui_core::{buffer::Buffer, layout::Rect};
+    let link = DeepLink {
+        target: Some(Entry::Group(4)),
+        qid: Some(4),
+        hold: true,
+        missing: String::new(),
+    };
+    let snapshot = screens::data::snapshot(screens::data::populate(), vec![], vec![]);
+    let open = Open {
+        focus_pane: Some("w1:p1".into()),
+        snapshot,
+        deeplink: Some(link),
+    };
+    let (popup, _) = Popup::open(open, 1_000);
+    assert!(popup.held());
+    let ctx = Ctx {
+        now: 2_000,
+        wall: screens::data::HELD,
+        radar_missing: true,
+        ..Ctx::default()
+    };
+    let mut buf = Buffer::empty(Rect::new(0, 0, 110, 30));
+    render(&popup, &ctx, &mut ViewState::default(), &mut buf);
+    let rows = rows(&buf);
+    assert!(
+        rows[26].trim_start().starts_with("Enter to select"),
+        "{:?}",
+        rows[26]
+    );
+    assert!(
+        rows[27]
+            .trim_start()
+            .starts_with("herdr-radar is installed"),
+        "{:?}",
+        rows[27]
+    );
+    assert!(
+        rows[28]
+            .trim_start()
+            .starts_with("Opened from another plugin"),
+        "{:?}",
+        rows[28]
+    );
+    let cell = &buf[(2, 28)];
+    assert_eq!(cell.fg, ratatui_core::style::Color::Rgb(0xb1, 0xb9, 0xf9));
+    assert!(cell.modifier.contains(ratatui_core::style::Modifier::BOLD));
 }
