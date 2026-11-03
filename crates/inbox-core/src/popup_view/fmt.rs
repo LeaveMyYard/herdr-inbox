@@ -152,3 +152,12 @@ pub(crate) fn pending_text(reason: &str, busy_for: f64) -> String {
     }
     reason.to_string()
 }
+
+/// `Q7 · tab · asker`.
+pub(crate) fn meta(q: &Question) -> String {
+    let mut meta = format!("{} · {}", q.r#ref(), tab_name(Some(q)));
+    if let Some(by) = q.asked_by.as_deref().filter(|b| !b.is_empty()) {
+        meta.push_str(&format!(" · {by}"));
+    }
+    meta
+}

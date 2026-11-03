@@ -60,7 +60,7 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
         }
     }
     assert_eq!(
-        compared, 38,
+        compared, 40,
         "every golden screen but the empty one is compared"
     );
     assert!(
@@ -234,4 +234,66 @@ fn the_radar_and_deep_link_hints_sit_under_the_view() {
     let cell = &buf[(2, 28)];
     assert_eq!(cell.fg, ratatui_core::style::Color::Rgb(0xb1, 0xb9, 0xf9));
     assert!(cell.modifier.contains(ratatui_core::style::Modifier::BOLD));
+}
+
+/// A note is italic, as Python draws it (the goldens
+/// record only bold).
+#[test]
+fn a_note_is_italic() {
+    use ratatui_core::style::Modifier;
+    let shots = screens();
+    let italic = |file: &'static str, name: &str, text: &str| {
+        let buf = &shots[&(file, name.to_string())];
+        let rows = rows(buf);
+        let (y, row) = rows
+            .iter()
+            .enumerate()
+            .find(|(_, r)| r.contains(text))
+            .unwrap();
+        let x = row[..row.find(text).unwrap()].chars().count();
+        (0..text.chars().count()).all(|i| {
+            buf[(x as u16 + i as u16, y as u16)]
+                .modifier
+                .contains(Modifier::ITALIC)
+        })
+    };
+    assert!(italic(
+        "popup-extra",
+        "a note under SQLite",
+        "keep it small"
+    ));
+    assert!(!italic("popup-extra", "a note under SQLite", "Notes:"));
+}
+
+/// Under the empty view (design 2C) the radar hint still shows, as Python's
+/// `#radar-hint` does under its "No open questions".
+#[test]
+fn the_empty_popup_keeps_the_radar_hint() {
+    use inbox_core::popup::{Open, Popup};
+    use inbox_core::popup_view::{Ctx, ViewState, render};
+    use ratatui_core::{buffer::Buffer, layout::Rect};
+    let (popup, _) = Popup::open(Open::default(), 1_000);
+    let ctx = Ctx {
+        now: 1_000,
+        radar_missing: true,
+        ..Ctx::default()
+    };
+    let mut buf = Buffer::empty(Rect::new(0, 0, 110, 30));
+    render(&popup, &ctx, &mut ViewState::default(), &mut buf);
+    let rows = rows(&buf);
+    assert!(
+        rows[28]
+            .trim_start()
+            .starts_with("herdr-radar is installed"),
+        "{:?}",
+        rows[28]
+    );
+    assert!(
+        rows.iter().any(|r| r.contains("No open questions")),
+        "the scene is still there"
+    );
+    assert_eq!(
+        buf[(2, 28)].fg,
+        ratatui_core::style::Color::Rgb(0xa0, 0xa0, 0xa0)
+    );
 }

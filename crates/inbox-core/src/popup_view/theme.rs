@@ -18,19 +18,12 @@ pub struct CcColors {
     pub warning: Rgb,
 }
 
-/// Python `CC_COLORS["dark"]`.
+/// Python `CC_COLORS["dark"]` (its `light` values come with a light theme;
+/// the popup runs only on `textual-dark`).
 pub const CC_DARK: CcColors = CcColors {
     suggestion: Rgb::hex(0xb1b9f9),
     success: Rgb::hex(0x4eba65),
     warning: Rgb::hex(0xffc107),
-};
-
-/// Python `CC_COLORS["light"]` (Python picks it under a light Textual
-/// theme, which the popup never sets).
-pub const CC_LIGHT: CcColors = CcColors {
-    suggestion: Rgb::hex(0x5769f7),
-    success: Rgb::hex(0x2c7a39),
-    warning: Rgb::hex(0x966c1e),
 };
 
 /// Every colour the popup paints with.

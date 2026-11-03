@@ -1,7 +1,8 @@
 //! The popup driven as the capture's `pilot` drives Python's: opened on a
 //! snapshot, keys pressed (each well after the last, so every view is
 //! armed, as the capture runs with the arming delays at 0), polls, and the
-//! screen rendered at a size.
+//! screen rendered at a size. A frame is drawn after every key and poll, as
+//! Textual draws one: the scroll offsets follow the cursor key by key.
 
 use inbox_core::popup::{Event, Key, Open, Popup, Snapshot};
 use inbox_core::popup_view::{Ctx, ViewState, render};
@@ -43,6 +44,7 @@ impl Pilot {
         for k in keys {
             self.now += STEP;
             self.popup.handle(Event::Key(Key::parse(k)), self.now);
+            self.screen();
         }
     }
 
@@ -61,6 +63,7 @@ impl Pilot {
     pub fn poll(&mut self, snapshot: Snapshot) {
         self.now += STEP;
         self.popup.handle(Event::Poll(snapshot), self.now);
+        self.screen();
     }
 
     /// The screen now (wall clock held at `HELD`), as the terminal gets it.
