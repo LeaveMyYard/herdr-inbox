@@ -134,6 +134,14 @@ impl Question {
             .is_some_and(|e| e.starts_with(AGENT_GONE))
     }
 
+    /// Some option has a preview: the view shows a preview pane (Python
+    /// `QuestionView.has_preview`).
+    pub fn has_preview(&self) -> bool {
+        self.options
+            .iter()
+            .any(|o| o.preview.as_deref().is_some_and(|p| !p.is_empty()))
+    }
+
     /// The option labels, in order.
     pub fn labels(&self) -> Vec<String> {
         self.options.iter().map(|o| o.label.clone()).collect()

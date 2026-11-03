@@ -187,7 +187,7 @@ say why in the PR:
   `<snapshot>` is the database as the popup reads it, with only the fields the model decides
   with:
   `{"questions": [{"id", "group", "status", "pane_id", "options": [label], "multi_select",
-  "draft": <detail>|null, "delivery_error", "delivered": bool}], "open": [qid] (store.list),
+  "draft": <detail>|null, "delivery_error", "delivered": bool, "has_preview": bool}], "open": [qid] (store.list),
   "failed": [qid] (store.failed_deliveries, in order), "alerts": [{"id", "kind", "status",
   "pane_id"}], "open_alerts": [aid] (in order)}`. `<detail>` is `{"choices": [label],
   "notes": {label: note}, "text": str|null}`.
@@ -213,10 +213,11 @@ say why in the PR:
     - `box`: its open text box;
     - `chips`: the tab row, where only the app's keys work (←/→, Tab, `d`, `g`, Esc); it also
       holds the focus in the empty view;
-    - `choices`: the view's scrolling list, where keys reach the view.
+    - `choices`: the view's scrolling list, where keys reach the view;
+    - `preview`: a question's preview pane (`has_preview`), where keys reach the view.
 
-    Tab or Shift+Tab inside a text box moves the focus off the box (Tab to `chips` under the
-    tab row, otherwise to the view; Shift+Tab to `choices`). The box stays open, and the next
+    Tab or Shift+Tab inside a text box moves the focus off the box: Tab to `preview` beside a
+    preview pane, else to `chips` under the tab row, else to the view; Shift+Tab to `choices`. The box stays open, and the next
     keys act on the view or the app (`edge.tab_in_a_box_*`). In the list, Tab moves between
     `view` and `choices`;
   - `entries`: list rows in order, placeholders included. An entry is `group:<id>`,
@@ -249,8 +250,9 @@ say why in the PR:
   What a model does not reproduce, because the golden cannot hold it:
   - Shift selections and the clipboard in a text box (`shift+←`, `ctrl+x`/`c`/`v`). The box
     keeps only the editing keys listed in `inbox-core::popup::TextBox`.
-  - ↑/↓ on `choices` scroll in Textual when the list overflows the popup. The golden's popup
-    (100×30) never overflows, and the model does not know the size.
+  - ↑/↓ on `choices` or `preview` scroll in Textual when the list overflows the popup. The
+    golden's popup (100×30) never overflows. The models never scroll, on purpose: the cursor
+    moves, as it does when nothing overflows, and the JS model must keep it so.
   - A second box opened while a box is open but does not have the focus. This happens with
     `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
     Python crashes there (Textual `DuplicateIds`); the model replaces the box.

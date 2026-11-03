@@ -19,8 +19,12 @@ pub enum Focus {
     Chips,
     /// The view's scrolling option list: keys reach the view as with
     /// [`Focus::View`]. (In Textual, ↑/↓ there scroll instead when the list
-    /// overflows the popup; the model does not know the popup's size.)
+    /// overflows the popup. The model never scrolls, on purpose: it does not
+    /// know the popup's size, and a JS model must not either.)
     Choices,
+    /// A question's preview pane (options with a `preview`): keys reach the
+    /// view as with [`Focus::View`].
+    Preview,
 }
 
 impl Focus {
@@ -31,6 +35,7 @@ impl Focus {
             Focus::Box => "box",
             Focus::Chips => "chips",
             Focus::Choices => "choices",
+            Focus::Preview => "preview",
         }
     }
 }
@@ -49,13 +54,19 @@ impl Popup {
     /// focus to the next focusable widget.
     pub(super) fn move_focus(&mut self, next: bool) {
         let chips_shown = self.mode == Mode::Group && self.all_tabs().len() > 1;
+        let preview = match &self.view {
+            View::Question(v) => self.data.question(v.qid).is_some_and(|q| q.has_preview()),
+            _ => false,
+        };
         match &mut self.view {
             View::Question(v) if v.editing.is_some() && v.box_focused => {
                 v.box_focused = false;
-                self.focus = match (next, chips_shown) {
-                    (true, true) => Focus::Chips,
-                    (true, false) => Focus::View,
-                    (false, _) => Focus::Choices,
+                // the focus chain: tab row, view, option list, box, preview pane
+                self.focus = match (next, preview, chips_shown) {
+                    (true, true, _) => Focus::Preview,
+                    (true, false, true) => Focus::Chips,
+                    (true, false, false) => Focus::View,
+                    (false, _, _) => Focus::Choices,
                 };
             }
             View::List(_) => {
