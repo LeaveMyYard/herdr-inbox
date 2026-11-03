@@ -43,7 +43,7 @@ pub struct Grid {
 
 impl Grid {
     /// Every cell blank in `fg` on `bg` (the design's `new Scr(w, h, bg)`).
-    pub fn new(w: usize, h: usize, fg: Rgb, bg: Rgb) -> Self {
+    pub(super) fn new(w: usize, h: usize, fg: Rgb, bg: Rgb) -> Self {
         let blank = Cell {
             ch: ' ',
             fg,
@@ -85,7 +85,15 @@ impl Grid {
     /// the grid: each cell takes `fg`, `bg` when given, and `bold` (the
     /// design's `put`, which also resets bold when it is not asked for).
     /// Returns the column after the text.
-    pub fn put(&mut self, x: i32, y: i32, text: &str, fg: Rgb, bg: Option<Rgb>, bold: bool) -> i32 {
+    pub(super) fn put(
+        &mut self,
+        x: i32,
+        y: i32,
+        text: &str,
+        fg: Rgb,
+        bg: Option<Rgb>,
+        bold: bool,
+    ) -> i32 {
         let mut x = x;
         for ch in text.chars() {
             if let Some(c) = self.at(x, y) {
@@ -103,7 +111,7 @@ impl Grid {
 
     /// Draws `lines` with its top-left at (`x`, `y`); a blank in them leaves
     /// the cell under it as it was (the design's transparent `art`).
-    pub fn art(&mut self, x: i32, y: i32, lines: &[&str], fg: Rgb, bold: bool) {
+    pub(super) fn art(&mut self, x: i32, y: i32, lines: &[&str], fg: Rgb, bold: bool) {
         for (j, line) in (0..).zip(lines) {
             for (i, ch) in (0..).zip(line.chars()) {
                 if ch != ' ' {
@@ -115,7 +123,7 @@ impl Grid {
 
     /// A `w` × `h` rounded frame in `fg` at (`x`, `y`), every cell of the box
     /// blanked on `bg` first (the design's `box(x, y, w, h, col, bg, 'round')`).
-    pub fn boxed(&mut self, x: i32, y: i32, w: i32, h: i32, fg: Rgb, bg: Rgb) {
+    pub(super) fn boxed(&mut self, x: i32, y: i32, w: i32, h: i32, fg: Rgb, bg: Rgb) {
         for j in y..y + h {
             for i in x..x + w {
                 if let Some(c) = self.at(i, j) {

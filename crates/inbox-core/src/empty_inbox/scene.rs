@@ -8,7 +8,7 @@ use super::{Grid, H, PERIOD, W};
 /// The ground's row.
 const GROUND: i32 = 12;
 /// The words under the scene.
-pub(super) const WORDS: &str = "No open questions";
+const WORDS: &str = "No open questions";
 
 /// The tumbleweed's three turns, one per frame in a cycle.
 const TURNS: [[&str; 3]; 3] = [

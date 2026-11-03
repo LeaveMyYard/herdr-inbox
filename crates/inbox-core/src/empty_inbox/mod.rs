@@ -9,10 +9,10 @@
 //! `tools/capture_empty_inbox.mjs`). The popup renderer draws the grid; this
 //! module knows nothing of terminals.
 //!
-//! - [`canvas`]: the cell grid and its drawing calls.
+//! - [`Grid`] of [`Cell`]s: what a frame is (`canvas`, with the drawing calls).
 //! - [`palette`]: the scene's colours.
 
-pub mod canvas;
+mod canvas;
 pub mod palette;
 mod scene;
 
@@ -28,7 +28,8 @@ pub const PERIOD: u64 = 42;
 /// Seconds a frame shows, so one roll takes 10.5 s. The design takes only a
 /// frame index; its project's prototype pages advance it every 250 ms
 /// (`setInterval(…, 250)` in herdr-panorama `docs/design/Swarm View
-/// 2a.dc.html`; the 2C page itself could not be fetched).
+/// 2a.dc.html`; the 2C page itself could not be fetched), and herdr-panorama's
+/// port runs its design frames at 250 ms too (`view/anim`).
 pub const FRAME_SECONDS: f64 = 0.25;
 
 /// Frame `f` of the scene.
