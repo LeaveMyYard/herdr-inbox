@@ -181,12 +181,13 @@ fn items(q: &Question, v: &QuestionView, ctx: &Ctx) -> (Vec<Item>, Vec<usize>) {
             _ => None,
         };
         if let Some((b, placeholder)) = boxed {
-            let (value, at, theme) = (b.value(), b.cursor(), ctx.theme);
+            let (value, at, selected, theme) = (b.value(), b.cursor(), b.selected(), ctx.theme);
             let rows = move |w: u16| {
                 let field = Field {
                     value: &value,
                     cursor: at,
                     placeholder,
+                    selected,
                 };
                 input::rows(&field, w, theme.background, &theme)
             };

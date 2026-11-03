@@ -347,8 +347,8 @@ async def popup_screens(shots: Shots, work: Path) -> None:
 
 async def extra_screens(shots: Shots, work: Path) -> None:
     """The views the scenarios above do not reach (the Rust renderer's goldens, P6-B): pending and
-    gone-agent answers in the list and opened, a group dismissed from the list, a note, an empty
-    note box, a typed answer, a tab closed under the operator, a long list that scrolls, a
+    gone-agent answers in the list and opened, a group dismissed from the list, a note, its box
+    reopened (the text selected), an empty note box, a typed answer, a tab closed under the operator, a long list that scrolls, a
     blocked alert."""
     from herdr_inbox import service
     from herdr_inbox.store import AGENT_GONE, PENDING
@@ -391,7 +391,9 @@ async def extra_screens(shots: Shots, work: Path) -> None:
     async with app.run_test(size=size) as pilot:
         await pilot.press("enter", "down", "n", *"keep it small", "enter")
         await shots.add(file, src, size, "a note under SQLite", app, pilot)
-        await pilot.press("down", "n")
+        await pilot.press("n")
+        await shots.add(file, src, size, "the note box reopened on its note", app, pilot)
+        await pilot.press("escape", "down", "n")
         await shots.add(file, src, size, "an empty note box", app, pilot)
         await pilot.press("escape", "4", "enter", *"Firebird", "enter")
         await shots.add(file, src, size, "typed answer drafted, next tab", app, pilot)

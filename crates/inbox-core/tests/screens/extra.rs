@@ -49,7 +49,9 @@ pub fn screens(out: &mut Shots) {
     p.type_text("keep it small");
     p.press(&["enter"]);
     shot("a note under SQLite", &mut p);
-    p.press(&["down", "n"]);
+    p.press(&["n"]);
+    shot("the note box reopened on its note", &mut p);
+    p.press(&["escape", "down", "n"]);
     shot("an empty note box", &mut p);
     p.press(&["escape", "4", "enter"]);
     p.type_text("Firebird");
