@@ -270,3 +270,28 @@ say why in the PR:
   - A second box opened while a box is open but does not have the focus. This happens with
     `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
     Python crashes there (Textual `DuplicateIds`); the model replaces the box.
+
+## Design goldens (rust-rewrite plan §5.2 item 1)
+
+- `design_empty_inbox.json`: design 2C, the empty inbox (the tumbleweed in the desert, Q179),
+  captured by node from the design's own cell-grid renderer `inboxC(f)` in herdr-panorama's
+  `docs/design/herdr-tui.js` (the file's sha256 is in `source`). It is not Python's: the popup
+  gains this screen in the port. Regenerate with:
+
+      node tools/capture_empty_inbox.mjs ../herdr-panorama/docs/design/herdr-tui.js \
+        > tests/fixtures/design_empty_inbox.json
+
+  ```
+  {"source": "...", "size": [64, 20], "period": 42, "C": {the design's palette},
+   "frames": [{"f": 0, "rows": [[[text, fg, bg, bold], ...], ...]}, ...]}
+  ```
+
+  Frames 0 to `period` (the last shows the loop back to frame 0; the script also checks that
+  frame `f + period` is frame `f`). A run is text whose cells share `fg`, `bg` (`#rrggbb`) and
+  `bold`, exactly as the design's grid holds them: a blank keeps the fg it was written with.
+  `crates/inbox-core/tests/design_empty_inbox.rs` compares `inbox_core::empty_inbox::frame`
+  with every frame cell for cell.
+
+  The design lives in another repo, so CI cannot capture it again: whenever herdr-panorama's
+  `docs/design/herdr-tui.js` changes, re-run the capture and compare its sha256 with the one in
+  `source` (a different file means the fixture, and maybe the scene, must follow).
