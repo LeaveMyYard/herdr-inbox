@@ -11,7 +11,9 @@ use super::state::{Msg, Popup};
 use super::views::View;
 
 impl Popup {
-    fn list_cursor_now(&self) -> Option<Entry> {
+    /// The list view's cursor (the row under it now); [`Popup::list_cursor`]
+    /// is the row the popup returns to from a group.
+    pub(super) fn list_target(&self) -> Option<Entry> {
         match &self.view {
             View::List(v) => v.cursor.clone(),
             _ => None,
@@ -38,7 +40,7 @@ impl Popup {
             Key::Down | Key::Char('j') => self.list_move(1),
             Key::Escape => self.later(Msg::Quit),
             Key::Enter if armed => {
-                let cursor = self.list_cursor_now();
+                let cursor = self.list_target();
                 if let Some(c) = cursor.filter(|c| {
                     self.entries.contains(c) && !self.closed.contains(c) && !self.fresh(c)
                 }) {
@@ -68,7 +70,7 @@ impl Popup {
         if self.entries.is_empty() {
             return;
         }
-        let cursor = self.list_cursor_now();
+        let cursor = self.list_target();
         let next = match cursor.and_then(|c| self.entries.iter().position(|e| *e == c)) {
             None if delta > 0 => self.entries[0].clone(),
             None => self.entries[self.entries.len() - 1].clone(),
@@ -82,12 +84,7 @@ impl Popup {
 
     /// A deliberate move: placeholders drop out now, the target stays.
     fn list_moved(&mut self) {
-        let keep = self.list_cursor_now();
+        let keep = self.list_target();
         self.purge_closed(keep.as_ref());
-    }
-
-    /// The list's cursor when the list is on screen.
-    pub(super) fn list_target(&self) -> Option<Entry> {
-        self.list_cursor_now()
     }
 }

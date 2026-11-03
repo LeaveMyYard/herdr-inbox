@@ -55,39 +55,44 @@ impl TextBox {
 
     /// Take a key.
     pub fn key(&mut self, key: &Key) -> BoxKey {
+        let Some(action) = Action::of(key) else {
+            return BoxKey::Ignored;
+        };
+        if action == Action::Submit {
+            return BoxKey::Submit;
+        }
+        let n = self.chars.len();
         if std::mem::take(&mut self.selected) {
-            match key {
-                Key::Left => return self.moved(0),
-                Key::Right => return self.moved(self.chars.len()),
-                Key::Backspace | Key::Delete => return self.moved_after_clear(),
-                _ if key.printable().is_some() => {
-                    self.chars.clear();
-                    self.cursor = 0;
-                }
-                Key::Home | Key::End => {}
-                _ => self.selected = true, // Enter, Escape, ...: the selection stays
+            match action {
+                Action::Left => return self.moved(0),
+                Action::Right => return self.moved(n),
+                Action::Insert(_) => self.chars.clear(),
+                Action::Home | Action::End | Action::LeftWord | Action::RightWord => {}
+                _ => return self.delete(0, n), // every delete takes the selection
             }
+            self.cursor = self.cursor.min(self.chars.len());
         }
-        if let Some(c) = key.printable() {
-            self.chars.insert(self.cursor, c);
-            self.cursor += 1;
-            return BoxKey::Edited;
-        }
-        match key {
-            Key::Enter => return BoxKey::Submit,
-            Key::Left => self.cursor = self.cursor.saturating_sub(1),
-            Key::Right => self.cursor = (self.cursor + 1).min(self.chars.len()),
-            Key::Home => self.cursor = 0,
-            Key::End => self.cursor = self.chars.len(),
-            Key::Backspace if self.cursor > 0 => {
-                self.cursor -= 1;
-                self.chars.remove(self.cursor);
+        let (n, at) = (self.chars.len(), self.cursor);
+        match action {
+            Action::Insert(c) => {
+                self.chars.insert(at, c);
+                self.cursor += 1;
             }
-            Key::Delete if self.cursor < self.chars.len() => {
-                self.chars.remove(self.cursor);
+            Action::Left => self.cursor = at.saturating_sub(1),
+            Action::Right => self.cursor = (at + 1).min(n),
+            Action::Home => self.cursor = 0,
+            Action::End => self.cursor = n,
+            Action::LeftWord => self.cursor = self.word_start_before(at),
+            Action::RightWord => self.cursor = self.word_start_after(at).unwrap_or(n),
+            Action::DeleteLeft => return self.delete(at.saturating_sub(1), at),
+            Action::DeleteRight => return self.delete(at, (at + 1).min(n)),
+            Action::DeleteLeftWord => return self.delete(self.word_start_before(at), at),
+            Action::DeleteRightWord => {
+                return self.delete(at, self.word_start_after(at).unwrap_or(n));
             }
-            Key::Backspace | Key::Delete => {}
-            _ => return BoxKey::Ignored,
+            Action::DeleteLeftAll => return self.delete(0, at),
+            Action::DeleteRightAll => return self.delete(at, n),
+            Action::Submit => {}
         }
         BoxKey::Edited
     }
@@ -97,8 +102,80 @@ impl TextBox {
         BoxKey::Edited
     }
 
-    fn moved_after_clear(&mut self) -> BoxKey {
-        self.chars.clear();
-        self.moved(0)
+    fn delete(&mut self, from: usize, to: usize) -> BoxKey {
+        self.chars.drain(from..to);
+        self.moved(from)
+    }
+
+    /// A word starts at `i`: a word character after a non-word one
+    /// (Textual's `(?<=\W)\w`, matched within `[lo, hi)`).
+    fn word_start(&self, i: usize, lo: usize) -> bool {
+        i > lo && is_word(self.chars[i]) && !is_word(self.chars[i - 1])
+    }
+
+    /// The last word start before `at`, else 0 (Textual `cursor_left_word`).
+    fn word_start_before(&self, at: usize) -> usize {
+        (0..at).rev().find(|&i| self.word_start(i, 0)).unwrap_or(0)
+    }
+
+    /// The first word start after `at`, searched in the text from `at` on, so
+    /// `at` itself never counts (Textual `cursor_right_word`).
+    fn word_start_after(&self, at: usize) -> Option<usize> {
+        (at..self.chars.len()).find(|&i| self.word_start(i, at))
+    }
+}
+
+/// Python's `\w`: letters, digits (any script) and the underscore.
+fn is_word(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// The editing actions of Textual's `Input` the popup's boxes get. Shift
+/// selections and the clipboard (`ctrl+x`/`c`/`v`) are not modelled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Action {
+    Insert(char),
+    Left,
+    Right,
+    Home,
+    End,
+    LeftWord,
+    RightWord,
+    DeleteLeft,
+    DeleteRight,
+    DeleteLeftWord,
+    DeleteRightWord,
+    DeleteLeftAll,
+    DeleteRightAll,
+    Submit,
+}
+
+impl Action {
+    fn of(key: &Key) -> Option<Action> {
+        if let Some(c) = key.printable() {
+            return Some(Action::Insert(c));
+        }
+        Some(match key {
+            Key::Enter => Action::Submit,
+            Key::Left => Action::Left,
+            Key::Right => Action::Right,
+            Key::Home => Action::Home,
+            Key::End => Action::End,
+            Key::Backspace => Action::DeleteLeft,
+            Key::Delete => Action::DeleteRight,
+            Key::Other(name) => match name.as_str() {
+                "ctrl+a" => Action::Home,
+                "ctrl+e" => Action::End,
+                "ctrl+d" => Action::DeleteRight,
+                "ctrl+left" => Action::LeftWord,
+                "ctrl+right" => Action::RightWord,
+                "ctrl+w" => Action::DeleteLeftWord,
+                "ctrl+backspace" | "alt+backspace" => Action::DeleteRightWord,
+                "ctrl+u" | "super+backspace" => Action::DeleteLeftAll,
+                "ctrl+k" => Action::DeleteRightAll,
+                _ => return None,
+            },
+            _ => return None,
+        })
     }
 }

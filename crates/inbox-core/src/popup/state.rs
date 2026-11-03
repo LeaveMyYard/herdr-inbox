@@ -6,6 +6,7 @@ use std::collections::{HashMap, VecDeque};
 use super::data::{Detail, Millis, Snapshot};
 use super::entry::{Entry, Mode, Tab};
 use super::event::{Effect, Event, Open, Severity};
+use super::focus::Focus;
 use super::ordered::Ordered;
 use super::views::View;
 
@@ -31,6 +32,7 @@ pub struct Popup {
     pub(super) gone_batch: Option<Vec<i64>>,
     pub(super) timers: Timers,
     pub(super) view: View,
+    pub(super) focus: Focus,
     pub(super) confirm: Option<Confirm>,
     pub(super) running: bool,
     pub(super) now: Millis,
@@ -59,6 +61,24 @@ pub struct Confirm {
     pub(super) target: ConfirmTarget,
 }
 
+impl Confirm {
+    /// The questions `y` dismisses (the renderer shows the first one's text).
+    pub fn qids(&self) -> &[i64] {
+        match &self.target {
+            ConfirmTarget::Question(q) => std::slice::from_ref(q),
+            ConfirmTarget::Group(_, qids) => qids,
+        }
+    }
+
+    /// The list row it dismisses as a whole, if it is a whole group.
+    pub fn entry(&self) -> Option<&Entry> {
+        match &self.target {
+            ConfirmTarget::Question(_) => None,
+            ConfirmTarget::Group(entry, _) => Some(entry),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum ConfirmTarget {
     /// One question of the open group.
@@ -79,7 +99,7 @@ pub(super) enum Msg {
     Submit(Vec<i64>),
     Retry(i64),
     Hide(i64),
-    Ack(i64),
+    Ack,
     Open(Entry),
 }
 
@@ -105,6 +125,7 @@ impl Popup {
             gone_batch: None,
             timers: Timers::default(),
             view: View::None,
+            focus: Focus::View,
             confirm: None,
             running: true,
             now,
@@ -157,6 +178,7 @@ impl Popup {
                     snapshot,
                 } => self.sent(&done, wanted, snapshot),
                 Event::Focused { pane, error } => self.focused(&pane, error.as_deref()),
+                Event::Data(snapshot) => self.data = snapshot,
             }
             self.drain();
         }

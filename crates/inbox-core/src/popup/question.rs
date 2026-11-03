@@ -46,6 +46,7 @@ impl Editing {
 
 /// The question view's state.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct QuestionView {
     /// The question.
     pub qid: i64,
@@ -69,6 +70,9 @@ pub struct QuestionView {
     pub text: Option<String>,
     /// The open box, if any (it then takes the keys).
     pub editing: Option<Editing>,
+    /// The open box has the keys. Tab or Shift+Tab inside it moves Textual's
+    /// focus away while the box stays open (see [`Focus`](super::Focus)).
+    pub box_focused: bool,
     /// Enter, digits and Space count from then on.
     pub armed_at: Millis,
 }
@@ -111,20 +115,21 @@ impl QuestionView {
             notes,
             text: draft.text,
             editing: None,
+            box_focused: false,
             armed_at,
         }
     }
 
     /// Take a key; `false` if the view does not bind it (the app may).
     pub(super) fn key(&mut self, key: &Key, armed: bool, out: &mut Out) -> bool {
-        if let Some(editing) = self.editing.as_mut() {
+        if let Some(editing) = self.editing.as_mut().filter(|_| self.box_focused) {
             let b = match editing {
                 Editing::Note(_, b) | Editing::Text(b) => b,
             };
             match b.key(key) {
                 BoxKey::Edited => {}
                 BoxKey::Submit => self.submit_box(out),
-                BoxKey::Ignored if *key == Key::Escape => self.editing = None,
+                BoxKey::Ignored if *key == Key::Escape => self.close_box(),
                 BoxKey::Ignored => {} // the box has the focus: nothing else gets it
             }
             return true;
@@ -142,6 +147,7 @@ impl QuestionView {
             Key::Space => self.toggle(),
             Key::Char('n') => self.open_note(),
             Key::Char('x') => self.clear(out),
+            Key::Escape if self.editing.is_some() => self.close_box(),
             Key::Escape => out.later(Msg::Back),
             _ => match key.digit() {
                 Some(n) if n <= self.rows.len() && self.rows[n - 1] != Row::Submit => {
@@ -154,6 +160,16 @@ impl QuestionView {
         true
     }
 
+    fn open_box(&mut self, editing: Editing) {
+        self.editing = Some(editing);
+        self.box_focused = true;
+    }
+
+    fn close_box(&mut self) {
+        self.editing = None;
+        self.box_focused = false;
+    }
+
     fn toggle(&mut self) {
         if !self.multi_select {
             return;
@@ -164,11 +180,9 @@ impl QuestionView {
                     self.picked.insert(i);
                 }
             }
-            Row::Other => {
-                self.editing = Some(Editing::Text(TextBox::new(
-                    self.text.as_deref().unwrap_or(""),
-                )))
-            }
+            Row::Other => self.open_box(Editing::Text(TextBox::new(
+                self.text.as_deref().unwrap_or(""),
+            ))),
             Row::Chat | Row::Submit => {}
         }
     }
@@ -176,11 +190,9 @@ impl QuestionView {
     fn select(&mut self, out: &mut Out) {
         match self.rows[self.cursor] {
             Row::Chat => out.later(Msg::Chat(self.qid)),
-            Row::Other => {
-                self.editing = Some(Editing::Text(TextBox::new(
-                    self.text.as_deref().unwrap_or(""),
-                )))
-            }
+            Row::Other => self.open_box(Editing::Text(TextBox::new(
+                self.text.as_deref().unwrap_or(""),
+            ))),
             Row::Submit if self.picked.is_empty() && self.text.is_none() => {
                 out.notify("Select at least one option", Severity::Warning)
             }
@@ -197,7 +209,7 @@ impl QuestionView {
     fn open_note(&mut self) {
         if let Row::Option(i) = self.rows[self.cursor] {
             let value = self.notes.get(&i).cloned().unwrap_or_default();
-            self.editing = Some(Editing::Note(i, TextBox::new(&value)));
+            self.open_box(Editing::Note(i, TextBox::new(&value)));
         }
     }
 
@@ -230,6 +242,7 @@ impl QuestionView {
 
     /// Enter in the box (Python `on_input_submitted`).
     fn submit_box(&mut self, out: &mut Out) {
+        self.box_focused = false;
         let Some(editing) = self.editing.take() else {
             return;
         };

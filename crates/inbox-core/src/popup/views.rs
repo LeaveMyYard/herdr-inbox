@@ -13,6 +13,7 @@ use super::state::Msg;
 
 /// The popup's body.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum View {
     /// Nothing (the empty view).
     None,
@@ -32,6 +33,7 @@ pub enum View {
 
 /// The group list's own state (its rows are [`Popup::entries`](super::Popup::entries)).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ListView {
     /// The row under the cursor; `None` is the inert rest position.
     pub cursor: Option<Entry>,
@@ -42,6 +44,7 @@ pub struct ListView {
 /// "Q3 was closed (withdrawn by the agent)": Enter and digits do nothing;
 /// only Esc or a deliberate tab move leaves.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GoneView {
     /// `Q3`, `A2`.
     pub r#ref: String,
@@ -51,6 +54,7 @@ pub struct GoneView {
 
 /// An undelivered answer's view.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FailedView {
     /// Its question.
     pub qid: i64,
@@ -62,6 +66,7 @@ pub struct FailedView {
 
 /// An alert's view.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AlertView {
     /// The alert.
     pub alert: i64,
@@ -138,7 +143,7 @@ impl AlertView {
     pub(super) fn key(&mut self, key: &Key, armed: bool, out: &mut Out) -> bool {
         match key {
             Key::Char('d') if armed => {
-                out.later(Msg::Ack(self.alert));
+                out.later(Msg::Ack);
                 true
             }
             Key::Escape => {

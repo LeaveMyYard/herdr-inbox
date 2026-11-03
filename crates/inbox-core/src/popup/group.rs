@@ -15,6 +15,7 @@ impl Popup {
     pub(super) fn mount(&mut self, view: View) {
         self.timers.view_at = Some(self.now);
         self.view = view;
+        self.focus = super::focus::Focus::View;
     }
 
     pub(super) fn armed_at(&self) -> u64 {

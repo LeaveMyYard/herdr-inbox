@@ -358,7 +358,7 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
               ask(C, "C?")), keys("down", "down", "down", "down", "down"))
 
     # -- edge cases the model must match ----------------------------------------------------
-    add("edge.note_box_keys", "inside a note: arrows, digits, d, g and Tab are text or nothing",
+    add("edge.note_box_keys", "inside a note: arrows, digits, d and g are text or nothing; Tab moves the focus out",
         group(A, q("One?", "a", "b"), q("Two?", "c")),
         seq(keys("n"), typed("ab"), keys("left", "left", "x", "right", "backspace", "home", "end", "up", "down",
                                          "1", "d", "g", "tab")))
@@ -420,4 +420,45 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
         group(A, q("One?", "a", "b"), q("Two?", "c")),
         seq(keys("n"), typed("abc"), keys("enter", "n", "left", "x", "enter", "n", "right", "y", "enter", "n", "home",
                                           "z", "enter", "n", "delete", "w", "enter")))
+    add("edge.tab_in_a_box_lone", "Tab in a lone question's box: the view has the keys, the box stays open",
+        ask(A, "One?", options=["a", "b"]),
+        seq(keys("3", "enter"), typed("hi"), keys("tab", "down", "up", "up", "1", "enter")))
+    add("edge.tab_in_a_box_group", "Tab in a box under the tab row: the row has the focus; only app keys work",
+        group(A, q("One?", "a", "b"), q("Two?", "c")),
+        seq(keys("n"), typed("a"), keys("tab", "up", "enter", "1", "x", "d", "x", "left", "right", "tab", "n",
+                                         "shift+tab", "escape")))
+    add("edge.tab_in_a_box_then_d", "Tab out of a note, then d y: the question is dismissed",
+        group(A, q("One?", "a", "b"), q("Two?", "c")), seq(keys("n"), typed("a"), keys("tab", "d", "y")))
+    add("edge.shift_tab_in_a_box", "Shift+Tab in a box: the option list has the focus, keys reach the view",
+        group(A, q("One?", "a", "b"), q("Two?", "c")),
+        seq(keys("n"), typed("a"), keys("shift+tab", "down", "escape", "n", "b", "enter", "shift+tab", "shift+tab")))
+    add("edge.tab_twice_in_the_list", "Tab in the list moves the focus to its rows and back; keys still work",
+        setup(ask(A, "one?", options=["a"]), ask(B, "two?", options=["b"])), keys("tab", "shift+tab", "tab", "down", "tab"))
+    add("edge.box_editing_keys", "the box's other Textual keys: ctrl+a/e/d/u/k/w, ctrl+←/→, ctrl+backspace",
+        group(A, q("One?", "a", "b"), q("Two?", "c")),
+        seq(keys("n"), typed("ab cd_e f.gh"), keys("ctrl+left", "ctrl+left", "ctrl+w", "ctrl+right", "ctrl+backspace",
+                                                   "ctrl+a", "ctrl+d", "ctrl+e", "backspace", "home", "backspace",
+                                                   "ctrl+right", "ctrl+k", "ctrl+u", "x", "enter", "n", "ctrl+u",
+                                                   "enter")))
+    add("edge.empty_escape", "Esc in the empty view: it exits, then quits", lambda s: None, keys("escape"))
+    add("edge.empty_escape_with_arrivals", "Esc in the empty view with arrivals: the same",
+        lambda s: None, seq(poll(ask(A, "late?")), keys("escape")))
+    add("edge.open_after_an_unseen_close", "a group opened after one of its questions closed (no poll): a lone question",
+        setup(group(A, q("One?", "a"), q("Two?", "b")), ask(B, "Other?")),
+        seq(unseen(close(1)), keys("enter", "1", "enter"), sent()))
+    add("edge.open_after_an_unseen_close_of_all", "the row's only question closed (no poll): Enter stays on the list",
+        setup(ask(A, "One?", options=["a"]), ask(B, "Other?")), seq(unseen(close(1)), keys("enter", "enter")))
+    add("edge.list_d_after_an_unseen_close", "d on a row after one of its questions closed: it names the rest",
+        setup(group(A, q("One?"), q("Two?")), ask(B, "Other?")), seq(unseen(close(1)), keys("d", "y")))
+    add("edge.confirm_after_an_unseen_close", "y after the question closed: nothing more happens",
+        group(A, q("One?"), q("Two?")), seq(keys("d"), unseen(close(1)), keys("y", "right")))
+    add("edge.draft_after_an_unseen_close", "an answer in a group after its question closed: no longer open",
+        setup(group(A, q("One?", "a"), q("Two?", "b")), ask(B, "Other?")),
+        seq(keys("enter"), unseen(close(1)), keys("1", "enter")))
+    add("edge.submit_tab_digits_arm", "1 and 2 on the Submit tab right after it appears do nothing",
+        group(A, q("One?", "a"), q("Two?", "b")),
+        seq(keys("enter", "enter"), key("1", gap=100), key("2", gap=100), keys("down", "1")))
+    add("edge.g_right_after_the_popup_opens", "g within 0.5 s of the view appearing: not deliberate",
+        setup(ask(A, "one?"), ask(B, "two?")), seq(key("g", gap=100), focused("w1:p1", "pane not found"),
+                                                   keys("g")))
     return out

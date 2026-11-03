@@ -136,6 +136,27 @@ def view_state(app) -> dict:
     raise AssertionError(f"unknown view {type(v).__name__}")
 
 
+def focus_name(app) -> str:
+    """Which widget has the keys: the view on screen, its text box, the tab row (#chips), the
+    view's scrolling option list (.choices), or nothing."""
+    from textual.containers import HorizontalScroll, VerticalScroll
+    from textual.widgets import Input
+
+    f = app.screen.focused if len(app.screen_stack) == 1 else app.screen_stack[0].focused
+    if f is None:
+        return "none"
+    if isinstance(f, Input):
+        return "box"
+    if isinstance(f, HorizontalScroll):
+        return "chips"
+    if isinstance(f, VerticalScroll):
+        return "choices"
+    found = app.base.query("#body > *")
+    if found and f is found.first():
+        return "view"
+    return type(f).__name__
+
+
 def state(app, rec) -> dict:
     from herdr_inbox import tui
 
@@ -146,6 +167,7 @@ def state(app, rec) -> dict:
         confirm = app.screen.what
     return {
         "running": True,
+        "focus": focus_name(app),
         "mode": app.mode,
         "entries": [entry_id(e) for e in app.entries],
         "closed": {entry_id(e): r for e, r in app.closed.items()},
@@ -347,6 +369,8 @@ async def run_scenario(scn, steps, work: Path, rec: Recorder, clock: Clock) -> d
         out["steps"].append({"at": clock.ms, "event": {"open": opened}, "effects": rec.take(), "state": state(app, rec)})
         for step in steps:
             if rec.exited:
+                if os.environ.get("POPUP_CAPTURE_LENIENT"):  # probing: keep what ran
+                    break
                 raise AssertionError(f"{scn.name}: a step after the popup exited")
             event = await step(app, pilot, store, rec, clock)
             await settle(pilot)
@@ -379,13 +403,14 @@ def typed(text: str, gap: int = 50):
 
 
 def unseen(change, gap: int = 100):
-    """The database changes and the popup does not poll (its next event sees it)."""
+    """The database changes and the popup does not poll. Python reads it live at its next
+    action; the model gets the read as a ``data`` event (rows change only at polls)."""
     async def step(app, pilot, store, rec, clock):
         clock.ms += gap
         rec.on = False
         change(store)
         rec.on = True
-        return None
+        return {"data": snapshot(store)}
 
     return step
 
@@ -443,7 +468,6 @@ async def capture(work: Path, only: str | None = None) -> tuple[list[dict], list
             failures.append(str(exc))
             print(f"FAILED {exc}", file=sys.stderr)
             continue
-        doc["steps"] = [s for s in doc["steps"] if s["event"] is not None]
         out.append(doc)
     return out, failures
 

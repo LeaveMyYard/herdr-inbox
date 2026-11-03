@@ -154,3 +154,23 @@ fn nothing_happens_after_the_popup_closed() {
             .is_empty()
     );
 }
+
+#[test]
+fn a_second_box_replaces_one_that_lost_the_focus() {
+    // Python crashes here (Textual DuplicateIds), so the golden cannot hold it.
+    let mut q = question(1, Some("w1:p1"));
+    q.options = vec![QOption::label("a"), QOption::label("b")];
+    let mut q2 = question(2, Some("w1:p1"));
+    q2.group = 1;
+    let (mut p, _) = opened(vec![q, q2]);
+    let mut at = 11_000;
+    for k in ["n", "x", "shift+tab", "n", "y", "enter"] {
+        at += 600;
+        p.handle(Event::Key(Key::parse(k)), at);
+    }
+    let inbox_core::popup::View::Question(v) = p.view() else {
+        panic!("{:?}", p.view())
+    };
+    assert!(v.editing.is_none());
+    assert_eq!(v.notes.get(&0).map(String::as_str), Some("y")); // the new box's text replaced "x"
+}

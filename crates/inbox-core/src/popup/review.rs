@@ -21,6 +21,7 @@ pub enum ReviewCursor {
 
 /// The Submit tab's state.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ReviewView {
     /// The group's open question tabs when it was shown (or last polled).
     pub qids: Vec<i64>,

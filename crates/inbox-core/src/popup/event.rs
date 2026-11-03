@@ -50,6 +50,13 @@ pub enum Event {
         /// The database after it.
         snapshot: Snapshot,
     },
+    /// The database as it is now, read between polls. Python reads the
+    /// database live whenever the operator acts (which questions of a group
+    /// are open when it opens, what a dismissal names, whether a draft or a
+    /// dismissal took), so the IO layer keeps the model's copy as current:
+    /// a fresh read before each key, or whenever the database changed. Only
+    /// the data is replaced; rows and placeholders change at polls only.
+    Data(Snapshot),
     /// A [`Effect::GoTo`] finished (Python `_focused`).
     Focused {
         /// The pane.
@@ -150,6 +157,9 @@ pub enum Effect {
     /// Close the popup now.
     Exit,
     /// Close the popup once every in-flight [`Effect::Send`] is recorded
-    /// (Python `action_quit`).
+    /// (Python `action_quit`). The model takes no event after it: the IO
+    /// layer drops keys while it waits, and a later [`Event::Sent`] changes
+    /// nothing (Python kept handling keys meanwhile; a second Enter on a lone
+    /// question could send twice).
     Quit,
 }
