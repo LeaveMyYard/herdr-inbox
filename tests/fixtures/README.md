@@ -39,8 +39,8 @@ say why in the PR:
 
   A run is text with one style: `fg` and `bg` are `#rrggbb` (lowercase) or `null` (the
   terminal's default colour), `bold` a boolean. `reverse` is resolved (fg and bg swapped, as the
-  terminal shows it: the selected tab, chips, the input cursor); the popup draws no other
-  attribute. It is what Textual's compositor sends to the
+  terminal shows it: the selected tab, chips, the input cursor). Italic (notes, typed text)
+  is drawn but not recorded. It is what Textual's compositor sends to the
   terminal (`export_screenshot`'s own render), the same shape as herdr-panorama's
   `design_*.json` and `screens/*.json`. Screens are in the order the scenario reaches them.
 

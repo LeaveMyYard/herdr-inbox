@@ -103,8 +103,8 @@ def hexcolor(c) -> str | None:
 
 def dump(app) -> list[list]:
     """The screen as the terminal gets it (export_screenshot's own render), runs per row.
-    ``reverse`` is resolved (fg and bg swapped), the only attribute besides bold the popup
-    draws with; dim, italic and underline never reach its output."""
+    ``reverse`` is resolved (fg and bg swapped); bold is kept. Italic (notes, typed text) is
+    drawn but not recorded; dim and underline never reach the output."""
     update = app.screen._compositor.render_update(full=True, screen_stack=app._background_screens)
     rows = []
     for strips in update.strips:
@@ -421,6 +421,18 @@ async def extra_screens(shots: Shots, work: Path) -> None:
         await shots.add(file, src, size, "a long list, scrolled", app, pilot)
         await pilot.press(*["up"] * 20, "enter")
         await shots.add(file, src, size, "blocked alert opened", app, pilot)
+    store.close()
+
+    store = fresh_store(work, "longer")  # the window follows the cursor key by key, the least distance
+    for i in range(30):
+        service.ask(store, (billing, search, docs)[i % 3], f"Row {i}?", options=["a", "b"])
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await pilot.press(*["down"] * 25)
+        await shots.add(file, src, size, "a longer list, down to row 26", app, pilot)
+        await pilot.press(*["up"] * 12)
+        await shots.add(file, src, size, "a longer list, back up to row 14", app, pilot)
     store.close()
 
 

@@ -24,6 +24,14 @@ pub(crate) fn render(popup: &Popup, ctx: &Ctx, state: &mut ViewState, buf: &mut 
     let area = buf.area;
     canvas::clear(buf, area, t.background);
     let view_at = popup.timers().view_at;
+    let inner = Rect::new(
+        area.x + 2,
+        area.y + 1,
+        area.width.saturating_sub(4),
+        area.height.saturating_sub(2),
+    );
+    let hints = hints(popup, ctx, inner.width);
+    let under: u16 = hints.iter().map(|(r, _)| r.len() as u16).sum();
     if popup.mode() == Mode::Empty {
         let since = ctx.now.saturating_sub(view_at.unwrap_or(ctx.now));
         let live = popup
@@ -31,14 +39,10 @@ pub(crate) fn render(popup: &Popup, ctx: &Ctx, state: &mut ViewState, buf: &mut 
             .iter()
             .filter(|e| !popup.closed().contains(e))
             .count();
-        return empty::draw(buf, since as f64 / 1000.0, live);
+        empty::draw(buf, since as f64 / 1000.0, live);
+        // the hints stay under the empty view, as Python's (over the scene's foot when short)
+        return draw_hints(buf, inner, inner.bottom().saturating_sub(under), &hints);
     }
-    let inner = Rect::new(
-        area.x + 2,
-        area.y + 1,
-        area.width.saturating_sub(4),
-        area.height.saturating_sub(2),
-    );
     let mut stack = Stack::new(inner);
     if let Some(title) = chips::title(popup) {
         chips::draw_title(buf, &mut stack, &title, t);
@@ -50,23 +54,8 @@ pub(crate) fn render(popup: &Popup, ctx: &Ctx, state: &mut ViewState, buf: &mut 
             .map(|i| i + 1);
         state.chips_x = chips::draw_chips(buf, &mut stack, &row, current, state.chips_x, t);
     }
-    let hint = |line: Line| layout::rows(&[line], inner.width);
-    let mut below_rows: Vec<(Vec<Line>, Rgb)> = Vec::new();
-    if ctx.radar_missing {
-        below_rows.push((hint(Ln::new().plain(RADAR_HINT).done()), t.muted));
-    }
-    if popup.held() {
-        let bold = Look::default().with_bold();
-        below_rows.push((hint(Ln::new().on(bold, HELD_HINT).done()), t.cc.suggestion));
-    }
-    let under: u16 = below_rows.iter().map(|(r, _)| r.len() as u16).sum();
     let body = stack.rest((0, under));
-    let mut y = body.bottom();
-    for (rows, base) in &below_rows {
-        let h = (rows.len() as u16).min(inner.bottom().saturating_sub(y));
-        layout::draw(buf, Rect::new(inner.x, y, inner.width, h), rows, *base);
-        y += h;
-    }
+    draw_hints(buf, inner, body.bottom(), &hints);
     if state.body.0 != view_at {
         state.body = (view_at, 0);
     }
@@ -78,11 +67,36 @@ pub(crate) fn render(popup: &Popup, ctx: &Ctx, state: &mut ViewState, buf: &mut 
         View::Gone(v) => small::gone(buf, body, v, ctx),
         View::Failed(v) => small::failed(buf, body, popup, v, ctx),
         View::Alert(v) => alerts::view(buf, body, popup, v, ctx),
-        _ => {}
+        View::None => {}
     }
     if let Some(c) = popup.confirm() {
         confirm::fade(buf, inner, t);
         confirm::draw(buf, inner, &c.what, &confirm_detail(popup), t);
+    }
+}
+
+/// Python's `#radar-hint` and `#held-hint`, as rows `width` cells wide
+/// with their widget colours.
+fn hints(popup: &Popup, ctx: &Ctx, width: u16) -> Vec<(Vec<Line>, Rgb)> {
+    let t = &ctx.theme;
+    let hint = |line: Line| layout::rows(&[line], width);
+    let mut out = Vec::new();
+    if ctx.radar_missing {
+        out.push((hint(Ln::new().plain(RADAR_HINT).done()), t.muted));
+    }
+    if popup.held() {
+        let bold = Look::default().with_bold();
+        out.push((hint(Ln::new().on(bold, HELD_HINT).done()), t.cc.suggestion));
+    }
+    out
+}
+
+/// Draw the hints from row `y` down, within `inner`.
+fn draw_hints(buf: &mut Buffer, inner: Rect, mut y: u16, hints: &[(Vec<Line>, Rgb)]) {
+    for (rows, base) in hints {
+        let h = (rows.len() as u16).min(inner.bottom().saturating_sub(y));
+        layout::draw(buf, Rect::new(inner.x, y, inner.width, h), rows, *base);
+        y += h;
     }
 }
 

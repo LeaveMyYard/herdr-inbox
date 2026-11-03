@@ -72,7 +72,12 @@ pub struct ViewState {
     body: (Option<Millis>, u16),
 }
 
-/// Draw `popup` into `buf` (its whole area), updating `state`.
+/// Draw `popup` into `buf` (its whole area), updating `state`. Draw a
+/// frame after every event, as Textual does (scrolling follows the cursor
+/// key by key), and in [`Mode::Empty`](crate::popup::Mode::Empty) every
+/// [`FRAME_SECONDS`](crate::empty_inbox::FRAME_SECONDS) for its animation.
+/// Toasts ([`Effect::Notify`](crate::popup::Effect::Notify)) are not drawn
+/// here: the IO loop (P6-D) owns their lifetime and overlay.
 pub fn render(popup: &Popup, ctx: &Ctx, state: &mut ViewState, buf: &mut Buffer) {
     screen::render(popup, ctx, state, buf);
 }

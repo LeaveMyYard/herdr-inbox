@@ -9,11 +9,11 @@ use ratatui_core::layout::Rect;
 
 use super::Ctx;
 use super::canvas::{self, Ink};
+use super::fmt::meta;
 use super::input::{self, Field};
 use super::layout::{self, Stack};
 use super::marks::{cursor, focused, number};
 use super::scroll::{self, Frame, Item};
-use super::small::meta;
 use super::text::{Line, Ln, Look, lines_of};
 use crate::popup::{Editing, Popup, Question, QuestionView, Row};
 

@@ -123,7 +123,7 @@ fn row(popup: &Popup, entry: &Entry, here: bool, num: Option<&str>, ctx: &Ctx) -
     let detail = |text: &str| Ln::new().plain("      ").on(Look::dimmed(), text).done();
     let data = popup.data();
     match entry {
-        Entry::Alert(_) => alerts::row(popup, entry, here, head, closed, ctx),
+        Entry::Alert(id) => alerts::row(popup, *id, here, head, closed, ctx),
         Entry::Gone => {
             if let Some(why) = closed {
                 return vec![
@@ -140,12 +140,12 @@ fn row(popup: &Popup, entry: &Entry, here: bool, num: Option<&str>, ctx: &Ctx) -
                 "⚠ {} answer{s} for agents that are gone · d hides them all",
                 ids.len()
             );
-            let mut refs: Vec<String> = ids.iter().take(8).map(|id| format!("Q{id}")).collect();
+            let refs: Vec<String> = ids.iter().take(8).map(|id| format!("Q{id}")).collect();
             let more = if ids.len() > 8 { " …" } else { "" };
-            refs = vec![format!("{}{more}", refs.join(", "))];
+            let refs = format!("{}{more}", refs.join(", "));
             vec![
                 head.push(warn(&line)).done(),
-                detail(&format!("{} · still readable with check_answers", refs[0])),
+                detail(&format!("{refs} · still readable with check_answers")),
             ]
         }
         Entry::Failed(id) => {

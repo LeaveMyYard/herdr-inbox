@@ -95,4 +95,22 @@ pub fn screens(out: &mut Shots) {
     keys.push("enter");
     p.press(&keys);
     shot("blocked alert opened", &mut p);
+
+    let qs = (0..30)
+        .map(|i| {
+            question(
+                i + 1,
+                i + 1,
+                callers[i as usize % 3],
+                &format!("Row {i}?"),
+                opts(&["a", "b"]),
+                "",
+            )
+        })
+        .collect();
+    let mut p = Pilot::open(snapshot(qs, vec![], vec![]), size);
+    p.press(&["down"; 25]);
+    shot("a longer list, down to row 26", &mut p);
+    p.press(&["up"; 12]);
+    shot("a longer list, back up to row 14", &mut p);
 }

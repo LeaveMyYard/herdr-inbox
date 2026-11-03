@@ -11,7 +11,7 @@ use super::layout::{self, Stack};
 use super::text::{Line, Ln, Look, lines_of};
 use super::theme::Theme;
 use crate::empty_inbox::Rgb;
-use crate::popup::{Alert, AlertView, Entry, Popup};
+use crate::popup::{Alert, AlertView, Popup};
 
 /// Python `SEVERITY_STYLE`: `info` in suggestion, the rest in warning.
 fn severity(a: &Alert, t: &Theme) -> Rgb {
@@ -51,17 +51,14 @@ fn meta(a: &Alert, ctx: &Ctx) -> String {
 /// An alert's list row, after its `head` (cursor and the blank number).
 pub(crate) fn row(
     popup: &Popup,
-    entry: &Entry,
+    id: i64,
     here: bool,
     head: Ln,
     closed: Option<&String>,
     ctx: &Ctx,
 ) -> Vec<Line> {
     let t = &ctx.theme;
-    let Entry::Alert(id) = entry else {
-        return vec![head.done()];
-    };
-    let a = popup.data().alert(*id);
+    let a = popup.data().alert(id);
     let open = a.filter(|a| a.status == "open");
     let (Some(a), None) = (open, closed) else {
         let why = closed
