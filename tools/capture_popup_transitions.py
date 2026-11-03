@@ -74,6 +74,7 @@ def question_json(q) -> dict:
     """What the model decides with (the IO layer's Question carries more, for the renderer)."""
     return {"id": q.id, "group": q.group, "status": q.status, "pane_id": q.pane_id,
             "options": [o["label"] for o in (q.options or [])], "multi_select": bool(q.multi_select),
+            "has_preview": any(o.get("preview") for o in (q.options or [])),
             "draft": q.draft_json, "delivery_error": q.delivery_error, "delivered": q.delivered_at is not None}
 
 
@@ -150,7 +151,7 @@ def focus_name(app) -> str:
     if isinstance(f, HorizontalScroll):
         return "chips"
     if isinstance(f, VerticalScroll):
-        return "choices"
+        return "preview" if f.has_class("preview-box") else "choices"
     found = app.base.query("#body > *")
     if found and f is found.first():
         return "view"

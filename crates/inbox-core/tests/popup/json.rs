@@ -46,17 +46,21 @@ pub fn detail(v: &Value) -> Option<Detail> {
 pub fn snapshot(v: &Value) -> Snapshot {
     let mut snap = Snapshot::default();
     for q in v["questions"].as_array().unwrap() {
+        let mut options: Vec<QOption> = q["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| QOption::label(o.as_str().unwrap()))
+            .collect();
+        if q["has_preview"].as_bool().unwrap() {
+            options[0].preview = Some("preview".into()); // the golden says only that some option has one
+        }
         snap.questions.push(Question {
             id: q["id"].as_i64().unwrap(),
             group: q["group"].as_i64().unwrap(),
             status: s(&q["status"]).unwrap(),
             pane_id: s(&q["pane_id"]),
-            options: q["options"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|o| QOption::label(o.as_str().unwrap()))
-                .collect(),
+            options,
             multi_select: q["multi_select"].as_bool().unwrap(),
             draft: detail(&q["draft"]),
             delivery_error: s(&q["delivery_error"]),

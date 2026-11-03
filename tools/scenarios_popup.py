@@ -440,6 +440,13 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
                                                    "ctrl+a", "ctrl+d", "ctrl+e", "backspace", "home", "backspace",
                                                    "ctrl+right", "ctrl+k", "ctrl+u", "x", "enter", "n", "ctrl+u",
                                                    "enter")))
+    PV = [{"label": "a", "preview": "workers = 2"}, {"label": "b"}]
+    add("edge.tab_in_a_box_with_a_preview", "Tab in a box beside a preview pane: the pane has the focus, keys reach the view",
+        setup(group(A, q("One?", *PV), q("Two?", "c")), ask(B, "Other?")),
+        seq(keys("enter", "n"), typed("x"), keys("tab", "2", "enter")))
+    add("edge.tab_in_a_box_with_a_preview_lone", "the same on a lone question",
+        ask(A, "One?", options=PV), seq(keys("n"), typed("x"), keys("tab", "down", "shift+tab", "escape")))
+
     add("edge.empty_escape", "Esc in the empty view: it exits, then quits", lambda s: None, keys("escape"))
     add("edge.empty_escape_with_arrivals", "Esc in the empty view with arrivals: the same",
         lambda s: None, seq(poll(ask(A, "late?")), keys("escape")))

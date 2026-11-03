@@ -227,6 +227,8 @@ scenarios! {
         shift_tab_in_a_box = "edge.shift_tab_in_a_box",
         tab_twice_in_the_list = "edge.tab_twice_in_the_list",
         box_editing_keys = "edge.box_editing_keys",
+        tab_in_a_box_with_a_preview = "edge.tab_in_a_box_with_a_preview",
+        tab_in_a_box_with_a_preview_lone = "edge.tab_in_a_box_with_a_preview_lone",
         empty_escape = "edge.empty_escape",
         empty_escape_with_arrivals = "edge.empty_escape_with_arrivals",
         open_after_an_unseen_close = "edge.open_after_an_unseen_close",
