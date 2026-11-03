@@ -206,6 +206,20 @@ say why in the PR:
 
   After `exit` or `quit` the state is `{"running": false}` and the scenario ends.
 
+  The model's copy of the database between events. A model keeps its own effects' writes in
+  that copy, as Python reads them back from the database at its next action. The next `poll`,
+  `sent` or `data` snapshot then replaces the copy. The writes:
+  - `draft`: the question's `draft`, if it is open;
+  - `send answer`: its `draft` is set and its `status` becomes `answered`, if it is open;
+  - `send submit`: every listed question that is open and drafted becomes `answered`;
+  - `dismiss`: an open question becomes `dismissed`;
+  - `hide`: the answer leaves `failed`;
+  - `ack`: the alert becomes `acked` and leaves `open_alerts`.
+
+  An `answered` or `dismissed` question also leaves `open`. Rows and placeholders change only
+  at polls. The Submit tab sends the drafts it read when it appeared or last reloaded, not the
+  drafts as they are at the key (`edge.submit_reads_the_drafts_it_showed`).
+
   `<state>` holds the following fields. A time of `null` means never.
   - `running`, `mode` (`empty`/`list`/`group`/`failed`/`alert`);
   - `focus`: which widget has Textual's focus, and so sees a key first:

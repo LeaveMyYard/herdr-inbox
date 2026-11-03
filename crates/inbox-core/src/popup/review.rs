@@ -27,6 +27,10 @@ pub struct ReviewView {
     pub qids: Vec<i64>,
     /// Those still open, in order.
     pub items: Vec<i64>,
+    /// Those of them with a draft, as read with them: Submit answers sends
+    /// these (Python reads the drafts when the tab appears or reloads, not
+    /// at the key).
+    pub drafted: Vec<i64>,
     /// The cursor; `None` is the inert rest position (Enter does nothing).
     pub cursor: Option<ReviewCursor>,
     /// Enter and 1/2 count from then on.
@@ -38,6 +42,7 @@ impl ReviewView {
         let mut v = ReviewView {
             qids,
             items: Vec::new(),
+            drafted: Vec::new(),
             cursor: Some(ReviewCursor::Submit),
             armed_at,
         };
@@ -52,6 +57,12 @@ impl ReviewView {
             .iter()
             .copied()
             .filter(|&id| data.question(id).is_some_and(|q| q.status == "open"))
+            .collect();
+        self.drafted = self
+            .items
+            .iter()
+            .copied()
+            .filter(|&id| data.question(id).is_some_and(|q| q.draft.is_some()))
             .collect();
         if self.cursor.is_some_and(|c| !self.targets().contains(&c)) {
             self.cursor = None;
@@ -69,30 +80,21 @@ impl ReviewView {
         t
     }
 
-    /// The items with a draft.
-    pub fn drafted(&self, data: &Snapshot) -> Vec<i64> {
-        self.items
-            .iter()
-            .copied()
-            .filter(|&id| data.question(id).is_some_and(|q| q.draft.is_some()))
-            .collect()
-    }
-
     /// Take a key; `false` if the view does not bind it. `x` (drop the
     /// row's draft) is the caller's: [`ReviewView::drop_target`].
-    pub(super) fn key(&mut self, key: &Key, armed: bool, data: &Snapshot, out: &mut Out) -> bool {
+    pub(super) fn key(&mut self, key: &Key, armed: bool, out: &mut Out) -> bool {
         match key {
             Key::Up | Key::Char('k') => self.step(-1),
             Key::Down | Key::Char('j') => self.step(1),
             Key::Escape => out.later(Msg::Back),
-            Key::Enter if armed => self.select(data, out),
+            Key::Enter if armed => self.select(out),
             Key::Char(c @ ('1' | '2')) if armed => {
                 self.cursor = Some(if *c == '1' {
                     ReviewCursor::Submit
                 } else {
                     ReviewCursor::Cancel
                 });
-                self.select(data, out);
+                self.select(out);
             }
             _ => return false,
         }
@@ -122,12 +124,12 @@ impl ReviewView {
         );
     }
 
-    fn select(&self, data: &Snapshot, out: &mut Out) {
+    fn select(&self, out: &mut Out) {
         match self.cursor {
             None => {}
             Some(ReviewCursor::Item(id)) => out.later(Msg::Edit(id)),
             Some(ReviewCursor::Submit) => {
-                let drafted = self.drafted(data);
+                let drafted = self.drafted.clone();
                 if drafted.is_empty() {
                     out.notify("Nothing answered yet", Severity::Warning);
                 } else {

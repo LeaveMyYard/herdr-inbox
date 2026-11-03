@@ -447,6 +447,17 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
     add("edge.tab_in_a_box_with_a_preview_lone", "the same on a lone question",
         ask(A, "One?", options=PV), seq(keys("n"), typed("x"), keys("tab", "down", "shift+tab", "escape")))
 
+    add("edge.failed_view_enter_arms", "Enter on a ⚠ entry's view right after it appears does not retry",
+        late_and_other, seq(keys("down", "enter"), key("enter", gap=100), keys("escape")), focus="w1:p2")
+    add("edge.alert_view_d_arms", "d on an alert's view right after it appears does not acknowledge",
+        two_and_alert, seq(keys("up", "enter"), key("d", gap=100), keys("d")), focus="w1:p2")
+    add("edge.reopen_after_a_part_submit", "the rest of a group reopened before a poll: a lone question, sent at once",
+        setup(group(A, q("One?", "a"), q("Two?", "b")), ask(B, "Other?")),
+        seq(keys("enter", "enter", "tab", "enter", "enter", "1", "enter"), sent(), sent()))
+    add("edge.submit_reads_the_drafts_it_showed", "a draft cleared between polls is still in the submit",
+        setup(group(A, q("One?", "a"), q("Two?", "b")), ask(B, "Other?")),
+        seq(keys("enter", "enter", "tab"), unseen(lambda s: s.set_draft(1, None)), keys("enter"), sent()))
+
     add("edge.empty_escape", "Esc in the empty view: it exits, then quits", lambda s: None, keys("escape"))
     add("edge.empty_escape_with_arrivals", "Esc in the empty view with arrivals: the same",
         lambda s: None, seq(poll(ask(A, "late?")), keys("escape")))
