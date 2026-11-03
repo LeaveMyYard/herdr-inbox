@@ -378,13 +378,15 @@ def typed(text: str, gap: int = 50):
     return [key("space" if c == " " else c, gap) for c in text]
 
 
-def wait(gap: int):
-    """Time passes with no event: folded into the next step's ``at``."""
+def unseen(change, gap: int = 100):
+    """The database changes and the popup does not poll (its next event sees it)."""
     async def step(app, pilot, store, rec, clock):
         clock.ms += gap
+        rec.on = False
+        change(store)
+        rec.on = True
         return None
 
-    step.wait = True
     return step
 
 

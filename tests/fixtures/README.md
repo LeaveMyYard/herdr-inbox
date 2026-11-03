@@ -135,3 +135,100 @@ say why in the PR:
   step's next `replies` entry; `uuid4` counts up. The outbox and the mirrored alerts are
   dumped after each step, unmasked. Every ssh call (with the row's `sending_at` while an apply
   runs) and every notification are recorded. `tests/store/outbox_golden.rs` replays it.
+
+## The popup transition golden (plan herdr-app-inbox §2.3, P6-A)
+
+- `popup-transitions.json`: the popup's key-safety contract as data, `(state, event) ->
+  (state, effects)`. Captured from the Python popup (`tui.InboxApp` under Textual's
+  `run_test`) by `tools/capture_popup_transitions.py` over the scenarios in
+  `tools/scenarios_popup.py`, and checked by `tests/test_goldens.py`
+  (`test_the_popup_transition_golden_is_what_the_popup_does`). Regenerate after a deliberate
+  behaviour change: `uv run python tools/capture_popup_transitions.py`. Two models replay
+  it: the Rust popup model (`crates/inbox-core/tests/popup_transitions.rs`) and the herdr-app
+  mod's JavaScript model (Part B, B6). Either one must produce, after every step, exactly the
+  `state` and the `effects` the step records.
+
+  Capture: the real delays, on a held clock in integer milliseconds that only the scenario
+  moves (it starts at 10000). Polls happen only when a scenario says so. The popup's IO is cut
+  at the model's boundary: drafts, sends, dismissals, hides, acknowledgements, go-to-agent
+  requests, notifications and exits are recorded as effects. A send is recorded at once and
+  reported back by a later `sent` event, the way a detached send reports. A go-to-agent is
+  reported back by a `focused` event.
+
+  ```
+  {"schema": 1, "source": "...",
+   "delays_ms": {"arm": 400, "row_arm": 1000, "grace": 500, "release": 500, "go": 500},
+   "scenarios": [{"name": "<test file>.<test>[.<variant>]", "doc": "...", "steps": [
+     {"at": <ms>, "event": <event>, "effects": [<effect>, ...], "state": <state>}, ...]}]}
+  ```
+
+  The first step's event is always `open`. Each following event happens at its `at`.
+
+  Events:
+  - `{"open": {"focus_pane": str|null, "snapshot": <snapshot>, "deeplink"?: {"target":
+    <entry>|null, "qid": int|null, "hold": bool, "missing": str}}}`: the popup opens. A
+    `deeplink` was resolved by the IO layer. When its `target` is null, `missing` is the
+    notice to show.
+  - `{"key": <name>}`: Textual's key names (`enter`, `escape`, `tab`, `shift+tab`, `up`,
+    `down`, `left`, `right`, `home`, `end`, `backspace`, `delete`, `space`) or one printable
+    character.
+  - `{"poll": <snapshot>}`: the periodic poll read the database.
+  - `{"sent": {"done": [qid], "wanted": int, "snapshot": <snapshot>}}`: the oldest `send`
+    effect was recorded. `done` holds the questions it answered, and `snapshot` is the
+    database after it.
+  - `{"focused": {"pane": str, "error": str|null}}`: the oldest `go_to` finished.
+
+  `<snapshot>` is the database as the popup reads it, with only the fields the model decides
+  with:
+  `{"questions": [{"id", "group", "status", "pane_id", "options": [label], "multi_select",
+  "draft": <detail>|null, "delivery_error", "delivered": bool}], "open": [qid] (store.list),
+  "failed": [qid] (store.failed_deliveries, in order), "alerts": [{"id", "kind", "status",
+  "pane_id"}], "open_alerts": [aid] (in order)}`. `<detail>` is `{"choices": [label],
+  "notes": {label: note}, "text": str|null}`.
+
+  Effects, in the order the popup made them:
+  - `notify {text, severity}` (`information`/`warning`);
+  - `draft {qid, detail|null}`;
+  - `send {"kind": "answer", qid, detail}`: a lone question, sent at once;
+  - `send {"kind": "submit", qids}`: the drafts among them;
+  - `send {"kind": "retry", qid}`: a ⚠ entry's Retry or Send now, with force;
+  - `dismiss {qid}`, `hide {qid}`, `ack {alert}`;
+  - `go_to {pane, graced}`: if not `graced`, the IO layer first checks that the agent is not
+    waiting at a prompt;
+  - `exit {}`: close now;
+  - `quit {}`: close once in-flight sends are recorded.
+
+  After `exit` or `quit` the state is `{"running": false}` and the scenario ends.
+
+  `<state>` holds the following fields. A time of `null` means never.
+  - `running`, `mode` (`empty`/`list`/`group`/`failed`/`alert`);
+  - `entries`: list rows in order, placeholders included. An entry is `group:<id>`,
+    `failed:<qid>`, `gone` (the gone-agents summary row) or `alert:<id>`;
+  - `closed`: `{entry: reason}`, the inert placeholders;
+  - `fresh_until`: `{entry: ms}`, when a row that arrived in the background takes Enter and
+    digits;
+  - `list_cursor`, `direct`, `held`, `entry`;
+  - `tabs`: `q:<qid>` (the open group's question tabs, placeholders included);
+  - `current`: `q:<qid>` or `submit`;
+  - `gone`: `{tab: reason}`;
+  - `single`;
+  - `grace_until`, `view_at`, `last_key_at`, `prev_key_at`;
+  - `confirm`: what the open "Dismiss … without answering?" names, or null;
+  - `view`: one of the following.
+    - `{"kind": "none"}`.
+    - `{"kind": "list", "cursor": entry|null, "armed_at"}`.
+    - `{"kind": "question", "qid", "in_group", "last", "cursor": "opt:<i>"|"other"|"chat"|"submit",
+      "picked": [i], "notes": {"<i>": note}, "text", "editing": "note:<i>"|"text"|null,
+      "input": {"value", "cursor"}|null, "armed_at"}`.
+    - `{"kind": "review", "items": [qid], "cursor": "item:<qid>"|"submit"|"cancel"|null,
+      "armed_at"}`.
+    - `{"kind": "gone", "ref", "reason"}`.
+    - `{"kind": "failed", "qid", "cursor": 0|1, "armed_at"}`.
+    - `{"kind": "alert", "alert", "label": null, "armed_at"}`.
+
+  The comparison is by JSON value: object key order does not count. Remote-machine rows are
+  not in this golden yet.
+
+  One known difference: Tab inside an open text box. In Textual it moves the focus off the
+  box to the tab row, where no key does anything. Both models ignore that Tab instead, and
+  `edge.note_box_keys` stops right after it.

@@ -36,7 +36,7 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
     from herdr_inbox.service import Caller
 
     A, B, C = h.callers()
-    key, keys, typed, poll, sent, focused, wait = h.key, h.keys, h.typed, h.poll, h.sent, h.focused, h.wait
+    key, keys, typed, poll, sent, focused, unseen = h.key, h.keys, h.typed, h.poll, h.sent, h.focused, h.unseen
     Run = h.Run
     DB = [{"label": "Postgres", "description": "keeps the current ORM"}, {"label": "SQLite", "description": "single file"},
           {"label": "DuckDB"}]
@@ -341,6 +341,22 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
         ask(A, "solo?", options=["yes", "no"]), seq(fast("enter"), keys("enter")), focus="w1:p2",
         deeplink={**solo, "hold": False})
 
+    add("deep_link.no_request_keeps_the_normal_start", "no deep link: several groups open on the list", three_groups, [])
+
+    def hidden_gone(store):
+        qid = gone(store, A, "Hidden gone?")
+        store.hide_failed(qid)
+        service.ask(store, D, "Other?")
+        service.ask(store, D, "Another?")
+
+    add("agent_gone.popup_does_not_list_hidden_rows", "a hidden answer is not a row", hidden_gone, [], focus="w1:p2")
+    add("alerts.m1_enter_enter_never_acknowledges_an_agent_alert", "Enter: the question, never the agent alert",
+        setup(ask(B, "Merge it?", options=["yes", "no"]), lambda s: alerts.raise_alert(s, A, "Check the deploy log")),
+        keys("enter"), focus="w1:p2")
+    add("tui.tab_order_focused_pane_first_groups_adjacent", "the focused pane's groups first, then oldest first",
+        setup(ask(B, "B old?"), group(A, q("A one?"), q("A two?")), ask(B, "B new?"), ask(A, "A later?"),
+              ask(C, "C?")), keys("down", "down", "down", "down", "down"))
+
     # -- edge cases the model must match ----------------------------------------------------
     add("edge.note_box_keys", "inside a note: arrows, digits, d, g and Tab are text or nothing",
         group(A, q("One?", "a", "b"), q("Two?", "c")),
@@ -371,4 +387,37 @@ def SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
     add("edge.tab_in_an_alert_view", "Tab on an alert's view",
         two_and_alert, keys("up", "enter", "tab", "d", "escape"), focus="w1:p2")
     add("edge.tab_in_the_empty_view", "Tab with nothing open: any key closes", lambda s: None, keys("tab"))
+    add("edge.held_deep_link_takes_no_key_until_tab", "held: past the arming, only Tab/→ releases (not ←/Shift+Tab)",
+        ask(A, "solo?", options=["yes", "no"]), keys("enter", "1", "space", "left", "shift+tab", "enter", "tab", "enter"),
+        focus="w1:p2", deeplink=solo)
+    add("edge.poll_under_a_confirmation", "a poll while the confirmation is open waits for it; y dismisses what is open",
+        setup(group(A, q("One?"), q("Two?")), ask(B, "Other?")),
+        seq(keys("d"), poll(setup(close(1), ask(C, "New?"))), keys("y"), poll(), keys("down", "down")))
+    add("edge.gone_summary_row_keys", "the gone summary row: Enter only says so, g has nowhere to go, d hides",
+        gone_rows(2), keys("down", "enter", "g", "d", "enter"), focus="w1:p2")
+    add("edge.sent_nothing", "the question closed before the send was recorded: Nothing sent",
+        setup(ask(A, "one?", options=["a"]), ask(B, "two?", options=["b"])),
+        seq(keys("enter"), unseen(close(1)), keys("1", "enter"), sent()))
+    add("edge.sent_part", "one of two drafted answers closed before the send: the rest go",
+        setup(group(A, q("One?", "a"), q("Two?", "b")), ask(B, "Other?")),
+        seq(keys("enter", "enter", "enter"), unseen(close(2)), keys("enter"), sent()))
+    add("edge.focus_failed", "going to the agent failed: a notice, the popup stays",
+        setup(ask(A, "one?"), ask(B, "two?")), seq(keys("g"), focused("w1:p1", "pane not found"), keys("down")))
+    add("edge.failed_entry_ends_on_screen", "a ⚠ entry's view whose answer ended: a placeholder, keys dropped briefly",
+        late_and_other, seq(keys("down", "enter"), poll(lambda s: s.hide_failed(1)), fast("1"), keys("1", "g")),
+        focus="w1:p2")
+    add("edge.question_closed_in_a_lone_group", "a lone question closes while open: placeholder; Esc goes to the list",
+        setup(ask(A, "one?", options=["a"]), ask(B, "two?", options=["b"])),
+        seq(keys("enter"), poll(close(1)), keys("enter", "right", "escape", "down", "up")))
+    add("edge.multi_select_arming_and_digits", "Space is armed too; a digit never lands on Submit",
+        ask(A, "Which?", options=["x", "y"], multi_select=True),
+        seq(key("space", gap=100), keys("4", "3", "space", "escape", "1", "space", "down", "down", "down", "enter")))
+    add("edge.reopen_a_note_and_the_typed_text", "a reopened box holds its text, the cursor at its end",
+        group(A, q("One?", "a", "b"), q("Two?", "c")),
+        seq(keys("n"), typed("ab"), keys("enter", "n", "c", "enter", "3", "enter"), typed("t"),
+            keys("enter", "left", "3", "enter", "backspace", "enter", "n", "space", "enter")))
+    add("edge.selected_text_in_a_reopened_box", "a reopened box's text is selected: ←, →, Home, Delete",
+        group(A, q("One?", "a", "b"), q("Two?", "c")),
+        seq(keys("n"), typed("abc"), keys("enter", "n", "left", "x", "enter", "n", "right", "y", "enter", "n", "home",
+                                          "z", "enter", "n", "delete", "w", "enter")))
     return out
