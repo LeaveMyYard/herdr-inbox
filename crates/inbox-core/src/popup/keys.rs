@@ -74,7 +74,6 @@ impl Popup {
             view,
             fx,
             queue,
-            data,
             focus,
             ..
         } = self;
@@ -88,7 +87,7 @@ impl Popup {
                 }
                 taken
             }
-            View::Review(v) => v.key(key, armed, data, &mut out),
+            View::Review(v) => v.key(key, armed, &mut out),
             View::Gone(v) => v.key(key, &mut out),
             View::Failed(v) => v.key(key, armed, &mut out),
             View::Alert(v) => v.key(key, armed, &mut out),
