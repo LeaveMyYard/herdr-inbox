@@ -16,6 +16,10 @@
 //!
 //! - [`deliver`]: what the delivery worker does with a pane's waiting answers
 //!   (Python `service.deliver_batch`).
+//! - [`popup`]: the inbox popup's state machine (Python `tui.InboxApp`): keys,
+//!   polls and IO results in, effects out; it reproduces the popup
+//!   transition golden, `tests/fixtures/popup-transitions.json`
+//!   (`tests/popup_transitions.rs`).
 //!
 //! Every rule here reproduces the delivery decision table,
 //! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`,
@@ -23,6 +27,7 @@
 
 pub mod deliver;
 pub mod hook;
+pub mod popup;
 pub mod rewake;
 pub mod verify;
 
