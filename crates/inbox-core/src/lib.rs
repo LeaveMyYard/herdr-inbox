@@ -16,12 +16,15 @@
 //!
 //! - [`deliver`]: what the delivery worker does with a pane's waiting answers
 //!   (Python `service.deliver_batch`).
+//! - [`empty_inbox`]: the empty inbox's animated scene, design 2C, as cell
+//!   grids (no Python counterpart: the popup gains it in the port, Q179).
 //!
 //! Every rule here reproduces the delivery decision table,
 //! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`,
 //! `tests/verify_rows.rs`).
 
 pub mod deliver;
+pub mod empty_inbox;
 pub mod hook;
 pub mod rewake;
 pub mod verify;
