@@ -156,3 +156,7 @@ say why in the PR:
   `bold`, exactly as the design's grid holds them: a blank keeps the fg it was written with.
   `crates/inbox-core/tests/design_empty_inbox.rs` compares `inbox_core::empty_inbox::frame`
   with every frame cell for cell.
+
+  The design lives in another repo, so CI cannot capture it again: whenever herdr-panorama's
+  `docs/design/herdr-tui.js` changes, re-run the capture and compare its sha256 with the one in
+  `source` (a different file means the fixture, and maybe the scene, must follow).
