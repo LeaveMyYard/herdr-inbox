@@ -107,6 +107,9 @@ pub fn event(v: &Value) -> Event {
             snapshot: snapshot(&d["snapshot"]),
         };
     }
+    if let Some(d) = v.get("data") {
+        return Event::Data(snapshot(d));
+    }
     if let Some(f) = v.get("focused") {
         return Event::Focused {
             pane: s(&f["pane"]).unwrap(),
@@ -202,6 +205,7 @@ fn view(p: &Popup) -> Value {
         View::Alert(v) => {
             json!({"kind": "alert", "alert": v.alert, "label": null, "armed_at": v.armed_at})
         }
+        other => panic!("no golden form for {other:?}"),
     }
 }
 
@@ -231,6 +235,7 @@ pub fn state(p: &Popup) -> Value {
     let t = p.timers();
     json!({
         "running": true,
+        "focus": p.focus().name(),
         "mode": p.mode().name(),
         "entries": p.entries().iter().map(Entry::to_string).collect::<Vec<_>>(),
         "closed": closed,

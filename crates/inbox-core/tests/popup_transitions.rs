@@ -221,6 +221,21 @@ scenarios! {
         multi_select_arming_and_digits = "edge.multi_select_arming_and_digits",
         reopen_a_note_and_the_typed_text = "edge.reopen_a_note_and_the_typed_text",
         selected_text_in_a_reopened_box = "edge.selected_text_in_a_reopened_box",
+        tab_in_a_box_lone = "edge.tab_in_a_box_lone",
+        tab_in_a_box_group = "edge.tab_in_a_box_group",
+        tab_in_a_box_then_d = "edge.tab_in_a_box_then_d",
+        shift_tab_in_a_box = "edge.shift_tab_in_a_box",
+        tab_twice_in_the_list = "edge.tab_twice_in_the_list",
+        box_editing_keys = "edge.box_editing_keys",
+        empty_escape = "edge.empty_escape",
+        empty_escape_with_arrivals = "edge.empty_escape_with_arrivals",
+        open_after_an_unseen_close = "edge.open_after_an_unseen_close",
+        open_after_an_unseen_close_of_all = "edge.open_after_an_unseen_close_of_all",
+        list_d_after_an_unseen_close = "edge.list_d_after_an_unseen_close",
+        confirm_after_an_unseen_close = "edge.confirm_after_an_unseen_close",
+        draft_after_an_unseen_close = "edge.draft_after_an_unseen_close",
+        submit_tab_digits_arm = "edge.submit_tab_digits_arm",
+        g_right_after_the_popup_opens = "edge.g_right_after_the_popup_opens",
     }
 }
 

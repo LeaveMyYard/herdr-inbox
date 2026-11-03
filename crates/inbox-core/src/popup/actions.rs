@@ -38,7 +38,7 @@ impl Popup {
                 self.closed.insert(Entry::Failed(qid), "hidden".to_string());
                 self.back_to_list(false);
             }
-            Msg::Ack(_) => {
+            Msg::Ack => {
                 let Some(entry) = self.entry.clone() else {
                     return;
                 };
@@ -214,7 +214,7 @@ impl Popup {
     /// Go to a pane (Python `_focus_pane`): an alert's needs a deliberate `g`.
     fn focus_pane(&mut self, target: Option<Option<String>>, alert: bool) {
         let Some(pane) = target else { return };
-        let Some(pane) = pane else {
+        let Some(pane) = pane.filter(|p| !p.is_empty()) else {
             return self.notify("could not focus: no pane", Severity::Warning);
         };
         let since = |t: Option<u64>| t.is_none_or(|t| self.now >= t + GO_PAUSE);
@@ -256,5 +256,42 @@ impl Popup {
         q.status = status.to_string();
         self.data.open.retain(|&id| id != qid);
         true
+    }
+
+    /// The confirmation closed: `y` confirms.
+    pub(super) fn confirmed(&mut self, target: ConfirmTarget, yes: bool) {
+        if !yes {
+            return;
+        }
+        match target {
+            ConfirmTarget::Question(qid) => {
+                if self.close_question(qid) {
+                    self.notify(&format!("Q{qid} dismissed"), Severity::Information);
+                    self.gone
+                        .insert(Tab::Question(qid), "dismissed".to_string());
+                    self.navigate(1, None);
+                }
+            }
+            ConfirmTarget::Group(entry, qids) => {
+                let closed: Vec<String> = qids
+                    .into_iter()
+                    .filter(|&q| self.close_question(q))
+                    .map(|q| format!("Q{q}"))
+                    .collect();
+                if !closed.is_empty() {
+                    self.notify(
+                        &format!("{} dismissed", closed.join(", ")),
+                        Severity::Information,
+                    );
+                }
+                self.closed.insert(entry, "dismissed".to_string());
+            }
+        }
+    }
+
+    /// Dismiss an open question (the effect; the model's copy follows).
+    fn close_question(&mut self, qid: i64) -> bool {
+        self.fx.push(Effect::Dismiss { qid });
+        self.write_status(qid, "dismissed")
     }
 }

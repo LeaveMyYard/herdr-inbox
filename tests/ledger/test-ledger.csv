@@ -3,7 +3,7 @@ tests/test_agent_gone.py::test_worker_marks_a_gone_agent_once_notifies_once_then
 tests/test_agent_gone.py::test_gone_notification_says_the_answer_is_kept,tests/test_agent_gone.py,,todo,,
 tests/test_agent_gone.py::test_hidden_gone_rows_are_not_polled,tests/test_agent_gone.py,,todo,,
 tests/test_agent_gone.py::test_legacy_rows_of_a_gone_pane_are_not_polled_every_tick,tests/test_agent_gone.py,,todo,,
-tests/test_agent_gone.py::test_popup_labels_a_gone_row_and_d_hides_it,tests/test_agent_gone.py,inbox-core --test popup_transitions failed_pile::q167_a_single_gone_answer_keeps_its_own_row,mapped,,P6
+tests/test_agent_gone.py::test_popup_labels_a_gone_row_and_d_hides_it,tests/test_agent_gone.py,,todo,,
 tests/test_agent_gone.py::test_popup_does_not_list_hidden_rows,tests/test_agent_gone.py,inbox-core --test popup_transitions agent_gone::popup_does_not_list_hidden_rows,mapped,,P6
 tests/test_agent_gone.py::test_pending_rows_say_they_are_already_answered,tests/test_agent_gone.py,,todo,,
 tests/test_alerts.py::test_raise_notifies_counts_in_the_badge_and_dedupes,tests/test_alerts.py,,todo,,
@@ -998,4 +998,4 @@ tests/test_worker_handover.py::test_a_worker_started_without_ensure_is_found_and
 tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_signalled,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_a_run_token_is_never_inherited,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_signal_verified_never_signals_what_fails_the_check,tests/test_worker_handover.py,,todo,,
-tests/test_goldens.py::test_the_popup_transition_golden_is_what_the_popup_does,tests/test_goldens.py,inbox-core --test popup_transitions every_scenario_of_the_golden_has_its_test,mapped,,P6
+tests/test_goldens.py::test_the_popup_transition_golden_is_what_the_popup_does,tests/test_goldens.py,,retired,Python-side check that the golden is what tui.py does; the Rust side is inbox-core --test popup_transitions (one test per scenario),P6

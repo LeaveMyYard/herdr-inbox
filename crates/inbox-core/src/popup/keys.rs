@@ -3,17 +3,14 @@
 //! (priority bindings) switch tabs even under the confirmation; the
 //! confirmation takes every other key; the empty view closes on any key but
 //! the navigation keys; otherwise the view's own keys, then the app's
-//! (←/→ switch tabs, `d` dismiss, `g` go to the agent, Esc back).
-//!
-//! One deliberate difference: Tab inside an open text box does nothing
-//! here. In Textual it moves the focus off the box to the tab row, where
-//! no key does anything (`edge.note_box_keys` stops at that Tab).
+//! (←/→ switch tabs, `d` dismiss, `g` go to the agent, Esc back). Which
+//! widget has Textual's focus decides who sees the key first ([`Focus`]).
 
 use super::RELEASE;
 use super::entry::{Mode, Tab};
-use super::event::{Effect, Severity};
+use super::focus::Focus;
 use super::key::Key;
-use super::state::{ConfirmTarget, Popup};
+use super::state::Popup;
 use super::views::{Out, View};
 
 impl Popup {
@@ -24,7 +21,8 @@ impl Popup {
         if self.timers.grace_until.is_some_and(|g| now < g) {
             return; // a view change the operator did not cause: this key was meant for the old one
         }
-        if matches!(key, Key::Tab | Key::BackTab) && self.can_switch() {
+        let tab = matches!(key, Key::Tab | Key::BackTab);
+        if tab && self.can_switch() {
             return self.switch(if *key == Key::Tab { 1 } else { -1 });
         }
         if let Some(confirm) = self.confirm.take() {
@@ -34,10 +32,17 @@ impl Popup {
             return match key {
                 Key::Left if !self.entries.is_empty() => self.switch(-1),
                 Key::Right if !self.entries.is_empty() => self.switch(1),
+                Key::Escape => {
+                    self.exit(); // on_key closes; the app's Esc then quits as well
+                    self.quit();
+                }
                 _ => self.exit(),
             };
         }
-        if self.view_key(key) {
+        if tab {
+            return self.move_focus(*key == Key::Tab); // Textual's focus_next / focus_previous
+        }
+        if self.focus() != Focus::Chips && self.view_key(key) {
             return;
         }
         match key {
@@ -70,12 +75,19 @@ impl Popup {
             fx,
             queue,
             data,
+            focus,
             ..
         } = self;
         let mut out = Out { fx, queue };
         match view {
             View::None | View::List(_) => false,
-            View::Question(v) => v.key(key, armed, &mut out),
+            View::Question(v) => {
+                let taken = v.key(key, armed, &mut out);
+                if v.editing.is_none() || v.box_focused {
+                    *focus = Focus::View; // a box opened or closed: Textual focuses it, or the view
+                }
+                taken
+            }
             View::Review(v) => v.key(key, armed, data, &mut out),
             View::Gone(v) => v.key(key, &mut out),
             View::Failed(v) => v.key(key, armed, &mut out),
@@ -96,7 +108,7 @@ impl Popup {
     }
 
     fn editing(&self) -> bool {
-        matches!(&self.view, View::Question(v) if v.editing.is_some())
+        self.focus() == Focus::Box
     }
 
     /// Python `check_action("switch")`.
@@ -137,42 +149,5 @@ impl Popup {
         } else {
             self.navigate(delta, None);
         }
-    }
-
-    /// The confirmation closed: `y` confirms.
-    fn confirmed(&mut self, target: ConfirmTarget, yes: bool) {
-        if !yes {
-            return;
-        }
-        match target {
-            ConfirmTarget::Question(qid) => {
-                if self.close_question(qid) {
-                    self.notify(&format!("Q{qid} dismissed"), Severity::Information);
-                    self.gone
-                        .insert(Tab::Question(qid), "dismissed".to_string());
-                    self.navigate(1, None);
-                }
-            }
-            ConfirmTarget::Group(entry, qids) => {
-                let closed: Vec<String> = qids
-                    .into_iter()
-                    .filter(|&q| self.close_question(q))
-                    .map(|q| format!("Q{q}"))
-                    .collect();
-                if !closed.is_empty() {
-                    self.notify(
-                        &format!("{} dismissed", closed.join(", ")),
-                        Severity::Information,
-                    );
-                }
-                self.closed.insert(entry, "dismissed".to_string());
-            }
-        }
-    }
-
-    /// Dismiss an open question (the effect; the model's copy follows).
-    fn close_question(&mut self, qid: i64) -> bool {
-        self.fx.push(Effect::Dismiss { qid });
-        self.write_status(qid, "dismissed")
     }
 }

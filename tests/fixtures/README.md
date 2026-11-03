@@ -143,7 +143,8 @@ say why in the PR:
   `run_test`) by `tools/capture_popup_transitions.py` over the scenarios in
   `tools/scenarios_popup.py`, and checked by `tests/test_goldens.py`
   (`test_the_popup_transition_golden_is_what_the_popup_does`). Regenerate after a deliberate
-  behaviour change: `uv run python tools/capture_popup_transitions.py`. Two models replay
+  behaviour change: `uv run python tools/capture_popup_transitions.py`, then
+  `python3 tools/popup_scenario_list.py` (one Rust test per scenario). Two models replay
   it: the Rust popup model (`crates/inbox-core/tests/popup_transitions.rs`) and the herdr-app
   mod's JavaScript model (Part B, B6). Either one must produce, after every step, exactly the
   `state` and the `effects` the step records.
@@ -176,6 +177,11 @@ say why in the PR:
   - `{"sent": {"done": [qid], "wanted": int, "snapshot": <snapshot>}}`: the oldest `send`
     effect was recorded. `done` holds the questions it answered, and `snapshot` is the
     database after it.
+  - `{"data": <snapshot>}`: the database changed and the popup did not poll. Python reads
+    the database live whenever the operator acts (which of a group's questions are open when
+    it opens, what a dismissal names, whether a draft or a dismissal took). So a model takes
+    this read as its copy of the data, while rows and placeholders still change only at polls.
+    The IO layer sends one before each key, or whenever the database changed.
   - `{"focused": {"pane": str, "error": str|null}}`: the oldest `go_to` finished.
 
   `<snapshot>` is the database as the popup reads it, with only the fields the model decides
@@ -202,6 +208,17 @@ say why in the PR:
 
   `<state>` holds the following fields. A time of `null` means never.
   - `running`, `mode` (`empty`/`list`/`group`/`failed`/`alert`);
+  - `focus`: which widget has Textual's focus, and so sees a key first:
+    - `view`: the view on screen;
+    - `box`: its open text box;
+    - `chips`: the tab row, where only the app's keys work (←/→, Tab, `d`, `g`, Esc); it also
+      holds the focus in the empty view;
+    - `choices`: the view's scrolling list, where keys reach the view.
+
+    Tab or Shift+Tab inside a text box moves the focus off the box (Tab to `chips` under the
+    tab row, otherwise to the view; Shift+Tab to `choices`). The box stays open, and the next
+    keys act on the view or the app (`edge.tab_in_a_box_*`). In the list, Tab moves between
+    `view` and `choices`;
   - `entries`: list rows in order, placeholders included. An entry is `group:<id>`,
     `failed:<qid>`, `gone` (the gone-agents summary row) or `alert:<id>`;
   - `closed`: `{entry: reason}`, the inert placeholders;
@@ -229,6 +246,11 @@ say why in the PR:
   The comparison is by JSON value: object key order does not count. Remote-machine rows are
   not in this golden yet.
 
-  One known difference: Tab inside an open text box. In Textual it moves the focus off the
-  box to the tab row, where no key does anything. Both models ignore that Tab instead, and
-  `edge.note_box_keys` stops right after it.
+  What a model does not reproduce, because the golden cannot hold it:
+  - Shift selections and the clipboard in a text box (`shift+←`, `ctrl+x`/`c`/`v`). The box
+    keeps only the editing keys listed in `inbox-core::popup::TextBox`.
+  - ↑/↓ on `choices` scroll in Textual when the list overflows the popup. The golden's popup
+    (100×30) never overflows, and the model does not know the size.
+  - A second box opened while a box is open but does not have the focus. This happens with
+    `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
+    Python crashes there (Textual `DuplicateIds`); the model replaces the box.
