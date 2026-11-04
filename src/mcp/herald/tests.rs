@@ -33,3 +33,33 @@ fn the_settings_are_found_on_the_first_refresh_and_kept() {
     herald.markers("w1:p1");
     assert_eq!(config_lookups(), 1, "once, then kept");
 }
+
+/// A job that panicked holding the state (and poisoned its lock) never silences the next.
+#[test]
+fn a_poisoned_state_still_notifies() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = FakeHerdr::start();
+    fake.on(
+        "notification.show",
+        herdr_agent_kit::herdr_api::fake::Reply::Result(serde_json::json!({"type": "ok"})),
+    );
+    let env = PluginEnv::from_vars(
+        Vec::<(String, String)>::new(),
+        Some(dir.path().to_path_buf()),
+        1000,
+    );
+    let herald = std::sync::Arc::new(Live::new(
+        fake.blocking_client(),
+        env,
+        dir.path().join("inbox.db"),
+    ));
+    let h = std::sync::Arc::clone(&herald);
+    let _ = std::thread::spawn(move || {
+        let _held = h.state.lock().unwrap();
+        panic!("a bad job");
+    })
+    .join();
+    assert!(herald.state.is_poisoned());
+    herald.notify("Question Title 9001", "body");
+    assert_eq!(fake.params_of("notification.show").len(), 1);
+}

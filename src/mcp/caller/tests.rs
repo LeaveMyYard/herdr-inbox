@@ -215,3 +215,18 @@ fn live_sessions_are_judged_from_the_pane_that_runs_them() {
     // and herdr's OLD files under S, judged from the pane it runs in, not the dead one
     assert_eq!(c.session_id.as_deref(), Some("S"));
 }
+
+/// review #118 L5: Python `if out["tab_id"]`: an empty tab id gets no `tab get`.
+#[test]
+fn an_empty_tab_id_is_never_looked_up() {
+    let mut w = world();
+    w.panes.insert("w1:p1".into(), pane("", Some("S")));
+    w.tabs.insert(String::new(), "should never be read".into());
+    let c = resolve(&w, &env(Some("w1:p1"), None)).unwrap();
+    assert_eq!(c.tab_label, None);
+    assert!(
+        !w.calls.borrow().iter().any(|c| c.starts_with("tab")),
+        "{:?}",
+        w.calls.borrow()
+    );
+}
