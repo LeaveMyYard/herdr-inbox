@@ -4,20 +4,49 @@
 //! nothing.
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
-use herdr_agent_kit::herdr_api::{HerdrError, PaneId, Sanitized, TabId};
+use std::path::PathBuf;
 
+use herdr_agent_kit::herdr_api::{HerdrError, OpenPluginPane, PaneId, Sanitized, TabId};
+
+use super::popup::{ENTRYPOINT, FOCUS_ENV, INBOX_PLUGIN_ID};
 use super::{SOURCE, Surface, TOKEN};
 
 /// The live herdr.
 pub struct Live {
     herdr: Herdr,
     warn: fn(&str),
+    root: Option<PathBuf>,
+    focused: Option<String>,
 }
 
 impl Live {
     /// Calls `herdr`; failures go to `warn`.
     pub fn new(herdr: Herdr, warn: fn(&str)) -> Live {
-        Live { herdr, warn }
+        Live {
+            herdr,
+            warn,
+            root: None,
+            focused: None,
+        }
+    }
+
+    /// Where the popup opens from: the inbox's own checkout (`None`: ask
+    /// herdr where it is installed) and the pane that was focused.
+    pub fn with_popup(mut self, root: Option<PathBuf>, focused: Option<String>) -> Live {
+        self.root = root;
+        self.focused = focused;
+        self
+    }
+
+    /// The inbox's root as herdr lists it (Python `herdr._listed_root`).
+    fn listed_root(&self) -> Option<PathBuf> {
+        let plugins = self.ok("plugin.list", self.herdr.plugins()).ok()?;
+        plugins
+            .into_iter()
+            .find(|p| p.plugin_id.as_deref() == Some(INBOX_PLUGIN_ID))
+            .and_then(|p| p.plugin_root)
+            .filter(|r| !r.is_empty())
+            .map(PathBuf::from)
     }
 
     fn ok<T>(&self, method: &str, result: Result<T, HerdrError>) -> Result<T, String> {
@@ -70,5 +99,16 @@ impl Surface for Live {
             Some("request"),
         );
         let _ = self.ok("notification.show", sent);
+    }
+
+    fn open_popup(&mut self, env: &[(String, String)]) -> Result<(), String> {
+        let mut open = OpenPluginPane::new(INBOX_PLUGIN_ID, ENTRYPOINT);
+        open.cwd = self.root.clone().or_else(|| self.listed_root());
+        open.env = env.to_vec();
+        if let Some(pane) = &self.focused {
+            open.env.push((FOCUS_ENV.to_string(), pane.clone()));
+        }
+        let opened = self.herdr.open_plugin_pane(&open);
+        self.ok("plugin.pane_open", opened).map(drop)
     }
 }

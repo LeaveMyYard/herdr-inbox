@@ -25,6 +25,9 @@ impl Surface for Spy {
         Ok(())
     }
     fn notify(&mut self, _: &str, _: &str) {}
+    fn open_popup(&mut self, _: &[(String, String)]) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 fn store(dir: &Path) -> (Store, std::path::PathBuf) {

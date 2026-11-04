@@ -12,6 +12,7 @@ use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 use herdr_agent_kit::plugin_env::config::ConfigFile;
 use herdr_inbox::claude::Transcripts;
 use herdr_inbox::cli::{Io, run};
+use herdr_inbox::deeplink::lock::hold_popup_lock;
 use herdr_inbox::delivery::send::local_answers;
 use herdr_inbox::service::answer::submit;
 use herdr_inbox::service::own::Me;
@@ -21,6 +22,7 @@ use herdr_inbox::surface::markers::Markers;
 use serde_json::{Value, json};
 
 use crate::common::migrated;
+use crate::deeplink;
 use crate::fakes::{Effects, FakeDelivery, FakeHerdr, World};
 use crate::store_golden::{s, sql, tables};
 
@@ -213,8 +215,21 @@ fn the_cli_does_what_pythons_did() {
                 let got = preamble(&rig.db(), a, &effects);
                 assert_eq!(got, step["result"], "{what}");
             }
+            "deeplink" => {
+                let got = deeplink::step(&rig.db(), rig.dir.path(), a, &effects);
+                assert_eq!(got, step["result"], "{what}");
+            }
             "cli" => {
+                let held = (a.get("popup_open") == Some(&json!(true)))
+                    .then(|| hold_popup_lock(rig.dir.path()).unwrap());
                 let (code, out, err) = cli(&mut rig, a, &world, &effects);
+                drop(held);
+                let left = deeplink::left_request(rig.dir.path());
+                assert_eq!(
+                    left,
+                    step.get("request").cloned().unwrap_or(Value::Null),
+                    "{what}: request"
+                );
                 assert_eq!(code, step["code"].as_i64().unwrap() as i32, "{what}: code");
                 assert_eq!(out, step["stdout"].as_str().unwrap(), "{what}: stdout");
                 assert_eq!(err, step["stderr"].as_str().unwrap(), "{what}: stderr");

@@ -1,7 +1,7 @@
 //! The subcommands' arguments and help, as `cli.main` declares them to
 //! argparse (and as argparse renders their help).
 
-use super::args::parse::{Check, Command, Nargs, Positional};
+use super::args::parse::{Check, Command, Nargs, Opt, Positional};
 use super::args::question_id;
 
 /// argparse `type=_question_id`, named `question id` in errors.
@@ -19,7 +19,7 @@ pub const LIST: Command = Command {
     usage: "usage: inbox list [-h] [--all]",
     help: "usage: inbox list [-h] [--all]\n\noptions:\n  -h, --help  show this help message and exit\n  \
            --all       include answered and closed questions\n",
-    flags: &["--all"],
+    options: &[Opt::flag("--all")],
     positionals: &[],
 };
 
@@ -29,7 +29,7 @@ pub const ANSWER: Command = Command {
     usage: "usage: inbox answer [-h] id text [text ...]",
     help: "usage: inbox answer [-h] id text [text ...]\n\npositional arguments:\n  id\n  text\n\n\
            options:\n  -h, --help  show this help message and exit\n",
-    flags: &[],
+    options: &[],
     positionals: &[
         ID,
         Positional {
@@ -46,8 +46,39 @@ pub const DISMISS: Command = Command {
     usage: "usage: inbox dismiss [-h] id",
     help: "usage: inbox dismiss [-h] id\n\npositional arguments:\n  id\n\noptions:\n  \
            -h, --help  show this help message and exit\n",
-    flags: &[],
+    options: &[],
     positionals: &[ID],
+};
+
+const fn target(name: &'static str) -> Opt {
+    Opt {
+        name,
+        value: true,
+        group: Some(0),
+    }
+}
+
+/// `inbox open [--question Qn | --group G | --pane PANE_ID | --session SID] [--no-hold]`.
+pub const OPEN: Command = Command {
+    prog: "inbox open",
+    usage: "usage: inbox open [-h] [--question Qn | --group G | --pane PANE_ID |\n                  \
+            --session SID] [--no-hold]",
+    help: "usage: inbox open [-h] [--question Qn | --group G | --pane PANE_ID |\n                  \
+           --session SID] [--no-hold]\n\noptions:\n  -h, --help      show this help message and exit\n  \
+           --question Qn   open on this question\n  --group G       open on this group\n  \
+           --pane PANE_ID  open on this pane's oldest open group\n  \
+           --session SID   open on this Claude session's oldest open group\n  \
+           --no-hold       open like a normal popup (0.4 s arming, then Enter works)\n                  \
+           instead of held until Tab/→; pass it only when an explicit\n                  \
+           operator key or click opened the inbox\n",
+    options: &[
+        target("--question"),
+        target("--group"),
+        target("--pane"),
+        target("--session"),
+        Opt::flag("--no-hold"),
+    ],
+    positionals: &[],
 };
 
 /// The subcommand named `cmd`, if this CLI has it.
@@ -56,6 +87,7 @@ pub fn command(cmd: &str) -> Option<&'static Command> {
         "list" => Some(&LIST),
         "answer" => Some(&ANSWER),
         "dismiss" => Some(&DISMISS),
+        "open" => Some(&OPEN),
         _ => None,
     }
 }

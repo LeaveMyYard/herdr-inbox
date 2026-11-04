@@ -19,6 +19,9 @@ impl Surface for Quiet {
         Ok(())
     }
     fn notify(&mut self, _: &str, _: &str) {}
+    fn open_popup(&mut self, _: &[(String, String)]) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 #[test]

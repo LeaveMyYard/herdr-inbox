@@ -4,6 +4,7 @@
 
 #[path = "../store/common.rs"]
 mod common;
+mod deeplink;
 mod fakes;
 mod golden;
 #[path = "../delivery/herdr_stub.rs"]
