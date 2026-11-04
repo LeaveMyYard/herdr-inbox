@@ -11,17 +11,25 @@
 //!   nonce, within [`request::REQUEST_TTL`];
 //! - [`resolve`]: the open group (and question) a request names, or none;
 //! - [`lock`]: the running popup's lock, so `inbox open` can say the popup
-//!   is already open instead of leaving a request nobody takes.
+//!   is already open instead of leaving a request nobody takes;
+//! - [`qref`]: question references (`Q12`, `qnap:Q12`).
+//!
+//! The popup does it in Python's order (`tui.on_mount`): take the lock
+//! ([`lock::hold_popup_lock`]) first, then the request
+//! ([`request::consume_request`]), then [`resolve::resolve`] it. Taking the
+//! lock first narrows the window in which another `inbox open` sees no popup
+//! and writes a request this one would take and drop.
 
 pub mod lock;
+pub mod qref;
 pub mod request;
 pub mod resolve;
 
 use herdr_agent_kit::agent_session::SessionId;
 use unicode_general_category::{GeneralCategory, get_general_category};
 
-use crate::cli::args::question_ref;
 use crate::text::py_isspace;
+use qref::question_ref;
 
 /// What a request can name, in `inbox open`'s order (Python `deeplink.KINDS`).
 pub const KINDS: [&str; 4] = ["question", "group", "pane", "session"];
