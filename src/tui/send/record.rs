@@ -12,9 +12,8 @@
 
 use inbox_core::popup::Send;
 
-use crate::clock::now_minus;
 use crate::service::answer::{answer_detail, submit_marking};
-use crate::store::claims::CLAIM_STALE;
+use crate::store::claims::is_live;
 use crate::store::{Question, Store};
 use crate::tui::snapshot::convert::detail_json;
 
@@ -61,13 +60,8 @@ pub fn record(
         Send::Submit { qids } => (submit_marking(store, qids, None, marks)?, qids.len(), false),
         Send::Retry { qid } => {
             let q = store.get(*qid)?;
-            let err = q
-                .as_ref()
-                .and_then(|q| q.delivery_error.as_deref())
-                .unwrap_or("");
-            if err.starts_with("sending:")
-                && err > format!("sending:{}", now_minus(CLAIM_STALE)).as_str()
-            {
+            let err = q.as_ref().and_then(|q| q.delivery_error.as_deref());
+            if err.is_some_and(is_live) {
                 return Err(Refused::AlreadySending(*qid)); // its sender is at it right now
             }
             (q.into_iter().collect(), 1, true)

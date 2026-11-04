@@ -27,7 +27,7 @@ use std::sync::mpsc::{Receiver, Sender as Tx};
 use std::time::Duration;
 
 use inbox_core::empty_inbox::FRAME_SECONDS;
-use inbox_core::popup::{Event, Key, Millis, Mode, Open, Popup, Severity};
+use inbox_core::popup::{Event, Key, Millis, Mode, Open, Popup, Severity, View};
 use inbox_core::popup_view::{Ctx, Theme, ViewState, render};
 
 use crate::store::Store;
@@ -74,6 +74,7 @@ struct Ui {
     view: ViewState,
     busy: BusySince,
     closing: bool,
+    screen_gone: bool,
 }
 
 /// Runs the popup until it closes: opens the model on `open`, then serves
@@ -89,6 +90,7 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
         view: ViewState::default(),
         busy,
         closing: false,
+        screen_gone: false,
     };
     ui.apply(fx, clock.now());
     let mut next_poll = clock.now() + POLL;
@@ -122,10 +124,13 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
         match screen.next(wait) {
             Ok(Some(input)) => ui.input(input, clock.now()),
             Ok(None) => {}
-            Err(_) => ui.closing = true, // the terminal is gone
+            Err(_) => ui.gone(), // the terminal is gone
         }
         ui.reports(clock.now());
         ui.draw(screen, clock);
+        if ui.screen_gone {
+            break; // nothing to show or read: wait for the sends below, without spinning
+        }
     }
     ui.parts.sender.wait();
     ui.parts.marks.drain(DRAIN);
@@ -134,6 +139,9 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
 
 impl Ui {
     fn input(&mut self, input: Input, now: Millis) {
+        if input == Input::Closed {
+            return self.gone();
+        }
         if self.closing {
             return; // nothing reaches the model after the end
         }
@@ -147,8 +155,40 @@ impl Ui {
                 toast.title = Some("Do you want to quit?".into());
                 self.toasts.push(toast, now);
             }
-            Input::Closed => self.closing = true,
-            Input::Quit | Input::HelpQuit | Input::Resize => {}
+            Input::Paste(text) => self.paste(&text, now),
+            Input::Quit | Input::HelpQuit | Input::Resize | Input::Closed => {}
+        }
+    }
+
+    /// The terminal is gone: close, and stop using it.
+    fn gone(&mut self) {
+        self.closing = true;
+        self.screen_gone = true;
+    }
+
+    /// A paste (Textual's `Paste`): only an open, focused text box takes it,
+    /// and only its first line, as typed characters (Python
+    /// `Input._on_paste`'s `splitlines()[0]`); anywhere else it is nothing.
+    /// It never presses Enter, and never reaches a binding or a pick.
+    fn paste(&mut self, text: &str, now: Millis) {
+        let typing = matches!(
+            self.popup.view(),
+            View::Question(v) if v.editing.is_some() && v.box_focused
+        );
+        if !typing || self.popup.confirm().is_some() {
+            return;
+        }
+        if let Some(snap) = self.read() {
+            let fx = self.popup.handle(Event::Data(snap), now);
+            self.apply(fx, now);
+        }
+        let line = text.lines().next().unwrap_or("");
+        for c in line.chars().filter(|c| !c.is_control()) {
+            if self.closing {
+                return;
+            }
+            let fx = self.popup.handle(Event::Key(Key::Char(c)), now);
+            self.apply(fx, now);
         }
     }
 
@@ -223,7 +263,7 @@ impl Ui {
             toasts.draw(buf);
         });
         if drawn.is_err() {
-            self.closing = true; // the terminal is gone
+            self.gone();
         }
     }
 }

@@ -129,3 +129,29 @@ fn ctrl_c_says_how_to_quit_and_its_toast_goes_after_five_seconds() {
     rig.run(None, None, steps);
     assert!(rig.handoff.calls().is_empty());
 }
+
+#[test]
+fn a_gone_terminal_is_not_polled_while_the_sends_finish() {
+    // no busy loop: once the terminal is gone the loop only waits for the send
+    let rig = Rig::new();
+    let qid = rig.ask("w1:p1", "one?", &["a"]);
+    rig.handoff.close_gate();
+    let gate = std::sync::Arc::clone(&rig.handoff);
+    let opener = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        gate.open_gate();
+    });
+    let ran = rig.run(
+        Some("w1:p9"),
+        None,
+        vec![key("enter"), Step::Input(Input::Closed)],
+    );
+    opener.join().unwrap();
+    assert_eq!(
+        ran.waits.len(),
+        2,
+        "the terminal was asked again after it was gone"
+    );
+    assert_eq!(rig.get(qid).status, "answered");
+    assert_eq!(rig.handoff.calls(), ["ensure", "spawn [1] false"]);
+}
