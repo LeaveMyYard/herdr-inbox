@@ -11,6 +11,7 @@ pub mod plans;
 pub mod run;
 pub mod screen;
 pub mod segments;
+pub mod send;
 pub mod watch;
 
 pub use family::forward_family;

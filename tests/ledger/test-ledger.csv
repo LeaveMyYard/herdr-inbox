@@ -387,7 +387,7 @@ tests/test_delivery.py::test_answering_twice_is_refused,tests/test_delivery.py,,
 tests/test_delivery.py::test_token_counts_follow_state,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,,todo,,
-tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,,todo,,
+tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,herdr-inbox --test cli live::answer_list_and_dismiss_through_the_binary,mapped,,P5
 tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,,todo,,
 tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_a_busy_miss_waits_for_idle_and_shows_as_not_delivered,tests/test_delivery_worker.py,,todo,,
@@ -471,6 +471,7 @@ tests/test_goldens.py::test_the_goldens_are_what_the_code_does[schema],tests/tes
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[store],tests/test_goldens.py,herdr-inbox --test store questions_golden::every_step_leaves_pythons_rows_and_returns_pythons_result,mapped,,P5
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[herdr],tests/test_goldens.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[delivery],tests/test_goldens.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
+tests/test_goldens.py::test_the_goldens_are_what_the_code_does[cli],tests/test_goldens.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_goldens.py::test_the_decision_table_is_a_function,tests/test_goldens.py,,todo,,
 tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,inbox-core --test popup_transitions group_list::opens_straight_into_the_only_group_not_with_a_warning_entry,mapped,,P6
 tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,inbox-core --test popup_transitions group_list::closed_row_is_inert_until_the_operator_moves,mapped,,P6
@@ -831,19 +832,19 @@ tests/test_store.py::test_ask_notifies_and_sets_token,tests/test_store.py,,todo,
 tests/test_tab_labels.py::test_renamed_tab_shows_its_current_name,tests/test_tab_labels.py,,todo,,
 tests/test_tab_labels.py::test_gone_tab_falls_back_to_the_stored_label,tests/test_tab_labels.py,,todo,,
 tests/test_tab_labels.py::test_labels_are_cached_briefly,tests/test_tab_labels.py,,todo,,
-tests/test_tabs.py::test_prefix_added_updated_and_restored,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_no_rename_when_label_already_right,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_operator_rename_meanwhile_is_adopted,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_prefix_added_updated_and_restored,tests/test_tabs.py,herdr-inbox --test cli tabs::prefix_added_updated_and_restored,mapped,,P5
+tests/test_tabs.py::test_no_rename_when_label_already_right,tests/test_tabs.py,herdr-inbox --test cli tabs::no_rename_when_label_already_right,mapped,,P5
+tests/test_tabs.py::test_operator_rename_meanwhile_is_adopted,tests/test_tabs.py,herdr-inbox --test cli tabs::operator_rename_meanwhile_is_adopted,mapped,,P5
 tests/test_tabs.py::test_question_stores_the_base_label,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_unnamed_tab_is_left_alone_by_default,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_unnamed_tab_is_left_alone_by_default,tests/test_tabs.py,herdr-inbox --test cli tabs::unnamed_tab_is_left_alone_by_default,mapped,,P5
 tests/test_tabs.py::test_prefix_configurable_and_disableable,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_changing_marks_never_stacks_prefixes,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_changing_marks_never_stacks_prefixes,tests/test_tabs.py,herdr-inbox --test cli tabs::changing_marks_never_stacks_prefixes,mapped,,P5
 tests/test_tabs.py::test_hung_herdr_never_blocks_the_database,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_concurrent_updates_never_leave_a_stale_count,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_reconcile_adds_missing_and_removes_stale,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_remove_prefixes_before_uninstall,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_custom_mark_never_touches_operator_labels,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_base_label_strips_only_our_marks,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_base_label_strips_only_our_marks,tests/test_tabs.py,herdr-inbox --lib tabs::tests::every_leading_mark_of_ours_goes,mapped,,P5
 tests/test_tui.py::test_tab_order_focused_pane_first_groups_adjacent,tests/test_tui.py,inbox-core --test popup_transitions tui::tab_order_focused_pane_first_groups_adjacent,mapped,,P6
 tests/test_tui.py::test_group_list_rows_and_order,tests/test_tui.py,inbox-core --test popup_transitions tui::group_list_rows_and_order,mapped,,P6
 tests/test_tui.py::test_single_question_layout_and_keys,tests/test_tui.py,inbox-core --test popup_transitions tui::single_question_layout_and_keys,mapped,,P6
@@ -973,7 +974,7 @@ tests/test_older_conversation.py::test_typed_into_an_unmarked_older_session_is_r
 tests/test_older_conversation.py::test_the_detached_verify_job_never_counts_an_older_landing,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_a_forward_continuation_running_in_the_pane_is_delivered_once,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_an_answer_for_an_older_asker_reaches_its_forward_continuation,tests/test_older_conversation.py,,todo,,
-tests/test_older_conversation.py::test_the_cli_answer_from_a_resumed_older_session_is_not_the_askers_own,tests/test_older_conversation.py,,todo,,
+tests/test_older_conversation.py::test_the_cli_answer_from_a_resumed_older_session_is_not_the_askers_own,tests/test_older_conversation.py,herdr-inbox --lib service::own::tests::a_resumed_older_session_is_another_conversation,mapped,,P5
 tests/test_older_conversation.py::test_a_hook_in_a_resumed_older_session_never_carries_the_askers_answer,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_older_conversation_is_directional,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_r1_b1_a_branch_question_never_goes_to_the_old_continuation,tests/test_older_conversation.py,,todo,,

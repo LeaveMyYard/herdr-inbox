@@ -16,7 +16,7 @@ const PANEL: &str = "blocked: panel: the agent's background-task panel has focus
 
 /// Python `service.first_line`: the first line of the stripped text, cut
 /// to `width` characters with an ellipsis.
-pub(crate) fn first_line(text: &str, width: usize) -> String {
+pub fn first_line(text: &str, width: usize) -> String {
     let stripped = text.trim_matches(super::text::py_space);
     let line = stripped.split(is_line_break).next().unwrap_or("");
     if line.chars().count() <= width {
@@ -71,7 +71,7 @@ pub(crate) fn tab_name(q: Option<&Question>) -> String {
 }
 
 /// Python `service.format_answer` of a draft: `Postgres (note: …), text`.
-pub(crate) fn answer_line(d: &Detail) -> String {
+pub fn answer_line(d: &Detail) -> String {
     let mut parts: Vec<String> = d
         .choices
         .iter()
@@ -107,7 +107,7 @@ fn quote(label: &str) -> String {
 
 /// Python `cli._age`: `3d`, `5h`, `12m`, `40s` from `created` (ISO 8601)
 /// to `now` (Unix seconds); empty if `created` does not parse.
-pub(crate) fn age(created: &str, now: i64) -> String {
+pub fn age(created: &str, now: i64) -> String {
     let Some(then) = super::iso::unix_seconds(created) else {
         return String::new();
     };

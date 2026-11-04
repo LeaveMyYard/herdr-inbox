@@ -1,4 +1,24 @@
-//! The inbox's tab marks (Python `tabs`): the part the store's alerts need.
+//! The inbox's tab marks (Python `tabs`): the open-question count in front
+//! of a tab's label, `❓2 Billing API`.
+//!
+//! herdr has no per-tab tokens, so the count goes into the label itself. The
+//! operator's own label (the *base*) is never stored: it is recovered by
+//! stripping our marks from the label herdr reports now ([`base_label`]), so
+//! a rename by the operator is adopted and a crash leaves at worst a stale
+//! prefix that the next `inbox sync-tokens` removes.
+//!
+//! - [`settings`]: `tab_prefix` and `prefix_unnamed_tabs` from the plugin's
+//!   `config.toml`, read on every use.
+//! - [`label`]: the marks a tab may be stripped of, the label it should
+//!   have, the counts per tab.
+//! - [`lock`]: the cross-process lock every count, re-read and rename runs
+//!   under (`<db>.markers.lock`, never the database's own lock).
+//! - [`apply`]: one tab's re-read and rename.
+
+pub mod apply;
+pub mod label;
+pub mod lock;
+pub mod settings;
 
 use unicode_general_category::{GeneralCategory, get_general_category};
 
