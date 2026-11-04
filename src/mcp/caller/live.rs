@@ -11,7 +11,7 @@ use super::{Pane, World};
 use crate::claude::{Transcripts, live_session};
 use crate::mcp::open::{failure, open};
 use crate::mcp::retry::Failure;
-use crate::tabs::marks_for;
+use crate::tabs::label::marks_for;
 
 /// herdr, transcripts and the store as this process finds them.
 pub struct Live {
@@ -63,6 +63,6 @@ impl World for Live {
     fn marks(&self, tab: Option<&str>) -> Result<Vec<String>, Failure> {
         // Python's _base_label opens a store of its own for this one read
         let store = open(&self.db)?;
-        marks_for(&store, tab).map_err(failure)
+        marks_for(store.db(), tab).map_err(failure)
     }
 }

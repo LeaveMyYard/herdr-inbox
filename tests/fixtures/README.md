@@ -144,6 +144,30 @@ say why in the PR:
   dumped after each step, unmasked. Every ssh call (with the row's `sending_at` while an apply
   runs) and every notification are recorded. `tests/store/outbox_golden.rs` replays it.
 
+## The CLI golden (P5-G)
+
+- `cli.json` (`--only cli`, `tools/capture_cli.py`): Python's `cli.main` run in-process over the
+  script `CLI_OPS`. Each `cli` step records the command line, its exit code, stdout and stderr
+  (argparse's help and usage errors included), its `effects` (what it asked of herdr: `token`,
+  `pane_tabs`, `tab_label`, `rename_tab`; of the delivery: `deliver` with the question ids; of the
+  worker: `ensure` with the server) and the `questions`, `question_ext` and `tab_decor` rows after
+  it (times as `<time>`; `"unchanged"` when they are as the step before left them). herdr, `service.deliver_batch` and the worker are stubbed at their
+  function boundary; a stubbed delivery writes the step's `delivery` outcome onto the rows it is
+  handed. A step may set `config.toml` (`config`), write transcripts (`files`), record sessions
+  (`sessions`) and set the caller's `CLAUDE_CODE_SESSION_ID`/`HERDR_PANE_ID` (`me`). `submit`
+  steps run `service.submit` without delivery (the popup's path, with drafts of every shape);
+  `preamble` steps run the real `deliver_batch` with every claim refused, so only its preamble
+  shows: the worker made sure of, and the answers kept for this herdr server (`result`). An
+  `open` step also records the focus request it left (`request`, nonce and time masked) and
+  `open_popup` with the env it was given; `popup_open` holds the popup's lock meanwhile.
+  `deeplink` steps are the popup's side (`tui.on_mount`): a request file (`request`, written with
+  nonce `n1`, `age` seconds old, or `raw` text) taken with the step's `nonce`, then resolved
+  (`machines`: herdr's enabled machines), recording the request, whether the file was `left`,
+  `resolved` (`[["group", n] | ["remote", key], qid]`) and `describe`. Ages
+  are relative to now; in stderr the work directory is `<work>` and a TOML parser's reason
+  `<reason>`. Python 3.13's argparse: older ones wrap the top usage line differently, so
+  `test_goldens[cli]` runs on 3.13 only. `tests/cli/golden.rs` replays it on the Rust CLI.
+
 ## The popup transition golden (plan herdr-app-inbox §2.3, P6-A)
 
 - `popup-transitions.json`: the popup's key-safety contract as data, `(state, event) ->
