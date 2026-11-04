@@ -26,19 +26,22 @@ pub(super) fn type_them(
                 continue;
             }
         }
-        if agent.kind.as_deref() == Some("claude") {
-            // never type onto unsent text in Claude Code's input box
-            match look.composer(&batch) {
-                Composer::Empty => {}
-                Composer::Draft => {
-                    out.pending(look, batch.iter().copied(), COMPOSER_DRAFT);
-                    continue;
-                }
-                Composer::Unknown => {
-                    out.pending(look, batch.iter().copied(), COMPOSER_UNKNOWN);
-                    continue;
-                }
+        // never type onto unsent text in Claude Code's input box, for any kind
+        // (#96): a renamed or misreported kind must not switch the guard off.
+        // The last herdr read before the prompt; a keystroke between the two
+        // calls stays unseen (#99, accepted: herdr has no conditional prompt)
+        match look.composer(&batch) {
+            Composer::Empty => {}
+            Composer::Draft => {
+                out.pending(look, batch.iter().copied(), COMPOSER_DRAFT);
+                continue;
             }
+            // only Claude Code's box must be read: another harness draws none
+            Composer::Unknown if agent.is_claude() => {
+                out.pending(look, batch.iter().copied(), COMPOSER_UNKNOWN);
+                continue;
+            }
+            Composer::Unknown => {}
         }
         // Python `if err:`: an empty error is a success
         if let Some(error) = look.prompt(&batch).filter(|e| !e.is_empty()) {
