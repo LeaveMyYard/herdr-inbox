@@ -91,7 +91,20 @@ impl Store {
         answer: &str,
         detail: Option<&Value>,
     ) -> rusqlite::Result<bool> {
-        let detail = detail.filter(|d| truthy(d));
+        let detail = detail.filter(|d| truthy(d)).map(dumps);
+        self.set_answer_text(qid, answer, detail.as_deref())
+    }
+
+    /// [`Store::set_answer`] with the detail as stored JSON text, carried on
+    /// as it is: a submitted draft's raw `draft_json` (Python `submit` passes
+    /// the draft it read, and a [`Question`]'s
+    /// decoded draft is lossy, so it is never written back).
+    pub fn set_answer_text(
+        &self,
+        qid: i64,
+        answer: &str,
+        detail: Option<&str>,
+    ) -> rusqlite::Result<bool> {
         self.immediate(|db| {
             let n = db.execute(
                 "UPDATE questions SET status = 'answered', answer = ?, answered_at = ?, delivered_at = NULL, \
@@ -104,7 +117,7 @@ impl Store {
             db.execute(
                 "INSERT INTO question_ext (id, group_id, answer_json) VALUES (?, ?, ?) \
                  ON CONFLICT(id) DO UPDATE SET answer_json = excluded.answer_json, draft_json = NULL, drafted_at = NULL",
-                params![qid, qid, detail.map(dumps)],
+                params![qid, qid, detail],
             )?;
             Ok(true)
         })
