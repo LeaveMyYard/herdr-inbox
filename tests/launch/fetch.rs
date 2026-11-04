@@ -103,3 +103,32 @@ fn concurrent_mcp_starts_download_once() {
         "the lock goes with the download"
     );
 }
+
+#[test]
+fn a_fetch_prunes_the_fetched_copies() {
+    // #72: the MCP launch keeps the newest three of each contract after its fetch (another
+    // contract here, or the launch would pick one and fetch nothing)
+    let r = Root::new();
+    for v in ["0.9.0", "0.10.0", "0.10.1", "0.10.2"] {
+        crate::world::stand_in(&r.data_bin().join(format!("herdr-inbox-{v}")), v, v, 9, 0);
+    }
+    let sha = publish(&r, "0.11.0");
+    release_toml(&r, "0.11.0", &sha);
+    let path = with_uv(&r);
+    let out = r.sh("launch", &["mcp"], "", &[("PATH", Path::new(&path))]);
+    assert_eq!(out.status.code(), Some(0));
+    let fetched = r.data_bin().join("herdr-inbox-0.11.0");
+    assert!(wait_for(&fetched, Duration::from_secs(20)));
+    // the prune runs after the fetch, before the lock goes
+    let lock = r.data_bin().join(".fetch-lock");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while lock.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(!lock.exists() && fetched.is_file());
+    assert!(
+        !r.data_bin().join("herdr-inbox-0.9.0").exists(),
+        "the fourth of contract 9 goes"
+    );
+    assert!(r.data_bin().join("herdr-inbox-0.10.0").exists());
+}

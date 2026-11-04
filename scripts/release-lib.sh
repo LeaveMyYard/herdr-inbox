@@ -105,17 +105,13 @@ inbox_versions() {
 # inbox_prune <dir> <keep> [<path>]: removes the recorded binaries of <dir> beyond the newest
 # <keep> of each contract (a Claude plugin of an older contract still finds its own), never
 # <path> (the one just recorded). Removing a file a process runs is safe: it keeps its inode;
-# and a launcher only ever picks the newest of its contract, which stays (#72).
+# and a launcher only ever picks the newest of its contract, which stays (#72). Every recorded
+# binary's `contract` is probed here, unbounded as in launch (#73: it prints before any I/O).
 inbox_prune() {
 	[ -d "$1" ] || return 0
-	_seen=$(mktemp "$1/.prune.XXXXXX") || return 0
 	inbox_versions "$1" | cut -f 4- | while IFS= read -r _f; do
-		_c=$("$_f" contract 2>/dev/null </dev/null | head -n 1)
-		_n=$(grep -cxF "c$_c" "$_seen")
-		printf 'c%s\n' "$_c" >>"$_seen"
-		if [ "$_n" -ge "$2" ] && [ "$_f" != "${3:-}" ]; then
-			rm -f "$_f"
-		fi
+		printf '%s\t%s\n' "$("$_f" contract 2>/dev/null </dev/null | head -n 1)" "$_f"
+	done | awk -F '\t' -v keep="$2" 'seen[$1]++ >= keep { print $2 }' | while IFS= read -r _f; do
+		[ "$_f" = "${3:-}" ] || rm -f "$_f"
 	done
-	rm -f "$_seen"
 }
