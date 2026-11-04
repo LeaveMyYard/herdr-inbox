@@ -5,7 +5,7 @@
 use herdr_agent_kit::herdr_api::{AgentInfo, TabId};
 
 use super::Ctx;
-use crate::claude::{chain, live_session};
+use crate::claude::{chain, live_session_known};
 use crate::store::sessions::session_transcript;
 use crate::tabs::{DEFAULT_PREFIX, base_label};
 
@@ -51,8 +51,18 @@ pub fn session_pane(
             .as_ref()
             .map(|p| p.as_str().to_string())
             .filter(|p| !p.is_empty());
-        if let (Some(reported), Some(pane)) = (reported, pane)
-            && live_session(ctx.files, ctx.state_dir, reported, Some(&pane)) == live
+        let (Some(reported), Some(pane)) = (reported, pane) else {
+            continue;
+        };
+        // Python `live_session(reported, store.session_transcript(reported), pane=...)`
+        let known = session_transcript(db, reported)?;
+        if live_session_known(
+            ctx.files,
+            ctx.state_dir,
+            reported,
+            known.as_deref(),
+            Some(&pane),
+        ) == live
         {
             hits.push((pane, a.tab_id.as_ref().map(|t| t.as_str().to_string())));
         }

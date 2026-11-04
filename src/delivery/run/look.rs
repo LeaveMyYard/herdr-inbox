@@ -1,8 +1,10 @@
 //! The lookups of one pane's pass (`inbox_core::deliver::Look` for Python
 //! `deliver_batch`'s calls): each made when the decision asks, against the
 //! store, herdr and the transcripts. A database error is kept and handed
-//! back after the decision; meanwhile the lookup answers as if nothing were
-//! there (not claimed, no misses), so nothing more is typed or written.
+//! back after the decision, and it halts the pass as Python's exception
+//! does: from then on nothing is claimed, moved, typed or written
+//! ([`PaneLook::halted`]), and the lookups answer as if nothing were there,
+//! which can no longer reach a prompt or a store write.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -37,11 +39,19 @@ pub struct PaneLook<'c, 'a> {
     /// The followed session's transcript (found before typing, Python `path`).
     pub(super) path: Option<PathBuf>,
     pub(super) typed: Vec<Typed>,
+    /// Where a verify-later job goes (Python `verify_later`).
+    pub(super) later: Option<&'c mut dyn FnMut(Value)>,
     pub(super) error: Option<rusqlite::Error>,
 }
 
 impl<'c, 'a> PaneLook<'c, 'a> {
-    pub fn new(ctx: &'c mut Ctx<'a>, pane: &str, items: &[&'c Question], mode: Mode) -> Self {
+    pub fn new(
+        ctx: &'c mut Ctx<'a>,
+        pane: &str,
+        items: &[&'c Question],
+        mode: Mode,
+        later: Option<&'c mut dyn FnMut(Value)>,
+    ) -> Self {
         PaneLook {
             ctx,
             pane: pane.to_string(),
@@ -52,18 +62,19 @@ impl<'c, 'a> PaneLook<'c, 'a> {
             agents: None,
             path: None,
             typed: Vec::new(),
+            later,
             error: None,
         }
     }
 
-    /// The claims taken, the verify-later jobs, and the first database error.
-    pub fn finish(mut self) -> (Claims, Vec<Value>, Option<rusqlite::Error>) {
-        let jobs = if self.mode.verify_later {
-            self.jobs()
-        } else {
-            Vec::new()
-        };
-        (self.claims, jobs, self.error)
+    /// The first database error of the pass, if any.
+    pub fn finish(self) -> Option<rusqlite::Error> {
+        self.error
+    }
+
+    /// A database error stopped the pass: nothing more is done.
+    pub(super) fn halted(&self) -> bool {
+        self.error.is_some()
     }
 
     /// `r`'s value, or `T::default()` with the error kept.
@@ -113,6 +124,10 @@ impl<'c, 'a> PaneLook<'c, 'a> {
 
 impl inbox_core::deliver::Look for PaneLook<'_, '_> {
     fn claimed(&mut self, id: i64) -> bool {
+        // Python's claims comprehension stops at the failing claim
+        if self.halted() {
+            return false;
+        }
         let claim = self.ctx.store.claim_delivery(id);
         match self.ok(claim) {
             Some(c) => {
@@ -132,6 +147,9 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
         self.agent.clone()
     }
     fn moved_elsewhere(&mut self, id: i64) -> bool {
+        if self.halted() {
+            return false;
+        }
         if self.agents.is_none() {
             self.agents = Some(self.ctx.herdr.agents().unwrap_or_default());
         }
@@ -272,5 +290,8 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
     }
     fn landing(&mut self, id: i64) -> inbox_core::verify::Landing {
         self.landing_of(id)
+    }
+    fn record(&mut self, id: i64, outcome: &inbox_core::deliver::Outcome) {
+        self.record_outcome(id, outcome);
     }
 }

@@ -962,6 +962,13 @@ def _delivery_scenarios():
         S("moved, the tab without a label", questions=[q()], agent=agent(session=X), tab="",
           agents=[{"pane_id": "w1:p2", "tab_id": "w1:t2", "agent": "claude", "agent_status": "idle",
                    "agent_session": {"kind": "id", "value": A}}], transcripts={A: hello, X: hello}, land_in=X),
+        # #100 review M2, L1: a long answer's reference verified later is not the full answer ("ack");
+        # Send now onto an unreadable box says so; pending exactly BUSY_GRACE is past the grace
+        S("verified later, a long answer", questions=[q(answer="x" * 5000), q(question="Region?", answer="eu")],
+          mode={"retry": False, "force": False, "verify_later": True}),
+        S("send now onto an unreadable box: not sent, said so", questions=[q(tab_label="node")],
+          screen="plain output", mode={"retry": True, "force": True, "verify_later": False}),
+        S("working, pending exactly the grace", questions=[q(pending_ago=20)], agent=agent(status="working")),
     ]
 
 

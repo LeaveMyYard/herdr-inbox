@@ -27,10 +27,23 @@ pub fn live_session(
     reported: &str,
     pane: Option<&str>,
 ) -> String {
+    live_session_known(files, state_dir, reported, None, pane)
+}
+
+/// [`live_session`] with `reported`'s recorded transcript path, `known`
+/// (Python `live_session(reported, known, pane)`): a transcript the
+/// projects folder no longer lists is still found there.
+pub fn live_session_known(
+    files: &Transcripts,
+    state_dir: &Path,
+    reported: &str,
+    known: Option<&str>,
+    pane: Option<&str>,
+) -> String {
     if reported.is_empty() {
         return String::new();
     }
-    if let Some(path) = files.find(reported, None)
+    if let Some(path) = files.find(reported, known)
         && let Some((_, Some(at))) = continuation(&path)
         && let Some(sid) = SessionId::parse(reported)
     {
@@ -50,7 +63,7 @@ pub fn live_session(
             return sid.as_str().to_owned();
         }
     }
-    chain(files, reported, None)
+    chain(files, reported, known)
         .pop()
         .unwrap_or_else(|| reported.to_owned())
 }

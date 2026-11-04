@@ -19,6 +19,8 @@ use crate::delivery::plans::{Plan, verify_plans, watch_paths};
 use crate::delivery::segments::answered;
 use crate::delivery::watch::{Watched, size, wait_hits};
 
+/// The prompt "error" of a halted pass (never written: the pass stops).
+const HALTED: &str = "the delivery pass stopped on a database error";
 /// No cap (Python `herdr.clean(text, limit=10**9)`).
 const NO_LIMIT: usize = 1_000_000_000;
 
@@ -34,6 +36,8 @@ pub struct Typed {
     watch: Vec<Watched>,
     plans: Option<BTreeMap<i64, Plan>>,
     hits: Option<BTreeSet<PathBuf>>,
+    /// Its verify-later job was handed over.
+    handed: bool,
 }
 
 impl PaneLook<'_, '_> {
@@ -104,11 +108,16 @@ impl PaneLook<'_, '_> {
 
     /// Types the message for `ids`: herdr's error, if any. The transcripts
     /// to watch are the followed and reported sessions', plus the one the
-    /// prompt itself may have created.
+    /// prompt itself may have created. Nothing is typed once the pass is
+    /// halted (#100 review H1): its outcome could not be written.
     pub(super) fn type_batch(&mut self, ids: &[i64]) -> Option<String> {
         let agent = self.agent.clone()?;
         let watch = watch_paths(self.ctx.store.db(), self.ctx.files, &agent, false);
         let mut watch = self.ok(watch);
+        // an earlier failure, or this one
+        if self.halted() {
+            return Some(HALTED.into());
+        }
         let mut path = self.path.clone();
         let mut offset = path.as_deref().map_or(0, size);
         let text = self.typed_of(ids)?.text.clone();
@@ -181,19 +190,25 @@ impl PaneLook<'_, '_> {
             .map_or_else(Landing::default, |p| p.landing(&hits))
     }
 
-    /// The verify-later jobs of the typed messages with a transcript (Python
-    /// `verify_later({...})`, read by `inbox verify`).
-    pub(super) fn jobs(&mut self) -> Vec<Value> {
+    /// The verify-later job of the typed message carrying `id` (Python
+    /// `verify_later({...})`, read by `inbox verify`), the first time it is
+    /// asked for: one job per message.
+    pub(super) fn job_of(&mut self, id: i64) -> Option<Value> {
         let busy = self
             .agent
             .as_ref()
             .is_some_and(|a| !matches!(a.status.as_str(), "idle" | "done"));
-        let mut jobs = Vec::new();
-        for k in 0..self.typed.len() {
-            // only a typed message has a path
-            let Some(path) = self.typed[k].path.clone() else {
-                continue;
-            };
+        let k = self
+            .typed
+            .iter()
+            .position(|t| t.typed && t.ids.contains(&id))?;
+        {
+            // only a typed message with a transcript has a job
+            if self.typed[k].handed {
+                return None;
+            }
+            let path = self.typed[k].path.clone()?;
+            self.typed[k].handed = true;
             let plans = self.plans_of(k);
             let t = &self.typed[k];
             let rows: Vec<Value> = t
@@ -215,9 +230,10 @@ impl PaneLook<'_, '_> {
                 .iter()
                 .map(|(p, off)| json!([p.display().to_string(), off]))
                 .collect();
-            jobs.push(json!({"path": path.display().to_string(), "offset": t.offset, "ack": t.full, "busy": busy,
-                             "watch": watch, "text": t.text, "rows": rows}));
+            Some(
+                json!({"path": path.display().to_string(), "offset": t.offset, "ack": t.full, "busy": busy,
+                        "watch": watch, "text": t.text, "rows": rows}),
+            )
         }
-        jobs
     }
 }

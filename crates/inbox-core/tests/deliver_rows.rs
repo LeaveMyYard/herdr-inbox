@@ -59,6 +59,8 @@ fn agent_of(v: &Value) -> Option<Agent> {
 /// a row does not hold was not made.
 struct PassLook<'a> {
     rows: &'a [&'a Value],
+    /// What [`Look::record`] got, in order.
+    recorded: Vec<(i64, Outcome)>,
 }
 
 impl PassLook<'_> {
@@ -168,6 +170,9 @@ impl Look for PassLook<'_> {
                 .flag(id, "older_session_watched")
                 .then(|| older_error(PANE, Some(REPORTED), Some(ASKER), true)),
         }
+    }
+    fn record(&mut self, id: i64, outcome: &Outcome) {
+        self.recorded.push((id, outcome.clone()));
     }
 }
 
@@ -288,9 +293,21 @@ fn every_deliver_batch_pass_is_the_policys() {
             })
             .collect();
         for &pane in panes {
-            let mut look = PassLook { rows: list };
+            let mut look = PassLook {
+                rows: list,
+                recorded: Vec::new(),
+            };
             let got = decide(pane, &waiting, mode, &mut look);
             assert_eq!(got.len(), list.len());
+            // each outcome was handed over once, as it was decided (#100 review M1)
+            let mut handed = look.recorded.clone();
+            handed.sort_by_key(|(id, _)| *id);
+            let settled: Vec<_> = got
+                .iter()
+                .filter(|(_, o)| *o != Outcome::Untouched)
+                .cloned()
+                .collect();
+            assert_eq!(handed, settled, "{}", list[0]);
             for ((id, outcome), row) in got.iter().zip(list.iter()) {
                 assert_eq!(
                     applied(&row["before"], outcome),

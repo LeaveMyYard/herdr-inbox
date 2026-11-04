@@ -7,6 +7,8 @@ mod family;
 mod herdr_stub;
 mod landed;
 mod plans;
+mod relocate;
 mod run_edges;
+mod run_world;
 mod scenarios;
 mod transcripts;
