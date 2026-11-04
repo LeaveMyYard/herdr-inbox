@@ -5,9 +5,13 @@
 
 pub mod family;
 pub mod landed;
+pub mod messages;
 pub mod pane;
+pub mod plans;
+pub mod run;
 pub mod screen;
 pub mod segments;
+pub mod watch;
 
 pub use family::forward_family;
 pub use landed::landed_across;
