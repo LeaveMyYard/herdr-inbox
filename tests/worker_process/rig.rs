@@ -331,12 +331,23 @@ impl Drop for Rig {
     /// Children this test started and still holds, unreaped: their pids are
     /// still theirs, so only they are killed (never their process groups,
     /// never a worker one of them started).
+    ///
+    /// Then the server goes away while the fake herdr CLI still exists, and
+    /// the drop waits (bounded) for the lock to be free: a worker one of them
+    /// started, left behind by a failed test, ends by the server-gone rule
+    /// before the temporary directory (and the CLI that says "gone") is
+    /// deleted, instead of lingering until its idle exit.
     fn drop(&mut self) {
         for (_, child) in &mut self.children {
             if matches!(child.try_wait(), Ok(None)) {
                 let _ = child.kill();
             }
             let _ = child.wait();
+        }
+        self.server_goes_away();
+        let deadline = Instant::now() + LIMIT;
+        while is_running(&self.lock()) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
 }
