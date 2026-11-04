@@ -46,8 +46,9 @@ pub fn run(cmd: &str, io: &mut Io<'_>) -> i32 {
     let done = match cmd {
         "export" => export(&store, &request.map, SystemTime::now()).map(|out| (out, None)),
         // a lone surrogate reads as U+FFFD here: never record or write that (Python's
-        // SQLite write raises on it); the request is refused, unrecorded
-        _ if !request.lossless => Ok((
+        // SQLite write raises on it); a request carrying one in what apply writes is
+        // refused, unrecorded
+        _ if !request.lossless && written_lossily(&request.map) => Ok((
             json!({"outcome": "rejected", "reason": "bad request"}),
             None,
         )),
@@ -83,6 +84,26 @@ fn parse(raw: Vec<u8>) -> Result<Request, String> {
         }),
         _ => Err("not an object".into()),
     }
+}
+
+/// Whether a field `apply` records or writes (`request_id`, `id`, `detail`) may
+/// hold a lone surrogate read as U+FFFD. Called only for a request whose text
+/// is not lossless: a U+FFFD there is taken for one (a real U+FFFD in the same
+/// request as a surrogate elsewhere is refused too, safely). A surrogate only
+/// in a field apply compares (`db_id`, `qkey`: hex, so U+FFFD never matches)
+/// or ignores does not refuse it, as Python applies it.
+fn written_lossily(map: &Map<String, Value>) -> bool {
+    fn has(v: &Value) -> bool {
+        match v {
+            Value::String(s) => s.contains('\u{fffd}'),
+            Value::Array(items) => items.iter().any(has),
+            Value::Object(m) => m.iter().any(|(k, v)| k.contains('\u{fffd}') || has(v)),
+            _ => false,
+        }
+    }
+    ["request_id", "id", "detail"]
+        .iter()
+        .any(|k| map.get(*k).is_some_and(has))
 }
 
 /// What a committed `apply` does next: the detached delivery, then the

@@ -273,6 +273,20 @@ fn a_request_python_could_not_read_or_store_is_refused_unrecorded() {
         .query_row("SELECT COUNT(*) FROM applied_requests", [], |r| r.get(0))
         .unwrap();
     assert_eq!(n, 0);
+    // one in a field apply only compares or ignores: applied as Python applies it
+    let got = remote.call(
+        "apply",
+        r#"{"request_id": "r2", "action": "status", "note": "\udc00"}"#,
+    );
+    assert_eq!(got.stdout, "{\"outcome\": \"expired\"}\n");
+    let got = remote.call(
+        "apply",
+        r#"{"request_id": "r3", "action": "answer", "id": 1, "detail": {"text": "a\ud800"}}"#,
+    );
+    assert_eq!(
+        got.stdout,
+        "{\"outcome\": \"rejected\", \"reason\": \"bad request\"}\n"
+    );
     // bytes that are not UTF-8 (Python's stdin read raises)
     let world = remote.call("export", "{\"cursor\": \"\u{fffd}\"}");
     assert_eq!(world.code, 0, "U+FFFD itself is fine");

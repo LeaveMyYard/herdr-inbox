@@ -114,7 +114,8 @@ pub fn apply(store: &Store, request: &Map<String, Value>) -> Reply {
                 if q.status != "open" {
                     return reject(&q.status);
                 }
-                write_answer(db, q.id, &text, Some(&dumps(&detail)))?;
+                let wrote = write_answer(db, q.id, &text, Some(&dumps(&detail)))?;
+                debug_assert!(wrote, "Q{} was read open under this same write lock", q.id);
                 Some(After::Deliver {
                     qid: q.id,
                     force: false,
@@ -208,7 +209,8 @@ fn record(
         "INSERT INTO applied_requests (request_id, qid, outcome, reason, at) VALUES (?, ?, ?, ?, ?)",
         params![rid, bound(qid), outcome, reason, now()],
     )?;
-    Ok(match reason {
+    // Python `if reason`: an empty reason is left out of the reply (it is still recorded)
+    Ok(match reason.filter(|r| !r.is_empty()) {
         Some(reason) => json!({"outcome": outcome, "reason": reason}),
         None => json!({"outcome": outcome}),
     })
