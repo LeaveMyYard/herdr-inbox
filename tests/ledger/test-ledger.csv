@@ -1,8 +1,8 @@
 python_test_id,python_file,rust_test,status,retired_reason,phase
-tests/test_agent_gone.py::test_worker_marks_a_gone_agent_once_notifies_once_then_stops_polling,tests/test_agent_gone.py,,todo,,
-tests/test_agent_gone.py::test_gone_notification_says_the_answer_is_kept,tests/test_agent_gone.py,,todo,,
-tests/test_agent_gone.py::test_hidden_gone_rows_are_not_polled,tests/test_agent_gone.py,,todo,,
-tests/test_agent_gone.py::test_legacy_rows_of_a_gone_pane_are_not_polled_every_tick,tests/test_agent_gone.py,,todo,,
+tests/test_agent_gone.py::test_worker_marks_a_gone_agent_once_notifies_once_then_stops_polling,tests/test_agent_gone.py,herdr-inbox --test worker_duties gone::worker_marks_a_gone_agent_once_notifies_once_then_stops_polling,mapped,,P5
+tests/test_agent_gone.py::test_gone_notification_says_the_answer_is_kept,tests/test_agent_gone.py,herdr-inbox --test worker_duties gone::gone_notification_says_the_answer_is_kept,mapped,,P5
+tests/test_agent_gone.py::test_hidden_gone_rows_are_not_polled,tests/test_agent_gone.py,herdr-inbox --test worker_duties gone::hidden_gone_rows_are_not_polled,mapped,,P5
+tests/test_agent_gone.py::test_legacy_rows_of_a_gone_pane_are_not_polled_every_tick,tests/test_agent_gone.py,herdr-inbox --test worker_duties gone::legacy_rows_of_a_gone_pane_are_not_polled_every_tick,mapped,,P5
 tests/test_agent_gone.py::test_popup_labels_a_gone_row_and_d_hides_it,tests/test_agent_gone.py,,todo,,
 tests/test_agent_gone.py::test_popup_does_not_list_hidden_rows,tests/test_agent_gone.py,inbox-core --test popup_transitions agent_gone::popup_does_not_list_hidden_rows,mapped,,P6
 tests/test_agent_gone.py::test_pending_rows_say_they_are_already_answered,tests/test_agent_gone.py,,todo,,
@@ -389,12 +389,12 @@ tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_d
 tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,herdr-inbox --test cli live::answer_list_and_dismiss_through_the_binary,mapped,,P5
 tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,,todo,,
-tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_a_busy_miss_waits_for_idle_and_shows_as_not_delivered,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_a_focused_task_panel_is_not_typed_into,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::one_tick_delivers_pending_answers_for_every_pane,mapped,,P5
+tests/test_delivery_worker.py::test_a_busy_miss_waits_for_idle_and_shows_as_not_delivered,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_busy_miss_waits_for_idle_and_shows_as_not_delivered,mapped,,P5
+tests/test_delivery_worker.py::test_a_focused_task_panel_is_not_typed_into,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_focused_task_panel_is_not_typed_into,mapped,,P5
 tests/test_delivery_worker.py::test_an_old_servers_unverified_ack_is_requeued_and_delivered,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_old_requeue_window_does_not_retype_old_answers,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_stuck_answers_raise_one_notification,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_stuck_answers_raise_one_notification,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::stuck_answers_raise_one_notification,mapped,,P5
 tests/test_delivery_worker.py::test_the_worker_is_a_singleton,tests/test_delivery_worker.py,herdr-inbox --lib worker::lock::tests::the_worker_is_a_singleton,mapped,,P5
 tests/test_delivery_worker.py::test_ensure_spawns_only_when_not_running,tests/test_delivery_worker.py,herdr-inbox --lib worker::spawn::tests::ensure::ensure_spawns_only_when_not_running,mapped,,P5
 tests/test_delivery_worker.py::test_worker_process_runs_and_exits_when_idle,tests/test_delivery_worker.py,herdr-inbox --test worker_process exits::the_rust_worker_exits_when_idle,mapped,,P5
@@ -404,22 +404,22 @@ tests/test_delivery_worker.py::test_every_answer_or_send_ensures_the_worker,test
 tests/test_delivery_worker.py::test_a_worker_that_idles_out_with_new_work_starts_a_successor,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::a_worker_that_idles_out_with_new_work_starts_a_successor,mapped,,P5
 tests/test_delivery_worker.py::test_panel_detection_reads_only_the_footer,tests/test_delivery_worker.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery_worker.py::test_send_now_overrides_the_panel_wait,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_unverifiable_sends_are_not_reported_as_not_delivered,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_an_agent_at_a_prompt_gets_a_waiting_notification,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_unverifiable_sends_are_not_reported_as_not_delivered,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::unverifiable_sends_are_not_reported_as_not_delivered,mapped,,P5
+tests/test_delivery_worker.py::test_an_agent_at_a_prompt_gets_a_waiting_notification,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::an_agent_at_a_prompt_gets_a_waiting_notification,mapped,,P5
 tests/test_delivery_worker.py::test_the_worker_hands_over_when_the_disk_version_differs_from_its_own,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::the_worker_hands_over_when_the_disk_version_differs_from_its_own,mapped,,P5
 tests/test_delivery_worker.py::test_no_handover_loop_when_no_successor_can_start,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::no_handover_loop_when_no_successor_can_start,mapped,,P5
 tests/test_delivery_worker.py::test_h1_a_just_typed_old_server_delivery_is_not_requeued_before_it_settles,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_h1_no_transcript_means_un_see_only_never_retype,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_h1_a_retry_checks_the_transcript_before_typing_again,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_h1_a_retry_checks_the_transcript_before_typing_again,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::h1_a_retry_checks_the_transcript_before_typing_again,mapped,,P5
 tests/test_delivery_worker.py::test_m1_the_lock_is_per_herdr_server,tests/test_delivery_worker.py,herdr-inbox --lib worker::env::tests::the_lock_is_per_herdr_server_beside_the_database,mapped,,P5
 tests/test_delivery_worker.py::test_m1_questions_record_their_herdr_server,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_m1_a_worker_leaves_other_servers_rows_alone,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_m1_legacy_rows_need_a_matching_session,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_m1_a_worker_leaves_other_servers_rows_alone,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::m1_a_worker_leaves_other_servers_rows_alone,mapped,,P5
+tests/test_delivery_worker.py::test_m1_legacy_rows_need_a_matching_session,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::m1_legacy_rows_need_a_matching_session,mapped,,P5
 tests/test_delivery_worker.py::test_m2_spawns_do_not_inherit_the_mcp_venv,tests/test_delivery_worker.py,herdr-inbox --lib worker::env::tests::spawns_do_not_inherit_the_venv_and_name_the_server,mapped,,P5
 tests/test_delivery_worker.py::test_l3_the_focus_check_is_repeated_right_before_typing,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_other_servers_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_unmatched_legacy_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_own_pending_rows_still_count,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_other_servers_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::other_servers_rows_do_not_keep_a_worker_alive,mapped,,P5
+tests/test_delivery_worker.py::test_unmatched_legacy_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::unmatched_legacy_rows_do_not_keep_a_worker_alive,mapped,,P5
+tests/test_delivery_worker.py::test_own_pending_rows_still_count,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::own_pending_rows_still_count,mapped,,P5
 tests/test_failed_pile.py::test_typed_into_a_resumed_old_session_is_an_older_conversation_not_a_delivery,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_reconcile_never_verifies_answers_that_landed_only_in_an_older_session,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,tests/test_failed_pile.py,,todo,,
@@ -444,7 +444,7 @@ tests/test_failed_pile.py::test_r1_the_evidence_scan_reads_each_transcript_once,
 tests/test_failed_pile.py::test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_r2_json_the_agent_printed_itself_is_not_evidence,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_r2_a_same_size_rewrite_is_re_indexed,tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[grep -n ""answer {n}"" ~/Code/herdr-inbox/worker.log-1234: Q{n} answered, not delivered: no live agent in pane w6:p48]",tests/test_failed_pile.py,,todo,,
+"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[grep -n ""answer {n}"" ~/Code/herdr-inbox/worker.log-1234: Q{n} answered, not delivered: no live agent in pane w9:p1]",tests/test_failed_pile.py,,todo,,
 "tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[gh pr comment 44 -R LeaveMyYard/herdr-inbox --body ""run inbox answer {n} x to reproduce""-https://github.com/x/1\nQ{n} answered, pending: busy]",tests/test_failed_pile.py,,todo,,
 "tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[inbox answer {n} x; grep 'Q{n}' ~/.local/state/herdr-inbox/worker.log-Q{n} is not open\nQ{n} answered, delivered to w1:p1]",tests/test_failed_pile.py,,todo,,
 "tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n$B answer {n} ""x""]",tests/test_failed_pile.py,,todo,,
@@ -780,7 +780,7 @@ tests/test_session_continuation.py::test_the_old_sessions_watcher_ends_and_the_n
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[../../etc/passwd],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[*],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[a/b],tests/test_session_continuation.py,,todo,,
-tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[06ACC80F-0000-4000-8000-000000000002 ],tests/test_session_continuation.py,,todo,,
+tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[00000004-0000-4000-8000-0000000000B2 ],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_remote_answer_in_flight_survives_the_continuation,tests/test_session_continuation.py,,todo,,
