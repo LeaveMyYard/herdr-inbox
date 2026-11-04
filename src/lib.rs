@@ -12,6 +12,7 @@ pub mod clock;
 pub mod contract;
 pub mod delivery;
 pub mod hook;
+pub mod mcp;
 pub mod pyjson;
 pub mod remote;
 pub mod rewake;

@@ -92,3 +92,23 @@ fn an_undated_continuation_or_an_unknown_session_follows_d6() {
     assert_eq!(live_session(&files, &state, "not-an-id", None), "not-an-id");
     assert_eq!(live_session(&files, &state, "", None), "");
 }
+
+/// #100 review L1: the recorded transcript (Python's `known`) is followed
+/// even where the projects folder does not list it.
+#[test]
+fn a_recorded_transcript_outside_the_projects_folder_is_followed() {
+    let (dir, files) = world(None);
+    let elsewhere = dir.path().join("elsewhere.jsonl");
+    fs::rename(
+        dir.path()
+            .join("projects")
+            .join("-r")
+            .join(format!("{OLD}.jsonl")),
+        &elsewhere,
+    )
+    .unwrap();
+    let state = dir.path().join("state");
+    let known = elsewhere.to_str();
+    assert_eq!(live_session(&files, &state, OLD, None), OLD);
+    assert_eq!(live_session_known(&files, &state, OLD, known, None), NEW);
+}

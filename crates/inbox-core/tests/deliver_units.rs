@@ -34,6 +34,10 @@ struct Fake {
     prompt_error: Option<String>,
     landing: Landing,
     prompted: usize,
+    /// One message per answer (a long answer's reference, batches split by the cap).
+    split: bool,
+    /// (answer, outcome) as [`Look::record`] got them, and the prompts typed by then.
+    recorded: Vec<(i64, Outcome, usize)>,
 }
 
 impl Default for Fake {
@@ -51,6 +55,8 @@ impl Default for Fake {
                 older_error: None,
             },
             prompted: 0,
+            split: false,
+            recorded: Vec::new(),
         }
     }
 }
@@ -99,7 +105,11 @@ impl Look for Fake {
         self.typed_older
     }
     fn messages(&mut self, ids: &[i64]) -> Vec<(Vec<i64>, bool)> {
-        vec![(ids.to_vec(), true)]
+        if self.split {
+            ids.iter().map(|id| (vec![*id], true)).collect()
+        } else {
+            vec![(ids.to_vec(), true)]
+        }
     }
     fn agent_again(&mut self, _: &[i64]) -> Option<Agent> {
         self.again.clone()
@@ -116,6 +126,9 @@ impl Look for Fake {
     }
     fn landing(&mut self, _: i64) -> Landing {
         self.landing.clone()
+    }
+    fn record(&mut self, id: i64, outcome: &Outcome) {
+        self.recorded.push((id, outcome.clone(), self.prompted));
     }
 }
 
@@ -220,4 +233,27 @@ fn an_empty_older_state_is_no_older_landing() {
         ..Fake::default()
     };
     assert_eq!(one(&mut look, false), Outcome::Failed(NOT_VERIFIED.into()));
+}
+
+/// #100 review M1: Python writes each message's outcome before it types the
+/// next one, so a later message's wait, a crash or another process taking a
+/// stale claim never holds back an earlier answer's outcome.
+#[test]
+fn each_messages_outcome_is_handed_over_before_the_next_is_typed() {
+    let mut look = Fake {
+        split: true,
+        ..Fake::default()
+    };
+    let waiting = [1, 2].map(|id| Waiting {
+        id,
+        session: Some(ASKER.into()),
+        requeued: false,
+    });
+    decide(Some("w3:p9"), &waiting, Mode::default(), &mut look);
+    let delivered = Outcome::Delivered { ack: true };
+    assert_eq!(
+        look.recorded,
+        [(1, delivered.clone(), 1), (2, delivered, 2)],
+        "(answer, outcome, prompts typed when it was handed over)"
+    );
 }

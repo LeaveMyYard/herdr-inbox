@@ -13,4 +13,4 @@ pub use chain::chain;
 pub use continued::{continuation, continued_in};
 pub use edges::{Edge, continued_edges};
 pub use find::Transcripts;
-pub use live::live_session;
+pub use live::{live_session, live_session_known};
