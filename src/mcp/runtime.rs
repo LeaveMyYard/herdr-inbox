@@ -78,14 +78,14 @@ impl Runtime {
 
     /// The store, then the caller (Python `with tool_store() as store: ...(resolve_caller())`).
     fn store_then_caller(&self) -> Result<(Store, Caller), Failure> {
-        let store = open(&self.db)?;
+        let store = open(&self.db, self.backoff.attempt)?;
         Ok((store, caller::resolve(&*self.world, &self.env)?))
     }
 
     /// The caller, then the store (Python `caller = resolve_caller(); with tool_store()`).
     fn caller_then_store(&self) -> Result<(Store, Caller), Failure> {
         let caller = caller::resolve(&*self.world, &self.env)?;
-        Ok((open(&self.db)?, caller))
+        Ok((open(&self.db, self.backoff.attempt)?, caller))
     }
 
     /// A body's receipt, its effects queued.

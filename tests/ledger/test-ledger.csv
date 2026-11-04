@@ -462,7 +462,7 @@ tests/test_final_review.py::test_cursor_row_stays_visible_without_previews,tests
 tests/test_final_review.py::test_send_runs_in_the_background,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_marker_failure_never_fails_ask,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_mcp_ask_returns_the_open_receipt_when_markers_fail,tests/test_final_review.py,,todo,,
-tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_final_review.py,herdr-inbox --lib mcp::retry::tests::the_default_waits_are_pythons,mapped,,P5
+tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_final_review.py,herdr-inbox --lib mcp::runtime::tests::a_locked_database_gets_the_busy_receipt_and_changes_nothing,mapped,,P5
 tests/test_final_review.py::test_closing_the_popup_waits_for_an_in_flight_send,tests/test_final_review.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[decisions],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,inbox-core --test popup_screens every_golden_screen_is_drawn_cell_for_cell,mapped,,P6
