@@ -16,7 +16,7 @@ use herdr_agent_kit::herdr_api::blocking::Herdr;
 
 pub use db::db_stamp;
 pub use herdr::{listed_root, server_gone};
-pub use install::{Install, own_checkout, version_at};
+pub use install::{Install, own_checkout, running_version, version_at};
 
 use super::WorkerEnv;
 use super::run::{Ticked, World};

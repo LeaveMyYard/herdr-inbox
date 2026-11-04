@@ -15,6 +15,18 @@ pub fn version_at(root: &Path) -> Option<String> {
     line.split('"').nth(1).map(String::from)
 }
 
+/// The version of the code this process runs (Python `running_version`):
+/// its checkout's `pyproject.toml`, read once at start, else the compiled
+/// version. Never the compiled version alone: in a linked checkout pulled
+/// but not rebuilt, `target/release/herdr-inbox` still carries the old one,
+/// so a worker comparing it with the disk would hand over to that same
+/// binary on every tick, forever. Read from disk, the successor sees the
+/// version it compared against, and stays.
+pub fn running_version(own: Option<&Path>) -> String {
+    own.and_then(version_at)
+        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
+}
+
 /// The checkout holding `exe`: its nearest ancestor with a
 /// `herdr-plugin.toml` (a linked checkout's `target/release/herdr-inbox`, a
 /// release's `bin/herdr-inbox`). Python also asks for `src/herdr_inbox`,

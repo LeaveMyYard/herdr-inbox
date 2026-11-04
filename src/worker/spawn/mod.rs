@@ -12,7 +12,6 @@ mod rate;
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use binary::{
     PYTHON, PYTHON_WORKER, RUST_WORKER_BINARIES, python_worker_args, rust_worker_args,
@@ -24,13 +23,7 @@ pub use rate::{ENSURE_EVERY, may_spawn, stamp_path};
 use super::WorkerEnv;
 use super::handover::{holder_revision, live_standby};
 use super::lock::is_running;
-
-/// Unix seconds now.
-pub fn unix_now() -> f64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0.0, |d| d.as_secs_f64())
-}
+pub use crate::store::revision_wanted::unix_now;
 
 /// Starts `binary worker` in `root` after this worker released the lock;
 /// true once some worker holds the lock. One that exits without it (no

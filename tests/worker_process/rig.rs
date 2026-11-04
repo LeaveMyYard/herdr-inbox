@@ -43,10 +43,24 @@ fn real_python() -> &'static Path {
     static PY: OnceLock<PathBuf> = OnceLock::new();
     PY.get_or_init(|| {
         let out = Command::new("python3")
-            .args(["-c", "import sys; print(sys.executable)"])
+            .args([
+                "-c",
+                "import sys; print(sys.executable, '%d.%d' % sys.version_info[:2])",
+            ])
             .output()
             .expect("python3 runs (the Python worker is under test too)");
-        PathBuf::from(String::from_utf8(out.stdout).unwrap().trim())
+        let text = String::from_utf8(out.stdout).unwrap();
+        let (exe, version) = text
+            .trim()
+            .rsplit_once(' ')
+            .expect("python3 printed its version");
+        let (major, minor) = version.split_once('.').unwrap();
+        let (major, minor): (u32, u32) = (major.parse().unwrap(), minor.parse().unwrap());
+        assert!(
+            (major, minor) >= (3, 11),
+            "the Python worker needs python3 >= 3.11 (tomllib), {exe} is {version}"
+        );
+        PathBuf::from(exe)
     })
 }
 
@@ -76,6 +90,7 @@ impl Rig {
         // Rust's start_successor runs `uv run --quiet --frozen --no-dev --project <root> inbox worker`
         let uv = format!(
             "#!/bin/sh\n[ \"$1 $2 $3 $4 $5 $7 $8\" = 'run --quiet --frozen --no-dev --project inbox worker' ] || exit 2\n\
+             echo \"$6\" >> \"$E1_UV_LOG\"\n\
              exec \"$(dirname \"$0\")/python3\" -I -c \"{PYTHON_WORKER}\" \"$6/src\" worker\n"
         );
         exe(&bin.join("uv"), &uv);
@@ -126,6 +141,7 @@ impl Rig {
             ("E1_LISTED", self.listed.clone().into()),
             ("E1_TICKS", self.ticks.clone().into()),
             ("E1_HERDR_LOG", d.join("herdr.log").into()),
+            ("E1_UV_LOG", d.join("uv.log").into()),
             ("E1_LIFETIME", "90".into()),
         ]
     }
@@ -193,7 +209,24 @@ impl Rig {
     /// Every tick's pid, in order.
     pub fn tick_sequence(&self) -> Vec<u32> {
         let text = fs::read_to_string(&self.ticks).unwrap_or_default();
-        text.lines().map(|pid| pid.parse().unwrap()).collect()
+        text.lines()
+            .map(|l| l.split(' ').next().unwrap().parse().unwrap())
+            .collect()
+    }
+
+    /// The install root `pid` ticked from (its cwd).
+    pub fn tick_root(&self, pid: u32) -> Option<PathBuf> {
+        let text = fs::read_to_string(&self.ticks).unwrap_or_default();
+        let line = text
+            .lines()
+            .find(|l| l.split(' ').next() == Some(&pid.to_string()))?;
+        line.split_once(' ').map(|(_, root)| PathBuf::from(root))
+    }
+
+    /// The roots the fake `uv` was asked to run a worker of.
+    pub fn uv_roots(&self) -> Vec<PathBuf> {
+        let text = fs::read_to_string(self.dir.path().join("uv.log")).unwrap_or_default();
+        text.lines().map(PathBuf::from).collect()
     }
 
     /// A Python worker has listed herdr's plugins: it has decided whether it
@@ -206,8 +239,7 @@ impl Rig {
     /// The pids that ticked, in order of their first tick.
     pub fn ticked(&self) -> Vec<u32> {
         let mut out: Vec<u32> = Vec::new();
-        for pid in fs::read_to_string(&self.ticks).unwrap_or_default().lines() {
-            let pid = pid.parse().unwrap();
+        for pid in self.tick_sequence() {
             if !out.contains(&pid) {
                 out.push(pid);
             }

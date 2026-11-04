@@ -92,7 +92,11 @@ pub struct WorkerEnv {
     pub server: OsString,
     /// The schema revision this code migrates to.
     pub revision: i64,
-    /// This code's version (`herdr-inbox --version`).
+    /// The version of the code this process runs, compared with the
+    /// version installed now: always [`running_version`] of its own
+    /// checkout (read from disk at start, never the compiled version alone).
+    ///
+    /// [`running_version`]: super::live::running_version
     pub version: String,
     /// How long it waits for what.
     pub waits: Waits,
