@@ -141,17 +141,17 @@ fn options_and_items_keep_only_their_own_keys() {
 
 #[test]
 fn refusals_name_the_field_pydantic_names() {
-    let refused_at = |tool, args: Value| parse(tool, &obj(args)).unwrap_err().field;
+    let refused_at = |tool, args: Value| parse(tool, &obj(args)).unwrap_err()[0].field.clone();
     assert_eq!(
         refused_at(
             Name::AskOperator,
             json!({"options": [{"description": "d"}]})
         ),
-        "options.0.label"
+        "options.0.str"
     );
     assert_eq!(
         refused_at(Name::AskOperator, json!({"options": [3]})),
-        "options.0"
+        "options.0.str"
     );
     assert_eq!(
         refused_at(Name::AskOperator, json!({"multi_select": null})),
@@ -208,5 +208,159 @@ fn defaults_fill_what_the_call_leaves_out() {
     assert_eq!(
         parse(Name::WithdrawAlert, &obj(json!({"id": "3"}))),
         Ok(Call::WithdrawAlert { id: 3 })
+    );
+}
+
+/// Every refusal of a call, as `field / reason` pairs.
+fn all(tool: Name, args: Value) -> Vec<(String, &'static str)> {
+    parse(tool, &obj(args))
+        .unwrap_err()
+        .into_iter()
+        .map(|r| (r.field, r.why))
+        .collect()
+}
+
+#[test]
+fn every_refusal_is_listed_in_pydantics_order() {
+    let s = |f: &str, w: &'static str| (f.to_owned(), w);
+    // probed against pydantic 2.14 (the Python server's model)
+    assert_eq!(
+        all(Name::AskOperator, json!({"options": [5]})),
+        [
+            s("options.0.str", "Input should be a valid string"),
+            s("options.0.Option", "Input should be a valid dictionary")
+        ]
+    );
+    assert_eq!(
+        all(
+            Name::AskOperator,
+            json!({"options": [{"label": 5, "description": 3}]})
+        ),
+        [
+            s("options.0.str", "Input should be a valid string"),
+            s("options.0.Option.label", "Input should be a valid string"),
+            s(
+                "options.0.Option.description",
+                "Input should be a valid string"
+            )
+        ]
+    );
+    assert_eq!(
+        all(
+            Name::AskOperator,
+            json!({"questions": [{"options": [null], "multi_select": "x"}], "header": 3})
+        ),
+        [
+            s("header", "Input should be a valid string"),
+            s("questions.0.question", "Field required"),
+            s(
+                "questions.0.options.0.str",
+                "Input should be a valid string"
+            ),
+            s(
+                "questions.0.options.0.Option",
+                "Input should be a valid dictionary"
+            ),
+            s(
+                "questions.0.multi_select",
+                "Input should be a valid boolean, unable to interpret input"
+            )
+        ]
+    );
+    assert_eq!(
+        all(Name::WithdrawQuestion, json!({})),
+        [s("id", "Field required"), s("reason", "Field required")]
+    );
+    let text = refused(
+        Name::WithdrawQuestion,
+        &parse(Name::WithdrawQuestion, &obj(json!({}))).unwrap_err(),
+    );
+    assert_eq!(
+        text,
+        "Error executing tool withdraw_question: 2 validation errors for withdraw_questionArguments\n\
+         id\n  Field required\nreason\n  Field required"
+    );
+}
+
+#[test]
+fn json_text_in_a_non_str_argument_is_read_as_json_first() {
+    let ask = |args: Value| match parse(Name::AskOperator, &obj(args)) {
+        Ok(Call::AskOperator(a)) => Ok(a),
+        Ok(_) => unreachable!(),
+        Err(e) => Err(e),
+    };
+    let a = ask(json!({"questions": "[{\"question\": \"b\"}]"})).unwrap();
+    assert_eq!(a.questions.unwrap()[0].question, "b");
+    let a = ask(json!({"question": "q", "options": "[\"a\", \"b\"]"})).unwrap();
+    assert_eq!(a.options, Some(vec![json!("a"), json!("b")]));
+    assert_eq!(ask(json!({"question": "null"})).unwrap().question, None);
+    // strings and numbers stay strings
+    assert_eq!(
+        ask(json!({"question": "\"x\""}))
+            .unwrap()
+            .question
+            .as_deref(),
+        Some("\"x\"")
+    );
+    assert_eq!(
+        ask(json!({"question": "7"})).unwrap().question.as_deref(),
+        Some("7")
+    );
+    assert_eq!(
+        ask(json!({"question": "[oops"}))
+            .unwrap()
+            .question
+            .as_deref(),
+        Some("[oops")
+    );
+    let refused_as = |args: Value| {
+        ask(args)
+            .unwrap_err()
+            .into_iter()
+            .map(|r| (r.field, r.why))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        refused_as(json!({"header": "[]"})),
+        [("header".to_owned(), "Input should be a valid string")]
+    );
+    assert_eq!(
+        refused_as(json!({"context": "{\"a\": 1}"})),
+        [("context".to_owned(), "Input should be a valid string")]
+    );
+    assert_eq!(
+        refused_as(json!({"multi_select": "null"})),
+        [("multi_select".to_owned(), "Input should be a valid boolean")]
+    );
+    // a JSON boolean is Python's int: left a string, and that string is no int
+    assert_eq!(
+        all(Name::WithdrawAlert, json!({"id": "true"})),
+        [(
+            "id".to_owned(),
+            "Input should be a valid integer, unable to parse string as an integer"
+        )]
+    );
+    // plain `str` arguments are never pre-parsed
+    assert_eq!(
+        parse(
+            Name::WithdrawQuestion,
+            &obj(json!({"id": 1, "reason": "null"}))
+        ),
+        Ok(Call::WithdrawQuestion {
+            id: 1,
+            reason: "null".into()
+        })
+    );
+    assert_eq!(
+        parse(
+            Name::AlertOperator,
+            &obj(json!({"title": "[1]", "severity": "null"}))
+        ),
+        Ok(Call::AlertOperator {
+            title: "[1]".into(),
+            message: None,
+            severity: "null".into(),
+            asked_by: None
+        })
     );
 }

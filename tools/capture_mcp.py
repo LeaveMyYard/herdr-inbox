@@ -14,6 +14,7 @@ for its reply; `subscriptions/listen` waits for the acknowledgement.
 - `legacy.jsonl`: the 2025-06-18 `initialize` handshake, `tools/list`, an unknown method, an
   unknown tool, `ping`, and calls the schema refuses.
 - `outside-herdr.jsonl`: the six tools in a session that is not in a herdr pane.
+- `claude-code-calls.jsonl`: Claude Code's requests, then tool calls with its `_meta` (2026-07-28).
 
 Never run it against the operator's database: it sets HERDR_INBOX_DB itself, to a temp dir.
 """
@@ -48,6 +49,13 @@ SESSIONS = {
         call(6, "withdraw_alert", {"id": "seven"}),
         call(7, "withdraw_question", {"id": 1}),
         call(8, "alert_operator", {}),
+        call(9, "withdraw_question", {}),
+        call(10, "ask_operator", {"options": [5]}),
+        call(11, "ask_operator", {"options": [{"label": 5, "description": 3}]}),
+        call(12, "ask_operator", {"questions": [{"options": [None], "multi_select": "x"}], "header": 3}),
+        call(13, "ask_operator", {"question": "q", "header": "[]"}),
+        call(14, "ask_operator", {"question": "q", "multi_select": "null"}),
+        call(15, "withdraw_alert", {"id": "true"}),
     ],
     "outside-herdr": INIT + [
         call(1, "ask_operator", {"question": "Deploy?"}),
@@ -61,6 +69,10 @@ SESSIONS = {
         call(9, "withdraw_question", {"id": 1, "reason": "done"}),
         call(10, "alert_operator", {"title": "Look"}),
         call(11, "withdraw_alert", {"id": 1}),
+        # FastMCP reads JSON text in a non-`str` argument first (pre_parse_json)
+        call(12, "ask_operator", {"questions": json.dumps([{"question": f"q{i}"} for i in range(5)])}),
+        call(13, "ask_operator", {"question": "many?", "options": json.dumps([str(i) for i in range(10)])}),
+        call(14, "ask_operator", {"question": "null"}),
     ],
 }
 
@@ -106,7 +118,11 @@ def main(out_dir: str) -> None:
     out = pathlib.Path(out_dir)
     base = {k: v for k, v in os.environ.items() if not k.startswith(("HERDR_", "CLAUDE_"))}
     claude = [json.loads(x) for x in (out / "claude-code-2.1.302.requests.jsonl").read_text().splitlines()]
-    for name, reqs in [("claude-code", claude), *SESSIONS.items()]:
+    meta = claude[-1]["params"]["_meta"]  # the recorded tools/list request's
+    calls = [{**c, "params": {**c["params"], "_meta": meta}} for c in (
+        call(100, "ask_operator", {}), call(101, "withdraw_alert", {"id": "x"}), call(102, "no_such_tool", {}))]
+    sessions = [("claude-code", claude), ("claude-code-calls", claude + calls), *SESSIONS.items()]
+    for name, reqs in sessions:
         with tempfile.TemporaryDirectory() as tmp:
             db = pathlib.Path(tmp) / "inbox.db"
             env = {**base, "HERDR_BIN_PATH": NO_HERDR, "HERDR_INBOX_DB": str(db), "HERDR_INBOX_NO_WORKER": "1",

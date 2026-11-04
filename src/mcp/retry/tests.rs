@@ -51,7 +51,7 @@ fn a_result_is_returned_at_once() {
 
 #[test]
 fn a_busy_database_is_retried_then_answered_busy() {
-    let busy = || Err(Failure::Busy);
+    let busy = || Err(Failure::Busy("database is locked".into()));
     let (got, attempts, _, slept) = run(vec![busy(), busy(), busy(), busy()], &short());
     assert_eq!(got, Ok(receipts::busy()));
     assert_eq!(attempts, 4);
@@ -79,8 +79,14 @@ fn a_worker_that_migrates_in_time_lets_the_call_through() {
 
 #[test]
 fn busy_during_the_not_ready_waits_fails_the_call_as_in_python() {
-    let (got, attempts, _, _) = run(vec![Err(Failure::NotReady), Err(Failure::Busy)], &short());
-    assert_eq!((got, attempts), (Err("database is locked".into()), 2));
+    let (got, attempts, _, _) = run(
+        vec![
+            Err(Failure::NotReady),
+            Err(Failure::Busy("database table is locked".into())),
+        ],
+        &short(),
+    );
+    assert_eq!((got, attempts), (Err("database table is locked".into()), 2));
 }
 
 #[test]
@@ -94,7 +100,7 @@ fn the_not_ready_waits_are_spent_once_per_call() {
     // a busy attempt, then not ready: the not-ready waits run once, as Python's one iterator
     let (got, attempts, starts, slept) = run(
         vec![
-            Err(Failure::Busy),
+            Err(Failure::Busy("database is locked".into())),
             Err(Failure::NotReady),
             Err(Failure::NotReady),
             Err(Failure::NotReady),
