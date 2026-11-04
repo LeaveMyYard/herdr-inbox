@@ -22,6 +22,10 @@
 //!   (`tests/popup_transitions.rs`).
 //! - [`empty_inbox`]: the empty inbox's animated scene, design 2C, as cell
 //!   grids (no Python counterpart: the popup gains it in the port, Q179).
+//! - [`popup_view`]: the popup's renderer: the model's state in, ratatui
+//!   cells out, as the Python popup draws them; it reproduces the
+//!   app-screen goldens, `tests/fixtures/screens/*.json`
+//!   (`tests/popup_screens.rs`).
 //!
 //! Every rule here reproduces the delivery decision table,
 //! `tests/fixtures/decisions.json` (`tests/decisions.rs`, `tests/deliver_rows.rs`,
@@ -31,6 +35,7 @@ pub mod deliver;
 pub mod empty_inbox;
 pub mod hook;
 pub mod popup;
+pub mod popup_view;
 pub mod rewake;
 pub mod verify;
 
