@@ -15,6 +15,7 @@ pub mod deeplink;
 pub mod delivery;
 pub mod hook;
 pub mod pyjson;
+pub mod radar;
 pub mod remote;
 pub mod rewake;
 pub mod service;

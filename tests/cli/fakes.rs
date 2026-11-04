@@ -20,6 +20,12 @@ pub struct World {
     pub rename_fails: bool,
     /// herdr's error opening the popup.
     pub open_error: Option<String>,
+    /// herdr-radar is installed.
+    pub radar: bool,
+    /// Every tab herdr lists (their labels from `labels`), or unreachable.
+    pub all_tabs: Option<Vec<String>>,
+    /// herdr-radar's config dir (set by the test).
+    pub radar_dir: Option<std::path::PathBuf>,
     /// The stubbed delivery's outcome: delivered, else this error.
     pub delivered: bool,
     pub error: Option<String>,
@@ -55,6 +61,12 @@ impl World {
                 .get("open_error")
                 .and_then(Value::as_str)
                 .map(str::to_string),
+            radar: a.get("radar").and_then(Value::as_bool) == Some(true),
+            radar_dir: None,
+            all_tabs: a
+                .get("all_tabs")
+                .and_then(Value::as_array)
+                .map(|l| l.iter().map(|t| t.as_str().unwrap().to_string()).collect()),
             delivered: d.get("delivered").and_then(Value::as_bool) == Some(true),
             error: d.get("error").and_then(Value::as_str).map(str::to_string),
         }
@@ -121,6 +133,30 @@ impl Surface for FakeHerdr {
             Some(e) => Err(e.clone()),
             None => Ok(()),
         }
+    }
+
+    fn radar_installed(&mut self) -> bool {
+        self.effects.borrow_mut().push(json!(["radar_installed"]));
+        self.world.borrow().radar
+    }
+
+    fn radar_config_dir(&mut self) -> Option<std::path::PathBuf> {
+        self.effects.borrow_mut().push(json!(["radar_config_dir"]));
+        self.world.borrow().radar_dir.clone()
+    }
+
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        self.effects.borrow_mut().push(json!(["all_tabs"]));
+        let w = self.world.borrow();
+        w.all_tabs.as_ref().map(|tabs| {
+            tabs.iter()
+                .map(|t| (t.clone(), w.labels.get(t).cloned()))
+                .collect()
+        })
+    }
+
+    fn reload_config(&mut self) {
+        self.effects.borrow_mut().push(json!(["reload_config"]));
     }
 }
 

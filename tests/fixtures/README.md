@@ -163,7 +163,15 @@ say why in the PR:
   `deeplink` steps are the popup's side (`tui.on_mount`): a request file (`request`, written with
   nonce `n1`, `age` seconds old, or `raw` text) taken with the step's `nonce`, then resolved
   (`machines`: herdr's enabled machines), recording the request, whether the file was `left`,
-  `resolved` (`[["group", n] | ["remote", key], qid]`) and `describe`. Ages
+  `resolved` (`[["group", n] | ["remote", key], qid]`) and `describe`.
+  `sync` steps are `sync-tokens` command lines with herdr's tabs (`all_tabs`, their `labels`).
+  `radar` steps are `radar-sidebar` command lines over herdr's config built around one of
+  herdr-radar's own blocks (`herdr_config`: `block` from `radar/`, wrapped as
+  `tests/test_radar.py` does, with `replace`, `crlf`, or our cells already in for `edited`) and
+  radar's own `config.toml` (`radar_config`); they record the config left (`herdr_config`) and
+  whether a backup was written. herdr's side is stubbed as `radar_installed`, `radar_config_dir`
+  and `reload_config`. `radar_missing` steps are the popup's read-only hint check
+  (`radar.missing`). Ages
   are relative to now; in stderr the work directory is `<work>` and a TOML parser's reason
   `<reason>`. Python 3.13's argparse: older ones wrap the top usage line differently, so
   `test_goldens[cli]` runs on 3.13 only. `tests/cli/golden.rs` replays it on the Rust CLI.

@@ -1,16 +1,17 @@
 //! The `inbox` command line (Python `cli.main`): so far `list`, `answer`,
-//! `dismiss` and `open`. Output, exit codes and usage errors are Python's, word for
+//! `dismiss`, `open`, `sync-tokens` and `radar-sidebar`. Output, exit codes and usage errors are Python's, word for
 //! word (the CLI golden, `tests/fixtures/cli.json`).
 //!
 //! - [`args`]: argparse's parsing, help and usage errors.
 //! - [`specs`]: the subcommands' arguments and help.
-//! - [`list`], [`answer`], [`open`]: the commands.
+//! - [`list`], [`answer`], [`open`], [`marks`]: the commands.
 //! - [`live`]: the real database, herdr and delivery behind [`Io`].
 
 pub mod answer;
 pub mod args;
 pub mod list;
 pub mod live;
+pub mod marks;
 pub mod open;
 pub mod specs;
 
@@ -58,6 +59,8 @@ pub struct Io<'a> {
     pub herdr: &'a mut dyn Surface,
     /// The plugin's `config.toml`.
     pub config: &'a mut ConfigFile,
+    /// herdr's own `config.toml` (herdr-radar's sidebar block).
+    pub herdr_config: &'a Path,
     /// How long a tab label update waits for its lock.
     pub lock_wait: Duration,
     /// Now, Unix seconds (the ages `list` shows).
@@ -78,18 +81,21 @@ pub fn run(cmd: &str, argv: &[String], io: &mut Io<'_>) -> i32 {
         Parsed::Run(args) => args,
         exit => return print_exit(exit, io),
     };
+    // the commands that need no database
     if cmd == "open" {
-        // the commands that need no database
         return open::open(&args, io).unwrap_or_else(|exit| print_exit(exit, io));
+    }
+    if cmd == "radar-sidebar" {
+        return marks::radar_sidebar(&args, io);
     }
     let store = match Store::open(io.db_path, BUSY_TIMEOUT) {
         Ok(store) => store,
-        Err(OpenError::NotReady(_)) => return not_ready(io),
+        Err(OpenError::NotReady(_)) => return not_ready(cmd, io),
         Err(OpenError::Sqlite(_)) if !io.db_path.exists() => {
             // Python's Store() creates the file, finds it not migrated and says so to the
             // worker; this leaves creating it to the worker, which migrates it
             want(io.db_path, MIGRATION_REVISION, unix_now());
-            return not_ready(io);
+            return not_ready(cmd, io);
         }
         Err(OpenError::Sqlite(err)) => return failed(io, &err),
     };
@@ -119,14 +125,18 @@ fn dispatch(cmd: &str, args: &Args, store: &Store, io: &mut Io<'_>) -> rusqlite:
         "list" => list::list(store, args.has("--all"), io),
         "answer" => answer::answer(store, args, io),
         "dismiss" => answer::dismiss(store, args, io),
+        "sync-tokens" => marks::sync_tokens(store, args, io),
         _ => Ok(2),
     }
 }
 
 /// The database lacks this code's schema (Python never creates it ready
 /// either): start the worker, which migrates it, and say so.
-fn not_ready(io: &mut Io<'_>) -> i32 {
+fn not_ready(cmd: &str, io: &mut Io<'_>) -> i32 {
     io.delivery.ensure_worker(None);
+    if cmd == "sync-tokens" {
+        return 0; // herdr's startup command: nothing to count before the worker migrates
+    }
     let _ = writeln!(io.err, "{NOT_MIGRATED}");
     1
 }

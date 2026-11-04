@@ -8,8 +8,12 @@ use std::path::PathBuf;
 
 use herdr_agent_kit::herdr_api::{HerdrError, OpenPluginPane, PaneId, Sanitized, TabId};
 
+use serde_json::{Value, json};
+
 use super::popup::{ENTRYPOINT, FOCUS_ENV, INBOX_PLUGIN_ID};
 use super::{SOURCE, Surface, TOKEN};
+use crate::radar::RADAR_ID;
+use crate::remote::pyvalue::py_truthy;
 
 /// The live herdr.
 pub struct Live {
@@ -80,6 +84,21 @@ impl Surface for Live {
         )
     }
 
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        let spaces = self.ok("workspace.list", self.herdr.workspaces()).ok()?;
+        let mut out = Vec::new();
+        for ws in spaces.into_iter().filter_map(|w| w.workspace_id) {
+            let tabs = self
+                .ok("tab.list", self.herdr.tabs(&ws))
+                .unwrap_or_default();
+            out.extend(
+                tabs.into_iter()
+                    .filter_map(|t| Some((t.tab_id?.as_str().to_string(), t.label))),
+            );
+        }
+        Some(out)
+    }
+
     fn tab_label(&mut self, tab: &str) -> Option<String> {
         let got = self.herdr.tab(&TabId::new(tab));
         self.ok("tab.get", got).ok()?.label
@@ -110,5 +129,26 @@ impl Surface for Live {
         }
         let opened = self.herdr.open_plugin_pane(&open);
         self.ok("plugin.pane_open", opened).map(drop)
+    }
+
+    fn radar_installed(&mut self) -> bool {
+        let Ok(listed) = self.ok("plugin.list", self.herdr.raw("plugin.list", json!({}))) else {
+            return false;
+        };
+        let plugins = listed.get("plugins").and_then(Value::as_array);
+        plugins.into_iter().flatten().any(|p| {
+            p.get("plugin_id").and_then(Value::as_str) == Some(RADAR_ID)
+                && p.get("enabled").is_none_or(py_truthy)
+        })
+    }
+
+    fn radar_config_dir(&mut self) -> Option<PathBuf> {
+        let dir = self.herdr.plugin_config_dir(RADAR_ID);
+        self.ok("plugin config-dir", dir).ok().flatten()
+    }
+
+    fn reload_config(&mut self) {
+        let reloaded = self.herdr.reload_config();
+        let _ = self.ok("server.reload_config", reloaded);
     }
 }
