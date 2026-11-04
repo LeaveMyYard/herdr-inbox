@@ -19,7 +19,8 @@ for its reply; `subscriptions/listen` waits for the acknowledgement.
   fake herdr CLI (tests/conftest.py `FAKE_HERDR`): the pane's identity, a moved pane, the session
   from the environment, herdr unreachable. `{"dir": "action"}` lines are done to the database
   between two requests (the operator answers); the session ends with the herdr calls the server
-  made in a fixed order (`"dir": "herdr"`: agent lists, notifications, pane lookups) and the questions as stored (`"dir": "store"`, its cwd and herdr server
+  made in a fixed order (`"dir": "herdr"`: agent lists, notifications, pane lookups), the
+  markers' end state (`"dir": "markers"`: each pane's last count token, each tab's last label) and the questions and alerts as stored (`"dir": "store"`, `"alerts"`; cwd and herdr server
   written as `<cwd>` and `<server>`).
 
 Record on Python 3.12, the Python the live MCP server runs: from 3.13 the compiler strips
@@ -114,6 +115,34 @@ HERDR_SESSIONS = {
     # herdr knows the pane but not its session
     "herdr-env-session": ({"FAKE_HERDR_SESSION": "", "CLAUDE_CODE_SESSION_ID": "claude-sess"},
                           INIT + [call(1, "ask_operator", {"question": "Which session?"}), call(2, "check_answers", {})]),
+    # the caller's own questions and alerts: list, withdraw, raise, acknowledge
+    "herdr-tools": ({}, INIT + [
+        call(1, "ask_operator", {"question": "Keep me?"}),
+        call(2, "ask_operator", {"question": "Withdraw me?"}),
+        call(3, "list_my_questions", {}),
+        call(4, "withdraw_question", {"id": 2, "reason": "found it in terraform"}),
+        call(5, "withdraw_question", {"id": 2, "reason": "again"}),
+        call(6, "withdraw_question", {"id": 99, "reason": "not mine"}),
+        {"action": {"answer": [1, "kept"]}},
+        call(7, "list_my_questions", {}),
+        call(8, "list_my_questions", {"include_closed": True}),
+        call(9, "alert_operator", {"title": "  Deploy\n needs   eyes ", "message": "  see the log  ",
+                                   "severity": "urgent", "asked_by": "deployer"}),
+        call(10, "alert_operator", {"title": "Deploy needs eyes"}),
+        call(11, "alert_operator", {"title": "   "}),
+        call(12, "alert_operator", {"title": "Odd severity", "severity": "bogus"}),
+        call(13, "list_my_questions", {}),
+        call(14, "withdraw_alert", {"id": 2}),
+        call(15, "withdraw_alert", {"id": 2}),
+        call(16, "withdraw_alert", {"id": 99}),
+        {"action": {"ack_alert": 1}},
+        call(17, "check_answers", {}),
+        call(18, "check_answers", {}),
+        call(19, "list_my_questions", {"include_closed": True}),
+        # a last marker refresh after the operator's actions: the markers' end state does not
+        # depend on whether an earlier refresh ran before or after an action
+        call(20, "ask_operator", {"question": "Question Title 9001?"}),
+    ]),
     # herdr cannot be asked at all
     "herdr-down": ({"FAKE_HERDR_FAIL": "pane get,tab get,agent list,notification show,pane report-metadata,pane list",
                     "CLAUDE_CODE_SESSION_ID": S}, INIT + [call(1, "ask_operator", {"question": "Anyone there?"})]),
@@ -124,22 +153,38 @@ QUESTION_COLUMNS = ("id, pane_id, tab_id, tab_label, session_id, cwd, asked_by, 
 
 
 def act(action: dict, env: dict) -> None:
-    qid, text = action["answer"]
-    code = f"from herdr_inbox.store import Store; s = Store(); s.set_answer({qid}, {text!r}); s.close()"
+    if "ack_alert" in action:
+        # the operator's acknowledgement as the store records it (alerts._close without the
+        # markers refresh, which the popup does: not this server's work)
+        code = ("from herdr_inbox.store import Store, now; s = Store(); s.db.execute(\"UPDATE alerts SET "
+                "status = 'acked', acked_at = ? WHERE id = ? AND status = 'open'\", "
+                f"(now(), {action['ack_alert']})); s.close()")
+    else:
+        qid, text = action["answer"]
+        code = f"from herdr_inbox.store import Store; s = Store(); s.set_answer({qid}, {text!r}); s.close()"
     subprocess.run([sys.executable, "-c", code], env=env, cwd=ROOT, check=True)
 
 
-def stored(env: dict) -> list:
+ALERT_SQL = ("SELECT id, kind, severity, title, message, pane_id, tab_id, tab_label, session_id, asked_by, "
+             "herdr_server, status, acked_at IS NOT NULL, closed_at IS NOT NULL, reported_at IS NOT NULL "
+             "FROM alerts ORDER BY id")
+
+
+def stored(env: dict, sql: str | None = None) -> list:
     code = ("import json, sqlite3, sys; db = sqlite3.connect(sys.argv[1]); "
             "print(json.dumps([list(r) for r in db.execute(sys.argv[2])]))")
-    sql = (f"SELECT {QUESTION_COLUMNS} FROM questions JOIN question_ext USING (id) "
-           "LEFT JOIN question_groups USING (group_id) ORDER BY id").replace("group_title", "title")
+    questions = sql is None
+    sql = sql or (f"SELECT {QUESTION_COLUMNS} FROM questions JOIN question_ext USING (id) "
+                  "LEFT JOIN question_groups USING (group_id) ORDER BY id").replace("group_title", "title")
     out = subprocess.run([sys.executable, "-c", code, env["HERDR_INBOX_DB"], sql], capture_output=True, text=True,
                          check=True).stdout
     rows = json.loads(out)
     for r in rows:
-        r[5] = "<cwd>" if r[5] == str(ROOT) else r[5]
-        r[20] = "<server>" if r[20] else r[20]
+        if questions:
+            r[5] = "<cwd>" if r[5] == str(ROOT) else r[5]
+            r[20] = "<server>" if r[20] else r[20]
+        else:
+            r[10] = "<server>" if r[10] else r[10]
     return rows
 
 
@@ -178,7 +223,16 @@ def run(requests, env, out, herdr_log=None):
         kinds = (["agent", "list"], ["notification", "show"], ["pane", "get"])
         calls = [json.loads(x) for x in herdr_log.read_text().splitlines() if x]
         rec += [{"dir": "herdr", "msg": c} for k in kinds for c in calls if c[:2] == k]
+        # the marker job's end state: each pane's last count token, each tab's last rename
+        tokens, labels = {}, {}
+        for c in calls:
+            if c[:2] == ["pane", "report-metadata"]:
+                tokens[c[2]] = c[-1] if "--token" in c else None
+            if c[:2] == ["tab", "rename"]:
+                labels[c[2]] = c[3]
+        rec.append({"dir": "markers", "msg": {"tokens": tokens, "labels": labels}})
         rec.append({"dir": "store", "msg": stored(env)})
+        rec.append({"dir": "alerts", "msg": stored(env, ALERT_SQL)})
     with open(out, "w") as fh:
         for x in rec:
             fh.write(json.dumps(x, ensure_ascii=False) + "\n")

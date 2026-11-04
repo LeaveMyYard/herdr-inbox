@@ -18,7 +18,6 @@ use serde_json::{Value, json};
 use crate::claude::Transcripts;
 use crate::mcp::caller::Caller;
 use crate::store::Store;
-use crate::store::questions::Owner;
 
 /// The result the agent reads.
 pub fn check_answers(
@@ -26,10 +25,7 @@ pub fn check_answers(
     caller: &Caller,
     files: &Transcripts,
 ) -> rusqlite::Result<Value> {
-    let owner = Owner {
-        session_id: caller.session_id.as_deref(),
-        pane_id: caller.pane_id.as_deref(),
-    };
+    let owner = caller.owner();
     // one write transaction: an answer is marked seen only together with the result that
     // returns it (a failed alert write rolls it back for the retry), and two parallel calls
     // never both return it
