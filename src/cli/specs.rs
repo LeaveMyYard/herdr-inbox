@@ -126,6 +126,21 @@ pub const EXPORT: Command = bare!("export");
 /// `inbox apply` (remote machines; the request on stdin).
 pub const APPLY: Command = bare!("apply");
 
+/// `inbox deliver [--force] IDS...`.
+pub const DELIVER: Command = Command {
+    prog: "inbox deliver",
+    usage: "usage: inbox deliver [-h] [--force] ids [ids ...]",
+    help: "usage: inbox deliver [-h] [--force] ids [ids ...]\n\npositional arguments:\n  ids\n\n\
+           options:\n  -h, --help  show this help message and exit\n  \
+           --force     the operator's Send now: skip the busy grace and focus wait\n",
+    options: &[Opt::flag("--force")],
+    positionals: &[Positional {
+        name: "ids",
+        nargs: Nargs::Plus,
+        check: QUESTION_ID,
+    }],
+};
+
 /// The subcommand named `cmd`, if this CLI has it.
 pub fn command(cmd: &str) -> Option<&'static Command> {
     match cmd {
@@ -137,6 +152,7 @@ pub fn command(cmd: &str) -> Option<&'static Command> {
         "radar-sidebar" => Some(&RADAR_SIDEBAR),
         "export" => Some(&EXPORT),
         "apply" => Some(&APPLY),
+        "deliver" => Some(&DELIVER),
         _ => None,
     }
 }

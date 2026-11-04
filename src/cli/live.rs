@@ -94,15 +94,22 @@ impl Delivery for LiveDelivery {
     }
 
     fn spawn_deliver(&mut self, _qids: &[i64], _force: bool) {
-        // Python spawns `inbox deliver <qids> [--force]` detached; this binary's `deliver`
-        // lands in a sibling P5-G PR, and this is wired to it then. Until then the answer
-        // stays recorded, undelivered, for this machine's worker to deliver, as when Python's
-        // spawn fails. Until P5-I no live command runs this binary's CLI.
+        // Python spawns `inbox deliver <qids> [--force]` detached. This binary has `deliver`
+        // (#112); the detached spawn is wired before P5-I (a P5-I precondition, #113's
+        // "Before P5-I"). Until then the answer stays recorded, undelivered, for this
+        // machine's worker, as when Python's spawn fails. Until P5-I no live command runs
+        // this binary's CLI.
     }
 
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()> {
         let server = self.server.clone();
-        let local = local_answers(store, qs, false, &server, &mut |s| self.ensure_worker(s))?;
+        let local = local_answers(store, qs, retry, &server, &mut |s| self.ensure_worker(s))?;
         let mut surface = Live::new(self.herdr.clone(), warn);
         let mut notify = |title: &str, body: &str| surface.notify(title, body);
         let mut ctx = Ctx {
@@ -114,6 +121,11 @@ impl Delivery for LiveDelivery {
             unreadable: &mut self.unreadable,
             verify_wait: VERIFY_SECONDS,
         };
-        deliver_batch(&mut ctx, &local, Mode::default(), None)
+        let mode = Mode {
+            retry,
+            force,
+            ..Mode::default()
+        };
+        deliver_batch(&mut ctx, &local, mode, None)
     }
 }
