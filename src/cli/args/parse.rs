@@ -81,6 +81,9 @@ pub enum Parsed {
 
 enum Token<'a> {
     Word(&'a str),
+    /// The `--` that ends the options: argparse drops it when a positional
+    /// takes words of its run, and reports it with the extras otherwise.
+    Dash,
     Help,
     Flag(&'static str),
     Unknown(&'a str),
@@ -100,7 +103,7 @@ pub fn parse(cmd: &Command, argv: &[String]) -> Parsed {
     let mut i = 0;
     while i < tokens.len() {
         let run_end = (i..tokens.len())
-            .find(|&j| !matches!(tokens[j], Token::Word(_)))
+            .find(|&j| !matches!(tokens[j], Token::Word(_) | Token::Dash))
             .unwrap_or(tokens.len());
         let words: Vec<&str> = tokens[i..run_end]
             .iter()
@@ -131,7 +134,14 @@ pub fn parse(cmd: &Command, argv: &[String]) -> Parsed {
             taken += n;
             next += 1;
         }
-        extras.extend(&words[taken..]);
+        if taken == 0 {
+            extras.extend(tokens[i..run_end].iter().map(|t| match t {
+                Token::Word(w) => *w,
+                _ => "--",
+            }));
+        } else {
+            extras.extend(&words[taken..]);
+        }
         i = run_end;
         match tokens.get(i) {
             Some(Token::Help) => {
@@ -189,6 +199,7 @@ fn classify<'a>(cmd: &Command, argv: &'a [String]) -> Vec<Token<'a>> {
         }
         if w == "--" {
             options_end = true;
+            out.push(Token::Dash);
             continue;
         }
         out.push(option(cmd, w));

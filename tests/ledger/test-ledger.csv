@@ -433,8 +433,8 @@ tests/test_failed_pile.py::test_q167_a_gone_answer_arriving_later_never_joins_th
 tests/test_failed_pile.py::test_q167_gone_answers_leave_the_popup_after_a_day,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_reconcile_never_counts_an_answer_an_older_session_gave_itself,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_mere_id_mention_with_a_short_answer_is_not_evidence,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_the_cli_answer_from_the_asking_conversation_is_seen_at_once,tests/test_failed_pile.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_failed_pile.py::test_the_cli_answer_from_another_agent_still_delivers,tests/test_failed_pile.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_failed_pile.py::test_the_cli_answer_from_the_asking_conversation_is_seen_at_once,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_the_cli_answer_from_another_agent_still_delivers,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_retry_delivers_to_the_asker_what_only_landed_in_a_resumed_old_session,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_r1_b1_the_agent_echoing_the_options_is_not_evidence,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_r1_b2_a_short_answer_never_matches_inside_a_word,tests/test_failed_pile.py,,todo,,
