@@ -9,14 +9,6 @@ use crate::mcp::caller::Caller;
 use crate::mcp::receipts;
 use crate::store::Store;
 use crate::store::alerts::{Asker, Effect, RaiseOutcome, WithdrawOutcome};
-use crate::store::questions::Owner;
-
-fn owner(caller: &Caller) -> Owner<'_> {
-    Owner {
-        session_id: caller.session_id.as_deref(),
-        pane_id: caller.pane_id.as_deref(),
-    }
-}
 
 /// What `alert_operator` asks for.
 pub struct Raise<'a> {
@@ -35,7 +27,7 @@ pub fn alert_operator(
     files: &Transcripts,
 ) -> rusqlite::Result<(Value, Vec<Effect>)> {
     let asker = Asker {
-        owner: owner(caller),
+        owner: caller.owner(),
         tab_id: caller.tab_id.as_deref(),
         tab_label: caller.tab_label.as_deref(),
     };
@@ -72,7 +64,7 @@ pub fn withdraw_alert(
     aid: i64,
     files: &Transcripts,
 ) -> rusqlite::Result<(Value, Vec<Effect>)> {
-    Ok(match store.withdraw_alert(owner(caller), aid, files)? {
+    Ok(match store.withdraw_alert(caller.owner(), aid, files)? {
         WithdrawOutcome::NotYours => (
             json!({"id": aid, "status": "error", "message": format!("A{aid} is not an alert of this session.")}),
             Vec::new(),

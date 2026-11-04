@@ -16,6 +16,7 @@
 pub mod live;
 
 use crate::mcp::retry::Failure;
+use crate::store::questions::Owner;
 
 /// The asker (Python `service.Caller`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -25,6 +26,16 @@ pub struct Caller {
     pub tab_label: Option<String>,
     pub session_id: Option<String>,
     pub cwd: Option<String>,
+}
+
+impl Caller {
+    /// Whose questions and alerts are the caller's (its session's, else its pane's).
+    pub fn owner(&self) -> Owner<'_> {
+        Owner {
+            session_id: self.session_id.as_deref(),
+            pane_id: self.pane_id.as_deref(),
+        }
+    }
 }
 
 /// What this process knows of itself (its environment and directory).

@@ -5,7 +5,9 @@
 //! lock.
 //!
 //! As in Python's background job, each refresh opens its own store (busy
-//! timeout 5 s, never migrating). Markers are cosmetic: a failure is warned
+//! timeout 5 s, never migrating), and the plugin's settings are found on the
+//! first refresh, on this thread (Python's cached `tabs._config_dir`): never
+//! at the server's start, where a slow herdr would hold up the handshake. Markers are cosmetic: a failure is warned
 //! about on stderr (Python logs it) and never reaches the agent.
 
 use std::io::Write;
@@ -14,6 +16,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
+use herdr_agent_kit::plugin_env::PluginEnv;
 use herdr_agent_kit::plugin_env::config::ConfigFile;
 
 use super::effects::Herald;
@@ -22,6 +25,7 @@ use crate::surface::Surface;
 use crate::surface::live::Live as Surfaced;
 use crate::surface::markers::Markers;
 use crate::tabs::lock::LOCK_TIMEOUT;
+use crate::tabs::settings::PLUGIN_ID;
 
 /// The busy timeout of the store a marker refresh opens (Python `Store(path, timeout=5)`).
 pub const MARKERS_STORE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -32,16 +36,19 @@ fn warn(msg: &str) {
 
 /// herdr and the plugin's settings, as the effects' one thread uses them.
 pub struct Live {
-    state: Mutex<(Surfaced, ConfigFile)>,
+    state: Mutex<(Surfaced, Option<ConfigFile>)>,
+    herdr: Herdr,
+    env: PluginEnv,
     db: PathBuf,
 }
 
 impl Live {
-    /// The herald of a server whose herdr is `herdr`, database `db` and
-    /// plugin settings `config`.
-    pub fn new(herdr: Herdr, db: PathBuf, config: ConfigFile) -> Live {
+    /// The herald of a server in `env` whose herdr is `herdr` and database `db`.
+    pub fn new(herdr: Herdr, env: PluginEnv, db: PathBuf) -> Live {
         Live {
-            state: Mutex::new((Surfaced::new(herdr, warn), config)),
+            state: Mutex::new((Surfaced::new(herdr.clone(), warn), None)),
+            herdr,
+            env,
             db,
         }
     }
@@ -67,6 +74,12 @@ impl Herald for Live {
             return;
         };
         let (surface, config) = &mut *state;
+        let herdr = &self.herdr;
+        let config = config.get_or_insert_with(|| {
+            ConfigFile::resolve(&self.env, || {
+                herdr.plugin_config_dir(PLUGIN_ID).ok().flatten()
+            })
+        });
         let mut warned = |m: &str| warn(m);
         Markers {
             store: &store,
@@ -79,3 +92,6 @@ impl Herald for Live {
         .update(Some(pane));
     }
 }
+
+#[cfg(test)]
+mod tests;
