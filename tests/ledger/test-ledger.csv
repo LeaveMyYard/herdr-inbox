@@ -559,7 +559,7 @@ tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,her
 tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_session_change_is_resolved_per_call,tests/test_mcp.py,herdr-inbox --lib mcp::ask::tests::a_repeat_gets_the_open_receipt_or_the_answer,mapped,,P5
+tests/test_mcp.py::test_session_change_is_resolved_per_call,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::the_session_is_resolved_on_every_call,mapped,,P5
 tests/test_mcp.py::test_claude_session_env_is_the_fallback,tests/test_mcp.py,herdr-inbox --test mcp_herdr without_herdrs_session_the_environments_is_used,mapped,,P5
 tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_stdio_server_end_to_end[auto],tests/test_mcp.py,,todo,,
@@ -714,7 +714,7 @@ tests/test_review_fixes.py::test_delivery_worker_retries_in_the_background,tests
 tests/test_review_fixes.py::test_ask_outside_herdr_says_ask_in_chat,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_hooks_are_silent_outside_herdr,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_resume_does_not_list_other_conversations_in_the_pane,tests/test_review_fixes.py,,todo,,
-tests/test_review_fixes.py::test_concurrent_identical_asks_create_one_question,tests/test_review_fixes.py,,todo,,
+tests/test_review_fixes.py::test_concurrent_identical_asks_create_one_question,tests/test_review_fixes.py,herdr-inbox --lib mcp::ask::tests::a_parallel_identical_ask_files_one_question,mapped,,P5
 tests/test_review_fixes.py::test_answered_dedupe_is_time_bounded,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_matcher_includes_fork,tests/test_review_fixes.py,,todo,,
 tests/test_review_v2.py::test_long_batch_is_split_not_truncated,tests/test_review_v2.py,,todo,,

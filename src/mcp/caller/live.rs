@@ -9,8 +9,9 @@ use herdr_agent_kit::herdr_api::{PaneId, TabId};
 
 use super::{Pane, World};
 use crate::claude::{Transcripts, live_session};
-use crate::mcp::open::{failure, marks_for, open};
+use crate::mcp::open::{failure, open};
 use crate::mcp::retry::Failure;
+use crate::tabs::marks_for;
 
 /// herdr, transcripts and the store as this process finds them.
 pub struct Live {

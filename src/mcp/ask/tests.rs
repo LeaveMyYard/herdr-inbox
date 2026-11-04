@@ -282,3 +282,41 @@ fn first_line_is_pythons() {
     assert_eq!(first_line("abcdef", 4), "abc…");
     assert_eq!(first_line("abcd", 4), "abcd");
 }
+
+/// Python `test_concurrent_identical_asks_create_one_question`: a parallel ask of the
+/// same question commits while this one waits for the write lock; deduped in the same
+/// transaction as the insert, this one finds it.
+#[test]
+fn a_parallel_identical_ask_files_one_question() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    Store::open_migrating(&path, Duration::from_secs(3)).unwrap();
+    let other = rusqlite::Connection::open(&path).unwrap();
+    other.execute_batch("BEGIN IMMEDIATE").unwrap(); // the other ask holds the write lock
+    let p = path.clone();
+    let asking = std::thread::spawn(move || {
+        let s = Store::open(&p, Duration::from_secs(10)).unwrap();
+        single(ask(&s, &caller(), &[item("Merge PR 7?")], None).0)
+    });
+    // the other ask files the same question and commits; this ask is waiting by now (if it
+    // is not, the test passes without proving anything, never fails wrongly)
+    std::thread::sleep(Duration::from_millis(300));
+    let c = caller();
+    other
+        .execute(
+            "INSERT INTO questions (created_at, pane_id, session_id, question, norm) \
+             VALUES ('2026-11-04T00:00:00+00:00', ?, ?, 'Merge PR 7?', 'merge pr 7')",
+            rusqlite::params![c.pane_id, c.session_id],
+        )
+        .unwrap();
+    other
+        .execute("INSERT INTO question_ext (id, group_id) VALUES (last_insert_rowid(), last_insert_rowid())", [])
+        .unwrap();
+    other.execute_batch("COMMIT").unwrap();
+    let r = asking.join().unwrap();
+    assert_eq!(r["status"], json!("already_open"), "{r}");
+    let n: i64 = other
+        .query_row("SELECT COUNT(*) FROM questions", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(n, 1);
+}

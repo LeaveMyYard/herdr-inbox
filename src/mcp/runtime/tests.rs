@@ -164,3 +164,52 @@ fn the_other_tools_are_not_ported_yet() {
         .is_err()
     );
 }
+
+/// One pane whose agent's session can change between calls (`/clear`).
+struct Clearable(Arc<Mutex<String>>);
+
+impl World for Clearable {
+    fn nested(&self) -> bool {
+        false
+    }
+    fn pane(&self, _: &str) -> Option<Pane> {
+        Some(Pane {
+            tab_id: Some("w1:t1".into()),
+            session: Some(self.0.lock().unwrap().clone()),
+        })
+    }
+    fn tab_label(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn agents(&self) -> Vec<(String, Option<String>)> {
+        Vec::new()
+    }
+    fn live(&self, reported: &str, _: Option<&str>) -> String {
+        reported.to_owned()
+    }
+    fn marks(&self, _: Option<&str>) -> Result<Vec<String>, Failure> {
+        Ok(Vec::new())
+    }
+}
+
+/// Python `test_session_change_is_resolved_per_call`: the caller is resolved on every call.
+#[test]
+fn the_session_is_resolved_on_every_call() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
+    let session = Arc::new(Mutex::new("aaaa".to_owned()));
+    let mut rt = runtime(db, Arc::default());
+    rt.world = Box::new(Clearable(Arc::clone(&session)));
+    assert_eq!(rt.call(ask("Which bucket?")).unwrap()["id"], json!(1));
+    assert_eq!(
+        rt.call(ask("Which bucket?")).unwrap()["status"],
+        json!("already_open")
+    );
+    *session.lock().unwrap() = "bbbb".into(); // after /clear: a new conversation, not a repeat
+    let r = rt.call(ask("Which bucket?")).unwrap();
+    assert_eq!(
+        (r["id"].clone(), r["status"].clone()),
+        (json!(2), json!("open"))
+    );
+}

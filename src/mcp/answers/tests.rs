@@ -141,3 +141,38 @@ fn acknowledged_alerts_are_reported_once() {
     );
     assert_eq!(check(&s, &c), json!({"answers": []}));
 }
+
+#[test]
+fn a_failure_after_the_answers_were_marked_seen_keeps_them_for_the_retry() {
+    let (_d, s) = store();
+    let files = Transcripts::new(None);
+    let q = filed(&s, Some(S), "Deploy?");
+    s.set_answer(q, "no", None).unwrap();
+    let owner = Owner {
+        session_id: Some(S),
+        pane_id: Some("w1:p1"),
+    };
+    let asker = Asker {
+        owner,
+        tab_id: None,
+        tab_label: None,
+    };
+    let raised = s
+        .raise_alert(asker, "Look", None, "warning", None, "/sock", &files)
+        .unwrap();
+    let crate::store::alerts::RaiseOutcome::Raised(aid, _) = raised else {
+        panic!("{raised:?}")
+    };
+    s.acknowledge_alert(aid).unwrap();
+    // the alerts' write, after the answers were acknowledged, fails
+    s.db()
+        .execute_batch(
+            "CREATE TEMP TRIGGER boom BEFORE UPDATE OF reported_at ON alerts \
+             BEGIN SELECT RAISE(ABORT, 'boom'); END",
+        )
+        .unwrap();
+    assert!(check_answers(&s, &caller(Some(S)), &files).is_err());
+    assert!(s.get(q).unwrap().unwrap().acknowledged_at.is_none()); // rolled back
+    s.db().execute_batch("DROP TRIGGER boom").unwrap();
+    assert_eq!(check(&s, &caller(Some(S)))["answers"][0]["id"], json!(q));
+}

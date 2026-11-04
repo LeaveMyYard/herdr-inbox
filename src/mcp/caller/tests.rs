@@ -12,6 +12,8 @@ struct Fake {
     agents: Vec<(String, Option<String>)>,
     /// reported session -> the session it lives in now
     continued: BTreeMap<String, String>,
+    /// (reported session, pane) -> the session it lives in, as seen from that pane only
+    in_pane: BTreeMap<(String, String), String>,
     marks: Vec<String>,
     marks_fail: bool,
     calls: RefCell<Vec<String>>,
@@ -34,7 +36,12 @@ impl World for Fake {
         self.calls.borrow_mut().push("agents".into());
         self.agents.clone()
     }
-    fn live(&self, reported: &str, _pane: Option<&str>) -> String {
+    fn live(&self, reported: &str, pane: Option<&str>) -> String {
+        if let Some(p) = pane
+            && let Some(live) = self.in_pane.get(&(reported.to_owned(), p.to_owned()))
+        {
+            return live.clone();
+        }
         self.continued
             .get(reported)
             .cloned()
@@ -188,4 +195,23 @@ fn reading_the_marks_fails_as_the_store_does() {
     // no label, no store read
     w.tabs.clear();
     assert!(resolve(&w, &env(Some("w1:p1"), None)).is_ok());
+}
+
+/// review-#53 L3: what a session runs is judged from the pane asked about. Here OLD
+/// lives on as S only in pane w6:p57 (an in-process continuation there); from anywhere
+/// else OLD is OLD (another pane may run OLD resumed).
+#[test]
+fn live_sessions_are_judged_from_the_pane_that_runs_them() {
+    let mut w = world();
+    w.panes.clear();
+    w.panes.insert("w6:p57".into(), pane("w6:t2", Some("OLD")));
+    w.in_pane
+        .insert(("OLD".into(), "w6:p57".into()), "S".into());
+    w.agents = vec![("w6:p57".into(), Some("OLD".into()))];
+    // the moved pane is found: its agent's OLD, seen from w6:p57, is S
+    assert_eq!(pane_running(&w, Some("S")).as_deref(), Some("w6:p57"));
+    let c = resolve(&w, &env(Some("w6:p48"), Some("S"))).unwrap();
+    assert_eq!(c.pane_id.as_deref(), Some("w6:p57"));
+    // and herdr's OLD files under S, judged from the pane it runs in, not the dead one
+    assert_eq!(c.session_id.as_deref(), Some("S"));
 }

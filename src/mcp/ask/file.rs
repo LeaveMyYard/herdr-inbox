@@ -68,7 +68,7 @@ pub fn ask_group(
         session_id: caller.session_id.as_deref(),
         pane_id: Some(pane),
     };
-    let (receipts, new, group_id) = store.immediate(|_| {
+    let (receipts, new, group_id, body) = store.immediate(|_| {
         let (mut receipts, mut new, mut group_id) = (Vec::new(), Vec::new(), None::<i64>);
         for item in call.items {
             let text = item.question.trim_matches(py_isspace);
@@ -111,13 +111,16 @@ pub fn ask_group(
             receipts.push(open_receipt(q.id));
             new.push(q);
         }
+        let mut body = None;
         if let (false, Some(g)) = (new.is_empty(), group_id) {
             store.set_group_title(g, call.title)?;
+            // read here, not after the commit: a failed read must not re-run a call that filed
+            body = Some(notification_body(&store.group(g, false)?));
         }
-        Ok((receipts, new, group_id))
+        Ok((receipts, new, group_id, body))
     })?;
     let mut effects = Vec::new();
-    if let (Some(first), Some(g)) = (new.first(), group_id) {
+    if let (Some(first), Some(body)) = (new.first(), body) {
         let refs: Vec<String> = new.iter().map(|q| format!("Q{}", q.id)).collect();
         // Python `tab_label or pane_id`: an empty label is none
         let place = [&first.tab_label, &first.pane_id]
@@ -127,7 +130,7 @@ pub fn ask_group(
             .map_or("", String::as_str);
         effects.push(Effect::Notify {
             title: format!("{} · {place}", refs.join(", ")),
-            body: notification_body(&store.group(g, false)?),
+            body,
         });
         effects.push(Effect::Markers(Some(pane.to_owned())));
     }
