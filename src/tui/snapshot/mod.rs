@@ -53,13 +53,11 @@ impl Shown {
 /// Reads the database for the model. `Err`: the database failed (busy,
 /// locked); the caller keeps the copy it has.
 pub fn read(store: &Store, shown: &Shown) -> rusqlite::Result<Snapshot> {
-    // one read transaction: every list from the same moment
-    store.db().execute_batch("BEGIN DEFERRED")?;
-    let snap = read_now(store, shown);
-    let end = if snap.is_ok() { "COMMIT" } else { "ROLLBACK" };
-    let ended = store.db().execute_batch(end);
-    let snap = snap?;
-    ended?;
+    // one read transaction: every list from the same moment (rolled back on drop,
+    // so a failed read never leaves the connection inside a transaction)
+    let tx = store.db().unchecked_transaction()?;
+    let snap = read_now(store, shown)?;
+    tx.commit()?;
     Ok(snap)
 }
 
