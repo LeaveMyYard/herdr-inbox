@@ -178,10 +178,13 @@ fn answer_list_and_dismiss_through_the_binary() {
 fn open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane() {
     let rig = Rig::new();
     let ctx = r#"{"focused_pane_id": "w1:p7"}"#;
-    let out = rig.run_with(
-        &["open", "--question", "Q2"],
-        &[("HERDR_PLUGIN_CONTEXT_JSON", ctx)],
-    );
+    // run from another plugin's action: its root and id are never the inbox's
+    let caller = [
+        ("HERDR_PLUGIN_CONTEXT_JSON", ctx),
+        ("HERDR_PLUGIN_ID", "leavemyyard.herdr-panorama"),
+        ("HERDR_PLUGIN_ROOT", "/plugins/panorama"),
+    ];
+    let out = rig.run_with(&["open", "--question", "Q2"], &caller);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     let opened = rig.stub.params_of("plugin.pane.open");
     assert_eq!(opened.len(), 1);
@@ -190,8 +193,13 @@ fn open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane() {
         (p["plugin_id"].as_str(), p["entrypoint"].as_str()),
         (Some("leavemyyard.herdr-inbox"), Some("inbox"))
     );
-    // the binary runs from the test's target directory, no checkout: herdr's listed root
-    assert_eq!(p["cwd"], "/inbox/root");
+    // the inbox's own checkout when the binary sits in one (a default target dir), else
+    // herdr's listed root; never the calling plugin's
+    let exe = std::path::Path::new(env!("CARGO_BIN_EXE_herdr-inbox"));
+    let own = herdr_inbox::surface::popup::own_checkout(exe);
+    let want = own.map_or("/inbox/root".to_string(), |r| r.display().to_string());
+    assert_eq!(p["cwd"], want.as_str());
+    assert!(!p.to_string().contains("/plugins/panorama"), "{p}");
     assert_eq!(p["env"]["INBOX_FOCUS_PANE"], "w1:p7");
     let nonce = p["env"]["INBOX_OPEN_NONCE"].as_str().unwrap();
     let state = rig.db.parent().unwrap();

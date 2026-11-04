@@ -330,26 +330,26 @@ tests/test_deep_link.py::test_no_hold_opens_like_a_normal_popup,tests/test_deep_
 tests/test_deep_link.py::test_no_hold_still_arms,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
 tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
 tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
