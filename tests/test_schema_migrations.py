@@ -251,10 +251,11 @@ def test_concurrent_pre_bridge_restamps_bridge_workers_and_hooks(migrated):
     errors: list[str] = []
     written: list[int] = []
     stop = time.monotonic() + 1.5
+    hard_stop = stop + 30  # under load the hook may not get a write in 1.5 s: run until one did
 
     def guard(fn):
         def run():
-            while time.monotonic() < stop:
+            while time.monotonic() < stop or (not written and time.monotonic() < hard_stop):
                 try:
                     fn()
                 except sqlite3.OperationalError as exc:
@@ -402,3 +403,35 @@ def test_the_switch_to_wal_waits_out_a_writer_on_a_rollback_journal_database(tmp
     st._switch_to_wal(db, wait=5.0)
     release.join()
     assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+
+
+def test_a_migrating_store_waits_out_a_writer_on_a_rollback_journal_database(tmp_path):
+    """Store(migrate=True) itself (the Rust a_migrating_open_waits_for_a_writer_...): a fresh
+    rollback-journal file, a writer holding the lock for 0.3 s; the open waits, then migrates."""
+    import sqlite3
+    import threading
+
+    path = tmp_path / "inbox.db"
+    sqlite3.connect(path).execute("CREATE TABLE t (x)").connection.close()
+    holder = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+    holder.execute("BEGIN IMMEDIATE")
+    release = threading.Timer(0.3, lambda: holder.execute("COMMIT"))
+    release.start()
+    with Store(path, timeout=5.0, migrate=True, maintenance=False) as s:
+        assert s.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    release.join()
+
+
+def test_the_switch_to_wal_raises_any_other_error_at_once(tmp_path):
+    import sqlite3
+    import time
+
+    path = tmp_path / "inbox.db"
+    path.write_bytes(b"x" * 4096)  # not a database
+    db = sqlite3.connect(path, isolation_level=None)
+    started = time.monotonic()
+    try:
+        st._switch_to_wal(db, wait=5.0)
+        raise AssertionError("a file that is no database switched to WAL")
+    except sqlite3.DatabaseError as exc:
+        assert "locked" not in str(exc) and time.monotonic() - started < 2.5
