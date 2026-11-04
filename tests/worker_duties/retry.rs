@@ -239,3 +239,83 @@ fn own_pending_rows_still_count() {
     w.pending_answer("blocked"); // blocked agent: stays pending, on this server
     assert_eq!(w.tick(), 1);
 }
+
+#[test]
+fn another_servers_stuck_answers_are_never_notified_or_looked_up_here() {
+    let mut w = World::new();
+    let qid = w.ask_on(("w1:p1", "w1:t1"), Some("/tmp/other.sock"));
+    w.answer(qid, "blocked");
+    w.sql(
+        "UPDATE questions SET answered_at = '2026-10-15T00:00:00+00:00', delivery_error = ?, \
+         delivery_attempts = 2 WHERE id = ?",
+        params![inbox_core::deliver::NOT_VERIFIED, qid],
+    );
+    w.fake.reset();
+    w.tick();
+    assert!(w.notes.is_empty());
+    assert!(w.fake.stub.params_of("tab.get").is_empty());
+    assert!(!w.store.notified(qid).unwrap()); // left for its own worker to notify
+}
+
+#[test]
+fn a_legacy_row_whose_pane_never_holds_its_conversation_is_gone_after_ten_misses() {
+    let mut w = World::new();
+    let qid = w.pending_answer("blocked");
+    w.sql(
+        "UPDATE question_ext SET herdr_server = NULL WHERE id = ?",
+        params![qid],
+    );
+    w.fake.set(|k| k.session = Some("someone-else".into()));
+    w.sql(
+        "UPDATE question_ext SET legacy_misses = 8, legacy_checked_at = NULL WHERE id = ?",
+        params![qid],
+    );
+    w.tick(); // the ninth miss
+    assert!(!w.store.agent_gone(qid).unwrap());
+    w.sql(
+        "UPDATE question_ext SET legacy_checked_at = NULL WHERE id = ?",
+        params![qid],
+    );
+    assert_eq!(w.tick(), 0); // the tenth: gone, no longer pending
+    assert!(w.store.agent_gone(qid).unwrap());
+    assert_eq!(
+        w.error(qid),
+        "agent gone: no agent of that conversation in pane w1:p1"
+    );
+    assert_eq!(w.shown("gone").len(), 1); // and the operator hears of it once
+}
+
+#[test]
+fn a_pane_with_answers_of_two_kinds_gets_one_notification_per_kind() {
+    let mut w = World::new();
+    let (blocked, busy) = (w.ask(), w.ask());
+    for (qid, error) in [
+        (
+            blocked,
+            "pending: blocked: the agent is at a prompt or dialog",
+        ),
+        (busy, "pending: busy: the agent is working"),
+    ] {
+        w.store.set_answer(qid, "yes", None).unwrap();
+        w.sql(
+            "UPDATE questions SET answered_at = '2026-10-15T00:00:00+00:00', delivery_error = ? WHERE id = ?",
+            params![error, qid],
+        );
+    }
+    let rows = w.store.stuck_answers().unwrap();
+    w.with_ctx(|ctx, server| {
+        herdr_inbox::worker::duties::stuck::notify_stuck(
+            &mut herdr_inbox::worker::duties::Round { ctx, server },
+            &rows,
+        )
+        .unwrap()
+    });
+    let titles: Vec<&str> = w.notes.iter().map(|(t, _)| t.as_str()).collect();
+    assert_eq!(
+        titles,
+        [
+            format!("waiting: my-tab is at a prompt (Q{blocked})"),
+            format!("Q{busy} not delivered to my-tab")
+        ]
+    );
+}

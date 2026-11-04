@@ -57,7 +57,7 @@ pub fn notify_left(round: &mut Round<'_, '_>) -> rusqlite::Result<()> {
 
 /// How many of this worker's answers are still pending (Python's tick
 /// result; other servers' rows never keep it alive).
-pub fn pending(round: &mut Round<'_, '_>) -> rusqlite::Result<usize> {
+pub fn pending(round: &Round<'_, '_>) -> rusqlite::Result<usize> {
     Ok(served(round)?.iter().map(|(_, items)| items.len()).sum())
 }
 

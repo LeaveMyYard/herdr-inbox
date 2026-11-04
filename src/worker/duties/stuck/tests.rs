@@ -41,20 +41,37 @@ fn the_kind_is_read_from_the_delivery_state() {
     assert_eq!(kind(&q(None)), Kind::Stuck);
 }
 
+/// The four notifications, title and body, character for character Python's.
 #[test]
 fn the_messages_are_pythons() {
-    let (t, b) = message(Kind::Gone, "Q1", "w1:p1");
-    assert_eq!(t, "Q1: the agent in w1:p1 is gone");
-    assert!(b.contains("check_answers"));
-    let (t, b) = message(Kind::Blocked, "Q1", "my-tab");
-    assert_eq!(t, "waiting: my-tab is at a prompt (Q1)");
-    assert!(!b.contains("check_answers"));
+    let pair = |a: &str, b: &str| (a.to_string(), b.to_string());
     assert_eq!(
-        message(Kind::Stuck, "Q1–Q2", "my-tab").0,
-        "Q1–Q2 not delivered to my-tab"
+        message(Kind::Gone, "Q1", "w1:p1"),
+        pair(
+            "Q1: the agent in w1:p1 is gone",
+            "The answer is kept; a new session can fetch it with check_answers."
+        )
     );
     assert_eq!(
-        message(Kind::Older, "Q1", "t").0,
-        "Q1: t runs an older conversation"
+        message(Kind::Older, "Q1", "t"),
+        pair(
+            "Q1: t runs an older conversation",
+            "herdr resumed an earlier session of the asking agent; resume the asking session to \
+             deliver (the inbox shows its id), or fetch with check_answers."
+        )
+    );
+    assert_eq!(
+        message(Kind::Blocked, "Q1", "my-tab"),
+        pair(
+            "waiting: my-tab is at a prompt (Q1)",
+            "Answer the prompt in that pane; the inbox delivers right after."
+        )
+    );
+    assert_eq!(
+        message(Kind::Stuck, "Q1–Q2", "my-tab"),
+        pair(
+            "Q1–Q2 not delivered to my-tab",
+            "The agent can fetch them with check_answers; or retry from the inbox."
+        )
     );
 }
