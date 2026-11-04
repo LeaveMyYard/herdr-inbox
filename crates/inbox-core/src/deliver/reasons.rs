@@ -34,7 +34,9 @@ pub const COMPOSER_UNKNOWN: &str = "waiting: cannot read the agent's input box";
 /// Typed, accepted by herdr, never seen in the conversation.
 pub const NOT_VERIFIED: &str =
     "not verified: herdr accepted the text but it never reached the conversation";
-const OLDER: &str = "older conversation: ";
+/// The prefix of an answer whose pane runs an older session of its
+/// conversation (Python `OLDER`).
+pub const OLDER: &str = "older conversation: ";
 
 /// The state of an answer whose pane runs (or got it typed into) an older
 /// session of its conversation (Python `older_error`).

@@ -354,8 +354,8 @@ def live_session(reported: str | None, known: str | None = None, pane: str | Non
     CLAUDE_CODE_SESSION_ID) runs now: ``transcript.follow``, except that a session a Claude
     process (re)started AFTER its continued-in record runs ITSELF. herdr resumes a pane under
     the OLD id, and until its first prompt the old transcript still ends in continued-in, so
-    the D6 rule alone takes the older conversation for the newer one (live 2026-10-17: synthetic_100-
-    synthetic_98 were typed into synthetic_89, an ancestor of the asking synthetic_90).
+    the D6 rule alone takes the older conversation for the newer one (live 2026-10-17: Q9001-
+    Q9006 were typed into 00000001, an ancestor of the asking 00000002).
 
     ``pane``: the herdr pane asking about (when known). A marker written by a resume in ANOTHER
     pane never applies here: one pane can run OLD's in-process continuation while another runs

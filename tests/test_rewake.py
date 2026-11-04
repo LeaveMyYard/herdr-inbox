@@ -15,7 +15,7 @@ from .test_hook import run_hook
 
 A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
 
-# captured on moneylust (Claude Code 2.1.301, 2026-10-16): the woken text's user record
+# captured on project1 (Claude Code 2.1.301, 2026-10-16): the woken text's user record
 CAPTURED = ("<task-notification>\n<summary>Stop hook feedback</summary>\n</task-notification>\n<system-reminder>\n"
             "Stop hook blocking error from command \"Stop\": [inbox] Q1 answered — "
             "[E2E TEST] which colour for the rewake test?: amber\n\n</system-reminder>")

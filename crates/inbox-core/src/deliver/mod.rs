@@ -16,7 +16,7 @@ pub use crate::verify::Landing;
 pub use decide::decide;
 pub use reasons::{
     BLOCKED_WAIT, BUSY_WAIT_IDLE, CHANGED, COMPOSER_DRAFT, COMPOSER_UNKNOWN, HOOK_WAIT, NO_AGENT,
-    NO_PANE, NOT_VERIFIED, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT, WATCHER_WAIT,
+    NO_PANE, NOT_VERIFIED, OLDER, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT, WATCHER_WAIT,
     older_error,
 };
 
@@ -26,6 +26,12 @@ pub const MAX_BUSY_ATTEMPTS: i64 = 1;
 /// Unseen hook sends after which an answer is left to typing (Python
 /// `store.MAX_HOOK_MISSES`).
 pub const MAX_HOOK_MISSES: i64 = 2;
+/// "No agent" / "conversation changed" tries after which the agent counts as
+/// gone (Python `service.MAX_STALE_RETRIES`).
+pub const MAX_STALE_RETRIES: i64 = 10;
+/// Typed-but-never-seen tries after which an answer is no longer typed
+/// (Python `service.MAX_UNVERIFIED_ATTEMPTS`).
+pub const MAX_UNVERIFIED_ATTEMPTS: i64 = 2;
 
 /// How this pass was asked for.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
