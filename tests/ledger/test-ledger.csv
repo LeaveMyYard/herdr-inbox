@@ -330,26 +330,26 @@ tests/test_deep_link.py::test_no_hold_opens_like_a_normal_popup,tests/test_deep_
 tests/test_deep_link.py::test_no_hold_still_arms,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
 tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
 tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
@@ -395,27 +395,27 @@ tests/test_delivery_worker.py::test_a_focused_task_panel_is_not_typed_into,tests
 tests/test_delivery_worker.py::test_an_old_servers_unverified_ack_is_requeued_and_delivered,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_old_requeue_window_does_not_retype_old_answers,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_stuck_answers_raise_one_notification,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_the_worker_is_a_singleton,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_ensure_spawns_only_when_not_running,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_worker_process_runs_and_exits_when_idle,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_the_worker_is_a_singleton,tests/test_delivery_worker.py,herdr-inbox --lib worker::lock::tests::the_worker_is_a_singleton,mapped,,P5
+tests/test_delivery_worker.py::test_ensure_spawns_only_when_not_running,tests/test_delivery_worker.py,herdr-inbox --lib worker::spawn::tests::ensure::ensure_spawns_only_when_not_running,mapped,,P5
+tests/test_delivery_worker.py::test_worker_process_runs_and_exits_when_idle,tests/test_delivery_worker.py,herdr-inbox --test worker_process exits::the_rust_worker_exits_when_idle,mapped,,P5
 tests/test_delivery_worker.py::test_mcp_servers_no_longer_run_their_own_retry_loop,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_herdr_startup_ensures_the_worker,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_every_answer_or_send_ensures_the_worker,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_a_worker_that_idles_out_with_new_work_starts_a_successor,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_a_worker_that_idles_out_with_new_work_starts_a_successor,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::a_worker_that_idles_out_with_new_work_starts_a_successor,mapped,,P5
 tests/test_delivery_worker.py::test_panel_detection_reads_only_the_footer,tests/test_delivery_worker.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery_worker.py::test_send_now_overrides_the_panel_wait,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_unverifiable_sends_are_not_reported_as_not_delivered,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_an_agent_at_a_prompt_gets_a_waiting_notification,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_the_worker_hands_over_when_the_disk_version_differs_from_its_own,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_no_handover_loop_when_no_successor_can_start,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_the_worker_hands_over_when_the_disk_version_differs_from_its_own,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::the_worker_hands_over_when_the_disk_version_differs_from_its_own,mapped,,P5
+tests/test_delivery_worker.py::test_no_handover_loop_when_no_successor_can_start,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::no_handover_loop_when_no_successor_can_start,mapped,,P5
 tests/test_delivery_worker.py::test_h1_a_just_typed_old_server_delivery_is_not_requeued_before_it_settles,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_h1_no_transcript_means_un_see_only_never_retype,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_h1_a_retry_checks_the_transcript_before_typing_again,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_m1_the_lock_is_per_herdr_server,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_m1_the_lock_is_per_herdr_server,tests/test_delivery_worker.py,herdr-inbox --lib worker::env::tests::the_lock_is_per_herdr_server_beside_the_database,mapped,,P5
 tests/test_delivery_worker.py::test_m1_questions_record_their_herdr_server,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_m1_a_worker_leaves_other_servers_rows_alone,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_m1_legacy_rows_need_a_matching_session,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_m2_spawns_do_not_inherit_the_mcp_venv,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_m2_spawns_do_not_inherit_the_mcp_venv,tests/test_delivery_worker.py,herdr-inbox --lib worker::env::tests::spawns_do_not_inherit_the_venv_and_name_the_server,mapped,,P5
 tests/test_delivery_worker.py::test_l3_the_focus_check_is_repeated_right_before_typing,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_other_servers_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_unmatched_legacy_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,,todo,,
@@ -556,7 +556,7 @@ tests/test_manifests.py::test_hooks_manifest_parses,tests/test_manifests.py,,tod
 tests/test_manifests.py::test_herdr_manifest_required_fields,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_license_declared_and_present,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_ui_mod_is_its_own_plugin,tests/test_manifests.py,,todo,,
-tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,,todo,,
+tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,herdr-inbox --test mcp_goldens tools_list_is_the_python_servers_byte_for_byte,mapped,,P5
 tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,,todo,,
@@ -798,29 +798,29 @@ tests/test_session_continuation.py::test_final_a_resumed_old_sessions_answer_nev
 tests/test_session_continuation.py::test_final_the_family_still_holds_while_the_continuation_stands,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_final_the_lookup_caches_are_bounded,tests/test_session_continuation.py,,todo,,
 tests/test_stale_worker.py::test_a_newer_open_on_an_older_schema_asks_for_its_revision,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_the_marker_never_lowers_a_fresh_higher_revision_and_expires,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_the_shared_vectors_read_as_in_rust,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_holder_revision_is_the_live_holders_or_1,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_holder_clears_its_own_record_only,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_standby_counts_while_alive_and_fresh,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_standby_takes_the_lock_once_free_and_cleans_up,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_one_standby_is_enough,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_standby_leaves_once_a_holder_of_its_revision_has_the_lock,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_the_holder_hands_over_only_to_a_live_newer_standby,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[none-False],tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[newer-True],tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[same revision on a legacy stamp-False],tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[db already there-False],tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[standby waiting-False],tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_ensure_starts_a_standby_only_for_an_older_holder,tests/test_stale_worker.py,,todo,,
+tests/test_stale_worker.py::test_the_marker_never_lowers_a_fresh_higher_revision_and_expires,tests/test_stale_worker.py,herdr-inbox --lib store::revision_wanted::tests::never_lowered_never_extended_and_it_expires,mapped,,P5
+tests/test_stale_worker.py::test_the_shared_vectors_read_as_in_rust,tests/test_stale_worker.py,herdr-inbox --lib store::revision_wanted::tests::the_shared_vectors_read_as_in_python,mapped,,P5
+tests/test_stale_worker.py::test_holder_revision_is_the_live_holders_or_1,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::holder_revision_is_the_live_holders_or_1,mapped,,P5
+tests/test_stale_worker.py::test_a_holder_clears_its_own_record_only,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::a_holder_clears_its_own_record_only,mapped,,P5
+tests/test_stale_worker.py::test_a_standby_counts_while_alive_and_fresh,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::a_standby_counts_while_alive_and_fresh,mapped,,P5
+tests/test_stale_worker.py::test_a_standby_takes_the_lock_once_free_and_cleans_up,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::a_standby_takes_the_lock_once_free_and_cleans_up,mapped,,P5
+tests/test_stale_worker.py::test_one_standby_is_enough,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::one_standby_is_enough,mapped,,P5
+tests/test_stale_worker.py::test_a_standby_leaves_once_a_holder_of_its_revision_has_the_lock,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::a_standby_leaves_once_a_holder_of_its_revision_has_the_lock,mapped,,P5
+tests/test_stale_worker.py::test_the_holder_hands_over_only_to_a_live_newer_standby,tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::the_holder_hands_over_only_to_a_live_newer_standby,mapped,,P5
+tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[none-False],tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::a_marker_asks_the_holder_for_a_newer_worker,mapped,,P5
+tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[newer-True],tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::a_marker_asks_the_holder_for_a_newer_worker,mapped,,P5
+tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[same revision on a legacy stamp-False],tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::a_marker_asks_the_holder_for_a_newer_worker,mapped,,P5
+tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[db already there-False],tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::a_marker_asks_the_holder_for_a_newer_worker,mapped,,P5
+tests/test_stale_worker.py::test_a_marker_asks_the_holder_for_a_newer_worker[standby waiting-False],tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::a_marker_asks_the_holder_for_a_newer_worker,mapped,,P5
+tests/test_stale_worker.py::test_ensure_starts_a_standby_only_for_an_older_holder,tests/test_stale_worker.py,herdr-inbox --lib worker::spawn::tests::ensure::ensure_starts_a_standby_only_for_an_older_holder,mapped,,P5
 tests/test_stale_worker.py::test_a_tool_on_a_not_migrated_db_keeps_asking_for_its_worker_longer_than_a_tick,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_worker_without_package_metadata_knows_its_version,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_worker_removes_its_holder_record_when_it_lets_go,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_start_time_never_raises,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_standby_must_be_the_process_that_wrote_it_and_not_from_the_future,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_standby_writes_its_start_time,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_a_held_marker_lock_never_holds_a_hook,tests/test_stale_worker.py,,todo,,
-tests/test_stale_worker.py::test_ensure_starts_at_most_one_worker_per_revision_per_interval,tests/test_stale_worker.py,,todo,,
+tests/test_stale_worker.py::test_a_worker_without_package_metadata_knows_its_version,tests/test_stale_worker.py,herdr-inbox --lib worker::live::tests::a_worker_knows_its_version_from_its_checkout,mapped,,P5
+tests/test_stale_worker.py::test_a_worker_removes_its_holder_record_when_it_lets_go,tests/test_stale_worker.py,herdr-inbox --lib worker::run::tests::a_worker_removes_its_holder_record_when_it_lets_go,mapped,,P5
+tests/test_stale_worker.py::test_start_time_never_raises,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::start_time_never_fails,mapped,,P5
+tests/test_stale_worker.py::test_a_standby_must_be_the_process_that_wrote_it_and_not_from_the_future,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::a_standby_must_be_the_process_that_wrote_it_and_not_from_the_future,mapped,,P5
+tests/test_stale_worker.py::test_a_standby_writes_its_start_time,tests/test_stale_worker.py,herdr-inbox --lib worker::handover::tests::a_standby_writes_its_start_time,mapped,,P5
+tests/test_stale_worker.py::test_a_held_marker_lock_never_holds_a_hook,tests/test_stale_worker.py,herdr-inbox --lib store::revision_wanted::tests::a_held_marker_lock_never_holds_the_hook,mapped,,P5
+tests/test_stale_worker.py::test_ensure_starts_at_most_one_worker_per_revision_per_interval,tests/test_stale_worker.py,herdr-inbox --lib worker::spawn::tests::the_spawn_stamp_limits_each_revision_and_ignores_the_future,mapped,,P5
 tests/test_store.py::test_normalize_ignores_case_punctuation_and_whitespace,tests/test_store.py,,todo,,
 tests/test_store.py::test_new_question_is_recorded,tests/test_store.py,,todo,,
 tests/test_store.py::test_open_duplicate_is_not_reinserted,tests/test_store.py,,todo,,
@@ -936,35 +936,35 @@ tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[2-0-Fa
 tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[127-0-True],tests/test_hook_interp.py,,todo,,
 tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[127-0-False],tests/test_hook_interp.py,,todo,,
 tests/test_hook_interp.py::test_the_payload_reaches_run_py_on_a_cold_cache,tests/test_hook_interp.py,,todo,,
-tests/test_successor.py::test_no_binary_starts_the_python_worker_exactly_as_before,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_an_installed_rust_worker_takes_over_the_lock_and_no_python_starts,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_target_release_is_preferred_over_bin,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_only_an_executable_file_counts_as_installed[not-executable],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_only_an_executable_file_counts_as_installed[directory],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_only_an_executable_file_counts_as_installed[dangling-symlink],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_a_symlinked_binary_counts,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_a_binary_without_a_worker_falls_back_to_python_at_once,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_a_binary_that_never_takes_the_lock_is_killed_and_python_starts,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_a_rust_worker_that_finds_the_lock_taken_still_counts_as_handed_over,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_exec_format_error_falls_back_to_python,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_the_running_worker_hands_over_to_rust_and_exits,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_herdrs_own_install_follows_the_listed_root_uncached,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_another_checkout_never_follows_the_listed_root,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_an_installed_copy_without_a_checkout_follows_herdr,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_the_worker_hands_over_to_the_new_install_directory,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_server_gone_needs_herdrs_own_word[gone-True],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_server_gone_needs_herdrs_own_word[up-False],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_server_gone_needs_herdrs_own_word[other-error-False],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_server_gone_needs_herdrs_own_word[not-json-False],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_server_gone_without_a_herdr_binary_is_not_gone,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_the_worker_exits_when_its_server_is_gone,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_the_worker_exits_once_the_server_goes_away,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_other_herdr_failures_keep_the_worker_running[other-error],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_other_herdr_failures_keep_the_worker_running[not-json],tests/test_successor.py,,todo,,
-tests/test_successor.py::test_a_moment_without_the_server_does_not_end_the_worker,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_gone_for_the_whole_grace_ends_the_worker,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_a_worker_that_takes_the_lock_at_the_deadline_is_not_killed,tests/test_successor.py,,todo,,
-tests/test_successor.py::test_the_kill_takes_the_whole_process_group,tests/test_successor.py,,todo,,
+tests/test_successor.py::test_no_binary_starts_the_python_worker_exactly_as_before,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::no_binary_starts_the_python_worker_exactly_as_before,mapped,,P5
+tests/test_successor.py::test_an_installed_rust_worker_takes_over_the_lock_and_no_python_starts,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::an_installed_rust_worker_takes_over_the_lock_and_no_python_starts,mapped,,P5
+tests/test_successor.py::test_target_release_is_preferred_over_bin,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::target_release_is_preferred_over_bin,mapped,,P5
+tests/test_successor.py::test_only_an_executable_file_counts_as_installed[not-executable],tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::only_an_executable_file_counts_as_installed,mapped,,P5
+tests/test_successor.py::test_only_an_executable_file_counts_as_installed[directory],tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::only_an_executable_file_counts_as_installed,mapped,,P5
+tests/test_successor.py::test_only_an_executable_file_counts_as_installed[dangling-symlink],tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::only_an_executable_file_counts_as_installed,mapped,,P5
+tests/test_successor.py::test_a_symlinked_binary_counts,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::a_symlinked_binary_counts,mapped,,P5
+tests/test_successor.py::test_a_binary_without_a_worker_falls_back_to_python_at_once,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::a_binary_without_a_worker_falls_back_to_python_at_once,mapped,,P5
+tests/test_successor.py::test_a_binary_that_never_takes_the_lock_is_killed_and_python_starts,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::a_binary_that_never_takes_the_lock_is_killed_and_python_starts,mapped,,P5
+tests/test_successor.py::test_a_rust_worker_that_finds_the_lock_taken_still_counts_as_handed_over,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::a_rust_worker_that_finds_the_lock_taken_still_counts_as_handed_over,mapped,,P5
+tests/test_successor.py::test_exec_format_error_falls_back_to_python,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::exec_format_error_falls_back_to_python,mapped,,P5
+tests/test_successor.py::test_the_running_worker_hands_over_to_rust_and_exits,tests/test_successor.py,herdr-inbox --test worker_process handover::python_hands_over_to_rust_on_an_update,mapped,,P5
+tests/test_successor.py::test_herdrs_own_install_follows_the_listed_root_uncached,tests/test_successor.py,herdr-inbox --lib worker::live::tests::herdrs_own_install_follows_the_listed_root_uncached,mapped,,P5
+tests/test_successor.py::test_another_checkout_never_follows_the_listed_root,tests/test_successor.py,herdr-inbox --lib worker::live::tests::another_checkout_never_follows_the_listed_root,mapped,,P5
+tests/test_successor.py::test_an_installed_copy_without_a_checkout_follows_herdr,tests/test_successor.py,herdr-inbox --lib worker::live::tests::an_installed_copy_without_a_checkout_follows_herdr,mapped,,P5
+tests/test_successor.py::test_the_worker_hands_over_to_the_new_install_directory,tests/test_successor.py,herdr-inbox --test worker_process handover::rust_hands_over_to_rust_on_an_update,mapped,,P5
+tests/test_successor.py::test_server_gone_needs_herdrs_own_word[gone-True],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
+tests/test_successor.py::test_server_gone_needs_herdrs_own_word[up-False],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
+tests/test_successor.py::test_server_gone_needs_herdrs_own_word[other-error-False],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
+tests/test_successor.py::test_server_gone_needs_herdrs_own_word[not-json-False],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
+tests/test_successor.py::test_server_gone_without_a_herdr_binary_is_not_gone,tests/test_successor.py,,retired,"the Rust worker asks herdr's socket, not a CLI binary; a socket it cannot reach for another reason is HerdrError::Unreachable, which is not gone (kit herdr_api, server_gone)",P5
+tests/test_successor.py::test_the_worker_exits_when_its_server_is_gone,tests/test_successor.py,herdr-inbox --lib worker::run::tests::the_worker_exits_when_its_server_is_gone,mapped,,P5
+tests/test_successor.py::test_the_worker_exits_once_the_server_goes_away,tests/test_successor.py,herdr-inbox --test worker_process exits::the_rust_worker_exits_once_its_server_is_gone,mapped,,P5
+tests/test_successor.py::test_other_herdr_failures_keep_the_worker_running[other-error],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
+tests/test_successor.py::test_other_herdr_failures_keep_the_worker_running[not-json],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
+tests/test_successor.py::test_a_moment_without_the_server_does_not_end_the_worker,tests/test_successor.py,herdr-inbox --lib worker::run::tests::a_moment_without_the_server_does_not_end_the_worker,mapped,,P5
+tests/test_successor.py::test_gone_for_the_whole_grace_ends_the_worker,tests/test_successor.py,herdr-inbox --lib worker::run::tests::gone_for_the_whole_grace_ends_the_worker,mapped,,P5
+tests/test_successor.py::test_a_worker_that_takes_the_lock_at_the_deadline_is_not_killed,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::a_worker_that_takes_the_lock_at_the_deadline_is_not_killed,mapped,,P5
+tests/test_successor.py::test_the_kill_takes_the_whole_process_group,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::the_kill_takes_the_whole_process_group,mapped,,P5
 tests/test_older_conversation.py::test_the_session_start_hook_marks_a_resumed_old_session_as_running_itself,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_a_pane_running_an_older_session_gets_nothing_typed_and_says_why,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_send_now_never_types_into_an_older_session_either,tests/test_older_conversation.py,,todo,,
@@ -991,13 +991,14 @@ tests/test_older_conversation.py::test_final_m1_only_a_resume_writes_a_start_mar
 tests/test_older_conversation.py::test_final_l3_a_resume_in_another_pane_never_flips_this_one,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_final_l2_a_planless_verify_job_from_0_10_5_still_verifies,tests/test_older_conversation.py,,todo,,
 tests/test_older_conversation.py::test_final_l1_continued_edges_streams_and_waits_for_a_whole_line,tests/test_older_conversation.py,,todo,,
-tests/test_worker_handover.py::test_the_hook_interpreter_has_no_package_of_its_own,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_r2_hooks_alone_get_an_r2_worker_while_r1_ensure_callers_fire,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_a_rust_hooks_marker_alone_gets_the_r2_worker_of_a_release_install,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_a_marker_reaches_the_listed_install_from_a_holder_herdr_does_not_list,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_the_newer_worker_wins_the_lock_race_whatever_the_start_order,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_a_worker_started_without_ensure_is_found_and_stopped,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_signalled,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_a_run_token_is_never_inherited,tests/test_worker_handover.py,,todo,,
-tests/test_worker_handover.py::test_signal_verified_never_signals_what_fails_the_check,tests/test_worker_handover.py,,todo,,
+tests/test_worker_handover.py::test_the_hook_interpreter_has_no_package_of_its_own,tests/test_worker_handover.py,,retired,"checks the Python test interpreter (no herdr_inbox installed in it), not plugin behaviour",P5
+tests/test_worker_handover.py::test_r2_hooks_alone_get_an_r2_worker_while_r1_ensure_callers_fire,tests/test_worker_handover.py,herdr-inbox --test worker_process handover::an_r1_python_holder_hands_over_to_an_r2_rust_standby,mapped,,P5
+tests/test_worker_handover.py::test_a_rust_hooks_marker_alone_gets_the_r2_worker_of_a_release_install,tests/test_worker_handover.py,herdr-inbox --test worker_process handover::a_marker_gets_an_r1_rust_holder_an_r2_python_successor,mapped,,P5
+tests/test_worker_handover.py::test_a_marker_reaches_the_listed_install_from_a_holder_herdr_does_not_list,tests/test_worker_handover.py,herdr-inbox --test worker_process handover::a_marker_reaches_the_listed_install_from_a_holder_herdr_does_not_list,mapped,,P5
+tests/test_worker_handover.py::test_the_newer_worker_wins_the_lock_race_whatever_the_start_order,tests/test_worker_handover.py,herdr-inbox --test worker_process exclusion::the_newer_worker_wins_the_lock_race_whatever_the_start_order,mapped,,P5
+tests/test_worker_handover.py::test_a_worker_started_without_ensure_is_found_and_stopped,tests/test_worker_handover.py,,retired,"a guard of the Python suite's own teardown (tests/conftest.py); the Rust process tests signal only children they spawned and still hold (tests/worker_process/rig.rs, Drop)",P5
+tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_signalled,tests/test_worker_handover.py,,retired,"a guard of the Python suite's own teardown (tests/conftest.py); the Rust process tests signal only children they spawned and still hold (tests/worker_process/rig.rs, Drop)",P5
+tests/test_worker_handover.py::test_a_run_token_is_never_inherited,tests/test_worker_handover.py,,retired,"a guard of the Python suite's own teardown (tests/conftest.py); the Rust process tests signal only children they spawned and still hold (tests/worker_process/rig.rs, Drop)",P5
+tests/test_worker_handover.py::test_signal_verified_never_signals_what_fails_the_check,tests/test_worker_handover.py,,retired,"a guard of the Python suite's own teardown (tests/conftest.py); the Rust process tests signal only children they spawned and still hold (tests/worker_process/rig.rs, Drop)",P5
 tests/test_goldens.py::test_the_popup_transition_golden_is_what_the_popup_does,tests/test_goldens.py,,retired,Python-side check that the golden is what tui.py does; the Rust side is inbox-core --test popup_transitions (one test per scenario),P6
+tests/test_goldens.py::test_the_mcp_recordings_are_what_the_server_does,tests/test_goldens.py,,retired,Python-side check that the MCP recordings are what server.py does; the Rust side is herdr-inbox --test mcp_goldens,P5
