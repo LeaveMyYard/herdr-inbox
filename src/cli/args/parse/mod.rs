@@ -127,7 +127,7 @@ pub fn parse(cmd: &Command, argv: &[String]) -> Parsed {
     let mut i = 0;
     while i < tokens.len() {
         let run_end = (i..tokens.len())
-            .find(|&j| !matches!(tokens[j], Token::Word(_)))
+            .find(|&j| !matches!(tokens[j], Token::Word(_) | Token::Dash))
             .unwrap_or(tokens.len());
         let words: Vec<&str> = tokens[i..run_end].iter().filter_map(Token::word).collect();
         let mut taken = 0;
@@ -152,7 +152,12 @@ pub fn parse(cmd: &Command, argv: &[String]) -> Parsed {
             taken += n;
             next += 1;
         }
-        extras.extend(&words[taken..]);
+        if taken == 0 {
+            // a `--` whose run no positional takes is reported as written
+            extras.extend(tokens[i..run_end].iter().map(|t| t.word().unwrap_or("--")));
+        } else {
+            extras.extend(&words[taken..]);
+        }
         i = run_end;
         let Some(token) = tokens.get(i) else { break };
         i += 1;
@@ -182,7 +187,7 @@ pub fn parse(cmd: &Command, argv: &[String]) -> Parsed {
                     return error(cmd.usage, cmd.prog, &msg);
                 }
             },
-            Token::Word(_) => unreachable!("runs of words are taken above"),
+            Token::Word(_) | Token::Dash => unreachable!("runs of words are taken above"),
         };
         if let Some(group) = opt.group {
             let rival = args.given.iter().find(|(name, _)| {

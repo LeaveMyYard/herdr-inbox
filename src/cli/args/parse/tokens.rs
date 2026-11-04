@@ -15,6 +15,9 @@ pub const HELP: &str = "-h/--help";
 pub enum Token<'a> {
     /// A positional (or an option's value).
     Word(&'a str),
+    /// The `--` that ends the options: argparse drops it when a positional
+    /// takes words of its run, and reports it with the extras otherwise.
+    Dash,
     /// `-h`/`--help`, with a value given after `=`.
     Help(Option<&'a str>),
     /// An option, with a value given after `=`.
@@ -43,6 +46,7 @@ pub fn classify<'a>(cmd: &Command, argv: &'a [String]) -> Vec<Token<'a>> {
             out.push(Token::Word(w));
         } else if w == "--" {
             options_end = true;
+            out.push(Token::Dash);
         } else {
             out.push(option(cmd, w));
         }

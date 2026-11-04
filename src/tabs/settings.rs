@@ -14,6 +14,7 @@ use herdr_agent_kit::plugin_env::config::ConfigFile;
 use serde_json::{Map, Value};
 
 use super::DEFAULT_PREFIX;
+use crate::remote::pyvalue::py_truthy;
 use crate::text::py_isspace;
 
 /// The inbox's herdr plugin id (Python `tabs.PLUGIN_ID`).
@@ -65,18 +66,6 @@ fn py_str(v: &Value) -> String {
             }
         }
         other => other.to_string(),
-    }
-}
-
-/// Python's `bool()` of a TOML value.
-fn py_truthy(v: &Value) -> bool {
-    match v {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64() != Some(0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(o) => !o.is_empty(),
     }
 }
 

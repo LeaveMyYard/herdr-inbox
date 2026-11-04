@@ -301,65 +301,65 @@ tests/test_cursor_targets.py::test_vanished_target_parks_on_nothing,tests/test_c
 tests/test_cursor_targets.py::test_stranded_claim_shows_as_failed,tests/test_cursor_targets.py,,todo,,
 tests/test_cursor_targets.py::test_error_paths_never_overwrite_someone_elses_claim,tests/test_cursor_targets.py,,todo,,
 tests/test_cursor_targets.py::test_retry_that_backs_off_releases_its_claim,tests/test_cursor_targets.py,,todo,,
-tests/test_deep_link.py::test_request_is_written_atomically_and_consumed_once,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_newest_request_wins,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_stale_request_is_ignored_and_removed,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_garbage_request_is_ignored,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_request_is_written_atomically_and_consumed_once,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::a_request_is_taken_once_by_its_popup,mapped,,P5
+tests/test_deep_link.py::test_newest_request_wins,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::the_newest_request_wins_and_a_stale_one_is_dropped,mapped,,P5
+tests/test_deep_link.py::test_stale_request_is_ignored_and_removed,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::the_newest_request_wins_and_a_stale_one_is_dropped,mapped,,P5
+tests/test_deep_link.py::test_garbage_request_is_ignored,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_concurrent_popups_consume_a_request_exactly_once,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_targets_resolve_to_a_group_and_question,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_targets_resolve_to_a_group_and_question,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_popup_opens_on_the_requested_question,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_requested_question,mapped,,P6
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[group-3],tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_group_for_each_target_kind,mapped,,P6
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[pane-w1:p2],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[session-bbbbbbbb-0000-4000-8000-00000000000b],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_gone_target_falls_back_to_the_list_with_a_notice,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::gone_target_falls_back_to_the_list_with_a_notice,mapped,,P6
 tests/test_deep_link.py::test_no_request_keeps_the_normal_start,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_request_keeps_the_normal_start,mapped,,P6
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args0-expected0],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args1-expected1],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args2-expected2],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args3-expected3],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_takes_one_target,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_from_another_plugins_action_opens_the_inbox,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_cli_rejects_a_malformed_target,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_a_manual_open_does_not_take_someone_elses_request,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_the_nonce_is_passed_to_the_popup,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_reports_a_popup_that_is_already_open,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_the_popup_marks_itself_running,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args0-expected0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args1-expected1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args2-expected2],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args3-expected3],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_takes_one_target,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_from_another_plugins_action_opens_the_inbox,tests/test_deep_link.py,herdr-inbox --test cli live::open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane,mapped,,P5
+tests/test_deep_link.py::test_cli_rejects_a_malformed_target,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_a_manual_open_does_not_take_someone_elses_request,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_the_nonce_is_passed_to_the_popup,tests/test_deep_link.py,herdr-inbox --test cli live::open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane,mapped,,P5
+tests/test_deep_link.py::test_open_reports_a_popup_that_is_already_open,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_the_popup_marks_itself_running,tests/test_deep_link.py,herdr-inbox --lib deeplink::lock::tests::a_held_lock_reads_as_a_running_popup,mapped,,P5
 tests/test_deep_link.py::test_a_deep_linked_view_waits_for_a_deliberate_key,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::a_deep_linked_view_waits_for_a_deliberate_key,mapped,,P6
 tests/test_deep_link.py::test_without_no_hold_the_popup_stays_held,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::a_deep_linked_view_waits_for_a_deliberate_key,mapped,,P6
 tests/test_deep_link.py::test_no_hold_opens_like_a_normal_popup,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
 tests/test_deep_link.py::test_no_hold_still_arms,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
-tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib cli::args::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd2],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd3],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[12-Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[Q12-Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:12-qnap:Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[box:12-box:Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:Q12-qnap:Q12],tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[Q12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:12-qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[box:12-box:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:Q12-qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
 tests/test_decision_edges.py::test_an_answer_without_a_pane_waits_for_check_answers,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_decision_edges.py::test_a_watched_idle_session_keeps_answers_its_hooks_missed_once[1],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_decision_edges.py::test_a_watched_idle_session_keeps_answers_its_hooks_missed_once[2],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
@@ -433,8 +433,8 @@ tests/test_failed_pile.py::test_q167_a_gone_answer_arriving_later_never_joins_th
 tests/test_failed_pile.py::test_q167_gone_answers_leave_the_popup_after_a_day,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_reconcile_never_counts_an_answer_an_older_session_gave_itself,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_mere_id_mention_with_a_short_answer_is_not_evidence,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_the_cli_answer_from_the_asking_conversation_is_seen_at_once,tests/test_failed_pile.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_failed_pile.py::test_the_cli_answer_from_another_agent_still_delivers,tests/test_failed_pile.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_failed_pile.py::test_the_cli_answer_from_the_asking_conversation_is_seen_at_once,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_the_cli_answer_from_another_agent_still_delivers,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_retry_delivers_to_the_asker_what_only_landed_in_a_resumed_old_session,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_r1_b1_the_agent_echoing_the_options_is_not_evidence,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_r1_b2_a_short_answer_never_matches_inside_a_word,tests/test_failed_pile.py,,todo,,
