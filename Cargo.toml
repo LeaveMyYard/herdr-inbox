@@ -43,6 +43,8 @@ serde_json = { version = "1", features = ["unbounded_depth", "preserve_order"] }
 # Python's `\w` and `str.isprintable` by Unicode general category (src/store/norm.rs).
 unicode-general-category = "1.1.0"
 tempfile = "3"
+# Killing the process group of a successor this worker spawned (src/worker/spawn/child.rs).
+rustix = { version = "1", features = ["process"] }
 # The popup renderer draws into ratatui's cell buffer (plan D5: ratatui 0.30, whose
 # `Buffer` is ratatui-core's); the pure crate needs only the core, no terminal.
 ratatui-core = { version = "0.1", features = ["std"] }
@@ -79,11 +81,19 @@ rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 unicode-general-category.workspace = true
+rustix.workspace = true
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests
 herdr-agent-kit = { workspace = true, features = ["internal", "test-support"] }
 tempfile.workspace = true
+
+# Worker processes against each other and against the Python worker: its
+# own `main`, so the same executable also runs as a worker (`<exe> worker`).
+[[test]]
+name = "worker_process"
+path = "tests/worker_process/main.rs"
+harness = false
 
 [lints]
 workspace = true

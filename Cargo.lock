@@ -217,6 +217,7 @@ dependencies = [
  "herdr-agent-kit",
  "inbox-core",
  "rusqlite",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",
