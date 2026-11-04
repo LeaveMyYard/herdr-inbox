@@ -235,6 +235,21 @@ CLI_OPS = [
     ("deeplink", {"raw": "{not json", "nonce": "n1"}),
     ("deeplink", {"raw": "[1, 2]", "nonce": "n1"}),
     ("deeplink", {"nonce": "n1"}),
+    # `inbox deliver` (the popup's detached sender): only answered, undelivered, unseen ones
+    _q(40, "-1 hours", "w1:p6", "Deliver me?", status="answered", answer="yes", tab="w1:t6"),
+    _q(41, "-1 hours", "w1:p6", "Delivered already?", status="answered", answer="no", tab="w1:t6"),
+    _q(42, "-1 hours", "w1:p6", "Seen already?", status="answered", answer="ok", tab="w1:t6"),
+    _q(43, "-1 hours", "w1:p6", "Still open?", tab="w1:t6"),
+    ("sql", {"sql": "UPDATE questions SET delivered_at = '2001-01-01T00:00:00+00:00' WHERE id = 41", "params": []}),
+    ("sql", {"sql": "UPDATE questions SET acknowledged_at = '2001-01-01T00:00:00+00:00' WHERE id = 42",
+             "params": []}),
+    ("cli", {"argv": ["deliver", "Q43", "41", "42", "99"]}),
+    ("cli", {"argv": ["deliver", "40", "q41"], "delivery": {"error": "pending: busy"}}),
+    ("cli", {"argv": ["deliver", "--force", "40"], "delivery": {"delivered": True}}),
+    ("cli", {"argv": ["deliver", "40"]}),
+    ("cli", {"argv": ["deliver"]}),
+    ("cli", {"argv": ["deliver", "QQ1"]}),
+    ("cli", {"argv": ["deliver", "-h"]}),
     # deliver_batch's preamble: the worker made sure of, answers of another herdr server left to it
     ("sql", {"sql": "UPDATE questions SET status = 'answered', answer = 'a', delivered_at = NULL,"
                     " delivery_error = NULL, acknowledged_at = NULL WHERE id IN (20, 21, 22, 24)", "params": []}),

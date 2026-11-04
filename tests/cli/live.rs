@@ -8,6 +8,8 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use herdr_agent_kit::herdr_api::{MAX_ARG, clean};
 use herdr_inbox::pyjson::dumps;
@@ -23,6 +25,8 @@ struct Rig {
     dir: tempfile::TempDir,
     db: PathBuf,
     stub: Stub,
+    /// The operator is in the asking pane.
+    focused: Arc<AtomicBool>,
 }
 
 fn append(path: &Path, content: &str) {
@@ -45,11 +49,14 @@ impl Rig {
         fs::write(&transcript, "{\"type\": \"user\"}\n").unwrap();
         fs::create_dir_all(dir.path().join("cfg")).unwrap();
         fs::write(dir.path().join("cfg/config.toml"), "tab_prefix = \"❓\"\n").unwrap();
+        let focused = Arc::new(AtomicBool::new(false));
+        let operator_there = Arc::clone(&focused);
         let stub = Stub::start(dir.path(), move |method, params| {
             Ok(match method {
                 "agent.get" => {
                     json!({"agent": {"pane_id": "w1:p1", "agent": "claude", "agent_status": "idle",
-                                                "agent_session": {"kind": "id", "value": S}}})
+                                     "focused": operator_there.load(Ordering::SeqCst),
+                                     "agent_session": {"kind": "id", "value": S}}})
                 }
                 "agent.list" => json!({"agents": []}),
                 "pane.read" => json!({"read": {"text": EMPTY}}),
@@ -77,7 +84,12 @@ impl Rig {
             )
             .unwrap();
         }
-        Rig { dir, db, stub }
+        Rig {
+            dir,
+            db,
+            stub,
+            focused,
+        }
     }
 
     /// `herdr-inbox <args>` with only the test's own environment.
@@ -204,5 +216,57 @@ fn open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane() {
     assert_eq!(
         (request.kind.as_str(), request.value.as_str(), request.hold),
         ("question", "2", true)
+    );
+}
+
+#[test]
+fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
+    // Python test_async_actions: test_cli_deliver_delivers_recorded_answers and
+    // test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in
+    let rig = Rig::new();
+    open(&rig.db)
+        .execute_batch(
+            "UPDATE questions SET status = 'answered', answer = 'yes', \
+             answered_at = strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now') WHERE id = 1",
+        )
+        .unwrap();
+    rig.focused.store(true, Ordering::SeqCst);
+    let out = rig.run(&["deliver", "1"]);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), String::new())
+    );
+    assert!(
+        rig.stub.params_of("agent.prompt").is_empty(),
+        "the operator is in that pane"
+    );
+    let error: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT delivery_error FROM questions WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(error.unwrap_or_default().contains("operator"));
+    let out = rig.run(&["deliver", "1", "--force"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        1,
+        "Send now types it"
+    );
+    let verified: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT verified_at FROM question_ext WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(verified.is_some());
+    rig.run(&["deliver", "1"]);
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        1,
+        "delivered: never again"
     );
 }

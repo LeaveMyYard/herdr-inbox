@@ -1,5 +1,5 @@
 //! The `inbox` command line (Python `cli.main`): so far `list`, `answer`,
-//! `dismiss`, `open`, `sync-tokens` and `radar-sidebar`. Output, exit codes and usage errors are Python's, word for
+//! `dismiss`, `deliver`, `open`, `sync-tokens` and `radar-sidebar`. Output, exit codes and usage errors are Python's, word for
 //! word (the CLI golden, `tests/fixtures/cli.json`).
 //!
 //! - [`args`]: argparse's parsing, help and usage errors.
@@ -126,6 +126,7 @@ fn dispatch(cmd: &str, args: &Args, store: &Store, io: &mut Io<'_>) -> rusqlite:
         "answer" => answer::answer(store, args, io),
         "dismiss" => answer::dismiss(store, args, io),
         "sync-tokens" => marks::sync_tokens(store, args, io),
+        "deliver" => answer::deliver(store, args, io),
         _ => Ok(2),
     }
 }
