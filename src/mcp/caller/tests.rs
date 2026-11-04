@@ -117,15 +117,15 @@ fn outside_herdr_nothing_is_asked() {
 fn a_moved_pane_is_found_by_the_conversation_it_runs() {
     let mut w = world();
     w.panes.remove("w1:p1"); // herdr gave the moved pane a new id
-    w.panes.insert("w6:p57".into(), pane("w6:t2", Some("S")));
+    w.panes.insert("w9:p2".into(), pane("w9:t2", Some("S")));
     w.agents = vec![
         ("w2:p1".into(), Some("OTHER".into())),
-        ("w6:p57".into(), Some("S".into())),
+        ("w9:p2".into(), Some("S".into())),
         ("w3:p1".into(), None),
     ];
-    let c = resolve(&w, &env(Some("w6:p48"), Some("S"))).unwrap();
-    assert_eq!(c.pane_id.as_deref(), Some("w6:p57"));
-    assert_eq!(c.tab_id.as_deref(), Some("w6:t2"));
+    let c = resolve(&w, &env(Some("w9:p1"), Some("S"))).unwrap();
+    assert_eq!(c.pane_id.as_deref(), Some("w9:p2"));
+    assert_eq!(c.tab_id.as_deref(), Some("w9:t2"));
     assert_eq!(c.session_id.as_deref(), Some("S"));
 }
 
@@ -133,12 +133,12 @@ fn a_moved_pane_is_found_by_the_conversation_it_runs() {
 fn a_moved_pane_follows_continuations_on_both_sides() {
     let mut w = world();
     w.panes.clear();
-    w.panes.insert("w6:p57".into(), pane("w6:t2", Some("OLD")));
+    w.panes.insert("w9:p2".into(), pane("w9:t2", Some("OLD")));
     w.continued.insert("OLD".into(), "NEW".into());
     w.continued.insert("ENV".into(), "NEW".into());
-    w.agents = vec![("w6:p57".into(), Some("OLD".into()))];
-    let c = resolve(&w, &env(Some("w6:p48"), Some("ENV"))).unwrap();
-    assert_eq!(c.pane_id.as_deref(), Some("w6:p57"));
+    w.agents = vec![("w9:p2".into(), Some("OLD".into()))];
+    let c = resolve(&w, &env(Some("w9:p1"), Some("ENV"))).unwrap();
+    assert_eq!(c.pane_id.as_deref(), Some("w9:p2"));
     assert_eq!(c.session_id.as_deref(), Some("NEW")); // the live session files it
 }
 
@@ -150,14 +150,14 @@ fn two_candidates_or_none_keep_the_dead_pane() {
         ("a".into(), Some("S".into())),
         ("b".into(), Some("S".into())),
     ];
-    let c = resolve(&w, &env(Some("w6:p48"), Some("S"))).unwrap();
-    assert_eq!(c.pane_id.as_deref(), Some("w6:p48"));
+    let c = resolve(&w, &env(Some("w9:p1"), Some("S"))).unwrap();
+    assert_eq!(c.pane_id.as_deref(), Some("w9:p1"));
     assert_eq!((c.tab_id, c.tab_label), (None, None));
     assert_eq!(c.session_id.as_deref(), Some("S")); // the environment's
     // herdr unreachable: the same
     w.agents.clear();
-    let c = resolve(&w, &env(Some("w6:p48"), None)).unwrap();
-    assert_eq!((c.pane_id.as_deref(), c.session_id), (Some("w6:p48"), None));
+    let c = resolve(&w, &env(Some("w9:p1"), None)).unwrap();
+    assert_eq!((c.pane_id.as_deref(), c.session_id), (Some("w9:p1"), None));
 }
 
 #[test]
@@ -198,20 +198,19 @@ fn reading_the_marks_fails_as_the_store_does() {
 }
 
 /// review-#53 L3: what a session runs is judged from the pane asked about. Here OLD
-/// lives on as S only in pane w6:p57 (an in-process continuation there); from anywhere
+/// lives on as S only in pane w9:p2 (an in-process continuation there); from anywhere
 /// else OLD is OLD (another pane may run OLD resumed).
 #[test]
 fn live_sessions_are_judged_from_the_pane_that_runs_them() {
     let mut w = world();
     w.panes.clear();
-    w.panes.insert("w6:p57".into(), pane("w6:t2", Some("OLD")));
-    w.in_pane
-        .insert(("OLD".into(), "w6:p57".into()), "S".into());
-    w.agents = vec![("w6:p57".into(), Some("OLD".into()))];
-    // the moved pane is found: its agent's OLD, seen from w6:p57, is S
-    assert_eq!(pane_running(&w, Some("S")).as_deref(), Some("w6:p57"));
-    let c = resolve(&w, &env(Some("w6:p48"), Some("S"))).unwrap();
-    assert_eq!(c.pane_id.as_deref(), Some("w6:p57"));
+    w.panes.insert("w9:p2".into(), pane("w9:t2", Some("OLD")));
+    w.in_pane.insert(("OLD".into(), "w9:p2".into()), "S".into());
+    w.agents = vec![("w9:p2".into(), Some("OLD".into()))];
+    // the moved pane is found: its agent's OLD, seen from w9:p2, is S
+    assert_eq!(pane_running(&w, Some("S")).as_deref(), Some("w9:p2"));
+    let c = resolve(&w, &env(Some("w9:p1"), Some("S"))).unwrap();
+    assert_eq!(c.pane_id.as_deref(), Some("w9:p2"));
     // and herdr's OLD files under S, judged from the pane it runs in, not the dead one
     assert_eq!(c.session_id.as_deref(), Some("S"));
 }
