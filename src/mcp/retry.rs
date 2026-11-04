@@ -31,6 +31,8 @@ pub struct Backoff {
     /// After a not-ready attempt (Python `NOT_READY_BACKOFF`): together longer
     /// than a worker tick plus a handover and a migration.
     pub not_ready: Vec<Duration>,
+    /// SQLite's busy timeout within one attempt ([`TOOL_BUSY_TIMEOUT`]).
+    pub attempt: Duration,
 }
 
 impl Default for Backoff {
@@ -39,6 +41,7 @@ impl Default for Backoff {
         Backoff {
             busy: vec![s(0.3), s(1.0), s(2.0)],
             not_ready: vec![s(0.3), s(1.0), s(2.0), s(3.0), s(3.0)],
+            attempt: TOOL_BUSY_TIMEOUT,
         }
     }
 }
