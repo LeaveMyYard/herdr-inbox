@@ -125,7 +125,7 @@ def test_typed_into_an_unmarked_older_session_is_recorded_and_never_typed_again(
     continued_then_resumed()
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
     monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)
-    q = filed(store, "w1:p1", NEW, "Which KMS key alias?", "alias/gw-creds")
+    q = filed(store, "w1:p1", NEW, "Question Text 12?", "Answer Text 15")
     service.deliver(store, q)
     assert len(prompts(fake_herdr)) == 1
     r = store.get(q.id)
