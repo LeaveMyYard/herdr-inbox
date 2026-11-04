@@ -18,6 +18,8 @@ pub struct World {
     pub pane_tabs: Option<Vec<(String, Option<String>)>>,
     pub labels: BTreeMap<String, String>,
     pub rename_fails: bool,
+    /// herdr's error opening the popup.
+    pub open_error: Option<String>,
     /// The stubbed delivery's outcome: delivered, else this error.
     pub delivered: bool,
     pub error: Option<String>,
@@ -49,6 +51,10 @@ impl World {
             pane_tabs,
             labels,
             rename_fails: a.get("rename_fails").and_then(Value::as_bool) == Some(true),
+            open_error: a
+                .get("open_error")
+                .and_then(Value::as_str)
+                .map(str::to_string),
             delivered: d.get("delivered").and_then(Value::as_bool) == Some(true),
             error: d.get("error").and_then(Value::as_str).map(str::to_string),
         }
@@ -96,6 +102,25 @@ impl Surface for FakeHerdr {
         self.effects
             .borrow_mut()
             .push(json!(["notify", title, body]));
+    }
+
+    fn open_popup(&mut self, env: &[(String, String)]) -> Result<(), String> {
+        let env: serde_json::Map<String, Value> = env
+            .iter()
+            .map(|(k, v)| {
+                let v = if k == "INBOX_OPEN_NONCE" {
+                    "<nonce>"
+                } else {
+                    v
+                };
+                (k.clone(), json!(v))
+            })
+            .collect();
+        self.effects.borrow_mut().push(json!(["open_popup", env]));
+        match &self.world.borrow().open_error {
+            Some(e) => Err(e.clone()),
+            None => Ok(()),
+        }
     }
 }
 

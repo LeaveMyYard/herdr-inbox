@@ -6,11 +6,14 @@
 //!   `herdr.py` makes it and never failing the caller (a failure is a
 //!   `None`, an `Err` text, or nothing). [`live::Live`] makes them over the
 //!   kit's client; the tests script them.
+//! - [`popup`]: where the popup opens from (the plugin's root, the pane
+//!   that was focused).
 //! - [`markers`]: one pane's token and its tab's prefix
 //!   ([`markers::Markers::update`]).
 
 pub mod live;
 pub mod markers;
+pub mod popup;
 
 /// The pane token's source and key (Python `herdr.SOURCE`, `herdr.TOKEN`).
 pub const SOURCE: &str = "herdr-inbox";
@@ -31,4 +34,7 @@ pub trait Surface {
     fn rename_tab(&mut self, tab: &str, label: &str) -> Result<(), String>;
     /// A desktop notification with the inbox's sound (Python `herdr.notify`).
     fn notify(&mut self, title: &str, body: &str);
+    /// Opens the inbox's popup with `env` added to its command's environment
+    /// (Python `herdr.open_popup`); `Err` is herdr's error.
+    fn open_popup(&mut self, env: &[(String, String)]) -> Result<(), String>;
 }

@@ -22,6 +22,7 @@ use crate::service::own::Me;
 use crate::store::{Question, Store};
 use crate::surface::Surface;
 use crate::surface::live::Live;
+use crate::surface::popup::{focused_pane, own_checkout};
 use crate::tabs::lock::LOCK_TIMEOUT;
 use crate::tabs::settings::PLUGIN_ID;
 
@@ -35,7 +36,10 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let files = Transcripts::from_env();
     let mut config =
         ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());
-    let mut surface = Live::new(herdr.clone(), warn);
+    let root = std::env::current_exe()
+        .ok()
+        .and_then(|exe| own_checkout(&exe));
+    let mut surface = Live::new(herdr.clone(), warn).with_popup(root, focused_pane(&env));
     let mut delivery = LiveDelivery {
         herdr,
         files: Transcripts::from_env(),
