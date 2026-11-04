@@ -48,7 +48,7 @@ def decision_difference(want: dict, got: dict) -> str:
     return "decision rows differ:\n" + "\n".join(lines) if lines else "header differs"
 
 
-@pytest.mark.parametrize("kind", ["screens", "decisions", "schema", "landed", "store", "herdr"])
+@pytest.mark.parametrize("kind", ["screens", "decisions", "schema", "landed", "store", "herdr", "delivery"])
 def test_the_goldens_are_what_the_code_does(tmp_path, kind):
     env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
     extra = ["--golden-tests"] if kind == "decisions" else []
@@ -69,6 +69,10 @@ def test_the_goldens_are_what_the_code_does(tmp_path, kind):
         assert (FIX / "migrate.json").read_text() == (tmp_path / "migrate.json").read_text(), (
             "the migration changed: bump store.MIGRATION_REVISION, then uv run python tools/capture_goldens.py "
             "--only schema")
+        return
+    if kind == "delivery":  # the Rust delivery replays it (src/delivery/messages.rs)
+        assert (FIX / "delivery-messages.json").read_text() == (tmp_path / "delivery-messages.json").read_text(), (
+            "service.delivery_messages changed: if deliberate, uv run python tools/capture_goldens.py --only delivery")
         return
     if kind == "herdr":  # the Rust screen parsers and live agent replay it (src/delivery/screen, pane)
         assert (FIX / "herdr-screens.json").read_text() == (tmp_path / "herdr-screens.json").read_text(), (
@@ -122,3 +126,28 @@ def test_the_popup_transition_golden_is_what_the_popup_does(tmp_path):
         pytest.fail(f"popup-transitions.json differs from line {diff + 1}:\n  want {want[diff:diff + 1]}\n"
                     f"  got  {got[diff:diff + 1]}\na behaviour change; if deliberate: "
                     "uv run python tools/capture_popup_transitions.py")
+
+
+def test_the_mcp_recordings_are_what_the_server_does(tmp_path):
+    """tests/fixtures/mcp/*.jsonl (P5-F): the MCP server's replies, which the Rust server
+    (`herdr-inbox mcp`, tests/mcp_goldens.rs) must give. Recorded again, they must be
+    byte-identical: the tools' text and schemas are what agents read. If the change is
+    deliberate: uv run python tools/capture_mcp.py tests/fixtures/mcp"""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
+    requests = "claude-code-2.1.302.requests.jsonl"
+    (tmp_path / requests).write_text((FIX / "mcp" / requests).read_text())
+    res = subprocess.run([sys.executable, str(ROOT / "tools" / "capture_mcp.py"), str(tmp_path)],
+                         env=env, cwd=ROOT, capture_output=True, text=True, timeout=300)
+    assert res.returncode == 0, (res.stdout + res.stderr)[-4000:]
+    names = sorted(p.name for p in (FIX / "mcp").glob("*.jsonl") if p.name != requests)
+    assert names == sorted(p.name for p in tmp_path.glob("*.jsonl") if p.name != requests)
+    def same_on_any_python(text: str) -> str:
+        # Python 3.13 strips docstrings' indentation (the compiler dedents them), so three tool
+        # descriptions lose the 4 spaces after their line breaks. The recordings are made on 3.12,
+        # the Python the live MCP server runs (its plugin venv); compare 3.13 on that one point only.
+        return text.replace("\\n    ", "\\n") if sys.version_info >= (3, 13) else text
+
+    for name in names:
+        want, got = (FIX / "mcp" / name).read_text(), (tmp_path / name).read_text()
+        assert same_on_any_python(want) == same_on_any_python(got), (
+            f"{name} changed; if deliberate: uv run python tools/capture_mcp.py tests/fixtures/mcp")

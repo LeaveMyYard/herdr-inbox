@@ -162,4 +162,15 @@ pub trait Look {
     fn verify_transcript(&mut self, ids: &[i64]) -> bool;
     /// Waits for the typed message and reports where it landed.
     fn landing(&mut self, id: i64) -> Landing;
+    /// An answer's outcome, the moment it is decided: before the next lookup
+    /// and before the next message is typed (Python writes it there). The
+    /// caller writes it to the store, or hands a [`Outcome::VerifyLater`]
+    /// job over. Each answer's outcome comes once; [`Outcome::Untouched`]
+    /// never comes.
+    ///
+    /// A caller whose own work fails (its database) must type nothing more
+    /// from then on: [`Look::prompt`] refuses, so no answer is typed whose
+    /// outcome would not be written (Python leaves the pass at the failing
+    /// statement).
+    fn record(&mut self, id: i64, outcome: &Outcome);
 }

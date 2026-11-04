@@ -470,6 +470,7 @@ tests/test_goldens.py::test_the_goldens_are_what_the_code_does[landed],tests/tes
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[schema],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[store],tests/test_goldens.py,herdr-inbox --test store questions_golden::every_step_leaves_pythons_rows_and_returns_pythons_result,mapped,,P5
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[herdr],tests/test_goldens.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
+tests/test_goldens.py::test_the_goldens_are_what_the_code_does[delivery],tests/test_goldens.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
 tests/test_goldens.py::test_the_decision_table_is_a_function,tests/test_goldens.py,,todo,,
 tests/test_group_list.py::test_opens_straight_into_the_only_group_but_not_with_a_warning_entry,tests/test_group_list.py,inbox-core --test popup_transitions group_list::opens_straight_into_the_only_group_not_with_a_warning_entry,mapped,,P6
 tests/test_group_list.py::test_closed_row_is_inert_until_the_operator_moves,tests/test_group_list.py,inbox-core --test popup_transitions group_list::closed_row_is_inert_until_the_operator_moves,mapped,,P6
@@ -554,7 +555,7 @@ tests/test_manifests.py::test_hooks_manifest_parses,tests/test_manifests.py,,tod
 tests/test_manifests.py::test_herdr_manifest_required_fields,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_license_declared_and_present,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_ui_mod_is_its_own_plugin,tests/test_manifests.py,,todo,,
-tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,,todo,,
+tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,herdr-inbox --test mcp_goldens tools_list_is_the_python_servers_byte_for_byte,mapped,,P5
 tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,,todo,,
@@ -999,3 +1000,4 @@ tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_sig
 tests/test_worker_handover.py::test_a_run_token_is_never_inherited,tests/test_worker_handover.py,,retired,"a guard of the Python suite's own teardown (tests/conftest.py); the Rust process tests signal only children they spawned and still hold (tests/worker_process/rig.rs, Drop)",P5
 tests/test_worker_handover.py::test_signal_verified_never_signals_what_fails_the_check,tests/test_worker_handover.py,,retired,"a guard of the Python suite's own teardown (tests/conftest.py); the Rust process tests signal only children they spawned and still hold (tests/worker_process/rig.rs, Drop)",P5
 tests/test_goldens.py::test_the_popup_transition_golden_is_what_the_popup_does,tests/test_goldens.py,,retired,Python-side check that the golden is what tui.py does; the Rust side is inbox-core --test popup_transitions (one test per scenario),P6
+tests/test_goldens.py::test_the_mcp_recordings_are_what_the_server_does,tests/test_goldens.py,,retired,Python-side check that the MCP recordings are what server.py does; the Rust side is herdr-inbox --test mcp_goldens,P5

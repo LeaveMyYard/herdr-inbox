@@ -27,7 +27,7 @@ impl Payload {
     /// object reads as `{}` (Python's hook then fell back to the bare rules at
     /// SessionStart and did nothing else). An object nested deeper than
     /// serde_json's 128 levels (a deep `tool_response`) is still read
-    /// ([`deep`]). `None` when it is not JSON (the hook then does nothing).
+    /// (`deep`). `None` when it is not JSON (the hook then does nothing).
     pub fn parse(raw: &str) -> Option<Payload> {
         if raw.trim().is_empty() {
             return Some(Payload::default());

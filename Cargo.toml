@@ -82,6 +82,11 @@ serde.workspace = true
 serde_json.workspace = true
 unicode-general-category.workspace = true
 rustix.workspace = true
+# The MCP server (plan §3: rmcp, pinned, behind a thin adapter, src/mcp/server.rs). The same
+# pin as herdr-panorama's server, whose adapter this one follows.
+rmcp = { version = "=3.5.1", default-features = false, features = ["server", "transport-io"] }
+# rmcp's runtime: the server runs one current_thread runtime; the tools run on its blocking pool.
+tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests

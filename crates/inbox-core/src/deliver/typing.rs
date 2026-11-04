@@ -18,16 +18,11 @@ pub(super) fn type_them(
     let ids: Vec<i64> = ours.iter().map(|q| q.id).collect();
     let busy = !DELIVERABLE.contains(&agent.status.as_str());
     for (batch, ack) in look.messages(&ids) {
-        let pending = |reason: &str, out: &mut Outcomes| {
-            for id in &batch {
-                out.insert(*id, Outcome::Pending(reason.to_string()));
-            }
-        };
         if mode.retry && !mode.force {
             // the operator may have stepped into the pane since the check above
             let again = look.agent_again(&batch);
             if again.is_none_or(|a| a.focused || a.session != agent.session) {
-                pending(OPERATOR_IN_PANE, out);
+                out.pending(look, batch.iter().copied(), OPERATOR_IN_PANE);
                 continue;
             }
         }
@@ -36,11 +31,11 @@ pub(super) fn type_them(
             match look.composer(&batch) {
                 Composer::Empty => {}
                 Composer::Draft => {
-                    pending(COMPOSER_DRAFT, out);
+                    out.pending(look, batch.iter().copied(), COMPOSER_DRAFT);
                     continue;
                 }
                 Composer::Unknown => {
-                    pending(COMPOSER_UNKNOWN, out);
+                    out.pending(look, batch.iter().copied(), COMPOSER_UNKNOWN);
                     continue;
                 }
             }
@@ -48,25 +43,26 @@ pub(super) fn type_them(
         // Python `if err:`: an empty error is a success
         if let Some(error) = look.prompt(&batch).filter(|e| !e.is_empty()) {
             for id in &batch {
-                out.insert(*id, Outcome::Failed(error.clone()));
+                out.insert(look, *id, Outcome::Failed(error.clone()));
             }
             continue;
         }
         if !look.verify_transcript(&batch) {
             // sent, never counted as seen: check_answers still returns it
             for id in &batch {
-                out.insert(*id, Outcome::SentUnverified);
+                out.insert(look, *id, Outcome::SentUnverified);
             }
             continue;
         }
         if mode.verify_later {
             for id in &batch {
-                out.insert(*id, Outcome::VerifyLater);
+                out.insert(look, *id, Outcome::VerifyLater);
             }
             continue;
         }
         for id in batch {
-            out.insert(id, landed(look.landing(id), ack, busy));
+            let outcome = landed(look.landing(id), ack, busy);
+            out.insert(look, id, outcome);
         }
     }
 }
