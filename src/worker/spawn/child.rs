@@ -1,0 +1,91 @@
+//! Starting a worker process detached, and watching a successor this
+//! process started. The only process ever signalled is such a successor:
+//! still held here as an unreaped [`Child`], spawned in a process group of
+//! its own, so neither its pid nor its group id can name anyone else's.
+
+use std::ffi::{OsStr, OsString};
+use std::fs::File;
+use std::io;
+use std::os::unix::process::CommandExt;
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+
+use rustix::process::{Pid, Signal, kill_process_group};
+
+/// How often [`watch`] looks.
+pub const POLL: Duration = Duration::from_millis(50);
+
+/// `program args…` in `cwd`, detached in a process group of its own, with
+/// exactly `env` as its environment, stdin and stdout on `/dev/null`, stderr
+/// to `stderr` (else `/dev/null`). Python `Popen(start_new_session=True,
+/// close_fds=True)`: Rust closes every other descriptor on exec already.
+pub fn spawn_detached(
+    program: &OsStr,
+    args: &[OsString],
+    cwd: Option<&Path>,
+    env: &[(OsString, OsString)],
+    stderr: Option<File>,
+) -> io::Result<Child> {
+    let mut cmd = Command::new(program);
+    cmd.args(args)
+        .env_clear()
+        .envs(env.iter().map(|(k, v)| (k, v)));
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    cmd.stdin(Stdio::null()).stdout(Stdio::null());
+    cmd.stderr(stderr.map_or_else(Stdio::null, Stdio::from));
+    cmd.process_group(0).spawn()
+}
+
+/// Lets `child` run on: a thread reaps it when it exits, so a long-lived
+/// worker leaves no zombie per process it started (Python's `subprocess`
+/// reaps finished children on the next `Popen`).
+pub fn reap_later(mut child: Child) {
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+}
+
+/// Kills `child`'s whole group (a launcher's children too) and reaps it.
+/// `child` was spawned by [`spawn_detached`] (it leads its group) and has
+/// not been waited for, so its pid and group id are still its own.
+fn kill_group(mut child: Child) {
+    let _ = kill_process_group(Pid::from_child(&child), Signal::KILL);
+    let _ = child.kill(); // the leader itself, should the group be gone
+    let _ = child.wait();
+}
+
+/// Watches the successor `child` for up to `wait`: true as soon as `done`
+/// (it runs on, [`reap_later`]); if `child` exits first, `gone()`. Neither
+/// in time: `done` is asked once more (a worker that took the lock at the
+/// last moment is never killed), then `child` is killed with its group and
+/// the answer is false.
+pub fn watch(
+    mut child: Child,
+    wait: Duration,
+    done: impl Fn(&Child) -> bool,
+    gone: impl Fn() -> bool,
+) -> bool {
+    let deadline = Instant::now() + wait;
+    loop {
+        if done(&child) {
+            reap_later(child);
+            return true;
+        }
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return gone();
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(POLL);
+    }
+    if done(&child) {
+        reap_later(child);
+        return true;
+    }
+    kill_group(child);
+    false
+}

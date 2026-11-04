@@ -2,10 +2,11 @@
 //! `_oldest_group`, `_resolve_remote`).
 
 use herdr_agent_kit::agent_session::SessionId;
-use serde_json::Value;
 
 use super::Request;
-use crate::cli::args::{pyint, question_id};
+use super::qref::question_id;
+use crate::pyint;
+use crate::remote::pyvalue::py_int;
 use crate::store::{Question, Store};
 use crate::text::py_isspace;
 
@@ -86,11 +87,7 @@ fn remote(
     };
     for (key, m, qs) in store.mirror_open_groups()? {
         let ours = m.label.as_deref() == Some(label) || m.machine_id == label;
-        if ours
-            && qs
-                .iter()
-                .any(|q| q.get("id").and_then(Value::as_i64) == Some(n))
-        {
+        if ours && qs.iter().any(|q| q.get("id").and_then(py_int) == Some(n)) {
             return Ok(Some((Target::Remote(key), None)));
         }
     }
