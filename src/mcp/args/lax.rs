@@ -24,6 +24,46 @@ impl Refusal {
     }
 }
 
+/// Every refusal of one call, in pydantic's order.
+#[derive(Debug, Default)]
+pub struct Refusals(Vec<Refusal>);
+
+impl Refusals {
+    /// Adds one.
+    pub fn push(&mut self, r: Refusal) {
+        self.0.push(r);
+    }
+
+    /// Adds all of `other`'s.
+    pub fn extend(&mut self, other: Refusals) {
+        self.0.extend(other.0);
+    }
+
+    /// How many so far.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// None so far.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The value, or `None` with its refusal kept.
+    pub fn take<T>(&mut self, r: Result<T, Refusal>) -> Option<T> {
+        r.map_err(|e| self.0.push(e)).ok()
+    }
+
+    /// `value` if nothing was refused, else every refusal.
+    pub fn done<T>(self, value: T) -> Result<T, Vec<Refusal>> {
+        if self.0.is_empty() {
+            Ok(value)
+        } else {
+            Err(self.0)
+        }
+    }
+}
+
 /// A required field that is absent.
 pub const MISSING: &str = "Field required";
 

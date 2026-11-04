@@ -96,23 +96,32 @@ fn the_legacy_handshake_answers_and_refuses_as_python_does() {
     );
     assert_eq!(by_id(&got, &json!(3)), by_id(&want, &json!(3))); // an unknown tool
     assert_eq!(by_id(&got, &json!(4)), by_id(&want, &json!(4))); // ping
-    // refused by the schema: a tool error naming the field, pydantic's first lines
-    for id in 5..=8 {
-        let (g, w) = (by_id(&got, &json!(id)), by_id(&want, &json!(id)));
-        assert_eq!(g["result"]["isError"], json!(true), "call {id}");
-        let (g, w) = (
-            g["result"]["content"][0]["text"].as_str().unwrap(),
-            w["result"]["content"][0]["text"].as_str().unwrap(),
-        );
-        let head: Vec<&str> = w.lines().take(3).collect();
-        let want_head = format!(
-            "{}\n{}\n{}",
-            head[0],
-            head[1],
-            head[2].split(" [type=").next().unwrap()
-        );
-        assert_eq!(g, want_head, "call {id}");
+    // refused by the schema: pydantic's text without its codes, inputs and links
+    for id in 5..=15 {
+        assert_refused_alike(by_id(&got, &json!(id)), by_id(&want, &json!(id)), id);
     }
+}
+
+/// pydantic's refusal as the Rust server words it: each `field` line, and each
+/// reason line cut before ` [type=`; the `For further information` lines dropped.
+fn without_codes(text: &str) -> String {
+    text.lines()
+        .filter(|l| !l.trim_start().starts_with("For further information"))
+        .map(|l| l.split(" [type=").next().unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn assert_refused_alike(got: &Value, want: &Value, id: i64) {
+    assert_eq!(got["result"]["isError"], json!(true), "call {id}");
+    assert_eq!(want["result"]["isError"], json!(true), "call {id}");
+    let text = |m: &Value| {
+        m["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(text(got), without_codes(&text(want)), "call {id}");
 }
 
 #[test]
@@ -164,4 +173,30 @@ fn ask_operators_refusals_are_the_python_receipts() {
             "call {id}"
         );
     }
+}
+
+/// Tool calls as Claude Code makes them (2026-07-28, with its `_meta`): the same
+/// result, `resultType` included. Python adds `_meta.io.modelcontextprotocol/serverInfo`
+/// to every result; rmcp does not (a stated deviation: discovery carries it).
+#[test]
+fn claude_codes_tool_calls_get_the_python_servers_results() {
+    let recs = golden("claude-code-calls");
+    let (got, _dir) = replay(&of(&recs, "client->server"));
+    let want = of(&recs, "server->client");
+    let bare = |m: &Value| {
+        let mut r = m["result"].clone();
+        r.as_object_mut().unwrap().remove("_meta");
+        r
+    };
+    assert_eq!(
+        bare(by_id(&got, &json!(100))),
+        bare(by_id(&want, &json!(100)))
+    );
+    assert_eq!(
+        bare(by_id(&got, &json!(102))),
+        bare(by_id(&want, &json!(102)))
+    );
+    let (g, w) = (by_id(&got, &json!(101)), by_id(&want, &json!(101)));
+    assert_refused_alike(g, w, 101);
+    assert_eq!(g["result"]["resultType"], w["result"]["resultType"]);
 }

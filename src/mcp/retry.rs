@@ -17,8 +17,8 @@ pub enum Failure {
     /// The store's open found the schema incomplete (Python `SchemaNotReady`),
     /// before any write: safe to retry.
     NotReady,
-    /// SQLite reported the database busy or locked.
-    Busy,
+    /// SQLite reported the database busy or locked, in these words.
+    Busy(String),
     /// Anything else: the call fails with this text (Python's exception).
     Error(String),
 }
@@ -54,8 +54,8 @@ pub const TOOL_BUSY_TIMEOUT: Duration = Duration::from_secs(3);
 /// last, the busy receipt. A not-ready attempt starts the not-ready waits:
 /// each first asks for the worker, then waits and runs again; when they run
 /// out, the not-migrated receipt. As in Python, a busy database during the
-/// not-ready waits fails the call (Python's `OperationalError` escapes that
-/// inner loop).
+/// not-ready waits fails the call with SQLite's words (Python's
+/// `OperationalError` escapes that inner loop).
 pub fn busy_safe(
     mut attempt: impl FnMut() -> Result<Value, Failure>,
     backoff: &Backoff,
@@ -68,7 +68,7 @@ pub fn busy_safe(
         match attempt() {
             Ok(v) => return Ok(v),
             Err(Failure::Error(e)) => return Err(e),
-            Err(Failure::Busy) => match busy.next() {
+            Err(Failure::Busy(_)) => match busy.next() {
                 Some(d) => sleep(*d),
                 None => return Ok(receipts::busy()),
             },
@@ -79,7 +79,7 @@ pub fn busy_safe(
                     match attempt() {
                         Ok(v) => return Ok(v),
                         Err(Failure::NotReady) => ensure_worker(),
-                        Err(Failure::Busy) => return Err("database is locked".into()),
+                        Err(Failure::Busy(e)) => return Err(e),
                         Err(Failure::Error(e)) => return Err(e),
                     }
                 }

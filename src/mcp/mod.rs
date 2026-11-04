@@ -14,11 +14,17 @@
 //! `ask_operator`'s refusals. The rest follows in P5-F's next slices; until
 //! the switch (P5-I) nothing runs this server.
 //!
-//! Stated deviations from the Python server: a call the schema refuses names
-//! its first refused field in pydantic's words, without pydantic's error code,
-//! link or the count of further errors. The protocol envelope (capabilities,
-//! the 2026-07-28 cache fields, the order of a tool's own keys) is rmcp's;
-//! JSON-RPC edges no client sends are answered as rmcp answers them.
+//! Stated deviations from the Python server:
+//! - a call the schema refuses lists every refused field and reason as
+//!   pydantic does, without pydantic's error codes, inputs and links;
+//! - an integer argument beyond `i64` is refused by the schema (Python
+//!   accepts it and the store fails the call later: an error either way);
+//! - FastMCP's JSON pre-pass leaves JSON text nested deeper than 128 levels a
+//!   string (Python reads it as JSON up to its recursion limit);
+//! - the protocol envelope is rmcp's: the capabilities, the 2026-07-28 cache
+//!   fields, the order of a tool's own keys, and no per-result
+//!   `_meta.io.modelcontextprotocol/serverInfo` (discovery carries it). JSON-RPC
+//!   edges no client sends are answered as rmcp answers them.
 
 pub mod args;
 pub mod ask;
