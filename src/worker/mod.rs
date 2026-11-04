@@ -20,6 +20,7 @@
 //! never signalled: handover is cooperative, through the lock, the holder
 //! and standby records and the revision-wanted marker.
 
+pub mod duties;
 mod env;
 pub mod handover;
 pub mod live;

@@ -21,7 +21,7 @@ use serde_json::Value;
 use crate::claude::Transcripts;
 use crate::store::{Claim, Question, Store};
 
-pub use relocate::{MOVED, session_pane};
+pub use relocate::{MOVED, session_pane, tab_name};
 pub use unreadable::{UNREADABLE_NOTIFY_AFTER, Unreadable};
 
 /// How long a typed message is waited for (Python `VERIFY_SECONDS`).
