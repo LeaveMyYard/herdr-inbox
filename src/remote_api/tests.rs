@@ -135,17 +135,51 @@ fn the_record_and_the_action_commit_together() {
     );
 }
 
+/// Python `test_export_does_not_reconcile`: a pull never runs the reconcile
+/// pass (`Store._reconcile_unverified`, the worker's). Question 2 is exactly
+/// what that pass acts on: an old server's "typed = seen" signature
+/// (`acknowledged_at = delivered_at`), unverified, a minute old, never reset,
+/// in a database without the one-off flag. Reconcile would un-see it, count a
+/// reset and set the flag; export must leave every row as it was, its own id
+/// apart.
 #[test]
 fn export_makes_no_data_writes_but_its_id() {
     let (_dir, store) = store();
-    let changes = |s: &Store| -> i64 {
-        s.db()
-            .query_row("SELECT COUNT(*) FROM changes", [], |r| r.get(0))
-            .unwrap()
+    store
+        .db()
+        .execute_batch(
+            "INSERT INTO questions (id, created_at, pane_id, session_id, question, norm, status, answer, \
+             answered_at, delivered_at, acknowledged_at) VALUES (2, '2001-01-01T00:00:00+00:00', 'w1:p1', \
+             '00000000-0000-4000-8000-000000000002', 'Typed and seen?', 'typed and seen?', 'answered', 'yes', \
+             strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '-2 minutes'), \
+             strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '-1 minutes'), \
+             strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '-1 minutes'))",
+        )
+        .unwrap();
+    store.db().execute_batch("DELETE FROM meta").unwrap();
+    let dump = |s: &Store| -> Vec<String> {
+        let mut out = Vec::new();
+        for sql in [
+            "SELECT quote(id) || quote(status) || quote(answer) || quote(delivered_at) || quote(acknowledged_at) \
+             || quote(delivery_error) FROM questions ORDER BY id",
+            "SELECT quote(id) || quote(verified_at) || quote(reset_count) FROM question_ext ORDER BY id",
+            "SELECT quote(key) || quote(value) FROM meta WHERE key != 'db_id' ORDER BY key",
+            "SELECT quote(seq) || quote(qid) FROM changes ORDER BY seq",
+        ] {
+            let mut stmt = s.db().prepare(sql).unwrap();
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+            out.extend(rows.map(Result::unwrap));
+            out.push("--".into());
+        }
+        out
     };
-    let before = changes(&store);
+    let before = dump(&store);
     let out = export(&store, &Map::new(), SystemTime::now()).unwrap();
-    assert_eq!(out["ids"], json!([1]));
+    assert_eq!(
+        out["ids"],
+        json!([1]),
+        "the seen answer is not in a full snapshot"
+    );
     assert_eq!(out["db_id"], json!(db_id(store.db()).unwrap()));
-    assert_eq!(changes(&store), before);
+    assert_eq!(dump(&store), before, "export wrote to the rows");
 }
