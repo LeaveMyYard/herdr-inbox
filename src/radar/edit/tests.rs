@@ -39,14 +39,18 @@ fn an_edit_that_would_not_parse_is_dropped_with_a_warning() {
     let got = edited(
         &text,
         false,
-        &|t| !t.contains("$inbox_q"),
+        &|t| Ok(!t.contains("$inbox_q")),
         Path::new("/c"),
         &mut |m| warned.push(m.to_string()),
     );
-    assert_eq!(got, None);
+    assert_eq!(got.unwrap(), None);
     assert_eq!(
         warned,
         vec!["radar sidebar: edit would break /c; left alone"]
     );
-    assert!(edited(&text, false, &|_| true, Path::new("/c"), &mut |_| {}).is_some());
+    assert!(
+        edited(&text, false, &|_| Ok(true), Path::new("/c"), &mut |_| {})
+            .unwrap()
+            .is_some()
+    );
 }
