@@ -17,7 +17,10 @@ pub(super) const DELIVERABLE: [&str; 2] = ["idle", "done"];
 
 /// The outcomes decided so far. Each is handed to [`Look::record`] the
 /// moment it is decided, as Python writes it there: before the next lookup,
-/// and before the next message is typed.
+/// and before the next message is typed. One difference in order: Python
+/// relocates every changed answer first and then records the rest; here
+/// each is moved or recorded in turn. That changes only which rows are
+/// written when a caller's error stops the pass.
 #[derive(Default)]
 pub(super) struct Outcomes(BTreeMap<i64, Outcome>);
 

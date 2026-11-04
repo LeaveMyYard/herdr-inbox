@@ -39,6 +39,8 @@ pub struct World {
     pub screen: &'static str,
     /// The sessions table is lost when the first prompt reaches herdr.
     pub lose_sessions_at_prompt: bool,
+    /// No verify-later callback, whatever `mode` says.
+    pub no_callback: bool,
 }
 
 /// What a pass left: its result, herdr's requests, the verify-later jobs
@@ -116,6 +118,7 @@ impl World {
             elsewhere: None,
             screen: EMPTY,
             lose_sessions_at_prompt: false,
+            no_callback: false,
         }
     }
 
@@ -197,7 +200,7 @@ impl World {
                 .count();
             jobs.push((job, typed));
         };
-        let job: Option<&mut dyn FnMut(Value)> = if self.mode.verify_later {
+        let job: Option<&mut dyn FnMut(Value)> = if self.mode.verify_later && !self.no_callback {
             Some(&mut later)
         } else {
             None

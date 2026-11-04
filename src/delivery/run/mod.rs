@@ -59,13 +59,19 @@ pub type VerifyLater<'a> = &'a mut dyn FnMut(Value);
 /// database failed. As in Python, the pass stops there: what was written
 /// before stays (each outcome is written as it is decided), nothing more is
 /// typed or written, and the rows it claimed since keep their claim until it
-/// goes stale.
+/// goes stale. Whether the pass verifies later is whether `verify_later` is
+/// given (Python's `verify_later is not None`); `mode.verify_later` is
+/// ignored, so a typed answer is never left without an outcome or a job.
 pub fn deliver_batch(
     ctx: &mut Ctx<'_>,
     qs: &[Question],
     mode: Mode,
     mut verify_later: Option<VerifyLater<'_>>,
 ) -> rusqlite::Result<()> {
+    let mode = Mode {
+        verify_later: verify_later.is_some(),
+        ..mode
+    };
     let mut panes: Vec<(Option<String>, Vec<&Question>)> = Vec::new();
     for q in qs {
         match panes.iter_mut().find(|(p, _)| *p == q.pane_id) {

@@ -269,3 +269,20 @@ fn a_halted_pass_shows_no_notice() {
     assert_eq!(ran.prompts(), 0);
     assert!(ran.notes.is_empty(), "{:?}", ran.notes);
 }
+
+/// #100 final pass M1: "verify later" without a callback to take the job
+/// verifies now; a typed answer is never left with neither an outcome nor
+/// a job (its claim would go stale and it would be typed again).
+#[test]
+fn verify_later_without_a_callback_verifies_now() {
+    let mut world = World::new(&["yes"]);
+    world.mode = Mode {
+        verify_later: true,
+        ..Mode::default()
+    };
+    world.no_callback = true;
+    let ran = world.pass(|_| {});
+    ran.result.as_ref().unwrap();
+    assert_eq!(ran.prompts(), 1);
+    assert_eq!(rows(&world.db, &world.ids), [json!([false, NOT_VERIFIED])]);
+}
