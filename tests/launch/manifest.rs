@@ -34,15 +34,19 @@ fn run_spec(r: &Root, spec: &Value) -> std::process::Output {
                 .replace("${CLAUDE_PLUGIN_ROOT}", root.to_str().unwrap())
         })
         .collect();
-    Command::new(spec["command"].as_str().unwrap())
+    let cli = crate::herdr_cli::CliStub::new(&r.dir.path().join("herdr-cli"));
+    let out = Command::new(spec["command"].as_str().unwrap())
         .args(&args)
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env("CLAUDE_PLUGIN_DATA", r.dir.path().join("data"))
         .env("XDG_STATE_HOME", r.dir.path().join("state"))
+        .env("HERDR_BIN_PATH", &cli.bin)
         .stdin(Stdio::null())
         .output()
-        .unwrap()
+        .unwrap();
+    cli.assert_only(&[]);
+    out
 }
 
 #[test]
