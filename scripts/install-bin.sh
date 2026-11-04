@@ -6,7 +6,7 @@
 # at <plugin dir>/bin/herdr-inbox and records a hard copy for the Claude Code side, outside any
 # install directory (herdr deletes old ones after an update):
 # ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin/herdr-inbox-<version>, where scripts/launch
-# looks.
+# looks. Older recorded copies beyond the newest three of each contract are removed then.
 #
 # - Before the first release (no release.toml) it does nothing: the Python hooks stay in use.
 # - Otherwise the release named in release.toml, for this machine's target, checked against its
@@ -77,7 +77,8 @@ else
 	exit 0
 fi
 if mkdir -p "$state" && cp "$bin" "$state/.herdr-inbox-$version.$$" && mv -f "$state/.herdr-inbox-$version.$$" "$state/herdr-inbox-$version"; then
-	:
+	# one copy per release, forever, otherwise (#72): the newest three of each contract stay
+	inbox_prune "$state" 3 "$state/herdr-inbox-$version"
 else
 	rm -f "$state/.herdr-inbox-$version.$$"
 	echo "herdr-inbox: could not record the binary for Claude Code in $state (its hooks fall back to Python)" >&2
