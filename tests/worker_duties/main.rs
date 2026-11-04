@@ -4,6 +4,7 @@
 //! herdr, database or transcripts: every path is under the test's own
 //! temporary directory.
 
+mod alerts;
 mod ancestor_replay;
 #[path = "../store/common.rs"]
 mod common;
@@ -180,6 +181,11 @@ impl World {
         });
         self.memory = memory;
         tock
+    }
+
+    /// Runs `f` with a round of this world.
+    pub fn with_round<T>(&mut self, f: impl FnOnce(&mut Round<'_, '_>) -> T) -> T {
+        self.with_ctx(|ctx, server| f(&mut Round { ctx, server }))
     }
 
     /// The hook verification pass alone.

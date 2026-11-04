@@ -17,6 +17,7 @@
 //! server's id, so the tests run a tick against a scripted herdr socket and
 //! a temporary database.
 
+pub mod alerts;
 pub mod failed;
 pub mod hooks;
 pub mod moved;

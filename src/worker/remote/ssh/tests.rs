@@ -1,0 +1,122 @@
+//! The ssh runner with stand-in programs (shell scripts this test writes):
+//! exit codes, stdin, the timeout, a client that cannot start, and the
+//! options each kind of call gets.
+
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+
+use super::*;
+use crate::remote::command::{FixedCommand, SafeTarget};
+use crate::store::mirror::Machine;
+
+fn script(dir: &std::path::Path, body: &str) -> OsString {
+    let p = dir.join("fake-ssh");
+    fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+    fs::set_permissions(&p, fs::Permissions::from_mode(0o755)).unwrap();
+    p.into_os_string()
+}
+
+fn env(program: OsString, runtime: Option<PathBuf>, home: PathBuf) -> SshEnv {
+    SshEnv {
+        program,
+        runtime_dir: runtime,
+        home,
+    }
+}
+
+#[test]
+fn the_exit_code_stdout_stderr_and_stdin_come_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = script(dir.path(), "cat; echo err >&2; exit 3");
+    let r = exec(&p, &[], Some("{\"x\": 1}"), Duration::from_secs(5), false);
+    assert_eq!(
+        (r.code, r.stdout.as_str(), r.stderr.as_str()),
+        (3, "{\"x\": 1}", "err\n")
+    );
+}
+
+#[test]
+fn a_call_past_its_time_is_killed_and_reads_124() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = script(dir.path(), "echo partial; exec sleep 30");
+    let started = Instant::now();
+    let r = exec(&p, &[], None, Duration::from_millis(300), true);
+    assert!(started.elapsed() < Duration::from_secs(10));
+    assert_eq!(
+        (r.code, r.stdout.as_str(), r.stderr.as_str()),
+        (124, "partial\n", "timed out after 0 s")
+    );
+    let r = exec(&p, &[], Some(""), Duration::from_millis(300), false);
+    assert_eq!((r.code, r.stdout.as_str()), (124, "")); // call(): no partial output
+}
+
+#[test]
+fn a_client_that_cannot_start_reads_127() {
+    let r = exec(
+        &OsString::from("/nonexistent/ssh"),
+        &[],
+        None,
+        Duration::from_secs(1),
+        true,
+    );
+    assert_eq!(r.code, 127);
+    assert!(!r.stderr.is_empty());
+}
+
+#[test]
+fn connection_sharing_needs_a_short_existing_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let ok = env("ssh".into(), Some(dir.path().into()), "/nonexistent".into());
+    let opts = control_options(&ok);
+    assert_eq!(opts[1], "ControlMaster=auto");
+    assert_eq!(
+        opts[3],
+        format!("ControlPath={}", dir.path().join("hinbox-%C").display())
+    );
+    assert_eq!(opts[5], "ControlPersist=60");
+    let missing = env(
+        "ssh".into(),
+        Some("/nonexistent/run".into()),
+        "/nonexistent".into(),
+    );
+    assert_eq!(control_options(&missing), ["-o", "ControlMaster=no"]);
+    let deep = dir.path().join("d".repeat(60));
+    fs::create_dir_all(&deep).unwrap();
+    assert_eq!(
+        control_options(&env("ssh".into(), Some(deep), "/x".into())),
+        ["-o", "ControlMaster=no"]
+    );
+    // no runtime directory: ~/.ssh
+    let home = tempfile::tempdir().unwrap();
+    fs::create_dir(home.path().join(".ssh")).unwrap();
+    let opts = control_options(&env("ssh".into(), Some(PathBuf::new()), home.path().into()));
+    assert!(opts[3].starts_with(&format!(
+        "ControlPath={}",
+        home.path().join(".ssh").display()
+    )));
+}
+
+#[test]
+fn only_an_inbox_call_shares_the_connection_and_the_command_goes_last() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = script(dir.path(), "printf '%s\\n' \"$@\"");
+    let e = env(p, Some(dir.path().into()), "/x".into());
+    let target = SafeTarget::for_ssh(Some("box.lan")).unwrap();
+    let probe = run(&e, &target, &FixedCommand::probe(), None);
+    let args: Vec<&str> = probe.stdout.lines().collect();
+    assert_eq!(&args[..8], SSH_OPTIONS);
+    assert_eq!(&args[8..10], ["--", "box.lan"]);
+    assert_eq!(args[10..].join("\n"), FixedCommand::probe().as_str());
+    let rec = Machine {
+        uv: Some("/r/uv".into()),
+        herdr: Some("/r/herdr".into()),
+        plugin_root: Some("/r/root".into()),
+        ..Machine::default()
+    };
+    let export = FixedCommand::inbox(&rec, crate::remote::command::InboxSub::Export).unwrap();
+    let call = run(&e, &target, &export, Some("{}"));
+    let args: Vec<&str> = call.stdout.lines().collect();
+    assert!(
+        args.contains(&"ControlMaster=auto") && args.ends_with(&["--", "box.lan", export.as_str()])
+    );
+}

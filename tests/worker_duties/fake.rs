@@ -36,6 +36,8 @@ pub struct Knobs {
     pub agents: Value,
     /// `tab get` labels (`FAKE_HERDR_TABS`, default `my-tab`).
     pub tab_label: String,
+    /// `FAKE_HERDR_FAIL=agent list`.
+    pub fail_agent_list: bool,
 }
 
 impl Default for Knobs {
@@ -49,6 +51,7 @@ impl Default for Knobs {
             screen: String::new(),
             agents: json!([]),
             tab_label: "my-tab".into(),
+            fail_agent_list: false,
         }
     }
 }
@@ -108,6 +111,7 @@ impl Fake {
                 }
                 "pane.read" if params["format"] == "ansi" => json!({"read": {"text": EMPTY}}),
                 "pane.read" => json!({"read": {"text": k.screen}}),
+                "agent.list" if k.fail_agent_list => return Err("fake failure".into()),
                 "agent.list" => json!({"agents": k.agents}),
                 "tab.get" => json!({"tab": {"tab_id": params["tab_id"], "label": k.tab_label}}),
                 "pane.list" => json!({"panes": [{"pane_id": "w1:p1", "tab_id": "w1:t1"},

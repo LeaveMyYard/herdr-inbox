@@ -25,6 +25,7 @@ mod env;
 pub mod handover;
 pub mod live;
 pub mod lock;
+pub mod remote;
 pub mod run;
 pub mod spawn;
 
