@@ -1,9 +1,26 @@
-//! The inbox's tab marks (Python `tabs`): the part the store's alerts and the
-//! MCP tools' caller need.
+//! The inbox's tab marks (Python `tabs`): the open-question count in front
+//! of a tab's label, `❓2 Billing API`.
+//!
+//! herdr has no per-tab tokens, so the count goes into the label itself. The
+//! operator's own label (the *base*) is never stored: it is recovered by
+//! stripping our marks from the label herdr reports now ([`base_label`]), so
+//! a rename by the operator is adopted and a crash leaves at worst a stale
+//! prefix that the next `inbox sync-tokens` removes.
+//!
+//! - [`settings`]: `tab_prefix` and `prefix_unnamed_tabs` from the plugin's
+//!   `config.toml`, read on every use.
+//! - [`label`]: the marks a tab may be stripped of, the label it should
+//!   have, the counts per tab.
+//! - [`lock`]: the cross-process lock every count, re-read and rename runs
+//!   under (`<db>.markers.lock`, never the database's own lock).
+//! - [`apply`]: one tab's re-read and rename.
+
+pub mod apply;
+pub mod label;
+pub mod lock;
+pub mod settings;
 
 use unicode_general_category::{GeneralCategory, get_general_category};
-
-use crate::store::Store;
 
 /// The default mark in front of a tab's count (Python `tabs.DEFAULT_PREFIX`).
 pub const DEFAULT_PREFIX: &str = "❓";
@@ -30,26 +47,6 @@ pub fn base_label(label: &str, marks: &[&str]) -> String {
         }
         return label.to_string();
     }
-}
-
-/// Python `tabs.marks_for`: the default mark, plus every mark the inbox
-/// applied to `tab` (`tab_decor`), the empty one left out.
-pub fn marks_for(store: &Store, tab: Option<&str>) -> rusqlite::Result<Vec<String>> {
-    let mut marks = vec![DEFAULT_PREFIX.to_owned()];
-    if let Some(tab) = tab.filter(|t| !t.is_empty()) {
-        let mut stmt = store
-            .db()
-            .prepare("SELECT mark FROM tab_decor WHERE tab_id = ?")?;
-        for mark in stmt.query_map([tab], |r| r.get::<_, Option<String>>(0))? {
-            if let Some(m) = mark?
-                && !m.is_empty()
-                && !marks.contains(&m)
-            {
-                marks.push(m);
-            }
-        }
-    }
-    Ok(marks)
 }
 
 #[cfg(test)]

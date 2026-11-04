@@ -8,16 +8,22 @@
 //! as it is; each item names the Python it ports.
 
 pub mod claude;
+pub mod cli;
 pub mod clock;
 pub mod contract;
+pub mod deeplink;
 pub mod delivery;
 pub mod hook;
 pub mod mcp;
+pub mod pyint;
 pub mod pyjson;
 pub mod remote;
 pub mod rewake;
+pub mod service;
 pub mod starts;
 pub mod store;
+pub mod surface;
 pub mod tabs;
 pub mod text;
 pub mod token;
+pub mod worker;

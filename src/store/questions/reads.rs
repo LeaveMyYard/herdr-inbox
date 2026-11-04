@@ -24,6 +24,20 @@ impl Store {
             .optional()
     }
 
+    /// The question's draft as stored (`question_ext.draft_json`, the raw
+    /// JSON text), if it has one.
+    pub fn draft_text(&self, qid: i64) -> rusqlite::Result<Option<String>> {
+        Ok(self
+            .db()
+            .query_row(
+                "SELECT draft_json FROM question_ext WHERE id = ?",
+                [qid],
+                |r| r.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten())
+    }
+
     pub(crate) fn questions(&self, sql: &str, args: Vec<Value>) -> rusqlite::Result<Vec<Question>> {
         let mut stmt = self.db().prepare(sql)?;
         let rows = stmt.query_map(params_from_iter(args), Question::from_row)?;
