@@ -250,7 +250,8 @@ fn an_unreachable_herdr_ends_the_watch() {
     let mut watcher = w.watcher(&clock, Some("w1:p1"));
     watcher.herdr = herdr_agent_kit::herdr_api::blocking::Herdr::new(
         herdr_agent_kit::herdr_api::ServerId::new(w.dir.path().join("no.sock")),
-    );
+    )
+    .with_bin("/nonexistent/herdr-cli");
     assert_eq!(run(&watcher, &w.payload()), None);
 }
 
