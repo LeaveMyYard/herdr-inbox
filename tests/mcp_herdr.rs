@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
 use herdr_inbox::store::Store;
-use mcp_rig::{golden, of, session};
+use mcp_rig::{cli_calls, golden, of, session};
 use serde_json::{Value, json};
 
 const S: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
@@ -168,6 +168,15 @@ fn check_labelled(
             .map(|c| c.as_array().unwrap()[2..].to_vec())
             .collect()
     };
+    // no real herdr CLI ran: the server's one CLI call (the plugin's settings, on the first
+    // marker refresh) went to the rig's stub
+    let cli = cli_calls(dir.path());
+    assert!(!cli.is_empty(), "{name}: the stub was reached");
+    assert!(
+        cli.iter()
+            .all(|c| c == "plugin config-dir leavemyyard.herdr-inbox"),
+        "{name}: {cli:?}"
+    );
     let Some(f) = herdr else { return };
     // the same notifications (Python: `notification show <title> --body <body> --sound request`)
     let shown: Vec<Vec<Value>> = f

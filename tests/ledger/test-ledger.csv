@@ -562,7 +562,7 @@ tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,herdr-inbox --test m
 tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,herdr-inbox --lib mcp::mine::tests::another_sessions_question_cannot_be_withdrawn_or_listed,mapped,,P5
 tests/test_mcp.py::test_session_change_is_resolved_per_call,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::the_session_is_resolved_on_every_call,mapped,,P5
 tests/test_mcp.py::test_claude_session_env_is_the_fallback,tests/test_mcp.py,herdr-inbox --test mcp_herdr without_herdrs_session_the_environments_is_used,mapped,,P5
-tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,herdr-inbox --test mcp_herdr the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported,mapped,,P5
+tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,herdr-inbox --test mcp_goldens the_legacy_handshake_answers_and_refuses_as_python_does,mapped,,P5
 tests/test_mcp.py::test_stdio_server_end_to_end[auto],tests/test_mcp.py,herdr-inbox --test mcp_goldens claude_codes_tool_calls_get_the_python_servers_results,mapped,,P5
 tests/test_mcp.py::test_tools_on_a_pre_bridge_stamp_work_without_any_schema_work,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::a_pre_bridge_stamp_with_the_whole_schema_works_and_is_never_restamped,mapped,,P5
 tests/test_mcp.py::test_tools_on_an_older_schema_return_the_unavailable_receipt,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::a_database_not_migrated_yet_gets_the_unavailable_receipt_and_asks_for_the_worker,mapped,,P5
