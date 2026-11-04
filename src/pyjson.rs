@@ -65,6 +65,12 @@ pub fn loads(text: &str) -> serde_json::Result<Value> {
     })
 }
 
+/// Whether [`loads`] reads `text` without loss: it holds no escaped lone
+/// surrogate, so `dumps(loads(text))` is what Python's round trip writes.
+pub fn lossless(text: &str) -> bool {
+    lone_surrogates_replaced(text).is_none()
+}
+
 /// `text` with every escaped lone surrogate replaced by `\\ufffd`; `None` if
 /// there is none.
 fn lone_surrogates_replaced(text: &str) -> Option<String> {

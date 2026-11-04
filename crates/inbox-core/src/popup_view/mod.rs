@@ -41,6 +41,9 @@ use std::collections::HashMap;
 use ratatui_core::buffer::Buffer;
 
 use crate::popup::{Millis, Popup};
+/// The popup's words that the CLI prints too (Python `service.first_line`,
+/// `service.format_answer` of a detail, `cli._age`).
+pub use fmt::{age, answer_line as format_answer, first_line};
 pub use theme::Theme;
 
 /// What the renderer needs besides the popup.

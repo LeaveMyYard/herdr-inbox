@@ -19,6 +19,8 @@ docs/plans/rust-rewrite.md §5.2) from the running Python code. Nothing in them 
   a script on a fresh migrated database, with every table they touch dumped after each step
   (times as ``<time>``), plus ``store.normalize`` and ``store.clean_title`` over a corpus. The Rust
   store replays the script and must leave the same rows.
+- ``tests/fixtures/cli.json``: ``cli.main`` over a script (``tools/capture_cli.py``): exit codes,
+  output and usage errors, and what each command asks of herdr, the delivery and the worker.
 - ``tests/fixtures/decisions.json`` (item 5, the delivery decision table ``inbox-core::decide``
   must reproduce): the test suite runs in its own pytest with ``tests/decision_recorder.py``,
   which turns on the test-only trace (``herdr_inbox.decision_trace``) and records every delivery
@@ -2499,7 +2501,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--out", type=Path, default=FIXTURES,
                    help="write OUT/screens and OUT/decisions.json (default: %(default)s)")
-    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store", "herdr", "delivery"),
+    p.add_argument("--only", choices=("screens", "decisions", "schema", "landed", "store", "herdr", "delivery", "cli"),
                    help="one of the sets")
     p.add_argument("--golden-tests", action="store_true",
                    help="decisions: run only the tests the committed decisions.json names (the check; any "
@@ -2526,6 +2528,11 @@ def main(argv: list[str] | None = None) -> int:
             written.append(capture_delivery(args.out, work))
         if args.only in (None, "store"):
             written += capture_store(args.out, work)
+        if args.only in (None, "cli"):  # tools/capture_cli.py
+            sys.path.insert(0, str(ROOT / "tools"))
+            from capture_cli import capture_cli
+
+            written.append(capture_cli(args.out, work))
         if args.only in (None, "screens"):
             shutil.rmtree(args.out / "screens", ignore_errors=True)
             written += capture_screens(args.out, work)

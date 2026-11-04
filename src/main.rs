@@ -1,6 +1,7 @@
 //! The `herdr-inbox` binary (plan §2.2): one binary, subcommands keeping
-//! today's CLI names. So far: `hook <event>` (the Claude Code hooks) and
-//! `contract` (the launcher contract, `scripts/launch`).
+//! today's CLI names. So far: `hook <event>` (the Claude Code hooks),
+//! `contract` (the launcher contract, `scripts/launch`) and the CLI's
+//! `list`, `answer` and `dismiss` ([`herdr_inbox::cli`]).
 //!
 //! A hook never fails the session: a panic, a bad argument or any error
 //! exits 0 (the rewake watcher's wake code is the only other exit).
@@ -16,6 +17,10 @@ fn main() -> ExitCode {
             ExitCode::from(u8::try_from(code).unwrap_or(0))
         }
         [cmd, ..] if cmd == "hook" => ExitCode::SUCCESS,
+        [cmd, rest @ ..] if herdr_inbox::cli::handles(cmd) => {
+            let code = herdr_inbox::cli::live::main(cmd, rest);
+            ExitCode::from(u8::try_from(code).unwrap_or(1))
+        }
         [cmd] if cmd == "contract" => {
             println!("{}", herdr_inbox::contract::CONTRACT);
             ExitCode::SUCCESS
