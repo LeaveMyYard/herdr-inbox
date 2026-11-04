@@ -6,8 +6,8 @@ use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 
 use super::*;
 
-const OLD: &str = "synthetic_89-0000-4000-8000-000000000001";
-const NEW: &str = "synthetic_90-0000-4000-8000-000000000002";
+const OLD: &str = "00000001-0000-4000-8000-0000000000a1";
+const NEW: &str = "00000002-0000-4000-8000-0000000000a2";
 
 fn world(record_at: Option<&str>) -> (tempfile::TempDir, Transcripts) {
     let dir = tempfile::tempdir().unwrap();
@@ -39,15 +39,15 @@ fn mark(state: &Path, pane: &str, at: SystemTime) {
 
 #[test]
 fn a_continued_session_runs_its_continuation_unless_resumed_after_it() {
-    // record at 2026-10-16T11:22:22Z = 1792149742
-    let (dir, files) = world(Some("2026-10-16T11:22:22Z"));
+    // record at 2026-10-16T10:00:00Z = 1792144800
+    let (dir, files) = world(Some("2026-10-16T10:00:00Z"));
     let state = dir.path().join("state");
     assert_eq!(
         live_session(&files, &state, OLD, Some("w1:p1")),
         NEW,
         "D6: no marker"
     );
-    let record = SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_149_742);
+    let record = SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_144_800);
     mark(&state, "w1:p1", record - Duration::from_secs(60));
     assert_eq!(
         live_session(&files, &state, OLD, Some("w1:p1")),

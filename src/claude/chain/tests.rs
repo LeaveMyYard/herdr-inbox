@@ -11,7 +11,7 @@ fn sid(n: u32) -> String {
 
 fn continues(dir: &Path, from: &str, to: &str) {
     let line = format!(
-        r#"{{"type":"continued-in","sessionId":"{from}","continuedInSessionId":"{to}","timestamp":"2026-10-16T11:22:00Z"}}"#
+        r#"{{"type":"continued-in","sessionId":"{from}","continuedInSessionId":"{to}","timestamp":"2026-10-16T09:59:38Z"}}"#
     );
     fs::write(dir.join(format!("{from}.jsonl")), format!("{line}\n")).unwrap();
 }

@@ -111,12 +111,12 @@ def test_an_undated_resume_never_clears_a_dated_continuation(tmp_path):
 # continued and left, two resumed later with `claude --resume`. file-history-snapshot was not on
 # the old 7-type bookkeeping list, so the old rule stopped following at it, before the resume.
 CAPTURED = [
-    ([("continued-in", "2026-10-15T08:09:43.909Z"), ("last-prompt", None), ("cost-state", None)], True),
-    ([("continued-in", "2026-10-16T11:22:22.458Z"), ("cost-state", None), ("file-history-snapshot", None)], True),
-    ([("continued-in", "2026-10-16T11:22:22.458Z"), ("cost-state", None), ("file-history-snapshot", None),
-      ("user", "2026-10-17T06:32:56.399Z"), ("api-request-shape", "2026-10-17T06:32:57.085Z")], False),
-    ([("continued-in", "2026-10-16T18:41:47.545Z"), ("last-prompt", None), ("cost-state", None),
-      ("file-history-snapshot", None), ("assistant", "2026-10-17T06:32:48.894Z"), ("api-request-blob", None)], False),
+    ([("continued-in", "2026-10-15T08:00:00.000Z"), ("last-prompt", None), ("cost-state", None)], True),
+    ([("continued-in", "2026-10-16T10:00:00.000Z"), ("cost-state", None), ("file-history-snapshot", None)], True),
+    ([("continued-in", "2026-10-16T10:00:00.000Z"), ("cost-state", None), ("file-history-snapshot", None),
+      ("user", "2026-10-17T08:00:00.399Z"), ("api-request-shape", "2026-10-17T08:00:01.085Z")], False),
+    ([("continued-in", "2026-10-16T18:30:00.000Z"), ("last-prompt", None), ("cost-state", None),
+      ("file-history-snapshot", None), ("assistant", "2026-10-17T07:59:52.894Z"), ("api-request-blob", None)], False),
 ]
 
 
