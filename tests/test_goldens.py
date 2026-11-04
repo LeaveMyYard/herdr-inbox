@@ -126,3 +126,21 @@ def test_the_popup_transition_golden_is_what_the_popup_does(tmp_path):
         pytest.fail(f"popup-transitions.json differs from line {diff + 1}:\n  want {want[diff:diff + 1]}\n"
                     f"  got  {got[diff:diff + 1]}\na behaviour change; if deliberate: "
                     "uv run python tools/capture_popup_transitions.py")
+
+
+def test_the_mcp_recordings_are_what_the_server_does(tmp_path):
+    """tests/fixtures/mcp/*.jsonl (P5-F): the MCP server's replies, which the Rust server
+    (`herdr-inbox mcp`, tests/mcp_goldens.rs) must give. Recorded again, they must be
+    byte-identical: the tools' text and schemas are what agents read. If the change is
+    deliberate: uv run python tools/capture_mcp.py tests/fixtures/mcp"""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
+    requests = "claude-code-2.1.302.requests.jsonl"
+    (tmp_path / requests).write_text((FIX / "mcp" / requests).read_text())
+    res = subprocess.run([sys.executable, str(ROOT / "tools" / "capture_mcp.py"), str(tmp_path)],
+                         env=env, cwd=ROOT, capture_output=True, text=True, timeout=300)
+    assert res.returncode == 0, (res.stdout + res.stderr)[-4000:]
+    names = sorted(p.name for p in (FIX / "mcp").glob("*.jsonl") if p.name != requests)
+    assert names == sorted(p.name for p in tmp_path.glob("*.jsonl") if p.name != requests)
+    for name in names:
+        assert (FIX / "mcp" / name).read_text() == (tmp_path / name).read_text(), (
+            f"{name} changed; if deliberate: uv run python tools/capture_mcp.py tests/fixtures/mcp")
