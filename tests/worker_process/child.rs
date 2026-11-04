@@ -1,0 +1,83 @@
+//! `<exe> worker`: a Rust worker, run the way a binary's `main` will run it,
+//! with duties that only record each tick (`<pid>` appended to `$E1_TICKS`).
+//!
+//! It runs in its install root (the cwd: the Python bridge starts a Rust
+//! successor from its root, and a test starts it there), whose
+//! `pyproject.toml` gives its version; `E1_REVISION` is its revision.
+//! `E1_IDLE=1` makes it idle (nothing kept alive). It never outlives
+//! `E1_LIFETIME` seconds, whatever happens to the test.
+
+use std::ffi::OsString;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::ExitCode;
+use std::time::Duration;
+
+use herdr_agent_kit::herdr_api::ServerId;
+use herdr_agent_kit::herdr_api::blocking::Herdr;
+use herdr_inbox::store::revision::MIGRATION_REVISION;
+use herdr_inbox::worker::live::{Duties, Install, Live, version_at};
+use herdr_inbox::worker::run::{Ticked, run};
+use herdr_inbox::worker::{Waits, WorkerEnv, spawn_env};
+
+struct Recorder {
+    ticks: Option<PathBuf>,
+    idle: bool,
+}
+
+impl Duties for Recorder {
+    fn migrate(&mut self) {}
+    fn tick(&mut self) -> Ticked {
+        if let Some(path) = &self.ticks
+            && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
+        {
+            let _ = writeln!(file, "{}", std::process::id());
+        }
+        Ticked {
+            pending: 0,
+            keep_alive: !self.idle,
+        }
+    }
+    fn pending_now(&mut self) -> usize {
+        0
+    }
+}
+
+fn var(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.is_empty())
+}
+
+pub fn main() -> ExitCode {
+    let lifetime = var("E1_LIFETIME")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(90);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(lifetime));
+        std::process::exit(3); // the kernel releases the lock with the process
+    });
+    let (Some(db), Some(socket)) = (var("HERDR_INBOX_DB"), var("HERDR_SOCKET_PATH")) else {
+        return ExitCode::from(2);
+    };
+    let root = std::env::current_dir().expect("a cwd");
+    let server = OsString::from(&socket);
+    let env = WorkerEnv {
+        db: db.into(),
+        revision: var("E1_REVISION")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(MIGRATION_REVISION),
+        version: version_at(&root).unwrap_or_else(|| env!("CARGO_PKG_VERSION").into()),
+        waits: Waits::from_vars(var),
+        spawn_env: spawn_env(std::env::vars_os(), &server),
+        no_worker: false,
+        server,
+    };
+    let duties = Recorder {
+        ticks: var("E1_TICKS").map(PathBuf::from),
+        idle: var("E1_IDLE").as_deref() == Some("1"),
+    };
+    let herdr = Herdr::new(ServerId::new(&socket));
+    let exe = std::env::current_exe().expect("its path");
+    let mut world = Live::new(env.clone(), herdr, Install::new(Some(root)), exe, duties);
+    ExitCode::from(u8::try_from(run(&env, &mut world)).unwrap_or(1))
+}

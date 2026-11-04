@@ -20,3 +20,4 @@ pub mod store;
 pub mod tabs;
 pub mod text;
 pub mod token;
+pub mod worker;
