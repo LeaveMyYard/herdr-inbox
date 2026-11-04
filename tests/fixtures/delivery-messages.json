@@ -3311,6 +3311,269 @@
    "prompts": [],
    "notifications": [],
    "jobs": []
+  },
+  {
+   "name": "verified later, a long answer",
+   "scenario": {
+    "name": "verified later, a long answer",
+    "mode": {
+     "retry": false,
+     "force": false,
+     "verify_later": true
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     },
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Region?",
+      "answer": "eu"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "<claim>",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    },
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "<claim>",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: (long answer, 5000 chars; call check_answers to read it)",
+    "[inbox] Q2 answered — Region?: eu"
+   ],
+   "notifications": [],
+   "jobs": [
+    {
+     "path": "-fake-project/aaaaaaaa-0000-4000-8000-00000000000a.jsonl",
+     "offset": 66,
+     "ack": false,
+     "busy": false,
+     "watch": [
+      [
+       "-fake-project/aaaaaaaa-0000-4000-8000-00000000000a.jsonl",
+       66
+      ]
+     ],
+     "text": "[inbox] Q1 answered — Merge it?: (long answer, 5000 chars; call check_answers to read it)",
+     "rows": [
+      {
+       "id": 1,
+       "claim": "<claim>",
+       "counting": [
+        "-fake-project/aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
+       ],
+       "older_error": null
+      }
+     ]
+    },
+    {
+     "path": "-fake-project/aaaaaaaa-0000-4000-8000-00000000000a.jsonl",
+     "offset": 221,
+     "ack": true,
+     "busy": false,
+     "watch": [
+      [
+       "-fake-project/aaaaaaaa-0000-4000-8000-00000000000a.jsonl",
+       221
+      ]
+     ],
+     "text": "[inbox] Q2 answered — Region?: eu",
+     "rows": [
+      {
+       "id": 2,
+       "claim": "<claim>",
+       "counting": [
+        "-fake-project/aaaaaaaa-0000-4000-8000-00000000000a.jsonl"
+       ],
+       "older_error": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "send now onto an unreadable box: not sent, said so",
+   "scenario": {
+    "name": "send now onto an unreadable box: not sent, said so",
+    "mode": {
+     "retry": true,
+     "force": true,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "plain output",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes",
+      "tab_label": "node"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "pending: waiting: cannot read the agent's input box",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": "node"
+    }
+   ],
+   "prompts": [],
+   "notifications": [
+    [
+     "node: cannot read the agent's input box",
+     "Q1 wait; no answer is typed until it can be read (Claude Code UI changed? check herdr-inbox)"
+    ],
+    [
+     "Q1 not sent",
+     "cannot read the agent's input box"
+    ]
+   ],
+   "jobs": []
+  },
+  {
+   "name": "working, pending exactly the grace",
+   "scenario": {
+    "name": "working, pending exactly the grace",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "claude",
+     "agent_status": "working",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes",
+      "pending_ago": 20
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": true,
+     "error": null,
+     "acknowledged": true,
+     "attempts": 0,
+     "verified": true,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: yes"
+   ],
+   "notifications": [],
+   "jobs": []
   }
  ]
 }

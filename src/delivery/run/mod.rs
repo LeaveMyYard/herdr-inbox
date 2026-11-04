@@ -1,9 +1,11 @@
 //! One delivery pass (Python `service.deliver_batch` without its
 //! worker-starting preamble, which is the worker's, P5-E): per pane, the
 //! decision of `inbox_core::deliver::decide`, its lookups made through
-//! [`look::PaneLook`] and its outcomes written to the store.
+//! `look::PaneLook` and each outcome written to the store (or its
+//! verify-later job handed over) the moment it is decided.
 
 mod look;
+mod record;
 mod relocate;
 mod typed;
 mod unreadable;
@@ -13,7 +15,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
-use inbox_core::deliver::{BUSY_WAIT_IDLE, Mode, Outcome, REQUEUED, Waiting, decide};
+use inbox_core::deliver::{Mode, REQUEUED, Waiting, decide};
 use serde_json::Value;
 
 use crate::claude::Transcripts;
@@ -54,7 +56,10 @@ pub type VerifyLater<'a> = &'a mut dyn FnMut(Value);
 
 /// Delivers `qs` (Python `deliver_batch` after the foreign-server split):
 /// one pass per pane, in the order the panes first appear. `Err`: the
-/// database failed; what was written before stays.
+/// database failed. As in Python, the pass stops there: what was written
+/// before stays (each outcome is written as it is decided), nothing more is
+/// typed or written, and the rows it claimed since keep their claim until it
+/// goes stale.
 pub fn deliver_batch(
     ctx: &mut Ctx<'_>,
     qs: &[Question],
@@ -93,35 +98,12 @@ fn deliver_pane(
             requeued: q.delivery_error.as_deref() == Some(REQUEUED),
         })
         .collect();
-    let mut look = look::PaneLook::new(ctx, pane.unwrap_or(""), items, mode);
-    let outcomes = decide(pane, &waiting, mode, &mut look);
-    let (claims, jobs, error) = look.finish();
-    if let Some(err) = error {
-        return Err(err);
-    }
-    for (id, outcome) in &outcomes {
-        if let Some(claim) = claims.get(id) {
-            write(ctx.store, *id, claim, outcome)?;
-        }
-    }
-    if let Some(verify_later) = verify_later {
-        for job in jobs {
-            verify_later(job);
-        }
-    }
-    Ok(())
-}
-
-/// The store write of one outcome, under the pass's claim.
-fn write(store: &Store, id: i64, claim: &Claim, outcome: &Outcome) -> rusqlite::Result<()> {
-    match outcome {
-        Outcome::Untouched | Outcome::Moved | Outcome::VerifyLater => Ok(()),
-        Outcome::Failed(error) => store.record_delivery(id, Some(error), true, Some(claim), false),
-        Outcome::Delivered { ack } => store.record_delivery(id, None, *ack, Some(claim), true),
-        Outcome::SentUnverified => store.record_delivery(id, None, false, Some(claim), false),
-        Outcome::Pending(reason) => store.set_pending(id, claim, reason),
-        Outcome::BusyMiss => store.record_busy_miss(id, claim, BUSY_WAIT_IDLE),
-    }
+    // a shorter-lived trait object for the pass (a `&mut` is invariant)
+    let later = verify_later.map(|f| f as &mut dyn FnMut(Value));
+    let mut look = look::PaneLook::new(ctx, pane.unwrap_or(""), items, mode, later);
+    // the outcomes are written as they are decided (`Look::record`)
+    decide(pane, &waiting, mode, &mut look);
+    look.finish().map_or(Ok(()), Err)
 }
 
 /// The claims a pass took, per question.

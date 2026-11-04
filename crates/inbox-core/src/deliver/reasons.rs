@@ -4,9 +4,9 @@
 
 /// No pane known: the answer waits for `check_answers`.
 pub const NO_PANE: &str = "no pane: answer available through check_answers";
-/// Prefix of "no live agent in pane <pane>".
+/// Prefix of `no live agent in pane <pane>`.
 pub const NO_AGENT: &str = "no live agent in pane";
-/// Prefix of "conversation changed in pane <pane>".
+/// Prefix of `conversation changed in pane <pane>`.
 pub const CHANGED: &str = "conversation changed in pane";
 /// The agent is at a prompt or dialog.
 pub const BLOCKED_WAIT: &str = "blocked: the agent is at a prompt or dialog";

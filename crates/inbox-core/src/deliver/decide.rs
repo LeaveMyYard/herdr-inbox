@@ -15,7 +15,30 @@ use crate::REFERENCE_INDEX;
 /// The statuses at which a prompt is typed without waiting (Python `DELIVERABLE`).
 pub(super) const DELIVERABLE: [&str; 2] = ["idle", "done"];
 
-pub(super) type Outcomes = BTreeMap<i64, Outcome>;
+/// The outcomes decided so far. Each is handed to [`Look::record`] the
+/// moment it is decided, as Python writes it there: before the next lookup,
+/// and before the next message is typed.
+#[derive(Default)]
+pub(super) struct Outcomes(BTreeMap<i64, Outcome>);
+
+impl Outcomes {
+    pub(super) fn insert(&mut self, look: &mut impl Look, id: i64, outcome: Outcome) {
+        look.record(id, &outcome);
+        self.0.insert(id, outcome);
+    }
+
+    /// Each of `ids` waits, for `reason` (Python `set_pending`).
+    pub(super) fn pending(
+        &mut self,
+        look: &mut impl Look,
+        ids: impl IntoIterator<Item = i64>,
+        reason: &str,
+    ) {
+        for id in ids {
+            self.insert(look, id, Outcome::Pending(reason.to_string()));
+        }
+    }
+}
 
 /// What becomes of each of `pane`'s waiting answers (`None`: no pane known),
 /// in their order.
@@ -25,7 +48,7 @@ pub fn decide(
     mode: Mode,
     look: &mut impl Look,
 ) -> Vec<(i64, Outcome)> {
-    let mut out = Outcomes::new();
+    let mut out = Outcomes::default();
     // every row is claimed before any outcome is written for it
     let claimed: Vec<&Waiting> = waiting.iter().filter(|q| look.claimed(q.id)).collect();
     if !claimed.is_empty() {
@@ -33,7 +56,7 @@ pub fn decide(
     }
     waiting
         .iter()
-        .map(|q| (q.id, out.remove(&q.id).unwrap_or(Outcome::Untouched)))
+        .map(|q| (q.id, out.0.remove(&q.id).unwrap_or(Outcome::Untouched)))
         .collect()
 }
 
@@ -46,7 +69,7 @@ fn settle(
 ) {
     let Some(pane) = pane.filter(|p| !p.is_empty()) else {
         for q in items {
-            out.insert(q.id, Outcome::Failed(NO_PANE.into()));
+            out.insert(look, q.id, Outcome::Failed(NO_PANE.into()));
         }
         return;
     };
@@ -58,7 +81,7 @@ fn settle(
             } else {
                 Outcome::Failed(format!("{NO_AGENT} {pane}"))
             };
-            out.insert(q.id, o);
+            out.insert(look, q.id, o);
         }
         return;
     };
@@ -96,9 +119,10 @@ fn ours_only<'a>(
     }
     for q in changed {
         if look.moved_elsewhere(q.id) {
-            out.insert(q.id, Outcome::Moved);
+            out.insert(look, q.id, Outcome::Moved);
         } else if look.pane_runs_older_session(q.id) {
             out.insert(
+                look,
                 q.id,
                 Outcome::Failed(older_error(
                     pane,
@@ -108,7 +132,7 @@ fn ours_only<'a>(
                 )),
             );
         } else {
-            out.insert(q.id, Outcome::Failed(format!("{CHANGED} {pane}")));
+            out.insert(look, q.id, Outcome::Failed(format!("{CHANGED} {pane}")));
         }
     }
     ours
@@ -124,13 +148,8 @@ fn before_typing<'a>(
     out: &mut Outcomes,
 ) -> Vec<&'a Waiting> {
     let status = agent.status.as_str();
-    let pending = |ours: &[&Waiting], reason: &str, out: &mut Outcomes| {
-        for q in ours {
-            out.insert(q.id, Outcome::Pending(reason.to_string()));
-        }
-    };
     if status == "blocked" {
-        pending(&ours, BLOCKED_WAIT, out);
+        out.pending(look, ours.iter().map(|q| q.id), BLOCKED_WAIT);
         return Vec::new();
     }
     let deliverable = DELIVERABLE.contains(&status);
@@ -139,7 +158,7 @@ fn before_typing<'a>(
         let mut rest = Vec::new();
         for q in ours {
             if look.hook_misses(q.id) < MAX_HOOK_MISSES {
-                out.insert(q.id, Outcome::Pending(WATCHER_WAIT.into()));
+                out.insert(look, q.id, Outcome::Pending(WATCHER_WAIT.into()));
             } else {
                 rest.push(q);
             }
@@ -154,7 +173,7 @@ fn before_typing<'a>(
         let mut rest = Vec::new();
         for q in ours {
             if look.hook_misses(q.id) < MAX_HOOK_MISSES {
-                out.insert(q.id, Outcome::Pending(HOOK_WAIT.into()));
+                out.insert(look, q.id, Outcome::Pending(HOOK_WAIT.into()));
             } else {
                 rest.push(q);
             }
@@ -169,7 +188,7 @@ fn before_typing<'a>(
         // requeued after an old server's lost delivery: at rest only
         let (requeued, rest): (Vec<&Waiting>, Vec<&Waiting>) =
             ours.into_iter().partition(|q| q.requeued);
-        pending(&requeued, REQUEUED_WAIT, out);
+        out.pending(look, requeued.iter().map(|q| q.id), REQUEUED_WAIT);
         ours = rest;
         if ours.is_empty() {
             return ours;
@@ -179,9 +198,10 @@ fn before_typing<'a>(
         let mut rest = Vec::new();
         for q in ours {
             if !mode.force && look.busy_attempts(q.id) >= MAX_BUSY_ATTEMPTS {
-                out.insert(q.id, Outcome::Pending(BUSY_WAIT_IDLE.into()));
+                out.insert(look, q.id, Outcome::Pending(BUSY_WAIT_IDLE.into()));
             } else if !mode.force && look.within_busy_grace(q.id) {
                 out.insert(
+                    look,
                     q.id,
                     Outcome::Pending(format!("busy: the agent is {status}")),
                 );
@@ -195,11 +215,11 @@ fn before_typing<'a>(
         }
     }
     if mode.retry && agent.focused && !mode.force {
-        pending(&ours, OPERATOR_IN_PANE, out);
+        out.pending(look, ours.iter().map(|q| q.id), OPERATOR_IN_PANE);
         return Vec::new();
     }
     if !mode.force && look.panel_focused() {
-        pending(&ours, PANEL, out);
+        out.pending(look, ours.iter().map(|q| q.id), PANEL);
         return Vec::new();
     }
     ours
@@ -222,7 +242,7 @@ fn not_yet_there<'a>(
             Some(segments) => {
                 // only the long-answer reference landed: verified, but it stays unseen
                 let ack = segments.iter().any(|s| *s != REFERENCE_INDEX);
-                out.insert(q.id, Outcome::Delivered { ack });
+                out.insert(look, q.id, Outcome::Delivered { ack });
             }
             None => rest.push(q),
         }
@@ -239,7 +259,7 @@ fn not_yet_there<'a>(
                 q.session.as_deref(),
                 true,
             );
-            out.insert(q.id, Outcome::Failed(error));
+            out.insert(look, q.id, Outcome::Failed(error));
         } else {
             left.push(q);
         }
