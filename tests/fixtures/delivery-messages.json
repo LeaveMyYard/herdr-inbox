@@ -3574,6 +3574,70 @@
    ],
    "notifications": [],
    "jobs": []
+  },
+  {
+   "name": "a fresh watcher stamp without its lock",
+   "scenario": {
+    "name": "a fresh watcher stamp without its lock",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ],
+    "watch_stamp": true
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": true,
+     "error": null,
+     "acknowledged": true,
+     "attempts": 0,
+     "verified": true,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: yes"
+   ],
+   "notifications": [],
+   "jobs": []
   }
  ]
 }

@@ -969,6 +969,8 @@ def _delivery_scenarios():
         S("send now onto an unreadable box: not sent, said so", questions=[q(tab_label="node")],
           screen="plain output", mode={"retry": True, "force": True, "verify_later": False}),
         S("working, pending exactly the grace", questions=[q(pending_ago=20)], agent=agent(status="working")),
+        # #100 final pass M2: a fresh stamp from a watcher that died (its lock is free): typed
+        S("a fresh watcher stamp without its lock", questions=[q()], watch_stamp=True),
     ]
 
 

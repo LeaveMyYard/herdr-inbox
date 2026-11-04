@@ -254,7 +254,7 @@ fn run(sc: &Value) -> Value {
 fn every_scenario_ends_as_it_does_in_python() {
     let doc: Value = serde_json::from_str(GOLDEN).unwrap();
     let scenarios = doc["scenarios"].as_array().unwrap();
-    assert!(scenarios.len() >= 39);
+    assert!(scenarios.len() >= 40);
     for row in scenarios {
         let sc = &row["scenario"];
         let mut got = run(sc);
