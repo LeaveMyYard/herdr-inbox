@@ -125,11 +125,12 @@ impl Fakes {
             .collect()
     }
 
-    /// An install root.
+    /// An install root, as the OS names it (macOS's temporary directory is
+    /// behind a symlink, and a child's `pwd` is the resolved path).
     pub fn root(&self, name: &str) -> PathBuf {
         let root = self.dir.path().join(name);
         fs::create_dir_all(&root).unwrap();
-        root
+        fs::canonicalize(root).unwrap()
     }
 }
 
