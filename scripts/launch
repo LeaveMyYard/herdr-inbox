@@ -9,7 +9,8 @@
 # exit codes and MCP tool schemas it implements, and this script carries the number it needs.
 # It runs the newest binary whose contract matches, looking in
 #   1. <plugin root>/target/release, only in a git checkout (a linked development checkout; a
-#      local-folder marketplace's cache copy holds no .git, but may hold target/, #74),
+#      local-folder marketplace's cache copy of a clone holds no .git, but may hold target/,
+#      #74; a worktree's .git file, were it copied, still leaves the contract check),
 #   2. ${CLAUDE_PLUGIN_DATA}/bin (fetched by the MCP launch, below),
 #   3. ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin (recorded by herdr's build step).
 #
