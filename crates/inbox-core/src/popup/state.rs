@@ -8,7 +8,10 @@ use super::entry::{Entry, Mode, Tab};
 use super::event::{Effect, Event, Open, Severity};
 use super::focus::Focus;
 use super::ordered::Ordered;
+use super::remote::{RemoteAlert, RemoteQuestion};
 use super::views::View;
+
+pub use super::confirm::Confirm;
 
 /// The inbox popup (Python `InboxApp`). Build it with [`Popup::open`], feed
 /// it [`Popup::handle`], carry out the effects both return.
@@ -34,10 +37,20 @@ pub struct Popup {
     pub(super) view: View,
     pub(super) focus: Focus,
     pub(super) confirm: Option<Confirm>,
+    pub(super) remote_open: Option<Shown>,
+    pub(super) remote_alert: Option<RemoteAlert>,
     pub(super) running: bool,
     pub(super) now: Millis,
     pub(super) fx: Vec<Effect>,
     pub(super) queue: VecDeque<Msg>,
+}
+
+/// The remote question on screen (Python `remote_open`): what an answer is
+/// queued under, and its machine's label as it was then.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Shown {
+    pub label: Option<String>,
+    pub question: RemoteQuestion,
 }
 
 /// The clock readings the key rules use (`None`: never).
@@ -51,40 +64,6 @@ pub struct Timers {
     pub last_key_at: Option<Millis>,
     /// The key before it.
     pub prev_key_at: Option<Millis>,
-}
-
-/// "Dismiss … without answering?": only `y` confirms, any other key keeps.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Confirm {
-    /// What it names: `Q7`, or `Q2–Q4 (3 questions)`.
-    pub what: String,
-    pub(super) target: ConfirmTarget,
-}
-
-impl Confirm {
-    /// The questions `y` dismisses (the renderer shows the first one's text).
-    pub fn qids(&self) -> &[i64] {
-        match &self.target {
-            ConfirmTarget::Question(q) => std::slice::from_ref(q),
-            ConfirmTarget::Group(_, qids) => qids,
-        }
-    }
-
-    /// The list row it dismisses as a whole, if it is a whole group.
-    pub fn entry(&self) -> Option<&Entry> {
-        match &self.target {
-            ConfirmTarget::Question(_) => None,
-            ConfirmTarget::Group(entry, _) => Some(entry),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ConfirmTarget {
-    /// One question of the open group.
-    Question(i64),
-    /// A list row's whole group (its open questions when `d` was pressed).
-    Group(Entry, Vec<i64>),
 }
 
 /// What a handler leaves for after it (Python's `post_message` and
@@ -127,6 +106,8 @@ impl Popup {
             view: View::None,
             focus: Focus::View,
             confirm: None,
+            remote_open: None,
+            remote_alert: None,
             running: true,
             now,
             fx: Vec::new(),

@@ -25,6 +25,7 @@ mod layout;
 mod list;
 mod marks;
 mod question;
+mod remote;
 mod review;
 mod screen;
 mod scroll;

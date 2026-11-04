@@ -27,7 +27,12 @@ say why in the PR:
   `tests/test_tui.py`): `popup.json` (110x30), `popup-narrow.json` (40x20), and
   `popup-extra.json` (110x30, `extra_screens`: the views the others do not reach, such as
   pending and gone-agent answers, a note, an empty note box, a tab closed under the operator,
-  a long list that scrolls and a blocked alert):
+  a long list that scrolls and a blocked alert), and `popup-remote.json` (110x30,
+  `tools/popup_remote_screens.py`, P6-D2: a remote machine's rows from the local mirror — its
+  groups, queued, sending, expired and refused actions, an answer it cannot deliver, its
+  alerts — its question and alerts opened, the remote dismiss confirmation and the
+  placeholders; the mirror's clock is held at `HELD` too, and an action's expiry is past the
+  real clock the popup compares it with):
 
   ```
   {"source": "...", "size": [width, height], "screens": {
@@ -296,10 +301,61 @@ say why in the PR:
       "armed_at"}`.
     - `{"kind": "gone", "ref", "reason"}`.
     - `{"kind": "failed", "qid", "cursor": 0|1, "armed_at"}`.
-    - `{"kind": "alert", "alert", "label": null, "armed_at"}`.
+    - `{"kind": "alert", "alert", "label": null|str, "armed_at"}`: `label` is a remote
+      machine's name for its alert (`<label>:A<id>`).
 
-  The comparison is by JSON value: object key order does not count. Remote-machine rows are
-  not in this golden yet.
+  The comparison is by JSON value: object key order does not count.
+
+  Remote machines (P6-D2; scenarios `remote_sync.*`, from `tests/test_remote_sync.py`, and
+  `remote_edge.*`, captured by `tools/popup_remote.py` and `tools/scenarios_popup_remote.py`).
+  The popup reads a remote machine from the local mirror only; the delivery worker talks to it.
+  A snapshot has a `remote` part only when the mirror has rows (so the other scenarios carry
+  none):
+  `"remote": {"machines": [{"machine_id", "label": str|null}], "groups": [{"key",
+  "machine_id", "questions": [<rq>]}] (remote.open_groups: a question with an answer or a
+  dismissal already queued is left out), "mirror": [<ref>] (every mirrored question, open or
+  not), "alerts": [{"machine_id", "id", "kind", "status", "pane_id", "db_id", "akey"}]
+  (remote.open_alerts), "outbox": [{"request_id", "machine_id", "action", "remote_id",
+  "state", "clearable": bool}] (remote.outbox_rows, oldest first; `clearable` is
+  remote.clearable at the time of the read), "problems": [{"machine_id", "remote_id"}]
+  (remote.problem_rows)}`. `<rq>` is a `<snapshot>` question's fields (`id` the remote id,
+  `group` the remote group; no draft) and its identity's `db_id` and `qkey`. `<ref>` is
+  `{"machine_id", "remote_id", "db_id", "qkey"}`: which question on which machine, as shown.
+
+  Their entries: `remote:<machine>|<db id>|<group>` (an open group, numbered),
+  `routbox:<request id>` (a queued, sending, expired, failed or refused action),
+  `rproblem:<machine>|<remote id>` (an answer the machine cannot deliver),
+  `ralert:<machine>|<alert id>` (an alert: unnumbered, with the local alerts). Alerts come
+  first (the local ones, then the remote ones), the remote groups, outbox rows and problems
+  last. Mode `remote`: one remote question in a question view, opened from its row (its
+  group's first open question). It has no tabs (Tab, Shift+Tab, ←/→ never switch or release a
+  held deep link; Tab moves Textual's focus: view, option list, the open box, the preview
+  pane), and `d` and `g` do nothing. Enter on a `routbox` or `rproblem` row only says "This is on
+  a remote machine; d clears it here". `g` on a remote row in the list says "That agent runs on
+  a remote machine: open it from herdr's machine view", except an `rproblem` row: nothing.
+
+  Their effects:
+  - `remote_answer {<ref>…, detail}`: the shown question's answer, queued under its
+    identity as shown. If the mirror holds another question there now (`db_id` or `qkey`
+    differ) or none, nothing is queued: `notify "not queued: that question changed — reopen
+    it"` (or `that remote question is gone`), and the view stays;
+  - `remote_dismiss {<ref>…}`: one per question of the row, as they were when `d` was pressed;
+  - `remote_ack {machine_id, alert_id, db_id, akey}`;
+  - `clear_outbox {request_id, expire}`: `d` on a `clearable` row; `expire` when it was
+    still queued (past its expiry), settled as failed first;
+  - `clear_problem {machine_id, remote_id}`.
+
+  The model's copy: `remote_answer` and `remote_dismiss` take the question out of its group
+  (the group goes with its last question); `remote_ack` takes the alert out of `alerts`;
+  `clear_outbox` and `clear_problem` take their row out. A remote answer that leaves its
+  group empty closes the row (`answered · sending to <label>`); a confirmed dismissal closes it
+  (`dismissing on <label>`); `d` on outbox, problem and alert rows closes them (`cleared`,
+  `acknowledged`). Reasons at a poll: `answered or closed`, `sent`, `delivered or cleared`,
+  `closed` (a remote alert). A poll in mode `remote` whose question left its group puts an
+  inert `{"kind": "gone", "ref": "<label>:Q<id>", "reason": "closed on the remote machine"}` on
+  screen with the grace window (Python writes the label as shown when it opened, `None` for a
+  machine without one); an open remote alert that ends shows `<label>:A<id>` (the label read
+  afresh; `A<id>` without one).
 
   What a model does not reproduce, because the golden cannot hold it:
   - Shift selections and the clipboard in a text box (`shift+←`, `ctrl+x`/`c`/`v`). The box
@@ -310,6 +366,9 @@ say why in the PR:
   - A second box opened while a box is open but does not have the focus. This happens with
     `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
     Python crashes there (Textual `DuplicateIds`); the model replaces the box.
+  - `y` on a remote group whose mirror changed after `d` (a question replaced or gone): Python's
+    `LookupError` escapes the confirmation and ends the popup. The model queues the dismissals
+    up to that question, then says `not queued: …` and leaves the row open.
 
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 
