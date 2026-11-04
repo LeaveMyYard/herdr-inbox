@@ -14,8 +14,8 @@ the answer is delivered back into the right agent's conversation.
 ## Components
 
 ```
-Claude Code (pane w6:p32) ──stdio──> MCP server  ──┐
-Claude Code (pane w6:p34) ──stdio──> MCP server  ──┼──> SQLite inbox.db <── inbox TUI (herdr popup, prefix+i)
+Claude Code (pane w9:p3) ──stdio──> MCP server  ──┐
+Claude Code (pane w9:p4) ──stdio──> MCP server  ──┼──> SQLite inbox.db <── inbox TUI (herdr popup, prefix+i)
                                                    │          │                  │
                                                    └── herdr CLI: pane tokens,    └── herdr agent prompt <pane>
                                                        notifications                  (answer delivery)
@@ -445,12 +445,11 @@ anything the operator is half-way through typing in that pane.
 
 ## Older conversations are never delivery targets
 
-**Live, 2026-10-17.** Session `1cd70de7` continued in `c5240607` (11:22:22Z), and
-`c5240607` asked Q129, Q141, Q143, Q144, Q151 and Q152. herdr later resumed the pane under
-the **older** id `1cd70de7`. That conversation has nothing `c5240607` said after the fork.
-The inbox typed the six answers there (06:32:56Z). The agent replied "they belong to another
-session's questions … I'm leaving them alone". Then the 0.10.5 reconcile marked them delivered
-and verified, because the text was in `1cd70de7`'s transcript. The asking conversation never
+**Live, 2026-10-17.** Session `00000001` continued in `00000002` (10:00:00Z), and
+`00000002` asked Q9001, Q9002, Q9003, Q9004, Q9005 and Q9006. herdr later resumed the pane under
+the **older** id `00000001`. That conversation has nothing `00000002` said after the fork.
+The inbox typed the six answers there (08:00:00Z). The agent replied "Agent Text 2": it declined them as another session's questions. Then
+the 0.10.5 reconcile marked them delivered and verified, because the text was in `00000001`'s transcript. The asking conversation never
 got its answers.
 
 An **ancestor** (a session that continued into the asker) is a different conversation, without
@@ -470,8 +469,8 @@ same conversation. That was the bug.
   - An **undated** past record never counts. That is conservative: the worst case is that the
     row stays failed. Every captured record is dated.
   - The bound is the record's own time, not when the new session started: a compaction
-    continuation's file begins with history copied from earlier (`c5240607`'s first records
-    are dated 10-15, its `continued-in` 10-16 11:22).
+    continuation's file begins with history copied from earlier (`00000002`'s first records
+    are dated 10-15, its `continued-in` 10-16 10:00).
   - Both times come from the same machine's clock (a remote's rows are delivered by its own
     worker, against its own transcripts). `created_at` is whole seconds, rounded down, so a
     question filed in the same second as the move still counts.
@@ -488,9 +487,9 @@ same conversation. That was the bug.
   - The inbox's SessionStart hook writes `<state dir>/starts/<session>`, holding the herdr
     pane id, **only for `source == "resume"`**. A resume is the one start that re-runs an id
     that may have continued elsewhere: startup, clear and fork run a fresh id.
-  - Compaction is not a resume. The captured `c5240607` was created by a compaction at 10-15
-    18:22 that fired `SessionStart:compact`, while `1cd70de7`'s `continued-in` record is
-    dated 10-16 11:22, written about 17 h later. A compact marker could therefore post-date
+  - Compaction is not a resume. The captured `00000002` was created by a compaction at 10-15
+    17:00 that fired `SessionStart:compact`, while `00000001`'s `continued-in` record is
+    dated 10-16 10:00, written about 17 h later. A compact marker could therefore post-date
     nothing and flip a pane that runs the newer session (review #53 final M1).
   - It is a file, not a column: no schema change, no database lock in the hook, and older
     versions ignore it.
@@ -523,31 +522,31 @@ same conversation. That was the bug.
   check of the reported session's transcript).
 - **`inbox answer` from an older session** is not the asker's own answer. It is delivered to
   the asker like any other answer. In 0.10.5 that was Q159–Q166.
-- **Rows already marked by 0.10.5** (Q129–Q152 verified from `1cd70de7`'s transcript;
-  Q159–Q166 seen from `a58e3f68`'s CLI answers) are not rewritten by this code. Only the
+- **Rows already marked by 0.10.5** (Q9001–Q9006 verified from `00000001`'s transcript;
+  Q159–Q166 seen from `00000003`'s CLI answers) are not rewritten by this code. Only the
   failed pile is reconciled, and it never verifies from an ancestor any more.
 
 ## The failed pile: answers that did arrive (0.10.5)
 
-**Live, 2026-10-17.** The operator: "a huge amount of questions I have responded to long ago
-show as failed". 16 answers sat in the popup's ⚠ pile, read from the operator's database and
+**Live, 2026-10-17.** The operator reported that many questions answered long ago
+showed as failed. 16 answers sat in the popup's ⚠ pile, read from the operator's database and
 transcripts, read-only. Most of them had arrived.
 
-- **6 × "not verified" (Q129–Q152).** Their questions were filed under session `c5240607`,
-  which had continued from `1cd70de7` (that transcript ends in `continued-in`). After a
-  restart herdr resumed the pane under the **old** id `1cd70de7`, and its transcript still
-  ended in `continued-in`. So the inbox followed it to `c5240607`, typed the batch, and
-  watched `c5240607`'s file. The batch landed as the first record of the resumed `1cd70de7`
-  file (06:32:56). The agent read it, but the inbox never saw it.
-- **Q156, "agent gone: conversation changed in pane w6:p57".** The same thing for
-  `a58e3f68 → 06acc80f`, with herdr resuming `a58e3f68`: typed, landed in the old file.
-- **8 × "agent gone: no live agent in pane w6:p48" (Q159–Q166).** The resumed agent
+- **6 × "not verified" (Q9001–Q9006).** Their questions were filed under session `00000002`,
+  which had continued from `00000001` (that transcript ends in `continued-in`). After a
+  restart herdr resumed the pane under the **old** id `00000001`, and its transcript still
+  ended in `continued-in`. So the inbox followed it to `00000002`, typed the batch, and
+  watched `00000002`'s file. The batch landed as the first record of the resumed `00000001`
+  file (08:00:00). The agent read it, but the inbox never saw it.
+- **Q156, "agent gone: conversation changed in pane w9:p2".** The same thing for
+  `00000003 → 00000004`, with herdr resuming `00000003`: typed, landed in the old file.
+- **8 × "agent gone: no live agent in pane w9:p1" (Q159–Q166).** The resumed agent
   **answered its own questions** with `inbox answer 159 "…"`, relaying decisions from chat. It
   had the answers, but the inbox tried to deliver them to the asking conversation's pane,
   which was gone.
   - These questions were also filed under the dead pane id: the MCP server's `HERDR_PANE_ID`
     is the pane it started in, and herdr gives a moved pane a new id.
-- **Q158:** the operator answered after its conversation (`06acc80f`) had stopped running
+- **Q158:** the operator answered after its conversation (`00000004`) had stopped running
   anywhere. It is truly undelivered.
 - **Acknowledged answers kept their old error** (Q77–Q95, Q108, Q155). They were already
   out of the pile, but still read as failures elsewhere.
@@ -627,7 +626,7 @@ at a path that does not exist, unless the fake is in use (`tests/test_isolation.
 Delivery is keyed by the pane a question was asked from. When that pane id has no agent any
 more, or holds another conversation, the answer used to be marked "agent gone" after the
 retries, even if the conversation still ran in another pane.
-- Live 2026-10-16, Q155: pane `w6:p48` became `w6:p57` when it moved, and the answer was
+- Live 2026-10-16, Q155: pane `w9:p1` became `w9:p2` when it moved, and the answer was
   never delivered.
 
 Now, before recording "no agent" or "conversation changed", delivery looks the conversation up
@@ -645,8 +644,8 @@ among herdr's agents (`agent list`). Continuations are followed on both sides.
 
 ## Claude Code session continuation (0.10.3)
 
-**Live, 2026-10-16** (pane "Ghostpaw frontend v2 rework"). Claude Code continued the
-conversation from session `a58e3f68…` into `06acc80f…` **in the same process**.
+**Live, 2026-10-16** (pane "Project Name 1"). Claude Code continued the
+conversation from session `00000003…` into `00000004…` **in the same process**.
 - The old transcript ends with
   `{"type":"continued-in","sessionId":"<old>","continuedInSessionId":"<new>"}`, followed by
   bookkeeping records (`last-prompt`, `cost-state`). Nothing in the new file points back.
@@ -779,7 +778,7 @@ Code can take text into a running conversation **without keystrokes**: a hook's
 version get answers through their own hooks while they work. Typing stays for idle agents, for
 Claude sessions started before the update, and for other agents (Codex etc.).
 
-**Probed on Claude Code 2.1.301 (moneylust, headless haiku, 2026-10-16).** A
+**Probed on Claude Code 2.1.301 (project1, headless haiku, 2026-10-16).** A
 `PostToolBatch` hook's and a `Stop` hook's `hookSpecificOutput.additionalContext` both reach
 the model; the Stop one continues the turn (as "Stop hook feedback", not an error). The
 transcript records each as
@@ -886,7 +885,7 @@ before the update, sessions whose hooks stopped firing, and "Send now".
   - It also exits when its Claude process is gone (the nearest `claude` above it, checked
     each poll), and just under the hook timeout (about 12 h).
   - While alive it holds `rewake/<session>.lock` (flock).
-  - Live on moneylust: exactly one watcher across several turns, and none after `/exit`.
+  - Live on project1: exactly one watcher across several turns, and none after `/exit`.
 
 **Cost per idle session (review #30 L3).** One sleeping `python3 -I` process (plus its `sh`
 wrapper) for as long as the session is idle, up to about 12 h. Measured: 26 MB RSS, of which

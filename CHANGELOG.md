@@ -28,7 +28,7 @@ inbox now follows the same session rules as herdr-panorama. Its database stamp, 
 and hooks are ready to be shared with a Rust worker.
 
 - **Fix: answers went to an older conversation and were called delivered** (#53).
-  - Live: Q129–Q152. herdr resumed a pane under an **older** session id, one that had
+  - Live: Q9001–Q9006. herdr resumed a pane under an **older** session id, one that had
     continued into the asking session. The inbox typed the answers there. That agent did not
     have the asker's context and ignored them, and 0.10.5's reconcile marked them verified.
   - Answers now go only to the asking session or a session it continued into. They are
@@ -157,7 +157,7 @@ and hooks are ready to be shared with a Rust worker.
 ## 0.10.4
 
 - **Fix: an answer whose agent's pane moved was lost to "agent gone".**
-  - Live: Q155, after `w6:p48` became `w6:p57`.
+  - Live: Q155, after `w9:p1` became `w9:p2`.
   - When the asking pane has no agent or another conversation, the inbox now finds the one
     pane that runs the asking conversation (continuations followed) and delivers there.
   - Answers marked gone in the last day are re-checked the same way. If no pane, or more than
@@ -303,7 +303,7 @@ and hooks are ready to be shared with a Rust worker.
 - The delivery worker now stays alive while herdr reports any agent (it watches their blocked
   state); before, it exited after 10 idle minutes.
 - Remote machines: alerts travel in `inbox export` (open ones, plus those closed in the last
-  hour) and show here as `moneylust:A3`; acknowledging one goes through `inbox apply`
+  hour) and show here as `project1:A3`; acknowledging one goes through `inbox apply`
   (`ack_alert`) with a request id, like answers. An older remote sends no alerts and is left
   alone.
 - The SessionStart rules and the operator-questions skill tell agents to use `alert_operator`
@@ -316,14 +316,14 @@ and hooks are ready to be shared with a Rust worker.
 
 - **Remote herdr machines** (docs/REMOTE.md).
   - Questions from agents on saved herdr SSH machines appear in this machine's popup as
-    `moneylust:Q12`. You answer them here, and the remote's own inbox delivers them there.
+    `project1:Q12`. You answer them here, and the remote's own inbox delivers them there.
   - This machine's delivery worker pulls each enabled machine every `remote_sync_seconds`
     (default 5) over key-only ssh. It runs the remote's own `inbox export` and sends your
     answers, dismissals and Send now through `inbox apply`, with request ids so retries are
     safe. All data travels as JSON on stdin and stdout.
   - Each new remote question raises a notification here.
   - Offline machines are shown, never wait on, and answers to them queue for up to 12 h.
-  - Deep links accept `--question moneylust:Q12`.
+  - Deep links accept `--question project1:Q12`.
 - `inbox remote install|upgrade <machine> [--ref]` installs or upgrades both plugins on a remote
   over ssh.
 - **Note:** after this update the delivery worker pulls every machine `herdr machine list` shows as

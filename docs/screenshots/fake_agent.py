@@ -33,7 +33,7 @@ SCRIPTS = {
         ("tool", "Bash(gh pr view 42 --json title,commits)", "\"Search: split the query parser\", 7 commits"),
         ("tool", "Bash(gh pr checks 42)", "All checks have passed"),
         ("ask", "Merge mode", "Q1"),
-        ("say", "Moving on to the follow-up issues while you decide."),
+        ("say", "Agent Text 1"),
         ("tool", "Bash(gh issue list --label search)", "4 open issues"),
     ], "Triaging follow-ups…", "Merging PR #42 as decided."),
     "docs": ("~/acme/docs-site", "Prepare the v2 docs for publishing", [
