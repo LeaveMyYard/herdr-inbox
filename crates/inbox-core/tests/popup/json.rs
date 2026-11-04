@@ -46,6 +46,23 @@ pub fn detail(v: &Value) -> Option<Detail> {
 pub fn snapshot(v: &Value) -> Snapshot {
     let mut snap = Snapshot::default();
     for q in v["questions"].as_array().unwrap() {
+        snap.questions.push(question(q));
+    }
+    snap.open = ids(&v["open"]);
+    snap.failed = ids(&v["failed"]);
+    for a in v["alerts"].as_array().unwrap() {
+        snap.alerts.push(alert(a));
+    }
+    snap.open_alerts = ids(&v["open_alerts"]);
+    if let Some(r) = v.get("remote") {
+        snap.remote = super::remote::remote(r);
+    }
+    snap
+}
+
+/// A question as the golden gives it (the fields the model decides with).
+pub fn question(q: &Value) -> Question {
+    {
         let mut options: Vec<QOption> = q["options"]
             .as_array()
             .unwrap()
@@ -55,32 +72,30 @@ pub fn snapshot(v: &Value) -> Snapshot {
         if q["has_preview"].as_bool().unwrap() {
             options[0].preview = Some("preview".into()); // the golden says only that some option has one
         }
-        snap.questions.push(Question {
+        Question {
             id: q["id"].as_i64().unwrap(),
             group: q["group"].as_i64().unwrap(),
             status: s(&q["status"]).unwrap(),
             pane_id: s(&q["pane_id"]),
             options,
             multi_select: q["multi_select"].as_bool().unwrap(),
-            draft: detail(&q["draft"]),
-            delivery_error: s(&q["delivery_error"]),
-            delivered: q["delivered"].as_bool().unwrap(),
+            draft: q.get("draft").and_then(detail),
+            delivery_error: q.get("delivery_error").and_then(s),
+            delivered: q.get("delivered").and_then(Value::as_bool).unwrap_or(false),
             ..Question::default()
-        });
+        }
     }
-    snap.open = ids(&v["open"]);
-    snap.failed = ids(&v["failed"]);
-    for a in v["alerts"].as_array().unwrap() {
-        snap.alerts.push(Alert {
-            id: a["id"].as_i64().unwrap(),
-            kind: s(&a["kind"]).unwrap(),
-            status: s(&a["status"]).unwrap(),
-            pane_id: s(&a["pane_id"]),
-            ..Alert::default()
-        });
+}
+
+/// An alert as the golden gives it.
+pub fn alert(a: &Value) -> Alert {
+    Alert {
+        id: a["id"].as_i64().unwrap(),
+        kind: s(&a["kind"]).unwrap(),
+        status: s(&a["status"]).unwrap(),
+        pane_id: s(&a["pane_id"]),
+        ..Alert::default()
     }
-    snap.open_alerts = ids(&v["open_alerts"]);
-    snap
 }
 
 pub fn open(v: &Value) -> Open {
@@ -151,6 +166,29 @@ pub fn effect(e: &Effect) -> Value {
         Effect::Hide { qid } => json!({"hide": {"qid": qid}}),
         Effect::Ack { alert } => json!({"ack": {"alert": alert}}),
         Effect::GoTo { pane, graced } => json!({"go_to": {"pane": pane, "graced": graced}}),
+        Effect::RemoteAnswer { question, detail } => {
+            let mut r = super::remote::ref_json(question);
+            r["detail"] = detail_json(&Some(detail.clone()));
+            json!({ "remote_answer": r })
+        }
+        Effect::RemoteDismiss { question } => {
+            json!({"remote_dismiss": super::remote::ref_json(question)})
+        }
+        Effect::RemoteAck {
+            machine_id,
+            alert,
+            db_id,
+            akey,
+        } => {
+            json!({"remote_ack": {"machine_id": machine_id, "alert_id": alert, "db_id": db_id, "akey": akey}})
+        }
+        Effect::ClearOutbox { request_id, expire } => {
+            json!({"clear_outbox": {"request_id": request_id, "expire": expire}})
+        }
+        Effect::ClearProblem {
+            machine_id,
+            remote_id,
+        } => json!({"clear_problem": {"machine_id": machine_id, "remote_id": remote_id}}),
         Effect::Exit => json!({"exit": {}}),
         Effect::Quit => json!({"quit": {}}),
         other => panic!("no golden form for {other:?}"),
@@ -207,7 +245,7 @@ fn view(p: &Popup) -> Value {
             json!({"kind": "failed", "qid": v.qid, "cursor": v.cursor, "armed_at": v.armed_at})
         }
         View::Alert(v) => {
-            json!({"kind": "alert", "alert": v.alert, "label": null, "armed_at": v.armed_at})
+            json!({"kind": "alert", "alert": v.alert, "label": v.label, "armed_at": v.armed_at})
         }
         other => panic!("no golden form for {other:?}"),
     }

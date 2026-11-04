@@ -2,7 +2,8 @@
 //! {popup,popup-narrow}.json, captured from the Python popup by
 //! tools/capture_goldens.py): the same data and the same keys give the same
 //! screens, cell for cell (char, fg, bg, bold); popup-extra.json holds the
-//! views the others do not reach. The empty screen is the exception: the
+//! views the others do not reach, popup-remote.json a remote machine's rows
+//! and views (P6-D2). The empty screen is the exception: the
 //! port draws design 2C there (Q179).
 
 mod screens;
@@ -16,12 +17,14 @@ use serde_json::Value;
 const POPUP: &str = include_str!("../../../tests/fixtures/screens/popup.json");
 const NARROW: &str = include_str!("../../../tests/fixtures/screens/popup-narrow.json");
 const EXTRA: &str = include_str!("../../../tests/fixtures/screens/popup-extra.json");
+const REMOTE: &str = include_str!("../../../tests/fixtures/screens/popup-remote.json");
 
 /// Every scenario's screens.
 fn screens() -> Shots {
     let mut out = Shots::new();
     screens::base::screens(&mut out);
     screens::extra::screens(&mut out);
+    screens::remote::screens(&mut out);
     out
 }
 
@@ -34,6 +37,7 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
         ("popup", POPUP),
         ("popup-narrow", NARROW),
         ("popup-extra", EXTRA),
+        ("popup-remote", REMOTE),
     ] {
         let doc: Value = serde_json::from_str(text).unwrap();
         let size = &doc["size"];
@@ -60,7 +64,7 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
         }
     }
     assert_eq!(
-        compared, 42,
+        compared, 56,
         "every golden screen but the empty one is compared"
     );
     assert!(
@@ -295,5 +299,31 @@ fn the_empty_popup_keeps_the_radar_hint() {
     assert_eq!(
         buf[(2, 28)].fg,
         ratatui_core::style::Color::Rgb(0xa0, 0xa0, 0xa0)
+    );
+}
+
+/// Python `test_remote_text_is_escaped`: a remote machine's text is drawn as
+/// written, markup and all (the renderer has no markup to inject into).
+#[test]
+fn remote_text_is_drawn_as_written() {
+    use inbox_core::popup::Machine;
+    use screens::data::{SEARCH, opts, question, snapshot};
+    use screens::remote::{group, rq};
+    let local = question(1, 1, SEARCH, "Local?", opts(&[]), "");
+    let mut s = snapshot(vec![local], vec![], vec![]);
+    let q = rq("m1", 1, 1, "[b]bold[/b] [link=x]x[/link]?", opts(&[]));
+    s.remote.mirror.push(q.r#ref());
+    s.remote.groups.push(group(vec![q]));
+    s.remote.machines.push(Machine {
+        machine_id: "m1".into(),
+        label: Some("project1".into()),
+        offline: None,
+    });
+    let mut p = drive::Pilot::open(s, (110, 30));
+    let rows = rows(&p.screen());
+    assert!(
+        rows.iter()
+            .any(|r| r.contains("project1:Q1 [b]bold[/b] [link=x]x[/link]? · 1 question")),
+        "{rows:#?}"
     );
 }

@@ -243,6 +243,35 @@ scenarios! {
         submit_tab_digits_arm = "edge.submit_tab_digits_arm",
         g_right_after_the_popup_opens = "edge.g_right_after_the_popup_opens",
     }
+    remote_sync {
+        popup_lists_and_answers_a_remote_question = "remote_sync.popup_lists_and_answers_a_remote_question",
+        popup_dismisses_a_remote_group_with_confirmation = "remote_sync.popup_dismisses_a_remote_group_with_confirmation",
+        popup_shows_an_offline_machine_and_a_rejection = "remote_sync.popup_shows_an_offline_machine_and_a_rejection",
+        deep_link_to_a_remote_question = "remote_sync.deep_link_to_a_remote_question",
+        deep_link_to_a_remote_question_held = "remote_sync.deep_link_to_a_remote_question.held",
+        a_remote_question_closed_there_becomes_an_inert_placeholder = "remote_sync.a_remote_question_closed_there_becomes_an_inert_placeholder",
+        m1_the_popup_shows_a_past_expiry_as_expired = "remote_sync.m1_the_popup_shows_a_past_expiry_as_expired",
+        m2_the_popup_lists_it_and_d_clears_it = "remote_sync.m2_the_popup_lists_it_and_d_clears_it",
+        popup_acknowledges_a_remote_alert = "remote_sync.popup_acknowledges_a_remote_alert",
+        m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement = "remote_sync.m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement",
+    }
+    remote_edge {
+        only_remote_rows = "remote_edge.only_remote_rows",
+        answering_one_of_two = "remote_edge.answering_one_of_two",
+        last_remote_answer_closes = "remote_edge.last_remote_answer_closes",
+        enter_and_g_on_remote_rows = "remote_edge.enter_and_g_on_remote_rows",
+        remote_view_keys = "remote_edge.remote_view_keys",
+        chat_about_this = "remote_edge.chat_about_this",
+        multi_select_and_empty_text = "remote_edge.multi_select_and_empty_text",
+        arrivals_are_armed = "remote_edge.arrivals_are_armed",
+        remote_rows_end = "remote_edge.remote_rows_end",
+        remote_alert_ends_on_screen = "remote_edge.remote_alert_ends_on_screen",
+        remote_alert_d_in_the_list = "remote_edge.remote_alert_d_in_the_list",
+        queued_row_is_not_cleared = "remote_edge.queued_row_is_not_cleared",
+        dismiss_kept_and_polled_under = "remote_edge.dismiss_kept_and_polled_under",
+        unlabelled_machine = "remote_edge.unlabelled_machine",
+        remote_question_ends_after_answer_elsewhere = "remote_edge.remote_question_ends_after_answer_elsewhere",
+    }
 }
 
 #[test]
