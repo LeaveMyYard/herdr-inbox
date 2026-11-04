@@ -85,6 +85,10 @@ fn an_install_prunes_the_recorded_copies() {
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(
         names(&r.state_bin()),
-        ["herdr-inbox-0.10.2", "herdr-inbox-0.10.3", "herdr-inbox-0.11.0"]
+        [
+            "herdr-inbox-0.10.2",
+            "herdr-inbox-0.10.3",
+            "herdr-inbox-0.11.0"
+        ]
     );
 }

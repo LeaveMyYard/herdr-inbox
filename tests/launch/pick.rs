@@ -215,7 +215,13 @@ fn the_linked_builds_probe_never_reads_the_hooks_payload() {
 fn a_build_in_a_root_that_is_no_git_checkout_is_not_run() {
     // #74: a local-folder marketplace's cache copy holds target/ but no .git
     let r = Root::new();
-    stand_in(&r.data_bin().join("herdr-inbox-1.0.0"), "data", "1.0.0", 1, 0);
+    stand_in(
+        &r.data_bin().join("herdr-inbox-1.0.0"),
+        "data",
+        "1.0.0",
+        1,
+        0,
+    );
     let dev = r.root().join("target/release/herdr-inbox");
     stand_in(&dev, "dev", "0.1.0", 1, 0);
     assert_eq!(
