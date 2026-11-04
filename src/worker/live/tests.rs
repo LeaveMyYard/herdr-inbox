@@ -137,6 +137,25 @@ fn server_gone_needs_herdrs_own_word() {
     );
 }
 
+/// Python test_server_gone_without_a_herdr_binary_is_not_gone, for the
+/// socket: one it may not reach (a permission error) is no proof the server
+/// is gone.
+#[test]
+fn an_unreachable_server_is_not_gone() {
+    use std::os::unix::fs::PermissionsExt;
+    let fake = FakeHerdr::start();
+    let dir = tempfile::tempdir().unwrap();
+    let locked = dir.path().join("locked");
+    fs::create_dir(&locked).unwrap();
+    let socket = locked.join("s");
+    std::os::unix::fs::symlink(fake.socket(), &socket).unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let herdr = Herdr::new(herdr_agent_kit::herdr_api::ServerId::new(&socket));
+    let gone = server_gone(&herdr);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(!gone, "a permission error is not server_not_running");
+}
+
 #[test]
 fn the_stamp_is_read_without_writing() {
     let dir = tempfile::tempdir().unwrap();

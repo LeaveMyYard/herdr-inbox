@@ -88,7 +88,9 @@ impl Waits {
 pub struct WorkerEnv {
     /// The inbox database (its directory holds the lock and its records).
     pub db: PathBuf,
-    /// The herdr server this worker serves (its socket path).
+    /// The herdr server this worker serves (its socket path). Never empty:
+    /// `main` resolves it with the kit's `plugin_paths::inbox::server_id`
+    /// (Python `herdr.server_id`), so both languages name the same lock.
     pub server: OsString,
     /// The schema revision this code migrates to.
     pub revision: i64,
