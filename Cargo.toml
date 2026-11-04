@@ -82,6 +82,8 @@ serde.workspace = true
 serde_json.workspace = true
 unicode-general-category.workspace = true
 regex.workspace = true
+# herdr-radar's edit is checked as TOML 1.0 through a private (0700) temporary file.
+tempfile.workspace = true
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests

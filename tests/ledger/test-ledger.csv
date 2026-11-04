@@ -600,7 +600,7 @@ tests/test_radar.py::test_matches_the_operators_hand_patch,tests/test_radar.py,h
 tests/test_radar.py::test_no_radar_no_block_or_invalid_toml_are_left_alone,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_radar.py::test_never_crosses_herdrs_16_token_row_limit,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::every_cell_form_counts_toward_the_row_limit,mapped,,P5
 tests/test_radar.py::test_steps_aside_once_radar_carries_the_token,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_radar.py::test_a_concurrent_write_wins,tests/test_radar.py,herdr-inbox --lib radar::tests::the_config_is_written_through_a_symlink_with_a_backup,mapped,,P5
+tests/test_radar.py::test_a_concurrent_write_wins,tests/test_radar.py,herdr-inbox --lib radar::tests::a_write_meanwhile_wins_and_herdr_reloads_only_what_was_written,mapped,,P5
 tests/test_radar.py::test_missing_is_read_only,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_radar.py::test_nothing_runs_it_automatically,tests/test_radar.py,,todo,,
 tests/test_radar.py::test_popup_shows_a_hint_and_edits_nothing,tests/test_radar.py,,todo,,

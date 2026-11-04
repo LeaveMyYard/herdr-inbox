@@ -16,6 +16,12 @@ pub fn read(path: &Path) -> Option<String> {
 /// Replaces `path`'s target with `after`, if it still holds `before`;
 /// `false` when it changed since it was read (or cannot be written).
 pub fn write(path: &Path, before: &str, after: &str) -> bool {
+    write_checked(path, before, after, &mut || {})
+}
+
+/// [`write()`], with `meanwhile` run after the temporary file is written and
+/// before the last check (the tests write the file there).
+pub fn write_checked(path: &Path, before: &str, after: &str, meanwhile: &mut dyn FnMut()) -> bool {
     let Ok(path) = fs::canonicalize(path) else {
         return false;
     };
@@ -44,6 +50,7 @@ pub fn write(path: &Path, before: &str, after: &str) -> bool {
                 fs::Permissions::from_mode(m.permissions().mode() & 0o7777),
             )
         });
+    meanwhile();
     if written.is_err() || !unchanged() {
         let _ = fs::remove_file(&tmp);
         return false;

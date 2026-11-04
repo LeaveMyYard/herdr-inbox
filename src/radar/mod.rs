@@ -24,6 +24,7 @@ pub mod edit;
 pub mod file;
 pub mod rows;
 pub mod status;
+pub mod toml;
 
 use std::path::{Path, PathBuf};
 
@@ -32,9 +33,9 @@ use herdr_agent_kit::plugin_env::config::ConfigFile;
 use serde_json::{Map, Value};
 
 use crate::surface::Surface;
-use crate::token::hex8;
 use edit::{edited, unsupported};
 pub use status::Status;
+pub use toml::parses;
 
 /// herdr-radar's plugin id.
 pub const RADAR_ID: &str = "hhdebb.herdr-radar";
@@ -56,26 +57,6 @@ pub fn config_path(env: &PluginEnv) -> PathBuf {
         Some(p) => p.to_path_buf(),
         None => env.xdg_config_home().join("herdr").join("config.toml"),
     }
-}
-
-/// `text` parses as TOML 1.0 (Python `tomllib.loads`), through the kit's
-/// config reader (it reads files only, so `text` goes to a private
-/// temporary directory, removed after).
-pub fn parses(text: &str) -> bool {
-    let dir = std::env::temp_dir().join(format!(
-        "herdr-inbox-toml-{}-{}",
-        std::process::id(),
-        hex8()
-    ));
-    if std::fs::create_dir(&dir).is_err() {
-        return false;
-    }
-    let ok = std::fs::write(dir.join("config.toml"), text).is_ok() && {
-        let mut config = ConfigFile::in_dir(&dir);
-        config.load_as::<Map<String, Value>>().is_ok() && config.error().is_none()
-    };
-    let _ = std::fs::remove_dir_all(&dir);
-    ok
 }
 
 /// Radar carries `$inbox_q` itself: its own `config.toml` (in `radar_dir`)
@@ -123,8 +104,10 @@ pub fn ensure(
     if starts != 1 || ends != 1 || text.find(END) < text.find(START) {
         return Status::NoBlock;
     }
-    if !parses(&text) {
-        return Status::Invalid;
+    match parses(&text) {
+        Ok(true) => {}
+        Ok(false) => return Status::Invalid,
+        Err(err) => return unchecked(path, &err, warn),
     }
     if unsupported(&text) {
         return Status::Unsupported;
@@ -132,14 +115,26 @@ pub fn ensure(
     if !remove && stepped_aside(herdr.radar_config_dir().as_deref()) {
         return Status::SteppedAside;
     }
-    let Some(new) = edited(&text, remove, &parses, path, warn) else {
-        return Status::Unchanged;
+    let new = match edited(&text, remove, &parses, path, warn) {
+        Ok(Some(new)) => new,
+        Ok(None) => return Status::Unchanged,
+        Err(err) => return unchecked(path, &err, warn),
     };
     if !file::write(path, &text, &new) {
         return Status::Conflict;
     }
     herdr.reload_config();
     Status::Changed
+}
+
+/// The TOML check itself failed (no private temporary file): left untouched,
+/// to be run again, never called invalid TOML.
+fn unchecked(path: &Path, err: &std::io::Error, warn: &mut dyn FnMut(&str)) -> Status {
+    warn(&format!(
+        "radar sidebar: could not check {}: {err}",
+        path.display()
+    ));
+    Status::Conflict
 }
 
 /// Read-only, for the popup's hint: radar is installed and its rows in
@@ -157,8 +152,16 @@ pub fn missing(
     let Some(text) = file::read(path) else {
         return false;
     };
-    if edited(&text, false, &parses, path, warn).is_none() {
-        return false;
+    match edited(&text, false, &parses, path, warn) {
+        Ok(Some(_)) => {}
+        Ok(None) => return false,
+        Err(err) => {
+            warn(&format!(
+                "radar sidebar: could not check {}: {err}",
+                path.display()
+            ));
+            return false;
+        }
     }
     !stepped_aside(herdr.radar_config_dir().as_deref()) && herdr.radar_installed()
 }
