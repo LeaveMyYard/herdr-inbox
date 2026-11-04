@@ -50,6 +50,12 @@ pub struct Theme {
     pub selection: Rgb,
     /// `$text-disabled` over the `Input`: an empty one's placeholder.
     pub disabled: Rgb,
+    /// `$border-blurred`: an `Input`'s frame without the focus.
+    pub border_blurred: Rgb,
+    /// `$surface`: an `Input`'s fill without the focus.
+    pub input_blurred: Rgb,
+    /// `$text-disabled` over a blurred `Input`.
+    pub disabled_blurred: Rgb,
     /// `$scrollbar`: the thumb.
     pub thumb: Rgb,
     /// `$scrollbar-background`: the track.
@@ -69,6 +75,9 @@ impl Theme {
         border: Rgb::hex(0x0178d4),
         selection: Rgb::hex(0x2d4e74),
         disabled: Rgb::hex(0x797979),
+        border_blurred: Rgb::hex(0x191919),
+        input_blurred: Rgb::hex(0x1e1e1e),
+        disabled_blurred: Rgb::hex(0x737373),
         thumb: Rgb::hex(0x003054),
         track: Rgb::hex(0x000000),
     };
