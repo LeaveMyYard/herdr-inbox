@@ -12,7 +12,9 @@ step's outcome (``delivery``) onto the rows it is given. Steps can set the plugi
 ``CLAUDE_CODE_SESSION_ID`` / ``HERDR_PANE_ID`` (``me``). ``submit`` steps run ``service.submit``
 without delivery (the popup's path), and ``preamble`` steps run the real ``deliver_batch`` with every
 claim refused, which records only its preamble: the worker ensured and the answers it keeps
-for this herdr server (one foreign server per step: Python ensures them in set order). In stderr
+for this herdr server (one foreign server per step: Python ensures them in set order). The remote
+side's steps (``inbox export``, ``inbox apply``, their request as ``stdin``) are in
+``tools/capture_cli_remote.py``; ``fresh`` starts the database over for them. In stderr
 the work directory is ``<work>`` and a TOML parser's reason ``<reason>``. Times are relative to now (ages print as ``3h``) and masked in the tables.
 """
 
@@ -27,6 +29,8 @@ import os
 import re
 import sys
 from pathlib import Path
+
+import capture_cli_remote as cli_remote
 
 S_A = "aaaaaaaa-0000-4000-8000-00000000000a"
 S_OLD = "a58e3f68-0000-4000-8000-000000000001"
@@ -67,6 +71,7 @@ CLI_OPS = [
     ("cli", {"argv": ["list"]}),
     ("cli", {"argv": ["answer", "1", "go"]}),
     ("cli", {"argv": ["dismiss", "1"]}),
+    *cli_remote.BEFORE,
     ("migrate", {}),
     _q(1, "-3 hours", "w1:p1", "Which region?", tab_label="my-tab", session=S_A, asked_by="lead"),
     _q(2, "-5 minutes", "w1:p2", "Ship it?\nSecond line ignored", repeat=2, session=S_A, tab="w1:t2"),
@@ -291,6 +296,7 @@ CLI_OPS = [
     ("preamble", {"qids": [24, 21], "retry": False, "server": "/srv/other"}),
     ("preamble", {"qids": [21, 20], "retry": True, "server": "/srv/mine"}),
     ("preamble", {"qids": [22], "retry": False, "server": "/srv/other"}),
+    *cli_remote.REMOTE_OPS,  # last: a database of their own
 ]
 
 
@@ -358,10 +364,22 @@ def _deeplink(deeplink, path: Path, work: Path, args: dict) -> dict:
     return out
 
 
-def _tables(path: Path) -> dict:
+def _tables(path: Path, fresh: bool) -> dict:
+    """The rows a step leaves; after ``fresh``, the remote side's (and the database's id)."""
+    import sqlite3
+
     from capture_goldens import _store_tables
 
-    return _store_tables(path, ("questions", "question_ext", "tab_decor"))
+    if not fresh:
+        return _store_tables(path, ("questions", "question_ext", "tab_decor"))
+    out = _store_tables(path, cli_remote.REMOTE_TABLES)
+    db = sqlite3.connect(path)
+    try:
+        row = db.execute("SELECT value FROM meta WHERE key = 'db_id'").fetchone()
+    finally:
+        db.close()
+    out["db_id"] = None if row is None else row[0] if row[0] == cli_remote.DB else "<db_id>"
+    return out
 
 
 class _Stderr(logging.Handler):
@@ -372,7 +390,7 @@ class _Stderr(logging.Handler):
 
 
 def capture_cli(out: Path, work: Path) -> Path:
-    from herdr_inbox import deeplink, herdr, radar, remote, service, store as st, tabs, worker
+    from herdr_inbox import deeplink, herdr, radar, remote, remote_api, service, store as st, tabs, worker
     from herdr_inbox import cli
 
     path = work / "cli.db"
@@ -447,6 +465,7 @@ def capture_cli(out: Path, work: Path) -> Path:
         (herdr, "plugin_config_dir"): plugin_config_dir,
         (herdr, "run_raw"): run_raw,
         (remote, "enabled_machines"): lambda ttl=60.0: effects.append(["machines"]) or world.get("machines", []),
+        (remote_api, "spawn_delivery"): lambda qids, force=False: effects.append(["spawn_deliver", list(qids), force]),
     }
     saved = {k: getattr(*k) for k in stubs}
     real_deliver = service.deliver_batch
@@ -475,7 +494,11 @@ def capture_cli(out: Path, work: Path) -> Path:
             if me.get("pane"):
                 os.environ["HERDR_PANE_ID"] = me["pane"]
             step = {"op": op, "args": args}
-            if op == "migrate":
+            if op == "fresh":  # a new database, migrated
+                for f in work.glob("cli.db*"):
+                    f.unlink()
+                st.Store(path, migrate=True).close()
+            elif op == "migrate":
                 st.Store(path, migrate=True).close()
             elif op == "sql":
                 with st.Store(path) as s:
@@ -513,7 +536,7 @@ def capture_cli(out: Path, work: Path) -> Path:
                 request.unlink(missing_ok=True)
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                     try:
-                        code = cli.main(list(args["argv"]))
+                        code = cli.main(list(args["argv"]), stdin=args.get("stdin"))
                     except SystemExit as e:
                         code = e.code
                 if held is not None:
@@ -524,7 +547,10 @@ def capture_cli(out: Path, work: Path) -> Path:
                                        for k, v in data.items()}
                     request.unlink()
                 err = re.sub(r"(config\.toml: ).*", r"\1<reason>", stderr.getvalue().replace(str(work), "<work>"))
-                step.update(code=code, stdout=stdout.getvalue().replace(str(work), "<work>"), stderr=err)
+                printed = stdout.getvalue().replace(str(work), "<work>")
+                if args["argv"][0] in ("export", "apply"):
+                    printed = cli_remote.mask(printed)
+                step.update(code=code, stdout=printed, stderr=err)
                 if op == "radar":
                     step["herdr_config"] = herdr_cfg.read_bytes().decode() if herdr_cfg.exists() else None
                     bak = herdr_cfg.with_name("config.toml.inbox-bak")
@@ -532,7 +558,8 @@ def capture_cli(out: Path, work: Path) -> Path:
                     bak.unlink(missing_ok=True)
             step["effects"] = list(effects)
             migrated = op == "migrate" or any(s["op"] == "migrate" for s in steps)
-            dump = _tables(path) if migrated else None
+            fresh = any(s["op"] == "fresh" for s in steps) or op == "fresh"
+            dump = _tables(path, fresh) if migrated else None
             step["tables"] = "unchanged" if migrated and dump == last else dump
             last = dump
             steps.append(step)

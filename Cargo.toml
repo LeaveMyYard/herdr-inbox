@@ -50,6 +50,8 @@ tempfile = "3"
 ratatui-core = { version = "0.1", features = ["std"] }
 # A character's width in cells, as ratatui counts it.
 unicode-width = "0.2"
+# `inbox export`'s question and alert keys (Python `hashlib.sha256`, src/remote_api/keys.rs).
+sha2 = "0.10"
 
 # The `herdr-inbox` binary: one binary, subcommands keep today's CLI names (§2.2).
 # Its version is the workspace's: the plugin's (see [workspace.package]).
@@ -82,6 +84,7 @@ serde.workspace = true
 serde_json.workspace = true
 unicode-general-category.workspace = true
 regex.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests
