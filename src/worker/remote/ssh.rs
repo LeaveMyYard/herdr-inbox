@@ -11,6 +11,7 @@ use std::io::{Read, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
 use crate::remote::command::{FixedCommand, SafeTarget};
@@ -93,8 +94,12 @@ pub fn run(
 }
 
 /// Starts `program args`, writes `stdin`, and collects its output within
-/// `timeout`; then it is killed. `partial`: a timeout keeps the stdout read
-/// so far (Python `ssh()`'s `exc.stdout`), else it is dropped (`call()`).
+/// `timeout`: the process must have exited AND its pipes closed by then
+/// (a descendant holding a pipe does not keep the call waiting), else it is
+/// killed (if still running) and the call reads as 124. `partial`: a
+/// timeout keeps the stdout read so far, else it is dropped (`call()`).
+/// Python's `ssh()` gets that partial stdout as bytes, so a timed-out probe
+/// fails its pull there; here the partial paths are parsed (and validated).
 pub fn exec(
     program: &OsString,
     args: &[String],
@@ -123,14 +128,26 @@ pub fn exec(
         let text = text.to_string();
         std::thread::spawn(move || drop(pipe.write_all(text.as_bytes())));
     }
+    // the pipes are read into buffers; each reader says when its pipe closed
+    let (done, closed) = mpsc::channel::<()>();
     let reader = |pipe: Option<Box<dyn Read + Send>>| {
+        let buf = Arc::new(Mutex::new(Vec::new()));
+        let (into, done) = (Arc::clone(&buf), done.clone());
         std::thread::spawn(move || {
-            let mut buf = Vec::new();
+            let mut chunk = [0u8; 8192];
             if let Some(mut p) = pipe {
-                let _ = p.read_to_end(&mut buf);
+                while let Ok(n) = p.read(&mut chunk) {
+                    if n == 0 {
+                        break;
+                    }
+                    into.lock()
+                        .map(|mut b| b.extend_from_slice(&chunk[..n]))
+                        .ok();
+                }
             }
-            String::from_utf8_lossy(&buf).into_owned()
-        })
+            let _ = done.send(());
+        });
+        buf
     };
     let out = reader(
         child
@@ -144,31 +161,50 @@ pub fn exec(
             .take()
             .map(|p| Box::new(p) as Box<dyn Read + Send>),
     );
+    let text = |b: &Arc<Mutex<Vec<u8>>>| {
+        b.lock()
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default()
+    };
+    // Python's `run(timeout=)`: the deadline covers the process AND its output: a
+    // descendant still holding a pipe open does not keep the call waiting
     let deadline = Instant::now() + timeout;
-    let status = loop {
+    let mut status = None;
+    while status.is_none() && Instant::now() < deadline {
         match child.try_wait() {
-            Ok(Some(s)) => break Some(s),
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
-            _ => break None,
+            Ok(Some(s)) => status = Some(s),
+            Ok(None) => std::thread::sleep(Duration::from_millis(20)),
+            Err(_) => break,
         }
-    };
-    let Some(status) = status else {
-        let _ = child.kill(); // our own child, past its time
-        let _ = child.wait();
-        let stdout = out.join().unwrap_or_default();
-        return CallResult {
-            code: 124,
-            stdout: if partial { stdout } else { String::new() },
-            stderr: format!("timed out after {} s", timeout.as_secs()),
-        };
-    };
-    CallResult {
-        // Python's returncode: the exit code, or minus the signal that ended it
-        code: status
-            .code()
-            .unwrap_or_else(|| -status.signal().unwrap_or(0)),
-        stdout: out.join().unwrap_or_default(),
-        stderr: err.join().unwrap_or_default(),
+    }
+    let mut open = 2;
+    while status.is_some() && open > 0 {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match closed.recv_timeout(left) {
+            Ok(()) => open -= 1,
+            Err(_) => break,
+        }
+    }
+    match status {
+        Some(status) if open == 0 => CallResult {
+            // Python's returncode: the exit code, or minus the signal that ended it
+            code: status
+                .code()
+                .unwrap_or_else(|| -status.signal().unwrap_or(0)),
+            stdout: text(&out),
+            stderr: text(&err),
+        },
+        _ => {
+            if status.is_none() {
+                let _ = child.kill(); // our own child, past its time
+                let _ = child.wait();
+            }
+            CallResult {
+                code: 124,
+                stdout: if partial { text(&out) } else { String::new() },
+                stderr: format!("timed out after {} s", timeout.as_secs()),
+            }
+        }
     }
 }
 

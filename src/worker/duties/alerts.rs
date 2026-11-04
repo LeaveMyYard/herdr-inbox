@@ -21,12 +21,17 @@ pub fn scan_blocked(
 ) -> usize {
     let herdr = round.ctx.herdr;
     // Python `herdr.call("agent", "list")`: None on a failure, else `.result`
-    let agents: Option<Vec<SeenAgent>> = herdr.raw("agent.list", json!({})).ok().map(|res| {
-        res.get("agents")
-            .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(SeenAgent::from_json).collect())
-            .unwrap_or_default()
-    });
+    // a missing `agents` is none; one that is not a list is no answer (Python
+    // raises iterating it, and the scan changes nothing)
+    let agents: Option<Vec<SeenAgent>> =
+        herdr
+            .raw("agent.list", json!({}))
+            .ok()
+            .and_then(|res| match res.get("agents") {
+                None => Some(Vec::new()),
+                Some(Value::Array(a)) => Some(a.iter().filter_map(SeenAgent::from_json).collect()),
+                Some(_) => None,
+            });
     let label = |tab: &str| {
         herdr
             .tab(&TabId::new(tab))

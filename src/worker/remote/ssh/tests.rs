@@ -3,7 +3,6 @@
 //! options each kind of call gets.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 
 use super::*;
 use crate::remote::command::{FixedCommand, SafeTarget};
@@ -11,8 +10,7 @@ use crate::store::mirror::Machine;
 
 fn script(dir: &std::path::Path, body: &str) -> OsString {
     let p = dir.join("fake-ssh");
-    fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
-    fs::set_permissions(&p, fs::Permissions::from_mode(0o755)).unwrap();
+    crate::worker::remote::tests::script(&p, body);
     p.into_os_string()
 }
 
@@ -119,4 +117,31 @@ fn only_an_inbox_call_shares_the_connection_and_the_command_goes_last() {
     assert!(
         args.contains(&"ControlMaster=auto") && args.ends_with(&["--", "box.lan", export.as_str()])
     );
+}
+
+#[test]
+fn a_descendant_holding_the_pipes_never_holds_the_call() {
+    let dir = tempfile::tempdir().unwrap();
+    // exits at once, but leaves a child with its stdout and stderr
+    let p = script(dir.path(), "sleep 3 & echo hi");
+    let started = Instant::now();
+    let r = exec(&p, &[], None, Duration::from_millis(500), true);
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!((r.code, r.stdout.as_str()), (124, "hi\n"));
+    let r = exec(&p, &[], Some(""), Duration::from_millis(500), false);
+    assert_eq!((r.code, r.stdout.as_str()), (124, ""));
+}
+
+#[test]
+fn a_call_still_running_at_its_time_is_killed_without_exec() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = script(dir.path(), "echo partial; sleep 3");
+    let started = Instant::now();
+    let r = exec(&p, &[], None, Duration::from_millis(300), true);
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert_eq!((r.code, r.stdout.as_str()), (124, "partial\n"));
 }
