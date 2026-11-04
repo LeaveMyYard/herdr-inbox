@@ -321,3 +321,18 @@ say why in the PR:
   The design lives in another repo, so CI cannot capture it again: whenever herdr-panorama's
   `docs/design/herdr-tui.js` changes, re-run the capture and compare its sha256 with the one in
   `source` (a different file means the fixture, and maybe the scene, must follow).
+
+## The worker's evidence and the resumed-ancestor replay (P5-E2)
+
+- `evidence.json` (`python3 -I tools/capture_evidence.py`): how Python's `transcript.own_answer_qids`
+  splits shell commands (its `shlex` setup: the tokens, or the error shlex raises) and which question
+  ids each answers, and what `own_answer_succeeded` reads from CLI outputs. The commands are the ones
+  tests/test_failed_pile.py uses plus the splitter's corners (quotes, escapes, comments, punctuation
+  runs, assignments, `uv run` flags). `src/claude/evidence/{shlex,shell}/tests.rs` replay it. An id
+  past 64 bits is dropped on the Rust side (it never names a question).
+- `ancestor-replay.json`: synthetic, written by hand (no Python run produces it): the shape of
+  herdr-inbox #53's incident with placeholder ids, names, texts and times only. A session continued in
+  a newer one; herdr resumed the older one in the asking pane; six answers asked by the newer session
+  were typed into the older one; a reconcile that counted ancestors as proof marked them verified.
+  `tests/worker_duties/ancestor_replay.rs` replays it through whole worker ticks and checks no row is
+  ever verified, delivered or seen.

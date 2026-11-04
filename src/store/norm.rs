@@ -27,7 +27,7 @@ use crate::text::{py_isspace, squash};
 pub const MAX_TITLE: usize = 60;
 
 /// Python's `re` `\w` for one character: a letter, a number, or `_`.
-fn is_word(c: char) -> bool {
+pub fn is_word(c: char) -> bool {
     c == '_'
         || matches!(
             get_general_category(c),
