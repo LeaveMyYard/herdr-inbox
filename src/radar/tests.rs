@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::*;
 
 fn radar_config(text: &str) -> tempfile::TempDir {
@@ -19,9 +21,12 @@ fn radar_carries_the_token_only_with_a_real_extra_tokens_entry() {
 
 #[test]
 fn toml_parses_as_tomllib_reads_it() {
-    assert!(parses("a = 1\n[b]\nc = \"x\"\n"));
-    assert!(!parses("[keys\n"));
-    assert!(!parses("a = { b = 1, }\n"), "TOML 1.1's trailing comma");
+    assert!(parses("a = 1\n[b]\nc = \"x\"\n").unwrap());
+    assert!(!parses("[keys\n").unwrap());
+    assert!(
+        !parses("a = { b = 1, }\n").unwrap(),
+        "TOML 1.1's trailing comma"
+    );
 }
 
 #[test]
@@ -47,5 +52,105 @@ fn the_config_is_written_through_a_symlink_with_a_backup() {
     assert_eq!(
         std::fs::read_to_string(d.path().join("dotfiles.toml.inbox-bak")).unwrap(),
         "old\r\n"
+    );
+}
+
+/// herdr with radar installed; `meanwhile` runs when radar's config dir is
+/// asked (between the read and the write), and the file is recorded at the
+/// reload.
+struct Host<'a> {
+    meanwhile: Box<dyn FnMut() + 'a>,
+    path: PathBuf,
+    reloaded: Vec<String>,
+}
+
+impl crate::surface::Surface for Host<'_> {
+    fn set_open_count(&mut self, _: &str, _: i64) {}
+    fn pane_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        None
+    }
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        None
+    }
+    fn tab_label(&mut self, _: &str) -> Option<String> {
+        None
+    }
+    fn rename_tab(&mut self, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn notify(&mut self, _: &str, _: &str) {}
+    fn open_popup(&mut self, _: &[(String, String)]) -> Result<(), String> {
+        Ok(())
+    }
+    fn radar_installed(&mut self) -> bool {
+        true
+    }
+    fn radar_config_dir(&mut self) -> Option<PathBuf> {
+        (self.meanwhile)();
+        None
+    }
+    fn reload_config(&mut self) {
+        self.reloaded
+            .push(std::fs::read_to_string(&self.path).unwrap());
+    }
+}
+
+const BLOCK: &str = include_str!("../../tests/fixtures/radar/dark-font.block.toml");
+
+#[test]
+fn a_write_meanwhile_wins_and_herdr_reloads_only_what_was_written() {
+    // Python test_radar::test_a_concurrent_write_wins
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("config.toml");
+    let original = format!("[keys]\n{BLOCK}");
+    std::fs::write(&path, &original).unwrap();
+    let rewritten = format!("{original}# radar rewrote its block\n");
+    let mut host = Host {
+        meanwhile: Box::new(|| std::fs::write(&path, &rewritten).unwrap()),
+        path: path.clone(),
+        reloaded: Vec::new(),
+    };
+    assert_eq!(
+        ensure(&path, false, &mut host, &mut |_| {}),
+        Status::Conflict
+    );
+    assert!(host.reloaded.is_empty(), "no reload after a refused write");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), rewritten);
+    assert!(!d.path().join("config.toml.inbox-bak").exists());
+    let mut host = Host {
+        meanwhile: Box::new(|| {}),
+        path: path.clone(),
+        reloaded: Vec::new(),
+    };
+    assert_eq!(
+        ensure(&path, false, &mut host, &mut |_| {}),
+        Status::Changed
+    );
+    assert_eq!(host.reloaded.len(), 1);
+    assert!(
+        host.reloaded[0].contains("$inbox_q"),
+        "herdr reloads the edited file"
+    );
+}
+
+#[test]
+fn a_write_after_the_temporary_file_is_made_is_refused_too() {
+    // the re-check right before the rename (Python `_write`'s second read)
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("config.toml");
+    std::fs::write(&path, "a\n").unwrap();
+    let probe = file::write_checked(&path, "a\n", "b\n", &mut || {
+        std::fs::write(&path, "c\n").unwrap()
+    });
+    assert!(!probe);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "c\n");
+    let leftovers: Vec<_> = std::fs::read_dir(d.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with('.'))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "the temporary file is removed: {leftovers:?}"
     );
 }

@@ -135,11 +135,7 @@ impl Surface for Live {
         let Ok(listed) = self.ok("plugin.list", self.herdr.raw("plugin.list", json!({}))) else {
             return false;
         };
-        let plugins = listed.get("plugins").and_then(Value::as_array);
-        plugins.into_iter().flatten().any(|p| {
-            p.get("plugin_id").and_then(Value::as_str) == Some(RADAR_ID)
-                && p.get("enabled").is_none_or(py_truthy)
-        })
+        radar_listed(&listed)
     }
 
     fn radar_config_dir(&mut self) -> Option<PathBuf> {
@@ -152,3 +148,17 @@ impl Surface for Live {
         let _ = self.ok("server.reload_config", reloaded);
     }
 }
+
+/// herdr's `plugin.list` result lists herdr-radar enabled (Python
+/// `radar.radar_installed`: `p.get("enabled", True)`, so a missing flag is
+/// enabled and `false` or `null` is not).
+pub fn radar_listed(listed: &Value) -> bool {
+    let plugins = listed.get("plugins").and_then(Value::as_array);
+    plugins.into_iter().flatten().any(|p| {
+        p.get("plugin_id").and_then(Value::as_str) == Some(RADAR_ID)
+            && p.get("enabled").is_none_or(py_truthy)
+    })
+}
+
+#[cfg(test)]
+mod tests;
