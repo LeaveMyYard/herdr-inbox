@@ -1,5 +1,6 @@
 //! Alerts an agent raises (Python `raise_alert`, `get`, `open_alerts`,
-//! `acknowledge`, `withdraw`, `acknowledged_unreported`, `mine`).
+//! `acknowledge`, `withdraw`, `acknowledged_unreported`, `mine`), and the
+//! alerts `inbox export` sends (`remote_api._alerts`).
 
 use rusqlite::types::Value;
 use rusqlite::{OptionalExtension, params, params_from_iter};
@@ -73,6 +74,19 @@ impl Store {
                  CASE severity WHEN 'urgent' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, id"
             ),
             Vec::new(),
+        )
+    }
+
+    /// What `inbox export` sends (Python `remote_api._alerts`): open alerts,
+    /// and those acknowledged or closed at `since` or later, oldest first, at
+    /// most `limit`.
+    pub fn exported_alerts(&self, since: &str, limit: i64) -> rusqlite::Result<Vec<Alert>> {
+        self.alerts_where(
+            &format!(
+                "SELECT {COLUMNS} FROM alerts WHERE status = 'open' \
+                 OR COALESCE(acked_at, closed_at) >= ? ORDER BY id LIMIT ?"
+            ),
+            vec![Value::Text(since.into()), Value::Integer(limit)],
         )
     }
 

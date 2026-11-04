@@ -1,7 +1,7 @@
 //! The `herdr-inbox` binary (plan §2.2): one binary, subcommands keeping
 //! today's CLI names. So far: `hook <event>` (the Claude Code hooks),
 //! `contract` (the launcher contract, `scripts/launch`) and the CLI's
-//! `list`, `answer`, `dismiss`, `open`, `sync-tokens` and `radar-sidebar`
+//! `list`, `answer`, `dismiss`, `open`, `sync-tokens`, `radar-sidebar`, `export` and `apply`
 //! ([`herdr_inbox::cli`]).
 //!
 //! A hook never fails the session: a panic, a bad argument or any error

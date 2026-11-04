@@ -69,7 +69,7 @@ pub fn dismiss(store: &Store, args: &Args, io: &mut Io<'_>) -> rusqlite::Result<
 
 /// Runs `f` with the marks of the panes it changes (warnings to stderr) and
 /// the delivery.
-fn with_markers<T>(
+pub(super) fn with_markers<T>(
     store: &Store,
     io: &mut Io<'_>,
     f: impl FnOnce(&mut Markers<'_>, &mut dyn Delivery) -> T,

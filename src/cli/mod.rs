@@ -1,10 +1,10 @@
 //! The `inbox` command line (Python `cli.main`): so far `list`, `answer`,
-//! `dismiss`, `open`, `sync-tokens` and `radar-sidebar`. Output, exit codes and usage errors are Python's, word for
+//! `dismiss`, `open`, `sync-tokens`, `radar-sidebar`, `export` and `apply`. Output, exit codes and usage errors are Python's, word for
 //! word (the CLI golden, `tests/fixtures/cli.json`).
 //!
 //! - [`args`]: argparse's parsing, help and usage errors.
 //! - [`specs`]: the subcommands' arguments and help.
-//! - [`list`], [`answer`], [`open`], [`marks`]: the commands.
+//! - [`list`], [`answer`], [`open`], [`marks`], [`remote`]: the commands.
 //! - [`live`]: the real database, herdr and delivery behind [`Io`].
 
 pub mod answer;
@@ -13,9 +13,10 @@ pub mod list;
 pub mod live;
 pub mod marks;
 pub mod open;
+pub mod remote;
 pub mod specs;
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::time::Duration;
 
@@ -41,6 +42,8 @@ pub const BUSY_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Everything a command reads and writes besides its arguments.
 pub struct Io<'a> {
+    /// stdin (the request of `export` and `apply`).
+    pub input: &'a mut dyn Read,
     /// stdout.
     pub out: &'a mut dyn Write,
     /// stderr.
@@ -87,6 +90,9 @@ pub fn run(cmd: &str, argv: &[String], io: &mut Io<'_>) -> i32 {
     }
     if cmd == "radar-sidebar" {
         return marks::radar_sidebar(&args, io);
+    }
+    if cmd == "export" || cmd == "apply" {
+        return remote::run(cmd, io); // it parses its request before it opens the database
     }
     let store = match Store::open(io.db_path, BUSY_TIMEOUT) {
         Ok(store) => store,
