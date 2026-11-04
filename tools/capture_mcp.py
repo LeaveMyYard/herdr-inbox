@@ -16,6 +16,9 @@ for its reply; `subscriptions/listen` waits for the acknowledgement.
 - `outside-herdr.jsonl`: the six tools in a session that is not in a herdr pane.
 - `claude-code-calls.jsonl`: Claude Code's requests, then tool calls with its `_meta` (2026-07-28).
 
+Record on Python 3.12, the Python the live MCP server runs: from 3.13 the compiler strips
+docstrings' indentation, and three tool descriptions are docstrings.
+
 Never run it against the operator's database: it sets HERDR_INBOX_DB itself, to a temp dir.
 """
 import json

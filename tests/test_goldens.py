@@ -141,6 +141,13 @@ def test_the_mcp_recordings_are_what_the_server_does(tmp_path):
     assert res.returncode == 0, (res.stdout + res.stderr)[-4000:]
     names = sorted(p.name for p in (FIX / "mcp").glob("*.jsonl") if p.name != requests)
     assert names == sorted(p.name for p in tmp_path.glob("*.jsonl") if p.name != requests)
+    def same_on_any_python(text: str) -> str:
+        # Python 3.13 strips docstrings' indentation (the compiler dedents them), so three tool
+        # descriptions lose the 4 spaces after their line breaks. The recordings are made on 3.12,
+        # the Python the live MCP server runs (its plugin venv); compare 3.13 on that one point only.
+        return text.replace("\\n    ", "\\n") if sys.version_info >= (3, 13) else text
+
     for name in names:
-        assert (FIX / "mcp" / name).read_text() == (tmp_path / name).read_text(), (
+        want, got = (FIX / "mcp" / name).read_text(), (tmp_path / name).read_text()
+        assert same_on_any_python(want) == same_on_any_python(got), (
             f"{name} changed; if deliberate: uv run python tools/capture_mcp.py tests/fixtures/mcp")
