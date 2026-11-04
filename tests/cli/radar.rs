@@ -25,7 +25,9 @@ fn text(spec: &Value) -> String {
         text = text.replacen(r[0].as_str().unwrap(), r[1].as_str().unwrap(), 1);
     }
     if spec.get("edited") == Some(&Value::Bool(true)) {
-        text = edited(&text, false, &parses, Path::new("x"), &mut |_| {}).unwrap();
+        text = edited(&text, false, &parses, Path::new("x"), &mut |_| {})
+            .unwrap()
+            .unwrap();
     }
     if spec.get("crlf") == Some(&Value::Bool(true)) {
         text = text.replace('\n', "\r\n");

@@ -3,16 +3,28 @@ use std::path::PathBuf;
 use super::*;
 
 #[test]
-fn the_checkout_is_the_nearest_folder_with_the_manifest() {
+fn the_checkout_is_the_nearest_folder_with_the_inbox_manifest() {
     let d = tempfile::tempdir().unwrap();
     let bin = d.path().join("target/release");
     std::fs::create_dir_all(&bin).unwrap();
-    assert_eq!(own_checkout(&bin.join("herdr-inbox")), None);
-    std::fs::write(d.path().join("herdr-plugin.toml"), "").unwrap();
+    let exe = bin.join("herdr-inbox");
+    std::fs::write(&exe, "").unwrap();
+    assert_eq!(own_checkout(&exe), None);
+    let other = "id = \"leavemyyard.herdr-panorama\"\n";
+    std::fs::write(d.path().join("herdr-plugin.toml"), other).unwrap();
+    assert_eq!(own_checkout(&exe), None, "another plugin's tree");
+    let inbox = d.path().join("target");
+    let manifest = "# c\nid = \"leavemyyard.herdr-inbox\"\n[x]\n";
+    std::fs::write(inbox.join("herdr-plugin.toml"), manifest).unwrap();
+    let root = std::fs::canonicalize(&inbox).unwrap();
     assert_eq!(
-        own_checkout(&bin.join("herdr-inbox")),
-        Some(d.path().to_path_buf())
+        own_checkout(&exe),
+        Some(root.clone()),
+        "the nearest inbox manifest"
     );
+    let link = d.path().join("link");
+    std::os::unix::fs::symlink(&exe, &link).unwrap();
+    assert_eq!(own_checkout(&link), Some(root), "through a symlink");
 }
 
 fn env(vars: &[(&str, &str)]) -> PluginEnv {

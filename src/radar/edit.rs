@@ -2,6 +2,7 @@
 //! `unsupported`): only inside radar's markers, only when the file parses
 //! before and after, never on TOML the walker does not handle.
 
+use std::io;
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -32,17 +33,20 @@ pub fn block_span(text: &str) -> Option<(usize, usize)> {
 /// The new file text, or `None` when nothing should change: no block, a file
 /// that does not parse (`parses` is TOML 1.0, as herdr's `tomllib` reads it),
 /// unsupported TOML in the block, no edit to make, or an edit that would
-/// not parse (`warn`ed about, naming `shown`, as Python logs it).
+/// not parse (`warn`ed about, naming `shown`, as Python logs it). `Err`: the
+/// TOML check could not be made.
 pub fn edited(
     text: &str,
     remove: bool,
-    parses: &dyn Fn(&str) -> bool,
+    parses: &dyn Fn(&str) -> io::Result<bool>,
     shown: &Path,
     warn: &mut dyn FnMut(&str),
-) -> Option<String> {
-    let (start, end) = block_span(text)?;
-    if !parses(text) || unsupported(text) {
-        return None;
+) -> io::Result<Option<String>> {
+    let Some((start, end)) = block_span(text) else {
+        return Ok(None);
+    };
+    if !parses(text)? || unsupported(text) {
+        return Ok(None);
     }
     let new = format!(
         "{}{}{}",
@@ -51,16 +55,16 @@ pub fn edited(
         &text[end..]
     );
     if new == text {
-        return None;
+        return Ok(None);
     }
-    if !parses(&new) {
+    if !parses(&new)? {
         warn(&format!(
             "radar sidebar: edit would break {}; left alone",
             shown.display()
         ));
-        return None;
+        return Ok(None);
     }
-    Some(new)
+    Ok(Some(new))
 }
 
 #[cfg(test)]
