@@ -419,19 +419,24 @@ def test_a_migrating_store_waits_out_a_writer_on_a_rollback_journal_database(tmp
     release.start()
     with Store(path, timeout=5.0, migrate=True, maintenance=False) as s:
         assert s.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert st.stamped_revision(s.db.execute("PRAGMA user_version").fetchone()[0]) == st.MIGRATION_REVISION
     release.join()
 
 
 def test_the_switch_to_wal_raises_any_other_error_at_once(tmp_path):
+    """A non-busy OperationalError (journal mode cannot change inside a transaction: code 1)
+    is raised at once, never retried until the deadline."""
     import sqlite3
     import time
 
     path = tmp_path / "inbox.db"
-    path.write_bytes(b"x" * 4096)  # not a database
     db = sqlite3.connect(path, isolation_level=None)
+    db.execute("CREATE TABLE t (x)")
+    db.execute("BEGIN")
+    db.execute("INSERT INTO t VALUES (1)")
     started = time.monotonic()
     try:
         st._switch_to_wal(db, wait=5.0)
-        raise AssertionError("a file that is no database switched to WAL")
-    except sqlite3.DatabaseError as exc:
-        assert "locked" not in str(exc) and time.monotonic() - started < 2.5
+        raise AssertionError("switched to WAL inside a transaction")
+    except sqlite3.OperationalError as exc:
+        assert "locked" not in str(exc) and time.monotonic() - started < 2.5, exc
