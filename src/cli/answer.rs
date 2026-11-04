@@ -91,5 +91,5 @@ fn parsed_id(args: &Args) -> i64 {
     args.values[0]
         .first()
         .and_then(|v| question_id(v))
-        .unwrap_or_default()
+        .expect("the parser checks the id")
 }

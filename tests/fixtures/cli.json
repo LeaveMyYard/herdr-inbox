@@ -1359,6 +1359,66 @@
    "op": "cli",
    "args": {
     "argv": [
+     "list",
+     "--"
+    ]
+   },
+   "code": 2,
+   "stdout": "",
+   "stderr": "usage: inbox [-h]\n             {mcp,tui,open,list,answer,dismiss,redeliver,sync-tokens,radar-sidebar,clean-venvs,deliver,verify,worker,export,apply,remote,hook} ...\ninbox: error: unrecognized arguments: --\n",
+   "effects": [],
+   "tables": "unchanged"
+  },
+  {
+   "op": "cli",
+   "args": {
+    "argv": [
+     "list",
+     "--",
+     "x"
+    ]
+   },
+   "code": 2,
+   "stdout": "",
+   "stderr": "usage: inbox [-h]\n             {mcp,tui,open,list,answer,dismiss,redeliver,sync-tokens,radar-sidebar,clean-venvs,deliver,verify,worker,export,apply,remote,hook} ...\ninbox: error: unrecognized arguments: -- x\n",
+   "effects": [],
+   "tables": "unchanged"
+  },
+  {
+   "op": "cli",
+   "args": {
+    "argv": [
+     "list",
+     "--all",
+     "--"
+    ]
+   },
+   "code": 2,
+   "stdout": "",
+   "stderr": "usage: inbox [-h]\n             {mcp,tui,open,list,answer,dismiss,redeliver,sync-tokens,radar-sidebar,clean-venvs,deliver,verify,worker,export,apply,remote,hook} ...\ninbox: error: unrecognized arguments: --\n",
+   "effects": [],
+   "tables": "unchanged"
+  },
+  {
+   "op": "cli",
+   "args": {
+    "argv": [
+     "dismiss",
+     "--",
+     "1",
+     "2"
+    ]
+   },
+   "code": 2,
+   "stdout": "",
+   "stderr": "usage: inbox [-h]\n             {mcp,tui,open,list,answer,dismiss,redeliver,sync-tokens,radar-sidebar,clean-venvs,deliver,verify,worker,export,apply,remote,hook} ...\ninbox: error: unrecognized arguments: 2\n",
+   "effects": [],
+   "tables": "unchanged"
+  },
+  {
+   "op": "cli",
+   "args": {
+    "argv": [
      "dismiss"
     ]
    },
