@@ -11,7 +11,7 @@
 
 mod mcp_rig;
 
-use mcp_rig::{by_id, golden, of, replay};
+use mcp_rig::{by_id, cli_calls, golden, of, replay};
 use serde_json::{Value, json};
 
 /// The capabilities, instructions and server name an `initialize` or discovery reply gives.
@@ -164,7 +164,7 @@ fn claude_codes_2026_requests_get_the_python_servers_answers() {
 #[test]
 fn outside_herdr_ask_and_check_answer_as_python_does() {
     let recs = golden("outside-herdr");
-    let (got, _dir) = replay(&of(&recs, "client->server"));
+    let (got, dir) = replay(&of(&recs, "client->server"));
     let want = of(&recs, "server->client");
     // outside herdr: the unavailable receipts, nothing of the caller's
     // 12-14: JSON text in a non-`str` argument is read as JSON first (FastMCP's pre-pass)
@@ -175,6 +175,8 @@ fn outside_herdr_ask_and_check_answer_as_python_does() {
             "call {id}"
         );
     }
+    // outside herdr no herdr CLI ever runs (the rig's stub logs every call)
+    assert_eq!(cli_calls(dir.path()), Vec::<String>::new());
 }
 
 /// Tool calls as Claude Code makes them (2026-07-28, with its `_meta`): the same
