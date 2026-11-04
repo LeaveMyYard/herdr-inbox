@@ -91,7 +91,7 @@ def resolve_caller() -> Caller:
         ident = herdr.pane_identity(pane_id) if pane_id else {}
     if pane_id and ident.get("exists") is False:
         # HERDR_PANE_ID is the pane this process STARTED in; herdr gives a moved pane a new id
-        # (w6:p48 -> w6:p57, live 2026-10-17: Q158-Q166 were filed under the dead id). Find
+        # (w9:p1 -> w9:p2, live 2026-10-17: Q158-Q166 were filed under the dead id). Find
         # the pane that runs our conversation now.
         moved = _pane_running(os.environ.get("CLAUDE_CODE_SESSION_ID"))
         if moved:
@@ -546,7 +546,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             # died mid-verify, whose stale claim we just took over): look before EVERY typing,
             # in every transcript of the asker's forward family (a continuation moved it, #41) and
             # what the pane runs (in that family, see ``ours``). Never an older session's file:
-            # text there never reached the asking conversation (live 2026-10-17, Q129-Q152).
+            # text there never reached the asking conversation (live 2026-10-17, Q9001-Q9006).
             landed = landed_across(store, ours, [path])
             # (no "seen another way" evidence here: live, `inbox answer` from the conversation
             # marks the row seen itself; that transcript heuristic only reconciles old rows)
@@ -612,7 +612,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                 # the transcripts the typed text can land in: the followed conversation's AND the
                 # session herdr reports (after herdr resumed an OLD id unseen by our SessionStart
                 # hook, the first prompt lands in the OLD file and only then ends its
-                # continuation; live 2026-10-17, Q129-Q152). Only a landing in the batch's forward
+                # continuation; live 2026-10-17, Q9001-Q9006). Only a landing in the batch's forward
                 # family delivers; one in an older session is recorded as such, never verified.
                 watch = _watch_paths(store, agent)
                 offset = transcript.size(path)
@@ -720,8 +720,8 @@ def session_pane(store: Store, session_id: str | None, agents: list | None = Non
 
 
 def _relocate(store: Store, items: list[Question], pane: str, claims: dict) -> list[Question]:
-    """Rows whose conversation runs in ANOTHER pane now (the pane moved, e.g. w6:p48 ->
-    w6:p57, live 2026-10-16 Q155): moved there, pending for the next pass. Returns the rest."""
+    """Rows whose conversation runs in ANOTHER pane now (the pane moved, e.g. w9:p1 ->
+    w9:p2, live 2026-10-16 Q155): moved there, pending for the next pass. Returns the rest."""
     rest, agents = [], None
     for q in items:
         if agents is None:
@@ -747,8 +747,8 @@ def forward_family(store: Store, session: str | None, since: str | None = None) 
     current continuation chain (D6) plus the sessions its transcript EVER continued in (a
     resumed session keeps its record mid-file). Never an ANCESTOR (a session that continued
     into it): that is an older, different conversation without the asker's context (live
-    2026-10-17: Q129-Q152 counted as delivered because they landed in 1cd70de7, an ancestor
-    of c5240607).
+    2026-10-17: Q9001-Q9006 counted as delivered because they landed in 00000001, an ancestor
+    of 00000002).
 
     ``since`` (a question's created_at): a past continuation counts only if its record is
     dated at or after it -- the question was in the conversation when it moved. A session

@@ -127,9 +127,9 @@ def merged_record(ts, batch):
 
 
 def two_answers(store):
-    q1 = service.ask(store, A, "ghostpaw-e2e: the new check (branch feat/x) fails any landing referrer; keep 40/20/0 weights or change them?")["id"]
-    q2 = service.ask(store, A, "Should I open a terraform PR for the collector origin?")["id"]
-    for qid, ans in ((q1, "Keep 40/20/0"), (q2, '"Yes, open TF PR"')):
+    q1 = service.ask(store, A, "Question Text 4: a long question (branch feat/x) with a semicolon; keep 1/2/3 or change them?")["id"]
+    q2 = service.ask(store, A, "Question Text 5?")["id"]
+    for qid, ans in ((q1, "Answer Text 4 1/2/3"), (q2, '"Answer Text 5"')):
         store.set_draft(qid, service.make_detail(ans))
     service.submit(store, [q1, q2], deliver=False)
     return [store.get(q1), store.get(q2)]

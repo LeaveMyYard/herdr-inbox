@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 use herdr_inbox::claude::Transcripts;
 
-pub const OLD: &str = "1cd70de7-0000-4000-8000-000000000001";
-pub const NEW: &str = "c5240607-0000-4000-8000-000000000002";
+pub const OLD: &str = "00000001-0000-4000-8000-0000000000a1";
+pub const NEW: &str = "00000002-0000-4000-8000-0000000000a2";
 
 pub struct Projects {
     pub dir: PathBuf,

@@ -13,7 +13,7 @@ use crate::store::sessions::session_transcript;
 /// transitively: its current D6 chain plus the sessions its transcript EVER
 /// continued in. Never an ANCESTOR (a session that continued into it): that
 /// is an older conversation without the asker's context (live 2026-10-17:
-/// Q129–Q152 counted as delivered in an ancestor).
+/// Q9001–Q9006 counted as delivered in an ancestor).
 ///
 /// `since` (the question's `created_at`): a past continuation counts only if
 /// its record is dated at or after it. An undated past record never counts;

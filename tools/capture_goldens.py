@@ -829,7 +829,7 @@ def _capture_plans(work: Path) -> dict:
     Rust side rebuilds the same world (tests/delivery_plans.rs)."""
     from herdr_inbox import service, store as st, transcript
 
-    OLD, NEW, X = ("a58e3f68-0000-4000-8000-000000000001", "06acc80f-0000-4000-8000-000000000002",
+    OLD, NEW, X = ("00000003-0000-4000-8000-0000000000b1", "00000004-0000-4000-8000-0000000000b2",
                    "77777777-0000-4000-8000-000000000007")
     root = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects"
     tdir = root / "-r"
@@ -842,7 +842,7 @@ def _capture_plans(work: Path) -> dict:
 
     write(OLD, [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": OLD,
                  "message": {"role": "user", "content": "earlier work"}},
-                {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": OLD,
+                {"type": "continued-in", "timestamp": "2026-10-16T18:30:00.000Z", "sessionId": OLD,
                  "continuedInSessionId": NEW},
                 {"type": "cost-state", "sessionId": OLD}])
     write(NEW, [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}])
@@ -880,8 +880,8 @@ def _capture_plans(work: Path) -> dict:
 
 
 DELIVERY_A = "aaaaaaaa-0000-4000-8000-00000000000a"
-DELIVERY_OLD = "a58e3f68-0000-4000-8000-000000000001"
-DELIVERY_NEW = "06acc80f-0000-4000-8000-000000000002"
+DELIVERY_OLD = "00000003-0000-4000-8000-0000000000b1"
+DELIVERY_NEW = "00000004-0000-4000-8000-0000000000b2"
 DELIVERY_X = "77777777-0000-4000-8000-000000000007"
 
 
@@ -903,7 +903,7 @@ def _delivery_scenarios():
     hello = [{"type": "user", "message": {"role": "user", "content": "hello"}}]
     continued = [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": OLD,
                   "message": {"role": "user", "content": "earlier"}},
-                 {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": OLD,
+                 {"type": "continued-in", "timestamp": "2026-10-16T18:30:00.000Z", "sessionId": OLD,
                   "continuedInSessionId": NEW}, {"type": "cost-state", "sessionId": OLD}]
     empty = (ROOT / "tests" / "fixtures" / "composer" / "empty.ansi").read_text()
     draft = (ROOT / "tests" / "fixtures" / "composer" / "draft.ansi").read_text()

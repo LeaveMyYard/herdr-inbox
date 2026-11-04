@@ -5,8 +5,8 @@
 //! lives in the session the transcript's `continued-in` names (D6), unless a
 //! Claude process (re)started that id AFTER its continued-in record: herdr
 //! resumes a pane under the OLD id, and until its first prompt the old
-//! transcript still ends in continued-in (live 2026-10-17: Q129–Q152 typed
-//! into 1cd70de7, an ancestor of the asking c5240607). The SessionStart
+//! transcript still ends in continued-in (live 2026-10-17: Q9001–Q9006 typed
+//! into 00000001, an ancestor of the asking 00000002). The SessionStart
 //! hook's resume marker (`starts`) says when.
 
 use std::fs;

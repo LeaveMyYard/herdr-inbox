@@ -1,7 +1,7 @@
 """Every column the schema declares reaches databases created before it existed.
 
 Final pass 2 of #21: columns added to `CREATE TABLE IF NOT EXISTS` only never reach an
-existing database (moneylust ran an earlier head of this branch); remote sync then failed
+existing database (project1 ran an earlier head of this branch); remote sync then failed
 silently there. BASELINE is each table's column set when the table first shipped: any
 other column must be in the migration map."""
 
