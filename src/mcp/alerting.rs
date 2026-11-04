@@ -79,3 +79,6 @@ pub fn withdraw_alert(
         ),
     })
 }
+
+#[cfg(test)]
+mod tests;

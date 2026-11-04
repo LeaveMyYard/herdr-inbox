@@ -12,7 +12,7 @@
 
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
@@ -54,11 +54,17 @@ impl Live {
     }
 }
 
+impl Live {
+    /// The state, even after an earlier job panicked holding it: one bad job never
+    /// silences the rest (Python runs each job on its own).
+    fn state(&self) -> MutexGuard<'_, (Surfaced, Option<ConfigFile>)> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
 impl Herald for Live {
     fn notify(&self, title: &str, body: &str) {
-        if let Ok(mut state) = self.state.lock() {
-            state.0.notify(title, body);
-        }
+        self.state().0.notify(title, body);
     }
 
     fn markers(&self, pane: &str) {
@@ -70,9 +76,7 @@ impl Herald for Live {
                 ));
             }
         };
-        let Ok(mut state) = self.state.lock() else {
-            return;
-        };
+        let mut state = self.state();
         let (surface, config) = &mut *state;
         let herdr = &self.herdr;
         let config = config.get_or_insert_with(|| {

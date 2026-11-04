@@ -311,3 +311,70 @@ fn a_locked_database_gets_the_busy_receipt_and_changes_nothing() {
     assert!(q.acknowledged_at.is_none()); // not marked seen
     assert!(store.get(2).unwrap().is_none()); // not filed
 }
+
+/// herdr that counts how often it is asked about a pane.
+struct Counted(Arc<AtomicUsize>);
+
+impl World for Counted {
+    fn nested(&self) -> bool {
+        false
+    }
+    fn pane(&self, _: &str) -> Option<Pane> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        None
+    }
+    fn tab_label(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn agents(&self) -> Vec<(String, Option<String>)> {
+        Vec::new()
+    }
+    fn live(&self, reported: &str, _: Option<&str>) -> String {
+        reported.to_owned()
+    }
+    fn marks(&self, _: Option<&str>) -> Result<Vec<String>, Failure> {
+        Ok(Vec::new())
+    }
+}
+
+/// review #118 L6: Python's order per tool. `ask_operator`, `alert_operator` and
+/// `withdraw_alert` open the store first, so a database not migrated yet means herdr
+/// is never asked; `check_answers`, `list_my_questions` and `withdraw_question` resolve
+/// the caller first.
+#[test]
+fn each_tool_opens_the_store_or_resolves_the_caller_first_as_python_does() {
+    let dir = tempfile::tempdir().unwrap();
+    let alert = || Call::AlertOperator {
+        title: "Look".into(),
+        message: None,
+        severity: "warning".into(),
+        asked_by: None,
+    };
+    let cases = [
+        (ask("Question Title 9001?"), false),
+        (alert(), false),
+        (Call::WithdrawAlert { id: 9001 }, false),
+        (Call::CheckAnswers, true),
+        (
+            Call::ListMyQuestions {
+                include_closed: false,
+            },
+            true,
+        ),
+        (
+            Call::WithdrawQuestion {
+                id: 9001,
+                reason: "x".into(),
+            },
+            true,
+        ),
+    ];
+    for (call, caller_first) in cases {
+        let asked = Arc::new(AtomicUsize::new(0));
+        let mut rt = runtime(dir.path().join("missing.db"), Arc::default());
+        rt.world = Box::new(Counted(Arc::clone(&asked)));
+        let name = format!("{call:?}");
+        assert_eq!(rt.call(call), Ok(receipts::not_migrated()), "{name}");
+        assert_eq!(asked.load(Ordering::SeqCst) > 0, caller_first, "{name}");
+    }
+}
