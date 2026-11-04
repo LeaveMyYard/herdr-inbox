@@ -1,6 +1,7 @@
 //! The real terminal ([`Screen`] over crossterm and ratatui's diffing
-//! terminal): raw mode on the alternate screen, the cursor hidden, keys and
-//! resizes in, frames out. Dropping it puts the terminal back.
+//! terminal): raw mode on the alternate screen, the cursor hidden,
+//! bracketed paste on (a paste arrives as text, as Textual takes it), keys,
+//! pastes and resizes in, frames out. Dropping it puts the terminal back.
 
 use std::io::{self, Stdout};
 use std::time::Duration;
@@ -8,7 +9,9 @@ use std::time::Duration;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::terminal::Terminal;
 use ratatui_crossterm::CrosstermBackend;
-use ratatui_crossterm::crossterm::event::{self, Event};
+use ratatui_crossterm::crossterm::event::{
+    self, DisableBracketedPaste, EnableBracketedPaste, Event,
+};
 use ratatui_crossterm::crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
@@ -27,7 +30,12 @@ impl Term {
     pub fn enter() -> io::Result<Term> {
         enable_raw_mode()?;
         let mut out = io::stdout();
-        if let Err(err) = execute!(out, EnterAlternateScreen, cursor::Hide) {
+        if let Err(err) = execute!(
+            out,
+            EnterAlternateScreen,
+            EnableBracketedPaste,
+            cursor::Hide
+        ) {
             let _ = disable_raw_mode();
             return Err(err);
         }
@@ -48,7 +56,12 @@ impl Drop for Term {
 }
 
 fn restore() {
-    let _ = execute!(io::stdout(), cursor::Show, LeaveAlternateScreen);
+    let _ = execute!(
+        io::stdout(),
+        DisableBracketedPaste,
+        cursor::Show,
+        LeaveAlternateScreen
+    );
     let _ = disable_raw_mode();
 }
 
@@ -60,6 +73,8 @@ impl Screen for Term {
         Ok(match event::read() {
             Ok(Event::Key(k)) => keys::input(&k),
             Ok(Event::Resize(..)) => Some(Input::Resize),
+            // a paste is text, never keystrokes: a newline in it must not press Enter
+            Ok(Event::Paste(text)) => Some(Input::Paste(text)),
             Ok(_) => None,
             Err(_) => Some(Input::Closed), // the terminal went away
         })

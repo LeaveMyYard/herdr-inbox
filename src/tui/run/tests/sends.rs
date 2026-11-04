@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use super::fake::{Rig, Step, key};
+use crate::tui::screen::Input;
 
 fn answered(rig: &Rig, qid: i64) -> bool {
     rig.get(qid).status == "answered"
@@ -103,8 +104,8 @@ fn send_now_says_when_the_answer_is_already_being_delivered() {
 fn closing_waits_for_the_send_in_flight_and_drops_later_keys() {
     // test_closing_the_popup_waits_for_an_in_flight_send; the model takes no event after Quit
     let rig = Rig::new();
-    let qid = rig.ask("w1:p1", "One?", &["a"]);
-    rig.ask("w1:p2", "Other?", &[]);
+    let q1 = rig.ask("w1:p1", "One?", &["a"]);
+    let q2 = rig.ask("w1:p2", "Two?", &["a"]);
     rig.handoff.close_gate();
     let gate = Arc::clone(&rig.handoff);
     let opener = std::thread::spawn(move || {
@@ -112,17 +113,47 @@ fn closing_waits_for_the_send_in_flight_and_drops_later_keys() {
         gate.open_gate();
     });
     let steps = vec![
-        key("enter"),  // open the lone question
+        key("enter"),  // open Q1, a lone question
         key("enter"),  // send "a": back to the list
         key("escape"), // close: waits for the send
-        key("enter"),  // dropped
+        key("down"),   // dropped: these would open Q2 and send it
+        key("enter"),
         key("enter"),
     ];
     rig.run(Some("w1:p9"), None, steps);
     // run returned only after the gated delivery step ran
     assert_eq!(rig.handoff.calls(), ["ensure", "spawn [1] false"]);
-    assert!(answered(&rig, qid));
+    assert!(answered(&rig, q1));
+    assert_eq!(
+        rig.get(q2).status,
+        "open",
+        "no key reached the model after Esc"
+    );
     opener.join().unwrap();
+}
+
+#[test]
+fn a_paste_is_text_for_an_open_box_and_nothing_anywhere_else() {
+    // a newline in a paste never presses Enter (Textual: `Input._on_paste`, first line only)
+    let rig = Rig::new();
+    let qid = rig.ask("w1:p1", "Why?", &["a"]);
+    let steps = vec![
+        Step::Wait(600),
+        Step::Input(Input::Paste("1\nd".into())), // on the options: nothing
+        key("down"),                              // "Type something."
+        key("enter"),                             // its box opens
+        Step::Input(Input::Paste("fix the\nflaky test".into())),
+        Step::Look(Box::new(|s| {
+            assert!(s.contains("fix the") && !s.contains("flaky"), "{s}")
+        })),
+        key("enter"), // sends the box's text
+    ];
+    rig.run(Some("w1:p9"), None, steps);
+    let q = rig.get(qid);
+    assert_eq!(
+        (q.status.as_str(), q.answer.as_deref()),
+        ("answered", Some("fix the"))
+    );
 }
 
 #[test]

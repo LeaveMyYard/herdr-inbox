@@ -105,7 +105,7 @@ pub fn main() -> i32 {
         back_tx,
         back_rx,
         radar_missing,
-        theme: Theme::DARK,
+        theme: Theme::DARK, // the popup runs on textual-dark, as Python's; a light theme comes later
     };
     let open = Open {
         focus_pane: focus,

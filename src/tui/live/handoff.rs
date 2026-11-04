@@ -1,15 +1,17 @@
 //! The live [`Handoff`] (Python `_send`'s detached branch): answers for
 //! other panes go to a detached `herdr-inbox deliver` (Python
 //! `spawn_delivery`); answers for the operator's own pane are typed by the
-//! send's thread while the popup still holds the keyboard.
+//! send's thread while the popup still holds the keyboard, and their
+//! transcript check is handed off (Python `verify_later=spawn_verify`).
 //!
-//! One step differs from Python for now: Python hands the transcript check
-//! of what it typed to a detached `inbox verify`, which this binary does not
-//! have yet (P5-E2's verify-later jobs). Until it does, that check runs in
-//! the send's thread too (Python's own path with `verify_later=None`: the
-//! same pass, the same claims), so closing the popup after answering the
-//! operator's own pane waits for the check. The worker start is the CLI's
-//! seam (a no-op until P5-E2 spawns `<exe> worker`).
+//! This binary has no `inbox verify` yet (P5-E2's verify-later jobs), so the
+//! hand-off is Python's own fallback for a check that cannot start: the typed
+//! rows keep their claim, the claim goes stale after
+//! [`CLAIM_STALE`](crate::store::claims::CLAIM_STALE), and the worker takes
+//! them over, looking at the transcript before it types anything again. The
+//! popup closes as soon as the answer is typed. TODO(P5-E2): spawn
+//! `<exe> verify <job>` here, and start the worker in `ensure` (both no-ops
+//! until then; a mixed install's Python hooks and MCP start the worker today).
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -54,7 +56,7 @@ pub fn deliver_args(qids: &[i64], force: bool) -> Vec<OsString> {
 
 impl LiveHandoff {
     fn ensure(&self, _server: Option<&str>) {
-        // P5-E2 (`<exe> worker`): wired with the CLI's `ensure_worker`
+        // TODO(P5-E2): `<exe> worker`, as the CLI's `ensure_worker`
     }
 }
 
@@ -82,7 +84,12 @@ impl Handoff for LiveHandoff {
             force,
             ..Mode::default()
         };
-        deliver_batch(&mut ctx, &local, mode, None)
+        // TODO(P5-E2): a detached `verify` takes the job; until then the worker's
+        // stale-claim takeover checks the transcript (Python's fallback)
+        let mut later = |_job: serde_json::Value| {
+            super::log("typed into the operator's pane; the worker checks the transcript");
+        };
+        deliver_batch(&mut ctx, &local, mode, Some(&mut later))
     }
 
     fn spawn_delivery(&self, qids: &[i64], force: bool) {
@@ -107,7 +114,8 @@ impl Handoff for LiveHandoff {
         );
         match started {
             Ok(child) => reap_later(child),
-            // recorded, not yet claimed: the worker retries them
+            // recorded, not yet claimed: a running worker retries them (TODO(P5-E2): one
+            // started by `ensure`)
             Err(err) => super::log(&format!(
                 "could not start the delivery; the worker will retry: {err}"
             )),

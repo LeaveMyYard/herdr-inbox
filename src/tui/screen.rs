@@ -13,6 +13,8 @@ use ratatui_core::buffer::Buffer;
 pub enum Input {
     /// A key for the model.
     Key(Key),
+    /// Pasted text (bracketed paste): never keys of its own.
+    Paste(String),
     /// Ctrl+Q: close once the sends in flight are recorded (Textual's
     /// `quit` binding, the popup's `action_quit`).
     Quit,
