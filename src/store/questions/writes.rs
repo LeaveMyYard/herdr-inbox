@@ -95,10 +95,10 @@ impl Store {
         self.set_answer_text(qid, answer, detail.as_deref())
     }
 
-    /// [`Store::set_answer`] with the detail as stored JSON text, carried on
-    /// as it is: a submitted draft's raw `draft_json` (Python `submit` passes
-    /// the draft it read, and a [`Question`]'s
-    /// decoded draft is lossy, so it is never written back).
+    /// [`Store::set_answer`] with the detail already as JSON text, written
+    /// as given (`None`: no detail). Truthiness is the caller's:
+    /// `service::answer::submit` passes a submitted draft as Python writes
+    /// it back.
     pub fn set_answer_text(
         &self,
         qid: i64,
