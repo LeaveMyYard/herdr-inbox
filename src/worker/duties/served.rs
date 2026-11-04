@@ -27,7 +27,7 @@ pub const CAPS: [(&str, i64); 3] = [
 /// The answers this worker delivers, per pane in the order the panes first
 /// appear. A legacy row whose pane did not hold its conversation
 /// [`MAX_STALE_RETRIES`] times is marked gone.
-pub fn served(round: &mut Round<'_, '_>) -> rusqlite::Result<Vec<(String, Vec<Question>)>> {
+pub fn served(round: &Round<'_, '_>) -> rusqlite::Result<Vec<(String, Vec<Question>)>> {
     let store = round.ctx.store;
     let mut by_pane: Vec<(String, Vec<Question>)> = Vec::new();
     let mut legacy_ids: Vec<i64> = Vec::new();
@@ -63,7 +63,7 @@ pub fn served(round: &mut Round<'_, '_>) -> rusqlite::Result<Vec<(String, Vec<Qu
         }
         let mut ok: Vec<i64> = Vec::new();
         if !due.is_empty() {
-            let ctx = &*round.ctx;
+            let ctx = &round.ctx;
             let agent = live_agent(ctx.herdr, ctx.files, ctx.state_dir, pane);
             for q in due {
                 let asker = q.session_id.as_deref().filter(|s| !s.is_empty());
