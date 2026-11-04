@@ -71,6 +71,18 @@ fn a_draft_read_with_loss_is_never_answered() {
         lock_wait: Duration::ZERO,
         warn: &mut warn,
     };
+    store
+        .db()
+        .execute_batch(
+            "INSERT INTO questions (id, created_at, question, norm, status) VALUES (4, 'x', 'd?', 'd', 'open'); \
+             INSERT INTO question_ext (id, group_id, draft_json) VALUES (4, 4, '[1]');",
+        )
+        .unwrap();
+    assert!(
+        submit(&store, &[4], None, &mut markers).is_err(),
+        "a draft that is no object"
+    );
+    assert_eq!(store.get(4).unwrap().unwrap().status, "open");
     assert!(submit(&store, &[2, 1, 3], None, &mut markers).is_err());
     let status = |id: i64| store.get(id).unwrap().unwrap().status;
     assert_eq!(
