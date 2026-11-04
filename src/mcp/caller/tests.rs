@@ -205,8 +205,7 @@ fn live_sessions_are_judged_from_the_pane_that_runs_them() {
     let mut w = world();
     w.panes.clear();
     w.panes.insert("w9:p2".into(), pane("w9:t2", Some("OLD")));
-    w.in_pane
-        .insert(("OLD".into(), "w9:p2".into()), "S".into());
+    w.in_pane.insert(("OLD".into(), "w9:p2".into()), "S".into());
     w.agents = vec![("w9:p2".into(), Some("OLD".into()))];
     // the moved pane is found: its agent's OLD, seen from w9:p2, is S
     assert_eq!(pane_running(&w, Some("S")).as_deref(), Some("w9:p2"));

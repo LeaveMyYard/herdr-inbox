@@ -131,7 +131,7 @@ def test_text_lost_while_an_older_session_was_watched_is_not_verified(store, fak
     continued_then_resumed()
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
     monkeypatch.setenv("FAKE_HERDR_LAND", "none")
-    q = filed(store, "w1:p1", NEW, "Which KMS key alias?", "alias/gw-creds")
+    q = filed(store, "w1:p1", NEW, "Question Text 12?", "Answer Text 15")
     service.deliver(store, q)
     assert len(prompts(fake_herdr)) == 1
     assert store.get(q.id).delivery_error == service.NOT_VERIFIED
@@ -249,7 +249,7 @@ def test_a_busy_answer_typed_into_an_older_session_is_recorded_as_such_not_retri
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
     monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)
     monkeypatch.setenv("FAKE_HERDR_STATUS", "working")
-    q = filed(store, "w1:p1", NEW, "Which KMS key alias?", "alias/gw-creds")
+    q = filed(store, "w1:p1", NEW, "Question Text 12?", "Answer Text 15")
     service.deliver(store, q, force=True)
     r = store.get(q.id)
     assert len(prompts(fake_herdr)) == 1 and store.busy_attempts(q.id) == 0

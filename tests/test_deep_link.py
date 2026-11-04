@@ -162,7 +162,7 @@ async def test_no_request_keeps_the_normal_start(store, fake_herdr):
     (["--question", "Q12"], {"kind": "question", "value": "12"}),
     (["--group", "5"], {"kind": "group", "value": "5"}),
     (["--pane", "w9:p5"], {"kind": "pane", "value": "w9:p5"}),
-    (["--session", "f3740b1a-0000-4000-8000-000000000001"], {"kind": "session", "value": "f3740b1a-0000-4000-8000-000000000001"}),
+    (["--session", "0000c0de-0000-4000-8000-000000000001"], {"kind": "session", "value": "0000c0de-0000-4000-8000-000000000001"}),
 ])
 def test_open_command_writes_the_request_then_opens_the_popup(fake_herdr, args, expected):
     assert cli.main(["open", *args]) == 0
@@ -194,7 +194,7 @@ def test_open_from_another_plugins_action_opens_the_inbox(fake_herdr, monkeypatc
 
 def test_cli_rejects_a_malformed_target(fake_herdr):
     for bad in (["--question", "abc"], ["--question", "Q"], ["--group", "x"], ["--group", "Q3"],
-                ["--session", "f3740b1a"], ["--session", "../x"], ["--session", "*"]):  # the one session-id validator
+                ["--session", "0000c0de"], ["--session", "../x"], ["--session", "*"]):  # the one session-id validator
         with pytest.raises(SystemExit):
             cli.main(["open", *bad])
     assert not deeplink.request_path().exists() and not fake_herdr.calls_of("plugin", "pane", "open")

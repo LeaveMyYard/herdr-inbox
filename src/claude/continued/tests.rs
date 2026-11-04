@@ -32,9 +32,9 @@ fn transcript(dir: &std::path::Path, name: &str, lines: &[String]) -> PathBuf {
 fn a_continued_in_record_continues_the_conversation() {
     let dir = tempfile::tempdir().unwrap();
     let lines = [
-        record("user", "2026-10-16T11:00:00Z"),
+        record("user", "2026-10-16T09:37:38Z"),
         continued(NEW, "2026-10-16T09:59:38Z"),
-        record("last-prompt", "2026-10-16T11:23:00Z"),
+        record("last-prompt", "2026-10-16T10:00:38Z"),
     ];
     let got = continued_in(&transcript(dir.path(), OLD, &lines));
     assert_eq!(got.as_ref().map(|s| s.as_str()), Some(NEW));
