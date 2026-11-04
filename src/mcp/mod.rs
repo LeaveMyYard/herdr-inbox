@@ -49,11 +49,9 @@ use std::sync::Arc;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 use herdr_agent_kit::plugin_env::PluginEnv;
-use herdr_agent_kit::plugin_env::config::ConfigFile;
 use serde_json::Value;
 
 use crate::claude::Transcripts;
-use crate::tabs::settings::PLUGIN_ID;
 use args::Call;
 
 /// The tools' bodies: one call, its arguments already checked. Blocking.
@@ -69,8 +67,8 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
     use herdr_agent_kit::internal::plugin_paths::inbox;
 
     let herdr = || Herdr::from_env();
-    let config = ConfigFile::resolve(env, || herdr().plugin_config_dir(PLUGIN_ID).ok().flatten());
-    let herald = herald::Live::new(herdr(), inbox::db_path(env), config);
+    // the plugin's settings are found on the effects' thread, on the first marker refresh
+    let herald = herald::Live::new(herdr(), env.clone(), inbox::db_path(env));
     let effects = effects::Effects::start(Arc::new(herald));
     runtime::Runtime {
         env: caller::Env {

@@ -69,3 +69,22 @@ fn an_answer_with_detail_lists_it() {
     assert_eq!(got["questions"][0]["answer_detail"], detail);
     assert_eq!(got["questions"][0]["answer"], json!("pg (v16)"));
 }
+
+/// review #118 L3: Python `if self.answer_json`: an empty detail is left out.
+#[test]
+fn an_empty_answer_detail_is_left_out() {
+    let (_d, s) = store();
+    let q = filed(&s, S, "DB?");
+    s.set_answer(q, "pg", None).unwrap();
+    s.db()
+        .execute(
+            "UPDATE question_ext SET answer_json = '{}' WHERE id = ?",
+            [q],
+        )
+        .unwrap();
+    let got = list_my_questions(&s, &caller(S), false, &Transcripts::new(None)).unwrap();
+    assert_eq!(
+        got["questions"][0],
+        json!({"id": q, "status": "answered", "question": "DB?", "answer": "pg"})
+    );
+}

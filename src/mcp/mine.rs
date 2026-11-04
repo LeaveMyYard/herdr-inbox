@@ -6,39 +6,20 @@ use serde_json::{Value, json};
 
 use crate::claude::Transcripts;
 use crate::mcp::caller::Caller;
+use crate::remote::pyvalue::py_truthy;
 use crate::store::alerts::Effect;
-use crate::store::questions::Owner;
 use crate::store::{Question, Store};
-
-fn owner(caller: &Caller) -> Owner<'_> {
-    Owner {
-        session_id: caller.session_id.as_deref(),
-        pane_id: caller.pane_id.as_deref(),
-    }
-}
 
 /// What an agent gets back about its own question (Python `Question.brief`).
 fn brief(q: &Question) -> Value {
     let mut out = json!({"id": q.id, "status": q.status, "question": q.question});
     if q.status == "answered" {
         out["answer"] = json!(q.answer);
-        if let Some(detail) = q.answer_json.as_ref().filter(|d| truthy(d)) {
+        if let Some(detail) = q.answer_json.as_ref().filter(|d| py_truthy(d)) {
             out["answer_detail"] = detail.clone();
         }
     }
     out
-}
-
-/// Python's truth of a JSON value.
-fn truthy(v: &Value) -> bool {
-    match v {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64() != Some(0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(m) => !m.is_empty(),
-    }
 }
 
 /// `list_my_questions`: the caller's questions (open and answered, or all) and
@@ -49,9 +30,9 @@ pub fn list_my_questions(
     include_closed: bool,
     files: &Transcripts,
 ) -> rusqlite::Result<Value> {
-    let questions = store.mine(owner(caller), include_closed, files)?;
+    let questions = store.mine(caller.owner(), include_closed, files)?;
     let alerts: Vec<Value> = store
-        .my_alerts(owner(caller), files)?
+        .my_alerts(caller.owner(), files)?
         .into_iter()
         .filter(|a| include_closed || a.status == "open")
         .map(|a| json!({"id": a.reference(), "title": a.title, "severity": a.severity, "status": a.status}))
@@ -72,7 +53,7 @@ pub fn withdraw_question(
     reason: &str,
     files: &Transcripts,
 ) -> rusqlite::Result<(Value, Vec<Effect>)> {
-    let mine = store.mine(owner(caller), true, files)?;
+    let mine = store.mine(caller.owner(), true, files)?;
     let Some(q) = mine.iter().find(|q| q.id == qid) else {
         let msg = format!("Q{qid} is not a question of this session.");
         return Ok((

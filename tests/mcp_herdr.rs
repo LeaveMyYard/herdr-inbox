@@ -6,9 +6,9 @@
 //! exactly (receipts, `[inbox]` wording, the answers), leave the same question
 //! and alert rows, raise the same notifications and look up the same panes.
 //!
-//! Not compared: the pane markers (`inbox_q` token, the `❓N` tab prefix), which
-//! are P5-G's, and herdr's `tab get`s, which Python's background marker job
-//! interleaves with the tool's own.
+//! Compared too: the markers' end state (each pane's last `inbox_q` count
+//! token, each tab's last label). Not compared: herdr's `tab get`s, which
+//! Python's background marker job interleaves with the tool's own.
 
 #[allow(dead_code)] // the rig is shared with mcp_goldens.rs, which uses the rest of it
 mod mcp_rig;
