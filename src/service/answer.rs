@@ -48,8 +48,11 @@ pub fn answer_text(d: &Value) -> String {
 /// open or without a draft are skipped. Each answer is its draft, formatted,
 /// and the draft goes into `answer_json` as Python writes it back. A draft
 /// that cannot be read without loss (a lone surrogate, see [`lossless`]) is
-/// an error, as Python's write raises there: answers before it stay
-/// recorded, nothing is delivered or marked. With `deliver`, the
+/// an error, as Python's write raises there, and so is a draft that is no
+/// JSON object: answers before it stay recorded, nothing is delivered or
+/// marked. (Python raises on a lone surrogate only once it reaches the
+/// answer text; this refuses it anywhere in the draft, which no popup
+/// writes.) With `deliver`, the
 /// answered ones go to [`Delivery::deliver`] in one batch; without, they are
 /// only recorded (the popup hands delivery to a detached process). Then
 /// every pane they came from gets its marks refreshed. Returns them as they
@@ -73,6 +76,13 @@ pub fn submit(
         let Ok(draft) = loads(&raw) else { continue };
         if !py_truthy(&draft) {
             continue;
+        }
+        if !draft.is_object() {
+            // Python's `d.get(...)` raises (AttributeError) on a draft that is no
+            // object: the question stays open, nothing after it is answered
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                format!("Q{qid}'s draft is not an object: not answerable").into(),
+            ));
         }
         if !lossless(&raw) {
             // a lone surrogate: Python's SQLite write raises (UnicodeEncodeError), the
