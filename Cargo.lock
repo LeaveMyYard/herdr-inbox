@@ -216,6 +216,7 @@ version = "0.10.6"
 dependencies = [
  "herdr-agent-kit",
  "inbox-core",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

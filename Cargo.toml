@@ -42,6 +42,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["unbounded_depth", "preserve_order"] }
 # Python's `\w` and `str.isprintable` by Unicode general category (src/store/norm.rs).
 unicode-general-category = "1.1.0"
+# herdr-radar's sidebar block is edited with Python radar.py's patterns (src/radar).
+regex = "1"
 tempfile = "3"
 # The popup renderer draws into ratatui's cell buffer (plan D5: ratatui 0.30, whose
 # `Buffer` is ratatui-core's); the pure crate needs only the core, no terminal.
@@ -79,6 +81,7 @@ rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 unicode-general-category.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests
