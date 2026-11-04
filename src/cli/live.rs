@@ -31,6 +31,7 @@ use crate::tabs::settings::PLUGIN_ID;
 pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let env = PluginEnv::from_env();
     let db_path = inbox::db_path(&env);
+    let herdr_config = crate::radar::config_path(&env);
     let state_dir = inbox::state_dir(&env);
     let herdr = Herdr::from_env();
     let files = Transcripts::from_env();
@@ -62,6 +63,7 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
         delivery: &mut delivery,
         herdr: &mut surface,
         config: &mut config,
+        herdr_config: &herdr_config,
         lock_wait: LOCK_TIMEOUT,
         now: SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -90,9 +92,15 @@ impl Delivery for LiveDelivery {
         // this binary's CLI, so nothing relies on it yet.
     }
 
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()> {
         let server = self.server.clone();
-        let local = local_answers(store, qs, false, &server, &mut |s| self.ensure_worker(s))?;
+        let local = local_answers(store, qs, retry, &server, &mut |s| self.ensure_worker(s))?;
         let mut surface = Live::new(self.herdr.clone(), warn);
         let mut notify = |title: &str, body: &str| surface.notify(title, body);
         let mut ctx = Ctx {
@@ -104,6 +112,11 @@ impl Delivery for LiveDelivery {
             unreadable: &mut self.unreadable,
             verify_wait: VERIFY_SECONDS,
         };
-        deliver_batch(&mut ctx, &local, Mode::default(), None)
+        let mode = Mode {
+            retry,
+            force,
+            ..Mode::default()
+        };
+        deliver_batch(&mut ctx, &local, mode, None)
     }
 }

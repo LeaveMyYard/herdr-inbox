@@ -9,7 +9,7 @@ pub mod herdr;
 
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, OnceLock};
 
@@ -27,7 +27,7 @@ use crate::surface::live::Live;
 use crate::surface::markers::Markers;
 use crate::surface::popup::FOCUS_ENV;
 use crate::tabs::lock::LOCK_TIMEOUT;
-use crate::tabs::settings::PLUGIN_ID;
+use crate::tabs::settings::{self, PLUGIN_ID};
 use crate::tui::back::Back;
 use crate::tui::marks::Marks;
 use crate::tui::open::{focus_pane, take};
@@ -37,7 +37,7 @@ use crate::tui::send::{BUSY, Sender, failure};
 use crate::tui::snapshot::{Shown, read};
 use crate::tui::term::Term;
 use crate::tui::toasts::Toast;
-use handoff::InProcess;
+use handoff::LiveHandoff;
 use herdr::{LiveAgents, focused_pane, invocation_pane};
 
 static LOG: OnceLock<PathBuf> = OnceLock::new();
@@ -81,13 +81,14 @@ pub fn main() -> i32 {
     let nonce = std::env::var(NONCE_ENV).ok();
     let (_lock, link) = take(&store, &state_dir, nonce.as_deref());
     let marks = Marks::start(marker(env.clone(), db_path.clone(), herdr.clone()));
-    let handoff = Arc::new(InProcess {
+    let handoff = Arc::new(LiveHandoff {
         herdr: herdr.clone(),
-        db_path: db_path.clone(),
         state_dir: state_dir.clone(),
         server: inbox::server_id(&env).to_string_lossy().into_owned(),
-        timeout: BUSY_TIMEOUT,
+        exe: std::env::current_exe().ok(),
     });
+    let radar_missing = Arc::new(AtomicBool::new(false));
+    check_radar(env.clone(), herdr.clone(), Arc::clone(&radar_missing));
     let sender = Sender::new(
         db_path,
         BUSY_TIMEOUT,
@@ -103,7 +104,7 @@ pub fn main() -> i32 {
         marks,
         back_tx,
         back_rx,
-        radar_missing: Arc::new(AtomicBool::new(false)), // herdr-inbox #111 (radar) wires it
+        radar_missing,
         theme: Theme::DARK,
     };
     let open = Open {
@@ -157,4 +158,24 @@ fn marker(env: PluginEnv, db_path: PathBuf, herdr: Herdr) -> impl FnMut(Option<&
         }
         .update(pane);
     }
+}
+
+/// Read-only, off the popup's thread (Python `check_radar`): herdr-radar is
+/// installed but its sidebar lacks `?N`, so the popup shows the hint line.
+fn check_radar(env: PluginEnv, herdr: Herdr, missing: Arc<AtomicBool>) {
+    let run = move || {
+        let mut warn = |m: &str| log(m);
+        let mut config =
+            ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());
+        let hint = settings::read(&mut config, &mut warn).radar_hint;
+        let mut surface = Live::new(herdr, log);
+        let path = crate::radar::config_path(&env);
+        if crate::radar::missing(&path, hint, &mut surface, &mut warn) {
+            missing.store(true, Ordering::Relaxed);
+        }
+    };
+    // a hint is never worth an error: a thread that cannot start shows none
+    let _ = std::thread::Builder::new()
+        .name("inbox-radar".into())
+        .spawn(run);
 }

@@ -24,5 +24,17 @@ pub trait Delivery {
     /// Delivers fresh answers now (Python `deliver_batch(store, qs)`: not a
     /// retry, not Send now, verified in this process). `Err`: the database
     /// failed; what was written before stays.
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()>;
+    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+        self.deliver_as(store, qs, false, false)
+    }
+    /// [`Delivery::deliver`] as a retry (`retry`: the worker's own, which
+    /// starts no worker) or the operator's Send now (`force`: no busy grace,
+    /// no focused-pane wait) (Python `deliver_batch(store, qs, retry, force)`).
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()>;
 }

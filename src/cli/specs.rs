@@ -81,6 +81,43 @@ pub const OPEN: Command = Command {
     positionals: &[],
 };
 
+/// `inbox sync-tokens [--remove-prefixes]`.
+pub const SYNC_TOKENS: Command = Command {
+    prog: "inbox sync-tokens",
+    usage: "usage: inbox sync-tokens [-h] [--remove-prefixes]",
+    help: "usage: inbox sync-tokens [-h] [--remove-prefixes]\n\noptions:\n  \
+           -h, --help         show this help message and exit\n  \
+           --remove-prefixes  strip every tab prefix (before uninstalling)\n",
+    options: &[Opt::flag("--remove-prefixes")],
+    positionals: &[],
+};
+
+/// `inbox radar-sidebar [--remove]`.
+pub const RADAR_SIDEBAR: Command = Command {
+    prog: "inbox radar-sidebar",
+    usage: "usage: inbox radar-sidebar [-h] [--remove]",
+    help: "usage: inbox radar-sidebar [-h] [--remove]\n\noptions:\n  \
+           -h, --help  show this help message and exit\n  \
+           --remove    take it out again (before uninstalling)\n",
+    options: &[Opt::flag("--remove")],
+    positionals: &[],
+};
+
+/// `inbox deliver [--force] IDS...`.
+pub const DELIVER: Command = Command {
+    prog: "inbox deliver",
+    usage: "usage: inbox deliver [-h] [--force] ids [ids ...]",
+    help: "usage: inbox deliver [-h] [--force] ids [ids ...]\n\npositional arguments:\n  ids\n\n\
+           options:\n  -h, --help  show this help message and exit\n  \
+           --force     the operator's Send now: skip the busy grace and focus wait\n",
+    options: &[Opt::flag("--force")],
+    positionals: &[Positional {
+        name: "ids",
+        nargs: Nargs::Plus,
+        check: QUESTION_ID,
+    }],
+};
+
 /// The subcommand named `cmd`, if this CLI has it.
 pub fn command(cmd: &str) -> Option<&'static Command> {
     match cmd {
@@ -88,6 +125,9 @@ pub fn command(cmd: &str) -> Option<&'static Command> {
         "answer" => Some(&ANSWER),
         "dismiss" => Some(&DISMISS),
         "open" => Some(&OPEN),
+        "sync-tokens" => Some(&SYNC_TOKENS),
+        "radar-sidebar" => Some(&RADAR_SIDEBAR),
+        "deliver" => Some(&DELIVER),
         _ => None,
     }
 }
