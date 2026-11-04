@@ -197,7 +197,11 @@ fn within_one_second<W, T>(mut setup: impl FnMut() -> W, mut step: impl FnMut(W)
         let world = setup();
         let before = now();
         let got = step(world);
-        if now() == before || Instant::now() > deadline {
+        if now() == before {
+            return got;
+        }
+        if Instant::now() > deadline {
+            eprintln!("every try crossed a second: the exact boundary went unchecked");
             return got;
         }
     }
@@ -244,7 +248,7 @@ fn unseen_pass(answers: &[&str], wait: Duration) -> (usize, Duration) {
 /// add two more waits.
 #[test]
 fn a_message_is_waited_for_once_whatever_it_carries() {
-    let wait = Duration::from_millis(1000);
+    let wait = Duration::from_millis(1500);
     let (_, one) = unseen_pass(&["yes"], wait);
     let (prompts, three) = unseen_pass(&["yes", "eu", "squash"], wait);
     assert_eq!(prompts, 1); // the three in one message
