@@ -66,6 +66,8 @@ pub fn apply(store: &Store, request: &Map<String, Value>) -> Reply {
         ));
     };
     let qid = request.get("id").unwrap_or(&Value::Null);
+    // every store call in here (`get`, `set_status`, `hide_failed`, `alert`) runs on `db`,
+    // the store's one connection, inside this transaction: keep it so
     store.immediate(|db| {
         if let Some(done) = recorded(db, rid)? {
             return Ok((replayed(done), None));
@@ -114,8 +116,12 @@ pub fn apply(store: &Store, request: &Map<String, Value>) -> Reply {
                 if q.status != "open" {
                     return reject(&q.status);
                 }
-                let wrote = write_answer(db, q.id, &text, Some(&dumps(&detail)))?;
-                debug_assert!(wrote, "Q{} was read open under this same write lock", q.id);
+                if !write_answer(db, q.id, &text, Some(&dumps(&detail)))? {
+                    // unreachable (it was read open under this same write lock), but never
+                    // record `applied` for an answer not written: roll back, record nothing;
+                    // the puller retries
+                    return Err(rusqlite::Error::QueryReturnedNoRows);
+                }
                 Some(After::Deliver {
                     qid: q.id,
                     force: false,
