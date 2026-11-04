@@ -12,11 +12,11 @@ fn the_family_is_directional_never_an_ancestor() {
     p.write(
         OLD,
         &[
-            user(OLD, "2026-10-16T11:00:00Z", "work"),
+            user(OLD, "2026-10-16T09:37:38Z", "work"),
             continued_in(OLD, NEW, Some("2026-10-16T10:00:00.000Z")),
         ],
     );
-    p.write(NEW, &[user(NEW, "2026-10-16T11:23:00Z", "go on")]);
+    p.write(NEW, &[user(NEW, "2026-10-16T10:00:38Z", "go on")]);
     let files = p.files();
     assert_eq!(forward_family(&db, &files, Some(NEW), None).unwrap(), [NEW]);
     assert_eq!(
@@ -52,7 +52,7 @@ fn a_resumed_branchs_question_never_reaches_the_old_continuation() {
     );
     // asked before the continuation: it went along with the conversation
     assert_eq!(
-        forward_family(&db, &files, Some(OLD), Some("2026-10-16T11:00:00+00:00")).unwrap(),
+        forward_family(&db, &files, Some(OLD), Some("2026-10-16T09:37:38+00:00")).unwrap(),
         [OLD, NEW]
     );
     // unbounded (ancestry checks only): every continuation ever made
