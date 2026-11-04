@@ -76,8 +76,12 @@ impl PaneLook<'_, '_> {
 
     /// Claude Code's input box, with the two notices that are the caller's:
     /// once per pane for a box that stays unreadable, and under "Send now"
-    /// that the answers were not sent.
+    /// that the answers were not sent. A halted pass reads nothing, tells nothing.
     pub(super) fn composer_state(&mut self, ids: &[i64], now: Instant) -> Composer {
+        if self.halted() {
+            // Python never gets here: no read, no notice
+            return Composer::Unknown;
+        }
         let state = composer(self.ctx.herdr, &self.pane);
         let refs = self.refs(ids);
         let first = ids.first().map(|id| self.q(*id));
@@ -202,38 +206,36 @@ impl PaneLook<'_, '_> {
             .typed
             .iter()
             .position(|t| t.typed && t.ids.contains(&id))?;
-        {
-            // only a typed message with a transcript has a job
-            if self.typed[k].handed {
-                return None;
-            }
-            let path = self.typed[k].path.clone()?;
-            self.typed[k].handed = true;
-            let plans = self.plans_of(k);
-            let t = &self.typed[k];
-            let rows: Vec<Value> = t
-                .ids
-                .iter()
-                .map(|id| {
-                    let plan = plans.get(id).cloned().unwrap_or_default();
-                    let counting: Vec<String> = plan
-                        .counting
-                        .iter()
-                        .map(|p| p.display().to_string())
-                        .collect();
-                    json!({"id": id, "claim": self.claims.get(id).map(|c| c.0.clone()),
-                           "counting": counting, "older_error": plan.older_error})
-                })
-                .collect();
-            let watch: Vec<Value> = t
-                .watch
-                .iter()
-                .map(|(p, off)| json!([p.display().to_string(), off]))
-                .collect();
-            Some(
-                json!({"path": path.display().to_string(), "offset": t.offset, "ack": t.full, "busy": busy,
-                        "watch": watch, "text": t.text, "rows": rows}),
-            )
+        // only a typed message with a transcript has a job
+        if self.typed[k].handed {
+            return None;
         }
+        let path = self.typed[k].path.clone()?;
+        self.typed[k].handed = true;
+        let plans = self.plans_of(k);
+        let t = &self.typed[k];
+        let rows: Vec<Value> = t
+            .ids
+            .iter()
+            .map(|id| {
+                let plan = plans.get(id).cloned().unwrap_or_default();
+                let counting: Vec<String> = plan
+                    .counting
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect();
+                json!({"id": id, "claim": self.claims.get(id).map(|c| c.0.clone()),
+                           "counting": counting, "older_error": plan.older_error})
+            })
+            .collect();
+        let watch: Vec<Value> = t
+            .watch
+            .iter()
+            .map(|(p, off)| json!([p.display().to_string(), off]))
+            .collect();
+        Some(
+            json!({"path": path.display().to_string(), "offset": t.offset, "ack": t.full, "busy": busy,
+                        "watch": watch, "text": t.text, "rows": rows}),
+        )
     }
 }

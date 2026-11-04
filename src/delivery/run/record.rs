@@ -15,7 +15,10 @@ impl PaneLook<'_, '_> {
             return;
         }
         if *outcome == Outcome::VerifyLater {
+            // building the job reads its plans: a failure there halts the
+            // pass before the job goes out (Python raises before `verify_later`)
             if let Some(job) = self.job_of(id)
+                && !self.halted()
                 && let Some(later) = self.later.as_mut()
             {
                 later(job);
