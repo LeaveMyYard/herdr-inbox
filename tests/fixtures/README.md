@@ -136,6 +136,141 @@ say why in the PR:
   dumped after each step, unmasked. Every ssh call (with the row's `sending_at` while an apply
   runs) and every notification are recorded. `tests/store/outbox_golden.rs` replays it.
 
+## The popup transition golden (plan herdr-app-inbox §2.3, P6-A)
+
+- `popup-transitions.json`: the popup's key-safety contract as data, `(state, event) ->
+  (state, effects)`. Captured from the Python popup (`tui.InboxApp` under Textual's
+  `run_test`) by `tools/capture_popup_transitions.py` over the scenarios in
+  `tools/scenarios_popup.py`, and checked by `tests/test_goldens.py`
+  (`test_the_popup_transition_golden_is_what_the_popup_does`). Regenerate after a deliberate
+  behaviour change: `uv run python tools/capture_popup_transitions.py`, then
+  `python3 tools/popup_scenario_list.py` (one Rust test per scenario). Two models replay
+  it: the Rust popup model (`crates/inbox-core/tests/popup_transitions.rs`) and the herdr-app
+  mod's JavaScript model (Part B, B6). Either one must produce, after every step, exactly the
+  `state` and the `effects` the step records.
+
+  Capture: the real delays, on a held clock in integer milliseconds that only the scenario
+  moves (it starts at 10000). Polls happen only when a scenario says so. The popup's IO is cut
+  at the model's boundary: drafts, sends, dismissals, hides, acknowledgements, go-to-agent
+  requests, notifications and exits are recorded as effects. A send is recorded at once and
+  reported back by a later `sent` event, the way a detached send reports. A go-to-agent is
+  reported back by a `focused` event.
+
+  ```
+  {"schema": 1, "source": "...",
+   "delays_ms": {"arm": 400, "row_arm": 1000, "grace": 500, "release": 500, "go": 500},
+   "scenarios": [{"name": "<test file>.<test>[.<variant>]", "doc": "...", "steps": [
+     {"at": <ms>, "event": <event>, "effects": [<effect>, ...], "state": <state>}, ...]}]}
+  ```
+
+  The first step's event is always `open`. Each following event happens at its `at`.
+
+  Events:
+  - `{"open": {"focus_pane": str|null, "snapshot": <snapshot>, "deeplink"?: {"target":
+    <entry>|null, "qid": int|null, "hold": bool, "missing": str}}}`: the popup opens. A
+    `deeplink` was resolved by the IO layer. When its `target` is null, `missing` is the
+    notice to show.
+  - `{"key": <name>}`: Textual's key names (`enter`, `escape`, `tab`, `shift+tab`, `up`,
+    `down`, `left`, `right`, `home`, `end`, `backspace`, `delete`, `space`) or one printable
+    character.
+  - `{"poll": <snapshot>}`: the periodic poll read the database.
+  - `{"sent": {"done": [qid], "wanted": int, "snapshot": <snapshot>}}`: the oldest `send`
+    effect was recorded. `done` holds the questions it answered, and `snapshot` is the
+    database after it.
+  - `{"data": <snapshot>}`: the database changed and the popup did not poll. Python reads
+    the database live whenever the operator acts (which of a group's questions are open when
+    it opens, what a dismissal names, whether a draft or a dismissal took). So a model takes
+    this read as its copy of the data, while rows and placeholders still change only at polls.
+    The IO layer sends one before each key, or whenever the database changed.
+  - `{"focused": {"pane": str, "error": str|null}}`: the oldest `go_to` finished.
+
+  `<snapshot>` is the database as the popup reads it, with only the fields the model decides
+  with:
+  `{"questions": [{"id", "group", "status", "pane_id", "options": [label], "multi_select",
+  "draft": <detail>|null, "delivery_error", "delivered": bool, "has_preview": bool}], "open": [qid] (store.list),
+  "failed": [qid] (store.failed_deliveries, in order), "alerts": [{"id", "kind", "status",
+  "pane_id"}], "open_alerts": [aid] (in order)}`. `<detail>` is `{"choices": [label],
+  "notes": {label: note}, "text": str|null}`.
+
+  Effects, in the order the popup made them:
+  - `notify {text, severity}` (`information`/`warning`);
+  - `draft {qid, detail|null}`;
+  - `send {"kind": "answer", qid, detail}`: a lone question, sent at once;
+  - `send {"kind": "submit", qids}`: the drafts among them;
+  - `send {"kind": "retry", qid}`: a ⚠ entry's Retry or Send now, with force;
+  - `dismiss {qid}`, `hide {qid}`, `ack {alert}`;
+  - `go_to {pane, graced}`: if not `graced`, the IO layer first checks that the agent is not
+    waiting at a prompt;
+  - `exit {}`: close now;
+  - `quit {}`: close once in-flight sends are recorded.
+
+  After `exit` or `quit` the state is `{"running": false}` and the scenario ends.
+
+  The model's copy of the database between events. A model keeps its own effects' writes in
+  that copy, as Python reads them back from the database at its next action. The next `poll`,
+  `sent` or `data` snapshot then replaces the copy. The writes:
+  - `draft`: the question's `draft`, if it is open;
+  - `send answer`: its `draft` is set and its `status` becomes `answered`, if it is open;
+  - `send submit`: every listed question that is open and drafted becomes `answered`;
+  - `dismiss`: an open question becomes `dismissed`;
+  - `hide`: the answer leaves `failed`;
+  - `ack`: the alert becomes `acked` and leaves `open_alerts`.
+
+  An `answered` or `dismissed` question also leaves `open`. Rows and placeholders change only
+  at polls. The Submit tab sends the drafts it read when it appeared or last reloaded, not the
+  drafts as they are at the key (`edge.submit_reads_the_drafts_it_showed`).
+
+  `<state>` holds the following fields. A time of `null` means never.
+  - `running`, `mode` (`empty`/`list`/`group`/`failed`/`alert`);
+  - `focus`: which widget has Textual's focus, and so sees a key first:
+    - `view`: the view on screen;
+    - `box`: its open text box;
+    - `chips`: the tab row, where only the app's keys work (←/→, Tab, `d`, `g`, Esc); it also
+      holds the focus in the empty view;
+    - `choices`: the view's scrolling list, where keys reach the view;
+    - `preview`: a question's preview pane (`has_preview`), where keys reach the view.
+
+    Tab or Shift+Tab inside a text box moves the focus off the box: Tab to `preview` beside a
+    preview pane, else to `chips` under the tab row, else to the view; Shift+Tab to `choices`. The box stays open, and the next
+    keys act on the view or the app (`edge.tab_in_a_box_*`). In the list, Tab moves between
+    `view` and `choices`;
+  - `entries`: list rows in order, placeholders included. An entry is `group:<id>`,
+    `failed:<qid>`, `gone` (the gone-agents summary row) or `alert:<id>`;
+  - `closed`: `{entry: reason}`, the inert placeholders;
+  - `fresh_until`: `{entry: ms}`, when a row that arrived in the background takes Enter and
+    digits;
+  - `list_cursor`, `direct`, `held`, `entry`;
+  - `tabs`: `q:<qid>` (the open group's question tabs, placeholders included);
+  - `current`: `q:<qid>` or `submit`;
+  - `gone`: `{tab: reason}`;
+  - `single`;
+  - `grace_until`, `view_at`, `last_key_at`, `prev_key_at`;
+  - `confirm`: what the open "Dismiss … without answering?" names, or null;
+  - `view`: one of the following.
+    - `{"kind": "none"}`.
+    - `{"kind": "list", "cursor": entry|null, "armed_at"}`.
+    - `{"kind": "question", "qid", "in_group", "last", "cursor": "opt:<i>"|"other"|"chat"|"submit",
+      "picked": [i], "notes": {"<i>": note}, "text", "editing": "note:<i>"|"text"|null,
+      "input": {"value", "cursor"}|null, "armed_at"}`.
+    - `{"kind": "review", "items": [qid], "cursor": "item:<qid>"|"submit"|"cancel"|null,
+      "armed_at"}`.
+    - `{"kind": "gone", "ref", "reason"}`.
+    - `{"kind": "failed", "qid", "cursor": 0|1, "armed_at"}`.
+    - `{"kind": "alert", "alert", "label": null, "armed_at"}`.
+
+  The comparison is by JSON value: object key order does not count. Remote-machine rows are
+  not in this golden yet.
+
+  What a model does not reproduce, because the golden cannot hold it:
+  - Shift selections and the clipboard in a text box (`shift+←`, `ctrl+x`/`c`/`v`). The box
+    keeps only the editing keys listed in `inbox-core::popup::TextBox`.
+  - ↑/↓ on `choices` or `preview` scroll in Textual when the list overflows the popup. The
+    golden's popup (100×30) never overflows. The models never scroll, on purpose: the cursor
+    moves, as it does when nothing overflows, and the JS model must keep it so.
+  - A second box opened while a box is open but does not have the focus. This happens with
+    `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
+    Python crashes there (Textual `DuplicateIds`); the model replaces the box.
+
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 
 - `design_empty_inbox.json`: design 2C, the empty inbox (the tumbleweed in the desert, Q179),

@@ -16,6 +16,10 @@
 //!
 //! - [`deliver`]: what the delivery worker does with a pane's waiting answers
 //!   (Python `service.deliver_batch`).
+//! - [`popup`]: the inbox popup's state machine (Python `tui.InboxApp`): keys,
+//!   polls and IO results in, effects out; it reproduces the popup
+//!   transition golden, `tests/fixtures/popup-transitions.json`
+//!   (`tests/popup_transitions.rs`).
 //! - [`empty_inbox`]: the empty inbox's animated scene, design 2C, as cell
 //!   grids (no Python counterpart: the popup gains it in the port, Q179).
 //!
@@ -26,6 +30,7 @@
 pub mod deliver;
 pub mod empty_inbox;
 pub mod hook;
+pub mod popup;
 pub mod rewake;
 pub mod verify;
 
