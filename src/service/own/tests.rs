@@ -83,7 +83,7 @@ fn a_resumed_older_session_is_another_conversation() {
     fs::create_dir_all(&starts).unwrap();
     let marker = starts.join(OLD);
     fs::write(&marker, "w1:p1").unwrap();
-    let after = SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_149_742 + 60);
+    let after = SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_144_800 + 60);
     fs::File::options()
         .write(true)
         .open(&marker)

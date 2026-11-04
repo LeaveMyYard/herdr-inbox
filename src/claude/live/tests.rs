@@ -39,7 +39,7 @@ fn mark(state: &Path, pane: &str, at: SystemTime) {
 
 #[test]
 fn a_continued_session_runs_its_continuation_unless_resumed_after_it() {
-    // record at 2026-10-16T10:00:00Z = 1792149742
+    // record at 2026-10-16T10:00:00Z = 1792144800
     let (dir, files) = world(Some("2026-10-16T10:00:00Z"));
     let state = dir.path().join("state");
     assert_eq!(
@@ -47,7 +47,7 @@ fn a_continued_session_runs_its_continuation_unless_resumed_after_it() {
         NEW,
         "D6: no marker"
     );
-    let record = SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_149_742);
+    let record = SystemTime::UNIX_EPOCH + Duration::from_secs(1_792_144_800);
     mark(&state, "w1:p1", record - Duration::from_secs(60));
     assert_eq!(
         live_session(&files, &state, OLD, Some("w1:p1")),
