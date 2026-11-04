@@ -28,7 +28,7 @@ pub fn real_python() -> &'static Path {
 
 /// A Rust worker stand-in (`FAKE_MODE`): `lock` takes the lock (exits 0 if
 /// taken) and holds it 3 s; `exit` has no `worker` (exits 2); `hang` never
-/// takes it (sleeps 3 s); `standby` writes a standby record of revision 2.
+/// takes it (sleeps 6 s); `standby` writes a standby record of revision 2.
 const FAKE_RUST: &str = r#"
 import fcntl, os, sys, time
 mode = os.environ.get("FAKE_MODE", "lock")
@@ -37,7 +37,7 @@ with open(os.environ["FAKE_LOG"], "a") as fh:
 if mode == "exit":
     sys.exit(2)
 if mode == "hang":
-    time.sleep(3)
+    time.sleep(6)
     sys.exit(0)
 lock = os.environ["FAKE_LOCK"]
 if mode == "standby":
