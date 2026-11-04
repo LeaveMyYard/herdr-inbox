@@ -3,8 +3,8 @@
 //! outcome taken from where the text landed.
 
 use super::decide::{DELIVERABLE, Outcomes};
-use super::reasons::{COMPOSER_DRAFT, COMPOSER_UNKNOWN, OPERATOR_IN_PANE};
-use super::{Agent, Composer, Look, Mode, Outcome, Waiting};
+use super::reasons::OPERATOR_IN_PANE;
+use super::{Agent, Look, Mode, Outcome, Waiting};
 use crate::verify::landing as landed;
 
 /// Types each message and records where it landed.
@@ -30,18 +30,10 @@ pub(super) fn type_them(
         // (#96): a renamed or misreported kind must not switch the guard off.
         // The last herdr read before the prompt; a keystroke between the two
         // calls stays unseen (#99, accepted: herdr has no conditional prompt)
-        match look.composer(&batch) {
-            Composer::Empty => {}
-            Composer::Draft => {
-                out.pending(look, batch.iter().copied(), COMPOSER_DRAFT);
-                continue;
-            }
-            // only Claude Code's box must be read: another harness draws none
-            Composer::Unknown if agent.is_claude() => {
-                out.pending(look, batch.iter().copied(), COMPOSER_UNKNOWN);
-                continue;
-            }
-            Composer::Unknown => {}
+        // (only Claude Code's box must be read: another harness draws none)
+        if let Some(reason) = agent.held_by(look.composer(&batch)) {
+            out.pending(look, batch.iter().copied(), reason);
+            continue;
         }
         // Python `if err:`: an empty error is a success
         if let Some(error) = look.prompt(&batch).filter(|e| !e.is_empty()) {

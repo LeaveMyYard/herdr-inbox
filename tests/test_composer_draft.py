@@ -92,6 +92,21 @@ def test_other_agents_are_typed_into_as_before(store, fake_herdr, monkeypatch):
     assert fake_herdr.calls_of("agent", "prompt")
 
 
+def test_another_kinds_unreadable_box_tells_nobody(store, fake_herdr, monkeypatch):
+    # #96: only a Claude box that stays unreadable is worth the notice; another harness draws none
+    monkeypatch.setenv("FAKE_HERDR_AGENT_KIND", "codex")
+    monkeypatch.setattr(service, "VERIFY_SECONDS", 0.0)
+    monkeypatch.setattr(service, "UNREADABLE_NOTIFY_AFTER", 0.0)
+    monkeypatch.setattr(service, "later", lambda fn: fn())
+    service._unreadable_since.clear()
+    service._unreadable_notified.clear()
+    qid = answered(store, monkeypatch, screen_name=None)
+    service.deliver(store, store.get(qid), retry=True, force=True)
+    assert fake_herdr.calls_of("agent", "prompt")
+    told = [c[2] for c in fake_herdr.calls_of("notification", "show")]
+    assert not [t for t in told if "input box" in t or "not sent" in t], told
+
+
 @pytest.mark.parametrize("kind", ["codex", "claude-code", ""])
 def test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports(store, fake_herdr, monkeypatch, kind):
     # #96: a renamed or misreported kind must not switch the draft guard off

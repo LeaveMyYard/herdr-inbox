@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Fix: a Claude draft holds an answer whatever agent kind herdr reports** (#96). The input box
+  was read only for herdr's kind `claude`, so a renamed or misreported kind typed onto the
+  operator's unsent text. It is now read for every kind; a recognised Claude Code draft holds
+  the answer for any kind, and an unreadable box still holds only `claude` agents.
+- **Fix: only the pane's own agent counts** (#97). herdr's `agent.get` target also matches agent
+  names; a reply naming another pane is now "no agent in the pane" (delivery, the worker, the
+  rewake watcher and the popup).
 - **Hardening of the worker handover** (#50, review of #75). A revision-wanted marker write waits at
   most 200 ms for its lock (a hook never hangs). `ensure()` starts at most one worker per revision
   every 5 s, so a newer worker that crashes at start can no longer cost one process and one

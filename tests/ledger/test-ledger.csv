@@ -289,6 +289,7 @@ tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_cla
 tests/test_composer_draft.py::test_send_now_never_types_onto_a_draft_and_says_so,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_typed_once_the_draft_is_gone,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_other_agents_are_typed_into_as_before,tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_another_kinds_unreadable_box_tells_nobody,tests/test_composer_draft.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
 tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[codex],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[claude-code],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
