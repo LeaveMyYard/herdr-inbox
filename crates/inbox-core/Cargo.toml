@@ -9,6 +9,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+# The popup renderer (`popup_view`) draws into ratatui's cell buffer.
+ratatui-core.workspace = true
+unicode-width.workspace = true
 
 [dev-dependencies]
 # Reads the decision table golden (tests/decisions.rs).
