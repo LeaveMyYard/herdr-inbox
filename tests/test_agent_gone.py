@@ -59,7 +59,7 @@ def test_hidden_gone_rows_are_not_polled(store, fake_herdr, monkeypatch):
 
 
 def test_legacy_rows_of_a_gone_pane_are_not_polled_every_tick(store, fake_herdr, monkeypatch):
-    """The live log: `agent get w6:p3T` -> agent_not_found on every tick."""
+    """The live log: `agent get w9:p6` -> agent_not_found on every tick."""
     qid = service.ask(store, A, "Old?", options=["yes"])["id"]
     store.db.execute("UPDATE question_ext SET herdr_server = NULL WHERE id = ?", (qid,))
     monkeypatch.setenv("FAKE_HERDR_AGENT", "0")

@@ -20,7 +20,7 @@ fn targets_are_valid_as_pythons_patterns_read_them() {
         ("pane", "a b", false),
         ("pane", "a\u{1f}b", false),
         ("pane", "", false),
-        ("session", "06ACC80F-0000-4000-8000-000000000002", true),
+        ("session", "00000004-0000-4000-8000-0000000000B2", true),
         ("session", "nope", false),
         ("bogus", "1", false),
     ] {
