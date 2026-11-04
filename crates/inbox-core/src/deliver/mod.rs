@@ -78,6 +78,19 @@ impl Agent {
     pub fn is_claude(&self) -> bool {
         self.kind.as_deref() == Some("claude")
     }
+
+    /// The pending reason when its input box in `state` holds the answer
+    /// (a draft, for any kind; an unreadable box, for Claude only), or
+    /// `None` when it can be typed into. The one rule for the hold and for
+    /// Send now's "not sent" notice.
+    pub fn held_by(&self, state: Composer) -> Option<&'static str> {
+        match state {
+            Composer::Empty => None,
+            Composer::Draft => Some(COMPOSER_DRAFT),
+            Composer::Unknown if self.is_claude() => Some(COMPOSER_UNKNOWN),
+            Composer::Unknown => None,
+        }
+    }
 }
 
 /// Claude Code's input box.

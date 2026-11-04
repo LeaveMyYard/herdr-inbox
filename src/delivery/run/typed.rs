@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use herdr_agent_kit::herdr_api::clean;
-use inbox_core::deliver::{Agent, COMPOSER_DRAFT, COMPOSER_UNKNOWN, Composer};
+use inbox_core::deliver::{Agent, Composer};
 use inbox_core::verify::Landing;
 use serde_json::{Value, json};
 
@@ -86,7 +86,7 @@ impl PaneLook<'_, '_> {
         }
         let state = composer(self.ctx.herdr, &self.pane);
         let claude = self.agent.as_ref().is_some_and(Agent::is_claude);
-        let held = state == Composer::Draft || (claude && state == Composer::Unknown);
+        let held = self.agent.as_ref().and_then(|a| a.held_by(state));
         let refs = self.refs(ids);
         let first = ids.first().map(|id| self.q(*id));
         let where_ = first
@@ -103,12 +103,7 @@ impl PaneLook<'_, '_> {
         if let Some((title, body)) = note {
             (self.ctx.notify)(&title, &body);
         }
-        if held && self.mode.force {
-            let reason = if state == Composer::Draft {
-                COMPOSER_DRAFT
-            } else {
-                COMPOSER_UNKNOWN
-            };
+        if let Some(reason) = held.filter(|_| self.mode.force) {
             (self.ctx.notify)(
                 &format!("{refs} not sent"),
                 reason.trim_start_matches("waiting: "),

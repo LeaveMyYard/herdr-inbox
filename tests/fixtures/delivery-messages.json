@@ -3768,6 +3768,70 @@
    "jobs": []
   },
   {
+   "name": "send now, a codex agent onto an unreadable box: typed, nobody told",
+   "scenario": {
+    "name": "send now, a codex agent onto an unreadable box: typed, nobody told",
+    "mode": {
+     "retry": true,
+     "force": true,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "plain output",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes",
+      "tab_label": "node"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": true,
+     "error": null,
+     "acknowledged": true,
+     "attempts": 0,
+     "verified": true,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": "node"
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: yes"
+   ],
+   "notifications": [],
+   "jobs": []
+  },
+  {
    "name": "no kind onto a Claude draft: held",
    "scenario": {
     "name": "no kind onto a Claude draft: held",

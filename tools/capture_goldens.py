@@ -985,6 +985,8 @@ def _delivery_scenarios():
           screen="plain output"),
         S("send now, a codex agent onto a draft: not sent, said so", questions=[q()], agent=agent(kind="codex"),
           screen=draft, mode={"retry": True, "force": True, "verify_later": False}),
+        S("send now, a codex agent onto an unreadable box: typed, nobody told", questions=[q(tab_label="node")],
+          agent=agent(kind="codex"), screen="plain output", mode={"retry": True, "force": True, "verify_later": False}),
         S("no kind onto a Claude draft: held", questions=[q()], agent=agent(kind=None), screen=draft),
         # #97: herdr's target also matches agent names; an agent of another pane is not this pane's
         S("another pane's agent answers", questions=[q()], agent=agent(pane="w1:p9")),
