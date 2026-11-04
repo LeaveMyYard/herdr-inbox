@@ -10,7 +10,7 @@ use herdr_agent_kit::herdr_api::{PaneId, TabId};
 use super::{Pane, World};
 use crate::claude::{Transcripts, live_session};
 use crate::mcp::open::{failure, open};
-use crate::mcp::retry::Failure;
+use crate::mcp::retry::{Failure, TOOL_BUSY_TIMEOUT};
 use crate::tabs::label::marks_for;
 
 /// herdr, transcripts and the store as this process finds them.
@@ -62,7 +62,10 @@ impl World for Live {
 
     fn marks(&self, tab: Option<&str>) -> Result<Vec<String>, Failure> {
         // Python's _base_label opens a store of its own for this one read
-        let store = open(&self.db)?;
+        let store = open(&self.db, TOOL_BUSY_TIMEOUT)?; // Python `Store(timeout=3)`
         marks_for(store.db(), tab).map_err(failure)
     }
 }
+
+#[cfg(test)]
+mod tests;

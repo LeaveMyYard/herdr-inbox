@@ -60,3 +60,26 @@ fn the_drain_is_bounded() {
     assert!(!fx.drain(Duration::from_millis(100)));
     assert!(at.elapsed() < Duration::from_secs(1));
 }
+
+/// review #118 L1: a panicking effect is reported and the queue goes on.
+#[test]
+fn a_panicking_effect_never_stops_the_queue() {
+    #[derive(Default)]
+    struct Fragile(Mutex<Vec<String>>);
+    impl Herald for Fragile {
+        fn notify(&self, title: &str, _: &str) {
+            assert_ne!(title, "boom", "a bad job");
+            self.0.lock().unwrap().push(title.to_owned());
+        }
+        fn markers(&self, _: &str) {}
+    }
+    let herald = Arc::new(Fragile::default());
+    let fx = Effects::start(herald.clone());
+    let note = |t: &str| Effect::Notify {
+        title: t.into(),
+        body: String::new(),
+    };
+    fx.later(vec![note("first"), note("boom"), note("after")]);
+    assert!(fx.drain(Duration::from_secs(5)));
+    assert_eq!(*herald.0.lock().unwrap(), ["first", "after"]);
+}

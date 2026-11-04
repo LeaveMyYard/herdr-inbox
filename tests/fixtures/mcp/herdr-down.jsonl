@@ -6,4 +6,6 @@
 {"dir": "herdr", "msg": ["agent", "list"]}
 {"dir": "herdr", "msg": ["notification", "show", "Q1 · w1:p1", "--body", "Anyone there?", "--sound", "request"]}
 {"dir": "herdr", "msg": ["pane", "get", "w1:p1"]}
+{"dir": "markers", "msg": {"tokens": {"w1:p1": "inbox_q=?1"}, "labels": {}}}
 {"dir": "store", "msg": [[1, "w1:p1", null, null, "aaaaaaaa-0000-4000-8000-00000000000a", "<cwd>", null, "Anyone there?", null, null, "anyone there", "open", null, 0, 0, null, null, 0, 1, null, "<server>", null]]}
+{"dir": "alerts", "msg": []}
