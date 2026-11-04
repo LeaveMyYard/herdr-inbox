@@ -14,6 +14,7 @@ pub mod contract;
 pub mod deeplink;
 pub mod delivery;
 pub mod hook;
+pub mod mcp;
 pub mod pyint;
 pub mod pyjson;
 pub mod remote;
