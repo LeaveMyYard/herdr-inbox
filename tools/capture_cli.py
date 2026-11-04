@@ -176,6 +176,65 @@ CLI_OPS = [
     _draft(24, '{"choices": ["ü\\u00fc"],"text":"  t  ", "extra": 1.50}'),
     ("submit", {"qids": [20, 21, 22, 23, 24, 99], "config": ON, "pane_tabs": TABS,
                 "labels": {"w1:t1": "❓5 my-tab", "w1:t2": "❓3 w1:t2-tab"}}),
+    # `inbox open`: the focus request and the popup, then the popup taking and resolving it
+    ("cli", {"argv": ["open"]}),
+    ("cli", {"argv": ["open", "--no-hold"], "open_error": "server_not_running"}),
+    ("cli", {"argv": ["open", "-h"]}),
+    ("cli", {"argv": ["open", "--question"]}),
+    ("cli", {"argv": ["open", "--question", "1", "--pane", "w1:p1"]}),
+    ("cli", {"argv": ["open", "--pane", "w1:p1", "--pane", "w1:p2"]}),
+    ("cli", {"argv": ["open", "--question=QQ12"]}),
+    ("cli", {"argv": ["open", "--g", "x"]}),
+    ("cli", {"argv": ["open", "--session", "nope"]}),
+    ("cli", {"argv": ["open", "--pane", "a b"]}),
+    ("cli", {"argv": ["open", "--no-hold=1"]}),
+    ("cli", {"argv": ["open", "--q=Q5", "extra"]}),
+    ("cli", {"argv": ["open", "--question", ""]}),
+    ("cli", {"argv": ["open", "--question", "Q20"]}),
+    ("cli", {"argv": ["open", "--question", "qnap:Q12", "--no-hold"]}),
+    ("cli", {"argv": ["open", "--group", "١٢"]}),
+    ("cli", {"argv": ["open", "--session", S_NEW.upper()]}),
+    ("cli", {"argv": ["open", "--pane", "w1:p2"], "popup_open": True}),
+    ("cli", {"argv": ["open", "--pane", "w1:p2"], "open_error": "pane_not_found"}),
+    _q(30, "-1 hours", "w1:p5", "Deep link one?", session=S_OLD, tab="w1:t5"),
+    _q(31, "-1 hours", "w1:p5", "Deep link two?", session=S_OLD, tab="w1:t5"),
+    ("sql", {"sql": "INSERT INTO question_ext (id, group_id) VALUES (31, 30)", "params": []}),
+    ("sql", {"sql": "INSERT INTO remote_machines (machine_id, label, db_id) VALUES ('m1', 'qnap', 'd1'),"
+                    " ('m2', 'other', 'd2')", "params": []}),
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json,"
+                    " first_seen_at) VALUES ('m1', 'd1', 12, 'k12', 'open', ?, 'x'),"
+                    " ('m1', 'd1', 13, 'k13', 'answered', ?, 'x'), ('m2', 'd2', 12, 'k2', 'open', ?, 'x')",
+             "params": [json.dumps({"id": 12, "group": 12, "status": "open", "question": "Remote?"}),
+                        json.dumps({"id": 13, "group": 13, "status": "answered", "question": "Done?"}),
+                        json.dumps({"id": 12, "group": 7, "status": "open", "question": "Other?"})]}),
+    ("deeplink", {"request": {"kind": "question", "value": "31"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": " Q30 "}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": "29"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": "x"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "group", "value": "30", "hold": False}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "group", "value": "31"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "pane", "value": "w1:p5"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "pane", "value": "w1:p0"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "session", "value": S_OLD.upper()}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "session", "value": "nope"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": "qnap:12"}, "nonce": "n1",
+                  "machines": [{"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "question", "value": "m1:Q12"}, "nonce": "n1",
+                  "machines": [{"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "question", "value": "qnap:13"}, "nonce": "n1",
+                  "machines": [{"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "question", "value": "qnap:12"}, "nonce": "n1", "machines": []}),
+    ("deeplink", {"request": {"kind": "question", "value": "other:12"}, "nonce": "n1",
+                  "machines": [{"label": "other", "id": "m2"}, {"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": "n2"}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": None}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": "n1", "age": 6}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": "n1", "age": -1}),
+    ("deeplink", {"request": {"kind": "bogus", "value": "30"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "group", "value": 30, "hold": 0}, "nonce": "n1"}),
+    ("deeplink", {"raw": "{not json", "nonce": "n1"}),
+    ("deeplink", {"raw": "[1, 2]", "nonce": "n1"}),
+    ("deeplink", {"nonce": "n1"}),
     # deliver_batch's preamble: the worker made sure of, answers of another herdr server left to it
     ("sql", {"sql": "UPDATE questions SET status = 'answered', answer = 'a', delivered_at = NULL,"
                     " delivery_error = NULL, acknowledged_at = NULL WHERE id IN (20, 21, 22, 24)", "params": []}),
@@ -187,6 +246,40 @@ CLI_OPS = [
     ("preamble", {"qids": [21, 20], "retry": True, "server": "/srv/mine"}),
     ("preamble", {"qids": [22], "retry": False, "server": "/srv/other"}),
 ]
+
+
+def _deeplink(deeplink, path: Path, work: Path, args: dict) -> dict:
+    """The popup's side of a deep link (tui.on_mount): the step's request file (``request``
+    with nonce ``n1``, ``age`` seconds old; or ``raw`` text; or none), taken with the step's
+    nonce (anything it raises is no request, as the popup catches it), then resolved."""
+    import time
+
+    from herdr_inbox import store as st
+
+    target = deeplink.request_path()
+    target.unlink(missing_ok=True)
+    if "raw" in args:
+        target.write_text(args["raw"])
+    elif "request" in args:
+        data = {**args["request"], "created_at": time.time() - args.get("age", 0), "nonce": "n1"}
+        target.write_text(json.dumps(data))
+    os.environ.pop(deeplink.NONCE_ENV, None)
+    if args["nonce"]:
+        os.environ[deeplink.NONCE_ENV] = args["nonce"]
+    try:
+        request = deeplink.consume_request()
+    except Exception:  # noqa: BLE001 - the popup's own guard: a deep link never breaks it
+        request = None
+    finally:
+        os.environ.pop(deeplink.NONCE_ENV, None)
+    out = {"request": request, "left": target.exists()}
+    target.unlink(missing_ok=True)
+    if request:
+        with st.Store(path) as s:
+            got = deeplink.resolve(s, request)
+        out["resolved"] = None if got is None else [list(got[0]), got[1]]
+        out["describe"] = deeplink.describe(request)
+    return out
 
 
 def _tables(path: Path) -> dict:
@@ -203,7 +296,7 @@ class _Stderr(logging.Handler):
 
 
 def capture_cli(out: Path, work: Path) -> Path:
-    from herdr_inbox import herdr, service, store as st, tabs, worker
+    from herdr_inbox import deeplink, herdr, remote, service, store as st, tabs, worker
     from herdr_inbox import cli
 
     path = work / "cli.db"
@@ -231,6 +324,11 @@ def capture_cli(out: Path, work: Path) -> Path:
         world.setdefault("labels", {})[tab] = label
         return None
 
+    def open_popup(env=None):
+        env = {k: ("<nonce>" if k == deeplink.NONCE_ENV else v) for k, v in (env or {}).items()}
+        effects.append(["open_popup", env])
+        return world.get("open_error")
+
     stubs = {
         (herdr, "set_open_count"): lambda pane, n: effects.append(["token", pane, n]),
         (herdr, "pane_tabs"): lambda: effects.append(["pane_tabs"]) or (
@@ -242,6 +340,8 @@ def capture_cli(out: Path, work: Path) -> Path:
         (service, "deliver_batch"): deliver_batch,
         (service, "_ensure_worker"): lambda server=None: effects.append(["ensure", server]),
         (worker, "ensure"): lambda server=None: effects.append(["ensure", server]),
+        (herdr, "open_popup"): open_popup,
+        (remote, "enabled_machines"): lambda ttl=60.0: effects.append(["machines"]) or world.get("machines", []),
     }
     saved = {k: getattr(*k) for k in stubs}
     real_deliver = service.deliver_batch
@@ -278,6 +378,8 @@ def capture_cli(out: Path, work: Path) -> Path:
             elif op == "submit":
                 with st.Store(path) as s:
                     step["result"] = [[q.id, q.answer] for q in service.submit(s, args["qids"], deliver=False)]
+            elif op == "deeplink":
+                step["result"] = _deeplink(deeplink, path, work, args)
             elif op == "preamble":
                 kept: list = []
                 service.deliver_batch = real_deliver
@@ -296,11 +398,21 @@ def capture_cli(out: Path, work: Path) -> Path:
                         for sid in args["sessions"]:
                             s.record_session(sid, str(projects / f"{sid}.jsonl"))
                 stdout, stderr = io.StringIO(), io.StringIO()
+                held = deeplink.hold_popup_lock() if args.get("popup_open") else None
+                request = deeplink.request_path()
+                request.unlink(missing_ok=True)
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                     try:
                         code = cli.main(list(args["argv"]))
                     except SystemExit as e:
                         code = e.code
+                if held is not None:
+                    held.close()
+                if request.exists():  # what `inbox open` left for the popup
+                    data = json.loads(request.read_text())
+                    step["request"] = {k: ("<" + k + ">" if k in ("nonce", "created_at") else v)
+                                       for k, v in data.items()}
+                    request.unlink()
                 err = re.sub(r"(config\.toml: ).*", r"\1<reason>", stderr.getvalue().replace(str(work), "<work>"))
                 step.update(code=code, stdout=stdout.getvalue(), stderr=err)
             step["effects"] = list(effects)

@@ -1,4 +1,4 @@
-//! Python's `int(s)` for a string: surrounding whitespace, an optional sign,
+//! Python's `int(s)` for a string (question ids): surrounding whitespace, an optional sign,
 //! decimal digits of any script, single underscores between digits.
 
 use unicode_general_category::{GeneralCategory, get_general_category};

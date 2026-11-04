@@ -1,16 +1,17 @@
-//! The `inbox` command line (Python `cli.main`): so far `list`, `answer`
-//! and `dismiss`. Output, exit codes and usage errors are Python's, word for
+//! The `inbox` command line (Python `cli.main`): so far `list`, `answer`,
+//! `dismiss` and `open`. Output, exit codes and usage errors are Python's, word for
 //! word (the CLI golden, `tests/fixtures/cli.json`).
 //!
 //! - [`args`]: argparse's parsing, help and usage errors.
 //! - [`specs`]: the subcommands' arguments and help.
-//! - [`list`], [`answer`]: the commands.
+//! - [`list`], [`answer`], [`open`]: the commands.
 //! - [`live`]: the real database, herdr and delivery behind [`Io`].
 
 pub mod answer;
 pub mod args;
 pub mod list;
 pub mod live;
+pub mod open;
 pub mod specs;
 
 use std::io::Write;
@@ -75,16 +76,12 @@ pub fn run(cmd: &str, argv: &[String], io: &mut Io<'_>) -> i32 {
     };
     let args = match parse(spec, argv) {
         Parsed::Run(args) => args,
-        Parsed::Exit {
-            code,
-            stdout,
-            stderr,
-        } => {
-            let _ = io.out.write_all(stdout.as_bytes());
-            let _ = io.err.write_all(stderr.as_bytes());
-            return code;
-        }
+        exit => return print_exit(exit, io),
     };
+    if cmd == "open" {
+        // the commands that need no database
+        return open::open(&args, io).unwrap_or_else(|exit| print_exit(exit, io));
+    }
     let store = match Store::open(io.db_path, BUSY_TIMEOUT) {
         Ok(store) => store,
         Err(OpenError::NotReady(_)) => return not_ready(io),
@@ -100,6 +97,21 @@ pub fn run(cmd: &str, argv: &[String], io: &mut Io<'_>) -> i32 {
         Ok(code) => code,
         Err(err) => failed(io, &err),
     }
+}
+
+/// Prints a help text or a usage error; its exit code.
+fn print_exit(exit: Parsed, io: &mut Io<'_>) -> i32 {
+    let Parsed::Exit {
+        code,
+        stdout,
+        stderr,
+    } = exit
+    else {
+        return 2;
+    };
+    let _ = io.out.write_all(stdout.as_bytes());
+    let _ = io.err.write_all(stderr.as_bytes());
+    code
 }
 
 fn dispatch(cmd: &str, args: &Args, store: &Store, io: &mut Io<'_>) -> rusqlite::Result<i32> {
