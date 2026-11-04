@@ -34,6 +34,14 @@ const CASES: &[Case] = &[
         handover::rust_hands_over_to_python_on_an_update,
     ),
     (
+        "handover::rust_hands_over_to_rust_on_an_update",
+        handover::rust_hands_over_to_rust_on_an_update,
+    ),
+    (
+        "handover::a_checkout_pulled_but_not_rebuilt_hands_over_once",
+        handover::a_checkout_pulled_but_not_rebuilt_hands_over_once,
+    ),
+    (
         "handover::an_r1_python_holder_hands_over_to_an_r2_rust_standby",
         handover::an_r1_python_holder_hands_over_to_an_r2_rust_standby,
     ),
@@ -78,16 +86,24 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS; // none is ignored
     }
     let exact = args.iter().any(|a| a == "--exact");
-    let filters: Vec<&str> = args
-        .iter()
-        .filter(|a| !a.starts_with('-'))
-        .map(String::as_str)
-        .collect();
+    // libtest's arguments: filters, `--skip <f>`; the values of the other
+    // options that take one are not filters
+    let (mut filters, mut skips) = (Vec::new(), Vec::new());
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--skip" => skips.extend(it.next().map(String::as_str)),
+            "--test-threads" | "--format" | "--color" | "-Z" | "--logfile" | "--report-time" => {
+                it.next();
+            }
+            a if a.starts_with('-') => {}
+            a => filters.push(a),
+        }
+    }
+    let matches = |name: &str, f: &str| if exact { name == f } else { name.contains(f) };
     let chosen = |name: &str| {
-        filters.is_empty()
-            || filters
-                .iter()
-                .any(|f| if exact { name == *f } else { name.contains(f) })
+        (filters.is_empty() || filters.iter().any(|f| matches(name, f)))
+            && !skips.iter().any(|f| matches(name, f))
     };
     let mut failed = Vec::new();
     let mut ran = 0;

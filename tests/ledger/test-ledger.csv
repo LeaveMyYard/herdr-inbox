@@ -949,7 +949,7 @@ tests/test_successor.py::test_the_running_worker_hands_over_to_rust_and_exits,te
 tests/test_successor.py::test_herdrs_own_install_follows_the_listed_root_uncached,tests/test_successor.py,herdr-inbox --lib worker::live::tests::herdrs_own_install_follows_the_listed_root_uncached,mapped,,P5
 tests/test_successor.py::test_another_checkout_never_follows_the_listed_root,tests/test_successor.py,herdr-inbox --lib worker::live::tests::another_checkout_never_follows_the_listed_root,mapped,,P5
 tests/test_successor.py::test_an_installed_copy_without_a_checkout_follows_herdr,tests/test_successor.py,herdr-inbox --lib worker::live::tests::an_installed_copy_without_a_checkout_follows_herdr,mapped,,P5
-tests/test_successor.py::test_the_worker_hands_over_to_the_new_install_directory,tests/test_successor.py,herdr-inbox --test worker_process handover::rust_hands_over_to_python_on_an_update,mapped,,P5
+tests/test_successor.py::test_the_worker_hands_over_to_the_new_install_directory,tests/test_successor.py,herdr-inbox --test worker_process handover::rust_hands_over_to_rust_on_an_update,mapped,,P5
 tests/test_successor.py::test_server_gone_needs_herdrs_own_word[gone-True],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
 tests/test_successor.py::test_server_gone_needs_herdrs_own_word[up-False],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5
 tests/test_successor.py::test_server_gone_needs_herdrs_own_word[other-error-False],tests/test_successor.py,herdr-inbox --lib worker::live::tests::server_gone_needs_herdrs_own_word,mapped,,P5

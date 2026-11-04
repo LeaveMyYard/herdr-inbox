@@ -6,12 +6,14 @@
 use herdr_inbox::store::revision_wanted::{unix_now, want};
 use herdr_inbox::worker::handover::standby_path;
 use herdr_inbox::worker::live::db_stamp;
+use herdr_inbox::worker::lock::is_running;
 
 use crate::rig::{Rig, is_python_worker, wait_for};
 use crate::roots::{python_root, with_hooks_only_binary, with_rust_worker};
 
 /// Python `start_successor` finds the Rust worker under the new install
-/// and the Rust worker takes over the lock; the Python worker exits.
+/// and the Rust worker takes over the lock, from that install; the Python
+/// worker exits.
 pub fn python_hands_over_to_rust_on_an_update() {
     let mut rig = Rig::new();
     let old = python_root(rig.dir.path(), "a", "0.10.6", 1);
@@ -25,57 +27,134 @@ pub fn python_hands_over_to_rust_on_an_update() {
     let status = rig.must_exit(python, "the Python worker exits");
     assert!(status.success(), "{status:?}\n{}", rig.logs());
     let ticked = || rig.ticked();
-    assert!(
-        wait_for(|| !ticked().is_empty()),
-        "the Rust worker serves\n{}",
-        rig.logs()
-    );
+    let serves = wait_for(|| !ticked().is_empty());
+    assert!(serves, "the Rust worker serves\n{}", rig.logs());
     let rust = rig.ticked()[0];
     assert!(
         rig.held_by(1, rust),
-        "{:?}: the Rust worker holds the lock",
+        "{:?}: the Rust worker holds it",
         rig.holder()
+    );
+    assert_eq!(
+        rig.tick_root(rust),
+        Some(new.clone()),
+        "started from the new install"
     );
     assert_eq!(rig.ticked(), [rust], "one Rust worker, no handover back");
     rig.finish(&[python, rust]);
 }
 
 /// The reverse: the Rust worker sees the update, the new install has no
-/// Rust worker, so `uv run … inbox worker` starts its Python worker, which
-/// takes the lock; the Rust worker exits.
+/// Rust worker, so `uv run … --project <new install> inbox worker` starts
+/// that install's Python worker, which takes the lock; the Rust worker exits.
 pub fn rust_hands_over_to_python_on_an_update() {
     let mut rig = Rig::new();
     let old = python_root(rig.dir.path(), "a", "0.10.6", 1);
     rig.list(&old);
     let rust = rig.start_rust("rust", &old, 1, &[]);
-    assert!(
-        wait_for(|| rig.held_by(1, rust) && rig.ticked() == [rust]),
-        "{}",
-        rig.logs()
-    );
+    let serving = || rig.held_by(1, rust) && rig.ticked() == [rust];
+    assert!(wait_for(serving), "{}", rig.logs());
     let new = python_root(rig.dir.path(), "b", "0.10.7", 1);
     rig.list(&new);
     let status = rig.must_exit(rust, "the Rust worker exits");
     assert!(status.success(), "{status:?}\n{}", rig.logs());
-    assert!(
-        wait_for(|| rig.holder().is_some_and(|(_, pid)| pid != rust)
-            && rig.held_by(1, rig.holder().unwrap().1)),
-        "{:?}\n{}",
-        rig.holder(),
-        rig.logs()
+    let other = || {
+        rig.holder()
+            .filter(|(_, pid)| *pid != rust)
+            .map(|(_, pid)| pid)
+    };
+    let taken = || other().is_some_and(|pid| rig.held_by(1, pid));
+    assert!(wait_for(taken), "{:?}\n{}", rig.holder(), rig.logs());
+    let python = other().unwrap();
+    assert_eq!(
+        rig.uv_roots(),
+        std::slice::from_ref(&new),
+        "uv ran the new install's worker"
     );
-    let python = rig.holder().unwrap().1;
+    let command = python_command(python);
+    let src = format!("{} worker", new.join("src").display());
     assert!(
-        is_python_worker(python),
-        "pid {python} is the new install's Python worker"
+        is_python_worker(python) && command.ends_with(&src),
+        "{command}"
     );
     rig.finish(&[rust, python]);
 }
 
-/// #50: an r1 Python worker holds the lock; an r2 Rust worker stands by
-/// (its standby record, byte for byte Python's) and the Python worker hands
-/// the lock over to it. r1 workers started after the takeover (r1 MCP
-/// servers, popup and CLI keep calling `ensure()`) never hold it again.
+/// A Rust worker hands over to the new install's Rust worker, which runs
+/// from the new install.
+pub fn rust_hands_over_to_rust_on_an_update() {
+    let mut rig = Rig::new();
+    let old = python_root(rig.dir.path(), "a", "0.10.6", 1);
+    rig.list(&old);
+    let first = rig.start_rust("rust", &old, 1, &[]);
+    assert!(wait_for(|| rig.ticked() == [first]), "{}", rig.logs());
+    let new = python_root(rig.dir.path(), "b", "0.10.7", 1);
+    with_rust_worker(&new);
+    rig.list(&new);
+    let status = rig.must_exit(first, "the old Rust worker exits");
+    assert!(status.success(), "{status:?}\n{}", rig.logs());
+    assert!(
+        wait_for(|| rig.ticked().len() == 2),
+        "{:?}\n{}",
+        rig.ticked(),
+        rig.logs()
+    );
+    let second = rig.ticked()[1];
+    assert!(rig.held_by(1, second));
+    assert_eq!(
+        rig.tick_root(second),
+        Some(new),
+        "started from the new install"
+    );
+    assert!(rig.uv_roots().is_empty(), "no Python worker");
+    rig.finish(&[first, second]);
+}
+
+/// A linked checkout pulled but not rebuilt: the version on disk changes in
+/// place under the same `target/release/herdr-inbox`. The worker hands over
+/// once to that binary, which reads the new version from disk and stays (a
+/// worker comparing the compiled version would start itself every tick).
+pub fn a_checkout_pulled_but_not_rebuilt_hands_over_once() {
+    let mut rig = Rig::new();
+    let root = python_root(rig.dir.path(), "linked", "0.10.6", 1);
+    with_rust_worker(&root);
+    rig.list(&root);
+    let first = rig.start_rust("rust", &root, 1, &[]);
+    assert!(wait_for(|| rig.ticked() == [first]), "{}", rig.logs());
+    let pyproject = root.join("pyproject.toml");
+    let text = std::fs::read_to_string(&pyproject).unwrap();
+    let pulled = text.replacen("version = \"0.10.6\"", "version = \"0.10.7\"", 1);
+    std::fs::write(&pyproject, pulled).unwrap(); // `git pull`, no `cargo build`
+    let status = rig.must_exit(first, "the worker hands over");
+    assert!(status.success(), "{status:?}");
+    assert!(
+        wait_for(|| rig.ticked().len() == 2),
+        "{:?}\n{}",
+        rig.ticked(),
+        rig.logs()
+    );
+    std::thread::sleep(std::time::Duration::from_secs(3)); // 15 ticks: no handover loop
+    let ticked = rig.ticked();
+    assert_eq!(ticked.len(), 2, "{ticked:?}: one handover, then it stays");
+    assert!(rig.held_by(1, ticked[1]));
+    rig.finish(&ticked);
+}
+
+/// The command line of `pid`.
+fn python_command(pid: u32) -> String {
+    let out = std::process::Command::new("ps")
+        .args(["-o", "command=", "-p", &pid.to_string()])
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// #50, Python test_r2_hooks_alone_get_an_r2_worker_while_r1_ensure_callers_fire
+/// across the languages: an r1 Python worker holds the lock; an r2 Rust
+/// worker stands by (its standby record, byte for byte Python's) and the
+/// Python worker hands the lock over to it. r1 workers keep being started
+/// all through the handover and after it (r1 MCP servers, popup and CLI
+/// calling `ensure()`): once r2 holds, no r1 worker ever holds again.
 pub fn an_r1_python_holder_hands_over_to_an_r2_rust_standby() {
     let mut rig = Rig::new();
     let root = python_root(rig.dir.path(), "a", "0.10.6", 1);
@@ -83,32 +162,43 @@ pub fn an_r1_python_holder_hands_over_to_an_r2_rust_standby() {
     let python = rig.start_python("python", &root);
     assert!(wait_for(|| rig.held_by(1, python)), "{}", rig.logs());
     let rust = rig.start_rust("rust", &root, 2, &[]);
+    let (mut callers, mut seen, mut after) = (Vec::new(), Vec::new(), 0);
+    let deadline = std::time::Instant::now() + crate::rig::LIMIT;
+    while after < 10 && std::time::Instant::now() < deadline {
+        let n = callers.len();
+        callers.push(rig.start_python(&format!("r1-caller-{n}"), &root));
+        for _ in 0..5 {
+            seen.push(rig.holder().filter(|_| is_running(&rig.lock())));
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        if rig.held_by(2, rust) {
+            after += 1;
+        }
+    }
+    assert_eq!(after, 10, "r2 took over\n{}", rig.logs());
     let status = rig.must_exit(python, "the r1 holder hands over and exits");
     assert!(status.success(), "{status:?}\n{}", rig.logs());
-    assert!(
-        wait_for(|| rig.held_by(2, rust)),
-        "{:?}\n{}",
-        rig.holder(),
-        rig.logs()
-    );
-    assert!(wait_for(|| rig.ticked() == [rust]));
+    let first_r2 = seen
+        .iter()
+        .position(|h| h.is_some_and(|(rev, _)| rev == 2))
+        .unwrap();
+    let r1_after = seen[first_r2..]
+        .iter()
+        .flatten()
+        .filter(|(rev, _)| *rev == 1)
+        .count();
+    assert_eq!(r1_after, 0, "an r1 worker held after r2: {seen:?}");
+    assert!(rig.held_by(2, rust) && rig.ticked() == [rust]);
     assert!(
         !standby_path(&rig.lock()).exists(),
         "the standby's record went with it"
     );
-    let mut late = Vec::new();
-    for n in 0..3 {
-        let r1 = rig.start_python(&format!("late-r1-{n}"), &root);
-        let status = rig.must_exit(r1, "an r1 worker beside an r2 holder exits");
-        assert!(
-            status.success() && rig.held_by(2, rust),
-            "{status:?}\n{}",
-            rig.logs()
-        );
-        late.push(r1);
+    for caller in &callers {
+        let status = rig.must_exit(*caller, "an r1 caller's worker exits");
+        assert!(status.success(), "{status:?}");
     }
-    late.extend([python, rust]);
-    rig.finish(&late);
+    callers.extend([python, rust]);
+    rig.finish(&callers);
 }
 
 /// Python test_a_rust_hooks_marker_alone_gets_the_r2_worker_of_a_release_install,
