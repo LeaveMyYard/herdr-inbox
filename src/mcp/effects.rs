@@ -3,8 +3,11 @@
 //! call, one at a time on a background thread, so herdr never holds up a
 //! tool; what is queued when the server exits still runs, for at most
 //! [`DRAIN`] (Python `atexit.register(service.drain, 1.0)`). A failure is
-//! logged by nobody and never reaches the agent: these are cosmetic.
+//! warned about on stderr and never stops the queue (a panic included) nor
+//! reaches the agent: these are cosmetic.
 
+use std::io::Write;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -36,10 +39,14 @@ impl Effects {
         let (done_tx, done_rx) = channel();
         thread::spawn(move || {
             for e in rx {
-                match e {
+                // one bad job never stops the queue (Python's loop catches every exception)
+                let run = AssertUnwindSafe(|| match e {
                     Effect::Notify { title, body } => herald.notify(&title, &body),
                     Effect::Markers(Some(pane)) => herald.markers(&pane),
                     Effect::Markers(None) => {}
+                });
+                if catch_unwind(run).is_err() {
+                    let _ = writeln!(std::io::stderr(), "herdr-inbox: a background effect failed");
                 }
             }
             let _ = done_tx.send(());
