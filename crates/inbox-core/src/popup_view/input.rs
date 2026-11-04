@@ -1,8 +1,9 @@
-//! Textual's `Input` with the focus, as the popup's note and "Type
-//! something." boxes show it: a tall frame in `$border`, two cells of
-//! padding, the text with a block cursor (a placeholder when empty; all of
-//! it selected when the box opened on it), the window scrolled to keep the
-//! cursor in it.
+//! Textual's `Input`, as the popup's note and "Type something." boxes show
+//! it: a tall frame, two cells of padding, the text, the window scrolled to
+//! keep the cursor in it. With the focus the frame is `$border` and the
+//! text has a block cursor (a placeholder when empty; all of it selected
+//! when the box opened on it); after Tab moved the focus away the box stays
+//! open, blurred: `$border-blurred`, `$surface`, no cursor.
 
 use super::text::{Line, Ln, Look, char_width};
 use super::theme::Theme;
@@ -19,48 +20,78 @@ pub(crate) struct Field<'a> {
     pub placeholder: &'a str,
     /// All of the text is selected (a box opened on existing text).
     pub selected: bool,
+    /// The box has the keys (the model's `box_focused`).
+    pub focused: bool,
+}
+
+/// The colours of a focused or a blurred box.
+struct Skin {
+    border: Rgb,
+    fill: Rgb,
+    disabled: Rgb,
+}
+
+impl Skin {
+    fn of(focused: bool, t: &Theme) -> Skin {
+        match focused {
+            true => Skin {
+                border: t.border,
+                fill: t.input,
+                disabled: t.disabled,
+            },
+            false => Skin {
+                border: t.border_blurred,
+                fill: t.input_blurred,
+                disabled: t.disabled_blurred,
+            },
+        }
+    }
 }
 
 /// The box's three rows, `width` cells wide, on a screen filled `outer`.
 pub(crate) fn rows(field: &Field, width: u16, outer: Rgb, theme: &Theme) -> Vec<Line> {
+    let skin = Skin::of(field.focused, theme);
     let inner = usize::from(width.saturating_sub(2));
+    let left = Look::fg(outer).on_bg(skin.border);
+    let right = Look::fg(skin.border).on_bg(outer);
     let edge = |mid: &str| {
+        let rule = Look::fg(skin.border).on_bg(skin.fill);
         Ln::new()
-            .on(Look::fg(outer).on_bg(theme.border), "▊")
-            .on(
-                Look::fg(theme.border).on_bg(theme.input),
-                &mid.repeat(inner),
-            )
-            .on(Look::fg(theme.border).on_bg(outer), "▎")
+            .on(left, "▊")
+            .on(rule, &mid.repeat(inner))
+            .on(right, "▎")
             .done()
     };
     let content = usize::from(width.saturating_sub(CHROME));
     let middle = Ln::new()
-        .on(Look::fg(outer).on_bg(theme.border), "▊")
-        .on(Look::pad(theme.input), "  ")
-        .push(text(field, content, theme))
-        .on(Look::pad(theme.input), "  ")
-        .on(Look::fg(theme.border).on_bg(outer), "▎");
+        .on(left, "▊")
+        .on(Look::pad(skin.fill), "  ")
+        .push(text(field, content, &skin, theme))
+        .on(Look::pad(skin.fill), "  ")
+        .on(right, "▎");
     vec![edge("▔"), middle.done(), edge("▁")]
 }
 
 /// The text row, `width` cells.
-fn text(field: &Field, width: usize, theme: &Theme) -> Ln {
-    let cursor = Look::fg(theme.background).on_bg(theme.foreground);
-    let plain = Look::fg(theme.foreground).on_bg(theme.input);
-    let text = if field.selected {
-        plain.on_bg(theme.selection)
-    } else {
-        plain
+fn text(field: &Field, width: usize, skin: &Skin, theme: &Theme) -> Ln {
+    let plain = Look::fg(theme.foreground).on_bg(skin.fill);
+    let cursor = match field.focused {
+        true => Look::fg(theme.background).on_bg(theme.foreground),
+        false => plain,
+    };
+    let text = match field.selected && field.focused {
+        true => plain.on_bg(theme.selection),
+        false => plain,
     };
     if field.value.is_empty() {
         let mut chars = field.placeholder.chars();
         let first = chars.next().map_or(" ".to_string(), String::from);
         let rest: String = chars.collect();
         let used = super::text::width(&first) + super::text::width(&rest);
+        let hint = Look::fg(skin.disabled).on_bg(skin.fill);
         let shown = Ln::new()
-            .on(cursor, &first)
-            .on(Look::fg(theme.disabled).on_bg(theme.input), &rest);
+            .on(if field.focused { cursor } else { hint }, &first)
+            .on(hint, &rest);
         return shown.on(plain, &" ".repeat(width.saturating_sub(used)));
     }
     let mut chars: Vec<char> = field.value.chars().collect();

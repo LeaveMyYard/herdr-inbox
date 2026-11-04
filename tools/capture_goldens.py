@@ -348,7 +348,7 @@ async def popup_screens(shots: Shots, work: Path) -> None:
 async def extra_screens(shots: Shots, work: Path) -> None:
     """The views the scenarios above do not reach (the Rust renderer's goldens, P6-B): pending and
     gone-agent answers in the list and opened, a group dismissed from the list, a note, its box
-    reopened (the text selected), an empty note box, a typed answer, a tab closed under the operator, a long list that scrolls, a
+    reopened (the text selected), a box blurred by Tab, an empty note box, a typed answer, a tab closed under the operator, a long list that scrolls, a
     blocked alert."""
     from herdr_inbox import service
     from herdr_inbox.store import AGENT_GONE, PENDING
@@ -421,6 +421,17 @@ async def extra_screens(shots: Shots, work: Path) -> None:
         await shots.add(file, src, size, "a long list, scrolled", app, pilot)
         await pilot.press(*["up"] * 20, "enter")
         await shots.add(file, src, size, "blocked alert opened", app, pilot)
+    store.close()
+
+    store = fresh_store(work, "blur")  # Tab out of an open box: it stays, blurred, and no longer has the keys
+    populate(store)
+    hold(store)
+    app = InboxApp(store, focus_pane="w1:p1")
+    async with app.run_test(size=size) as pilot:
+        await pilot.press("tab", "tab", "enter", "n", *"abc", "tab")
+        await shots.add(file, src, size, "a note box blurred by Tab", app, pilot)
+        await pilot.press("4", "enter", *"xyz", "tab")
+        await shots.add(file, src, size, "a typed box blurred, the note box gone", app, pilot)
     store.close()
 
     store = fresh_store(work, "longer")  # the window follows the cursor key by key, the least distance

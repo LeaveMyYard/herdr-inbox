@@ -80,11 +80,7 @@ pub(crate) fn draw(
         gutter: 0,
         theme: t,
     };
-    if !q
-        .options
-        .iter()
-        .any(|o| o.preview.as_deref().is_some_and(|p| !p.is_empty()))
-    {
+    if !q.has_preview() {
         return scroll::draw(buf, stack.rest((0, 0)), &items, &visible, offset, &frame);
     }
     let split = stack.rest((0, 1));
@@ -182,12 +178,14 @@ fn items(q: &Question, v: &QuestionView, ctx: &Ctx) -> (Vec<Item>, Vec<usize>) {
         };
         if let Some((b, placeholder)) = boxed {
             let (value, at, selected, theme) = (b.value(), b.cursor(), b.selected(), ctx.theme);
+            let focused = v.box_focused;
             let rows = move |w: u16| {
                 let field = Field {
                     value: &value,
                     cursor: at,
                     placeholder,
                     selected,
+                    focused,
                 };
                 input::rows(&field, w, theme.background, &theme)
             };

@@ -60,7 +60,7 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
         }
     }
     assert_eq!(
-        compared, 40,
+        compared, 42,
         "every golden screen but the empty one is compared"
     );
     assert!(

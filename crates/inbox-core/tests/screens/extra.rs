@@ -96,6 +96,16 @@ pub fn screens(out: &mut Shots) {
     p.press(&keys);
     shot("blocked alert opened", &mut p);
 
+    let mut p = Pilot::open(snapshot(populate(), vec![], vec![]), size);
+    p.press(&["tab", "tab", "enter", "n"]);
+    p.type_text("abc");
+    p.press(&["tab"]);
+    shot("a note box blurred by Tab", &mut p);
+    p.press(&["4", "enter"]);
+    p.type_text("xyz");
+    p.press(&["tab"]);
+    shot("a typed box blurred, the note box gone", &mut p);
+
     let qs = (0..30)
         .map(|i| {
             question(
