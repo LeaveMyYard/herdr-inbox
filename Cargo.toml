@@ -92,6 +92,13 @@ rustix.workspace = true
 rmcp = { version = "=3.5.1", default-features = false, features = ["server", "transport-io"] }
 # rmcp's runtime: the server runs one current_thread runtime; the tools run on its blocking pool.
 tokio = { version = "1", features = ["rt"] }
+# The popup's terminal (`herdr-inbox tui`, plan §2.6 D5: ratatui 0.30 over crossterm 0.29, as
+# herdr-panorama's): ratatui 0.30's own two halves, its core (the diffing `Terminal`; the
+# cells come from inbox-core's renderer) and its crossterm backend, without its widgets.
+ratatui-core.workspace = true
+ratatui-crossterm = "0.1"
+# A toast folds its text by cell width, as ratatui counts it.
+unicode-width.workspace = true
 
 [dev-dependencies]
 # FakeHerdr for the watcher's tests
