@@ -35,6 +35,10 @@ pub struct World {
     pub wait: Duration,
     /// The pane has no agent; A runs in this pane now.
     pub elsewhere: Option<&'static str>,
+    /// What `pane.read` shows (default: an empty input box).
+    pub screen: &'static str,
+    /// The sessions table is lost when the first prompt reaches herdr.
+    pub lose_sessions_at_prompt: bool,
 }
 
 /// What a pass left: its result, herdr's requests, the verify-later jobs
@@ -45,6 +49,8 @@ pub struct Ran {
     pub stub: Stub,
     pub jobs: Vec<(Value, usize)>,
     pub at_prompt: Vec<Vec<Value>>,
+    /// The notifications shown.
+    pub notes: Vec<Value>,
 }
 
 impl Ran {
@@ -108,6 +114,8 @@ impl World {
             },
             wait: Duration::from_millis(300),
             elsewhere: None,
+            screen: EMPTY,
+            lose_sessions_at_prompt: false,
         }
     }
 
@@ -122,12 +130,14 @@ impl World {
         )
         .unwrap();
         let at_prompt = Arc::new(Mutex::new(Vec::new()));
-        let (spy, db, ids, status, elsewhere) = (
+        let (spy, db, ids, status, elsewhere, screen, lose) = (
             Arc::clone(&at_prompt),
             self.db.clone(),
             self.ids.clone(),
             self.status,
             self.elsewhere,
+            self.screen,
+            self.lose_sessions_at_prompt,
         );
         let stub = Stub::start(dir, move |method, _| {
             Ok(match method {
@@ -143,9 +153,13 @@ impl World {
                     json!({"agent": {"pane_id": "w1:p1", "agent": "claude", "agent_status": status,
                                                 "agent_session": {"kind": "id", "value": A}}})
                 }
-                "pane.read" => json!({"read": {"text": EMPTY}}),
+                "pane.read" => json!({"read": {"text": screen}}),
                 "agent.prompt" => {
                     spy.lock().unwrap().push(rows(&db, &ids));
+                    if lose {
+                        let _ =
+                            open(&db).execute_batch("ALTER TABLE sessions RENAME TO sessions_gone");
+                    }
                     json!({})
                 }
                 _ => json!({}),
@@ -160,7 +174,9 @@ impl World {
             .map(|id| store.get(*id).unwrap().unwrap())
             .collect();
         before(&store);
-        let (mut notify, mut unreadable) = (|_: &str, _: &str| {}, Unreadable::default());
+        let mut notes = Vec::new();
+        let mut notify = |title: &str, body: &str| notes.push(json!([title, body]));
+        let mut unreadable = Unreadable::after(Duration::ZERO);
         let mut ctx = Ctx {
             store: &store,
             herdr: &client,
@@ -193,6 +209,7 @@ impl World {
             stub,
             jobs,
             at_prompt,
+            notes,
         }
     }
 }

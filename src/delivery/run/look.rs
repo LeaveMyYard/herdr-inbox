@@ -2,7 +2,7 @@
 //! `deliver_batch`'s calls): each made when the decision asks, against the
 //! store, herdr and the transcripts. A database error is kept and handed
 //! back after the decision, and it halts the pass as Python's exception
-//! does: from then on nothing is claimed, moved, typed or written
+//! does: from then on nothing is claimed, moved, typed, notified or written
 //! ([`PaneLook::halted`]), and the lookups answer as if nothing were there,
 //! which can no longer reach a prompt or a store write.
 

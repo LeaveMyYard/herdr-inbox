@@ -231,3 +231,41 @@ fn a_message_is_waited_for_once_whatever_it_carries() {
         "waited per answer: {took:?}"
     );
 }
+
+/// #100 review round 2 M1: building a verify-later job reads its plans; when
+/// that fails after the prompt, no job goes out (Python raises before
+/// `verify_later`): a job without its plans would record the answer as never
+/// seen under the claim.
+#[test]
+fn a_job_whose_plans_fail_is_never_handed_over() {
+    let mut world = World::new(&["yes"]);
+    world.mode = Mode {
+        verify_later: true,
+        ..Mode::default()
+    };
+    world.lose_sessions_at_prompt = true;
+    let ran = world.pass(|_| {});
+    fails(&ran, "sessions");
+    assert_eq!(ran.prompts(), 1);
+    assert!(ran.jobs.is_empty(), "{:?}", ran.jobs);
+    assert_eq!(rows(&world.db, &world.ids), [json!([false, "<claim>"])]);
+}
+
+/// #100 review round 2 L1: a halted pass tells the operator nothing either
+/// (Python never reaches the input box): no "cannot read" notice, no "not sent".
+#[test]
+fn a_halted_pass_shows_no_notice() {
+    let mut world = World::new(&["yes", "eu"]);
+    world.mode.force = true;
+    world.screen = "plain output";
+    abort(
+        &world,
+        "UPDATE OF delivery_error",
+        world.ids[1],
+        "NEW.delivery_error LIKE 'sending:%'",
+    );
+    let ran = world.pass(|_| {});
+    fails(&ran, "disk on fire");
+    assert_eq!(ran.prompts(), 0);
+    assert!(ran.notes.is_empty(), "{:?}", ran.notes);
+}
