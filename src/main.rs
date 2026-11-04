@@ -2,7 +2,7 @@
 //! today's CLI names. So far: `hook <event>` (the Claude Code hooks), `mcp`
 //! (the MCP stdio server; nothing launches it before P5-I), `contract` (the
 //! launcher contract, `scripts/launch`) and the CLI's `list`, `answer`,
-//! `dismiss` and `open` ([`herdr_inbox::cli`]).
+//! `dismiss`, `open`, `sync-tokens` and `radar-sidebar` ([`herdr_inbox::cli`]).
 //!
 //! A hook never fails the session: a panic, a bad argument or any error
 //! exits 0 (the rewake watcher's wake code is the only other exit).

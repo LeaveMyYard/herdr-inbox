@@ -31,6 +31,7 @@ use crate::tabs::settings::PLUGIN_ID;
 pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let env = PluginEnv::from_env();
     let db_path = inbox::db_path(&env);
+    let herdr_config = crate::radar::config_path(&env);
     let state_dir = inbox::state_dir(&env);
     let herdr = Herdr::from_env();
     let files = Transcripts::from_env();
@@ -62,6 +63,7 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
         delivery: &mut delivery,
         herdr: &mut surface,
         config: &mut config,
+        herdr_config: &herdr_config,
         lock_wait: LOCK_TIMEOUT,
         now: SystemTime::now()
             .duration_since(UNIX_EPOCH)

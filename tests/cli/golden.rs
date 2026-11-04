@@ -19,11 +19,13 @@ use herdr_inbox::service::own::Me;
 use herdr_inbox::store::Store;
 use herdr_inbox::store::sessions::record_session;
 use herdr_inbox::surface::markers::Markers;
+use herdr_inbox::tabs::settings;
 use serde_json::{Value, json};
 
 use crate::common::migrated;
 use crate::deeplink;
 use crate::fakes::{Effects, FakeDelivery, FakeHerdr, World};
+use crate::radar;
 use crate::store_golden::{s, sql, tables};
 
 const GOLDEN: &str = include_str!("../fixtures/cli.json");
@@ -127,6 +129,7 @@ fn cli(
     };
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let state_dir = rig.dir.path().to_path_buf();
+    let herdr_config = rig.dir.path().join("herdr-config/config.toml");
     let code = {
         let mut io = Io {
             out: &mut out,
@@ -141,12 +144,15 @@ fn cli(
             delivery: &mut delivery,
             herdr: &mut herdr,
             config: &mut rig.config,
+            herdr_config: &herdr_config,
             lock_wait: Duration::from_secs(1),
             now: now(),
         };
         run(&argv[0], &argv[1..], &mut io)
     };
-    (code, String::from_utf8(out).unwrap(), rig.masked(&err))
+    let out = String::from_utf8(out).unwrap();
+    let out = out.replace(&rig.dir.path().display().to_string(), "<work>");
+    (code, out, rig.masked(&err))
 }
 
 fn submit_step(rig: &mut Rig, a: &Value, world: &Rc<RefCell<World>>, effects: &Effects) -> Value {
@@ -219,7 +225,21 @@ fn the_cli_does_what_pythons_did() {
                 let got = deeplink::step(&rig.db(), rig.dir.path(), a, &effects);
                 assert_eq!(got, step["result"], "{what}");
             }
-            "cli" => {
+            "radar_missing" => {
+                world.borrow_mut().radar_dir = radar::prepare(rig.dir.path(), a);
+                let hint = settings::read(&mut rig.config, &mut |_| {}).radar_hint;
+                let path = rig.dir.path().join("herdr-config/config.toml");
+                let mut herdr = FakeHerdr {
+                    world: Rc::clone(&world),
+                    effects: Rc::clone(&effects),
+                };
+                let got = herdr_inbox::radar::missing(&path, hint, &mut herdr, &mut |_| {});
+                assert_eq!(json!(got), step["result"], "{what}");
+            }
+            "radar" | "sync" | "cli" => {
+                if op == "radar" {
+                    world.borrow_mut().radar_dir = radar::prepare(rig.dir.path(), a);
+                }
                 let held = (a.get("popup_open") == Some(&json!(true)))
                     .then(|| hold_popup_lock(rig.dir.path()).unwrap());
                 let (code, out, err) = cli(&mut rig, a, &world, &effects);
@@ -233,6 +253,11 @@ fn the_cli_does_what_pythons_did() {
                 assert_eq!(code, step["code"].as_i64().unwrap() as i32, "{what}: code");
                 assert_eq!(out, step["stdout"].as_str().unwrap(), "{what}: stdout");
                 assert_eq!(err, step["stderr"].as_str().unwrap(), "{what}: stderr");
+                if op == "radar" {
+                    let (text, backup) = radar::left(rig.dir.path());
+                    assert_eq!(text, step["herdr_config"], "{what}: herdr's config");
+                    assert_eq!(json!(backup), step["backup"], "{what}: backup");
+                }
             }
             other => panic!("unknown op {other}"),
         }

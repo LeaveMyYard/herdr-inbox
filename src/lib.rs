@@ -17,6 +17,7 @@ pub mod hook;
 pub mod mcp;
 pub mod pyint;
 pub mod pyjson;
+pub mod radar;
 pub mod remote;
 pub mod rewake;
 pub mod service;
