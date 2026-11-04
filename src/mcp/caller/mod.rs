@@ -108,7 +108,11 @@ pub fn resolve(world: &dyn World, env: &Env) -> Result<Caller, Failure> {
         pane_id = Some(moved);
     }
     let ident = ident.unwrap_or_default();
-    let tab_label = ident.tab_id.as_deref().and_then(|t| world.tab_label(t));
+    let tab_label = ident
+        .tab_id
+        .as_deref()
+        .filter(|t| !t.is_empty()) // Python `if out["tab_id"]`
+        .and_then(|t| world.tab_label(t));
     let session_id = some(ident.session.as_deref())
         .or_else(|| some(env.session_id.as_deref()))
         .map(|s| world.live(&s, pane_id.as_deref()))
