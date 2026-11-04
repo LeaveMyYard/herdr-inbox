@@ -385,8 +385,8 @@ tests/test_delivery.py::test_no_live_agent_skips_prompt,tests/test_delivery.py,,
 tests/test_delivery.py::test_missing_herdr_binary_degrades,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_answering_twice_is_refused,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_token_counts_follow_state,tests/test_delivery.py,,todo,,
-tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_delivery.py,,todo,,
-tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,,todo,,
+tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,herdr-inbox --test cli live::answer_list_and_dismiss_through_the_binary,mapped,,P5
 tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,,todo,,
 tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,,todo,,
@@ -593,26 +593,26 @@ tests/test_race.py::test_new_question_mid_typing_keeps_the_text,tests/test_race.
 tests/test_race.py::test_go_to_agent_works_for_multi_select,tests/test_race.py,inbox-core --test popup_transitions race::go_to_agent_works_for_multi_select,mapped,,P6
 tests/test_race.py::test_failed_delivery_entry_retry_and_hide,tests/test_race.py,inbox-core --test popup_transitions race::failed_delivery_entry_retry_and_hide,mapped,,P6
 tests/test_race.py::test_focus_pane_comes_from_the_plugin_context,tests/test_race.py,,todo,,
-tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-font],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-no-vendors],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[light-text],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_matches_the_operators_hand_patch,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_no_radar_no_block_or_invalid_toml_are_left_alone,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_never_crosses_herdrs_16_token_row_limit,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_steps_aside_once_radar_carries_the_token,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_a_concurrent_write_wins,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_missing_is_read_only,tests/test_radar.py,,todo,,
+tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-font],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-no-vendors],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[light-text],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_matches_the_operators_hand_patch,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::our_cell_follows_the_unknown_title_in_the_rows_blocked_red,mapped,,P5
+tests/test_radar.py::test_no_radar_no_block_or_invalid_toml_are_left_alone,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_never_crosses_herdrs_16_token_row_limit,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::every_cell_form_counts_toward_the_row_limit,mapped,,P5
+tests/test_radar.py::test_steps_aside_once_radar_carries_the_token,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_a_concurrent_write_wins,tests/test_radar.py,herdr-inbox --lib radar::tests::a_write_meanwhile_wins_and_herdr_reloads_only_what_was_written,mapped,,P5
+tests/test_radar.py::test_missing_is_read_only,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_radar.py::test_nothing_runs_it_automatically,tests/test_radar.py,,todo,,
 tests/test_radar.py::test_popup_shows_a_hint_and_edits_nothing,tests/test_radar.py,,todo,,
 tests/test_radar.py::test_popup_has_no_hint_without_radar,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_cli,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_every_cell_form_counts_toward_the_16_token_limit,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[lf],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[crlf],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_a_symlinked_config_is_edited_through_the_link,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_step_aside_needs_a_real_extra_tokens_entry_and_never_blocks_remove,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[array-of-tables],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[multiline-string],tests/test_radar.py,,todo,,
+tests/test_radar.py::test_cli,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_every_cell_form_counts_toward_the_16_token_limit,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::every_cell_form_counts_toward_the_row_limit,mapped,,P5
+tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[lf],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[crlf],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_a_symlinked_config_is_edited_through_the_link,tests/test_radar.py,herdr-inbox --lib radar::tests::the_config_is_written_through_a_symlink_with_a_backup,mapped,,P5
+tests/test_radar.py::test_step_aside_needs_a_real_extra_tokens_entry_and_never_blocks_remove,tests/test_radar.py,herdr-inbox --lib radar::tests::radar_carries_the_token_only_with_a_real_extra_tokens_entry,mapped,,P5
+tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[array-of-tables],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[multiline-string],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_real_timing.py::test_list_wrap_with_real_arming,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::list_wrap_with_real_arming,mapped,,P6
 tests/test_real_timing.py::test_list_row_that_just_arrived_is_not_selectable,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::list_row_that_just_arrived_is_not_selectable,mapped,,P6
 tests/test_real_timing.py::test_question_view_ignores_keys_until_armed,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::question_view_ignores_keys_until_armed,mapped,,P6
@@ -837,12 +837,12 @@ tests/test_tabs.py::test_no_rename_when_label_already_right,tests/test_tabs.py,h
 tests/test_tabs.py::test_operator_rename_meanwhile_is_adopted,tests/test_tabs.py,herdr-inbox --test cli tabs::operator_rename_meanwhile_is_adopted,mapped,,P5
 tests/test_tabs.py::test_question_stores_the_base_label,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_unnamed_tab_is_left_alone_by_default,tests/test_tabs.py,herdr-inbox --test cli tabs::unnamed_tab_is_left_alone_by_default,mapped,,P5
-tests/test_tabs.py::test_prefix_configurable_and_disableable,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_prefix_configurable_and_disableable,tests/test_tabs.py,herdr-inbox --test cli tabs::a_disabled_prefix_does_no_tab_work,mapped,,P5
 tests/test_tabs.py::test_changing_marks_never_stacks_prefixes,tests/test_tabs.py,herdr-inbox --test cli tabs::changing_marks_never_stacks_prefixes,mapped,,P5
 tests/test_tabs.py::test_hung_herdr_never_blocks_the_database,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_concurrent_updates_never_leave_a_stale_count,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_reconcile_adds_missing_and_removes_stale,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_remove_prefixes_before_uninstall,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_reconcile_adds_missing_and_removes_stale,tests/test_tabs.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_tabs.py::test_remove_prefixes_before_uninstall,tests/test_tabs.py,herdr-inbox --lib surface::sync::tests::removing_prefixes_strips_a_custom_mark_once_per_pane_and_tab,mapped,,P5
 tests/test_tabs.py::test_custom_mark_never_touches_operator_labels,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_base_label_strips_only_our_marks,tests/test_tabs.py,herdr-inbox --lib tabs::tests::every_leading_mark_of_ours_goes,mapped,,P5
 tests/test_tui.py::test_tab_order_focused_pane_first_groups_adjacent,tests/test_tui.py,inbox-core --test popup_transitions tui::tab_order_focused_pane_first_groups_adjacent,mapped,,P6

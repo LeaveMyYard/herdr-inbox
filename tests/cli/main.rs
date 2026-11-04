@@ -10,6 +10,7 @@ mod golden;
 #[path = "../delivery/herdr_stub.rs"]
 mod herdr_stub;
 mod live;
+mod radar;
 #[path = "../store/golden.rs"]
 #[allow(dead_code)]
 mod store_golden;

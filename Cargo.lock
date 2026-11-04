@@ -337,6 +337,7 @@ version = "0.10.6"
 dependencies = [
  "herdr-agent-kit",
  "inbox-core",
+ "regex",
  "rmcp",
  "rusqlite",
  "rustix",
