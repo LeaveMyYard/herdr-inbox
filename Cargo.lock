@@ -339,6 +339,7 @@ dependencies = [
  "inbox-core",
  "rmcp",
  "rusqlite",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",
