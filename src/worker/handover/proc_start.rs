@@ -2,7 +2,12 @@
 //! later one that reused the pid (Python `worker_handover.start_time`).
 
 use std::fs;
+use std::io::Read;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+/// The longest `ps` may take.
+const PS_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// When process `pid` started, as an opaque token, `-` when it cannot be
 /// read: Linux `/proc/<pid>/stat` field 22, elsewhere the words of
@@ -21,16 +26,28 @@ fn proc_stat(pid: u32) -> Option<String> {
     rest.split_whitespace().nth(19).map(String::from)
 }
 
+/// `ps -o lstart=`, given at most [`PS_TIMEOUT`] (Python's `timeout=5`): a
+/// hung `ps` is killed (it is this process's own unreaped child) and reads
+/// as unknown.
 fn ps_lstart(pid: u32) -> Option<String> {
-    let out = Command::new("ps")
+    let mut child = Command::new("ps")
         .args(["-o", "lstart=", "-p", &pid.to_string()])
         .stdin(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()
+        .spawn()
         .ok()?;
-    let words: Vec<&str> = std::str::from_utf8(&out.stdout)
-        .ok()?
-        .split_whitespace()
-        .collect();
+    let deadline = Instant::now() + PS_TIMEOUT;
+    while child.try_wait().ok()?.is_none() {
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let mut out = String::new();
+    child.stdout.take()?.read_to_string(&mut out).ok()?;
+    let words: Vec<&str> = out.split_whitespace().collect();
     (!words.is_empty()).then(|| words.join("_"))
 }

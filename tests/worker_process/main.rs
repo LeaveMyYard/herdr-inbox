@@ -54,6 +54,10 @@ const CASES: &[Case] = &[
         handover::a_marker_reaches_the_listed_install_from_a_holder_herdr_does_not_list,
     ),
     (
+        "handover::a_marker_gets_an_r1_python_holder_an_r2_rust_standby",
+        handover::a_marker_gets_an_r1_python_holder_an_r2_rust_standby,
+    ),
+    (
         "exclusion::the_newer_worker_wins_the_lock_race_whatever_the_start_order",
         exclusion::the_newer_worker_wins_the_lock_race_whatever_the_start_order,
     ),
@@ -73,7 +77,11 @@ const CASES: &[Case] = &[
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("worker") {
+    // a worker only when the rig started it (E1_CHILD=1): `cargo test worker`
+    // also passes "worker", and must run tests, never a worker on the
+    // caller's HERDR_INBOX_DB and HERDR_SOCKET_PATH
+    let marked = std::env::var_os("E1_CHILD").is_some_and(|v| v == "1");
+    if marked && args.first().map(String::as_str) == Some("worker") {
         return child::main();
     }
     if args.iter().any(|a| a == "--list") {

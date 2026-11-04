@@ -143,6 +143,7 @@ impl Rig {
             ("E1_HERDR_LOG", d.join("herdr.log").into()),
             ("E1_UV_LOG", d.join("uv.log").into()),
             ("E1_LIFETIME", "90".into()),
+            ("E1_CHILD", "1".into()),
         ]
     }
 
@@ -173,9 +174,15 @@ impl Rig {
     /// `root`'s Python worker, as `ensure()` starts it (no `PYTHONPATH`; its
     /// `src` in argv).
     pub fn start_python(&mut self, name: &str, root: &Path) -> u32 {
+        self.start_python_with(name, root, &[])
+    }
+
+    /// [`Rig::start_python`] with more variables (which the workers it
+    /// starts inherit).
+    pub fn start_python_with(&mut self, name: &str, root: &Path, extra: &[(&str, &str)]) -> u32 {
         let mut cmd = Command::new(self.bin.join("python3"));
         cmd.args(python_worker_args(&root.join("src")));
-        self.start(name, cmd, root, &[])
+        self.start(name, cmd, root, extra)
     }
 
     /// A Rust worker of `revision` in `root`.

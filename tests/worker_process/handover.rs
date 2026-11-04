@@ -243,3 +243,28 @@ fn marker_case(holder_listed_first: bool) {
     assert!(rig.held_by(2, python) && is_python_worker(python));
     rig.finish(&[rust, python]);
 }
+
+/// Python `_spawn_newer` → `_rust_stands_by`: an r1 Python holder sees the
+/// marker, starts the listed install's Rust worker (r2 here), which stands
+/// by, and hands the lock over to it.
+pub fn a_marker_gets_an_r1_python_holder_an_r2_rust_standby() {
+    let mut rig = Rig::new();
+    let r1 = python_root(rig.dir.path(), "r1", "0.10.6", 1);
+    let r2 = python_root(rig.dir.path(), "r2", "0.10.6", 1);
+    with_rust_worker(&r2);
+    rig.list(&r1);
+    // the Rust worker the Python holder starts inherits its environment
+    let python = rig.start_python_with("python", &r1, &[("E1_REVISION", "2")]);
+    let ready = || rig.held_by(1, python) && rig.python_asked_for_its_root();
+    assert!(wait_for(ready), "{}", rig.logs());
+    rig.list(&r2);
+    want(&rig.db, 2, unix_now());
+    let status = rig.must_exit(python, "the r1 holder hands over and exits");
+    assert!(status.success(), "{status:?}\n{}", rig.logs());
+    assert!(wait_for(|| rig.ticked().len() == 1), "{}", rig.logs());
+    let rust = rig.ticked()[0];
+    assert!(rig.held_by(2, rust), "{:?}", rig.holder());
+    assert_eq!(rig.tick_root(rust), Some(r2), "the listed install's worker");
+    assert!(rig.uv_roots().is_empty());
+    rig.finish(&[python, rust]);
+}
