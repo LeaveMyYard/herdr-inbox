@@ -161,7 +161,7 @@ async def test_no_request_keeps_the_normal_start(store, fake_herdr):
 @pytest.mark.parametrize("args,expected", [
     (["--question", "Q12"], {"kind": "question", "value": "12"}),
     (["--group", "5"], {"kind": "group", "value": "5"}),
-    (["--pane", "w6:p3A"], {"kind": "pane", "value": "w6:p3A"}),
+    (["--pane", "w9:p5"], {"kind": "pane", "value": "w9:p5"}),
     (["--session", "f3740b1a-0000-4000-8000-000000000001"], {"kind": "session", "value": "f3740b1a-0000-4000-8000-000000000001"}),
 ])
 def test_open_command_writes_the_request_then_opens_the_popup(fake_herdr, args, expected):

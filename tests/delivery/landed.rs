@@ -45,7 +45,7 @@ fn a_landing_in_the_old_transcript_before_the_continuation_is_found() {
 
 #[test]
 fn a_landing_in_an_ancestor_is_never_a_delivery() {
-    // live 2026-10-17 (synthetic_100-synthetic_98): NEW asked, the text landed in OLD, which continued into NEW
+    // live 2026-10-17 (Q9001-Q9006): NEW asked, the text landed in OLD, which continued into NEW
     let dir = tempfile::tempdir().unwrap();
     let db = open(&migrated(dir.path()));
     let p = Projects::new(dir.path());
@@ -53,7 +53,7 @@ fn a_landing_in_an_ancestor_is_never_a_delivery() {
     p.write(
         OLD,
         &[
-            continued_in(OLD, NEW, Some("2026-10-16T11:22:22Z")),
+            continued_in(OLD, NEW, Some("2026-10-16T10:00:00Z")),
             user(OLD, "2026-10-17T10:00:01Z", &typed(&q, 0)),
         ],
     );
@@ -78,7 +78,7 @@ fn a_landing_in_a_forward_continuation_counts_per_question() {
     p.write(
         OLD,
         &[
-            continued_in(OLD, NEW, Some("2026-10-16T11:22:22Z")),
+            continued_in(OLD, NEW, Some("2026-10-16T10:00:00Z")),
             user(OLD, "2026-10-17T08:00:00Z", "resumed"),
         ],
     );

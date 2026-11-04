@@ -6,8 +6,8 @@ use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 use super::*;
 use crate::store::sessions::record_session;
 
-const OLD: &str = "synthetic_91-0000-4000-8000-000000000001";
-const NEW: &str = "synthetic_92-0000-4000-8000-000000000002";
+const OLD: &str = "00000003-0000-4000-8000-0000000000b1";
+const NEW: &str = "00000004-0000-4000-8000-0000000000b2";
 
 struct World {
     dir: tempfile::TempDir,
@@ -26,7 +26,7 @@ fn world() -> World {
         format!(
             "{{\"type\": \"user\", \"message\": {{\"role\": \"user\", \"content\": \"before\"}}}}\n\
              {{\"type\": \"continued-in\", \"sessionId\": \"{OLD}\", \"continuedInSessionId\": \"{NEW}\", \
-             \"timestamp\": \"2026-10-16T11:22:22Z\"}}\n"
+             \"timestamp\": \"2026-10-16T10:00:00Z\"}}\n"
         ),
     )
     .unwrap();
