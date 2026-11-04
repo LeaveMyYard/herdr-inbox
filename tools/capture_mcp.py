@@ -139,6 +139,9 @@ HERDR_SESSIONS = {
         call(17, "check_answers", {}),
         call(18, "check_answers", {}),
         call(19, "list_my_questions", {"include_closed": True}),
+        # a last marker refresh after the operator's actions: the markers' end state does not
+        # depend on whether an earlier refresh ran before or after an action
+        call(20, "ask_operator", {"question": "Question Title 9001?"}),
     ]),
     # herdr cannot be asked at all
     "herdr-down": ({"FAKE_HERDR_FAIL": "pane get,tab get,agent list,notification show,pane report-metadata,pane list",
