@@ -85,7 +85,8 @@ impl Handoff for LiveHandoff {
             ..Mode::default()
         };
         // TODO(P5-E2): a detached `verify` takes the job; until then the worker's
-        // stale-claim takeover checks the transcript (Python's fallback)
+        // stale-claim takeover checks the transcript (Python's fallback). Live code
+        // behind herdr: no test covers passing `Some` here.
         let mut later = |_job: serde_json::Value| {
             super::log("typed into the operator's pane; the worker checks the transcript");
         };
