@@ -5,6 +5,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
+use crate::herdr_cli::CliStub;
+
 /// The repository (the scripts under test).
 pub fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -73,6 +75,7 @@ impl Root {
             self.dir.path().join("tools").display(),
             std::env::var("PATH").unwrap_or_default()
         );
+        let cli = CliStub::new(&self.dir.path().join("herdr-cli"));
         let mut cmd = Command::new("sh");
         cmd.arg(self.root().join("scripts").join(script))
             .args(args)
@@ -83,6 +86,7 @@ impl Root {
             .env("HOME", self.dir.path())
             .env("CLAUDE_PLUGIN_DATA", self.dir.path().join("data"))
             .env("XDG_STATE_HOME", self.dir.path().join("state"))
+            .env("HERDR_BIN_PATH", &cli.bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -97,7 +101,10 @@ impl Root {
             .unwrap()
             .write_all(stdin.as_bytes())
             .unwrap();
-        child.wait_with_output().unwrap()
+        let out = child.wait_with_output().unwrap();
+        // the scripts and their stand-ins never run herdr
+        cli.assert_only(&[]);
+        out
     }
 }
 

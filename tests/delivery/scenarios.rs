@@ -207,7 +207,7 @@ fn run(sc: &Value) -> Value {
     let stub = Stub::start(dir.path(), move |method, params| {
         answer(&scenario, land.as_deref(), method, params)
     });
-    let client = Herdr::new(ServerId::new(&stub.socket));
+    let client = Herdr::new(ServerId::new(&stub.socket)).with_bin("/nonexistent/herdr-cli");
     let files = Transcripts::new(Some(ProjectsRoot::new(projects.clone())));
     let (mut notes, mut jobs) = (Vec::<Value>::new(), Vec::<Value>::new());
     {

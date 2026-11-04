@@ -72,7 +72,7 @@ impl World {
         )
         .unwrap();
         let fake = Fake::start(dir.path(), projects.clone());
-        let herdr = Herdr::new(ServerId::new(&fake.stub.socket));
+        let herdr = Herdr::new(ServerId::new(&fake.stub.socket)).with_bin("/nonexistent/herdr-cli");
         let server = fake.stub.socket.to_string_lossy().into_owned();
         World {
             store: Store::open(&db, Duration::from_secs(5)).unwrap(),
