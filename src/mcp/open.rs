@@ -30,23 +30,3 @@ pub fn open(path: &Path) -> Result<Store, Failure> {
         OpenError::Sqlite(e) => failure(e),
     })
 }
-
-/// Python `tabs.marks_for`: the default mark, plus every mark the inbox
-/// applied to `tab` (`tab_decor`), the empty one left out.
-pub fn marks_for(store: &Store, tab: Option<&str>) -> rusqlite::Result<Vec<String>> {
-    let mut marks = vec![crate::tabs::DEFAULT_PREFIX.to_owned()];
-    if let Some(tab) = tab.filter(|t| !t.is_empty()) {
-        let mut stmt = store
-            .db()
-            .prepare("SELECT mark FROM tab_decor WHERE tab_id = ?")?;
-        for mark in stmt.query_map([tab], |r| r.get::<_, Option<String>>(0))? {
-            if let Some(m) = mark?
-                && !m.is_empty()
-                && !marks.contains(&m)
-            {
-                marks.push(m);
-            }
-        }
-    }
-    Ok(marks)
-}
