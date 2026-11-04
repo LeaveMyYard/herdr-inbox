@@ -7,5 +7,6 @@ mod fetch;
 mod install;
 mod manifest;
 mod pick;
+mod prune;
 mod release;
 mod world;
