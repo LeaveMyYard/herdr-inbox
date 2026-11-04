@@ -227,17 +227,26 @@ fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
     open(&rig.db)
         .execute_batch(
             "UPDATE questions SET status = 'answered', answer = 'yes', \
-             answered_at = strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now') WHERE id = 1",
+             answered_at = strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now') WHERE id IN (1, 2)",
         )
         .unwrap();
+    // the operator is elsewhere: the worker's retry types it
+    let out = rig.run(&["deliver", "2"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        1,
+        "typed in retry mode"
+    );
     rig.focused.store(true, Ordering::SeqCst);
     let out = rig.run(&["deliver", "1"]);
     assert_eq!(
         (out.status.code(), text(&out.stdout)),
         (Some(0), String::new())
     );
-    assert!(
-        rig.stub.params_of("agent.prompt").is_empty(),
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        1,
         "the operator is in that pane"
     );
     let error: Option<String> = open(&rig.db)
@@ -252,7 +261,7 @@ fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert_eq!(
         rig.stub.params_of("agent.prompt").len(),
-        1,
+        2,
         "Send now types it"
     );
     let verified: Option<String> = open(&rig.db)
@@ -266,7 +275,7 @@ fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
     rig.run(&["deliver", "1"]);
     assert_eq!(
         rig.stub.params_of("agent.prompt").len(),
-        1,
+        2,
         "delivered: never again"
     );
 }

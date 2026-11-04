@@ -1,6 +1,6 @@
 //! The `inbox` command line (Python `cli.main`): so far `list`, `answer`,
-//! `dismiss`, `deliver`, `open`, `sync-tokens` and `radar-sidebar`. Output, exit codes and usage errors are Python's, word for
-//! word (the CLI golden, `tests/fixtures/cli.json`).
+//! `dismiss`, `deliver`, `open`, `sync-tokens` and `radar-sidebar`.
+//! Output, exit codes and usage errors are Python's, word for word (the CLI golden, `tests/fixtures/cli.json`).
 //!
 //! - [`args`]: argparse's parsing, help and usage errors.
 //! - [`specs`]: the subcommands' arguments and help.
