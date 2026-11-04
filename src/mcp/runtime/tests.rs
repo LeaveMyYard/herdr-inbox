@@ -86,13 +86,32 @@ fn a_database_not_migrated_yet_gets_the_unavailable_receipt_and_asks_for_the_wor
     let before = STARTS.load(Ordering::SeqCst);
     // no file at all: the worker creates and migrates it
     let rt = runtime(dir.path().join("inbox.db"), Arc::default());
-    assert_eq!(rt.call(ask("Too early?")), Ok(receipts::not_migrated()));
-    assert_eq!(rt.call(Call::CheckAnswers), Ok(receipts::not_migrated()));
+    let all = [
+        ask("Too early?"),
+        Call::CheckAnswers,
+        Call::ListMyQuestions {
+            include_closed: false,
+        },
+        Call::WithdrawQuestion {
+            id: 1,
+            reason: "x".into(),
+        },
+        Call::AlertOperator {
+            title: "Look".into(),
+            message: None,
+            severity: "warning".into(),
+            asked_by: None,
+        },
+        Call::WithdrawAlert { id: 1 },
+    ];
+    for call in all {
+        assert_eq!(rt.call(call), Ok(receipts::not_migrated()));
+    }
     // an empty database: not migrated either, and nothing is written to it
     std::fs::write(dir.path().join("empty.db"), b"").unwrap();
     let rt = runtime(dir.path().join("empty.db"), Arc::default());
     assert_eq!(rt.call(ask("Too early?")), Ok(receipts::not_migrated()));
-    assert_eq!(STARTS.load(Ordering::SeqCst) - before, 3 * 6); // every attempt of every call (#50)
+    assert_eq!(STARTS.load(Ordering::SeqCst) - before, 7 * 6); // every attempt of every call (#50)
     assert!(!dir.path().join("inbox.db").exists());
     assert_eq!(
         std::fs::metadata(dir.path().join("empty.db"))
@@ -154,15 +173,55 @@ fn a_refused_ask_never_opens_the_store() {
 }
 
 #[test]
-fn the_other_tools_are_not_ported_yet() {
+fn a_pre_bridge_stamp_with_the_whole_schema_works_and_is_never_restamped() {
     let dir = tempfile::tempdir().unwrap();
-    let rt = runtime(dir.path().join("inbox.db"), Arc::default());
-    assert!(
-        rt.call(Call::ListMyQuestions {
-            include_closed: false
-        })
-        .is_err()
+    let db = dir.path().join("inbox.db");
+    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
+    // an older Python MCP server re-stamped its crc32 (tests/fixtures/migrate.json `current_pre_bridge`)
+    let fixture: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/migrate.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let stamp = fixture["current_pre_bridge"].as_i64().unwrap();
+    let conn = rusqlite::Connection::open(&db).unwrap();
+    conn.pragma_update(None, "user_version", stamp).unwrap();
+    let schema = |c: &rusqlite::Connection| -> Vec<String> {
+        let mut st = c
+            .prepare("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name")
+            .unwrap();
+        st.query_map([], |r| r.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    let before = schema(&conn);
+    let rt = runtime(db.clone(), Arc::default());
+    assert_eq!(
+        rt.call(ask("Stale stamp?")).unwrap()["status"],
+        json!("open")
     );
+    let alert = Call::AlertOperator {
+        title: "Look".into(),
+        message: None,
+        severity: "warning".into(),
+        asked_by: None,
+    };
+    assert_eq!(rt.call(alert).unwrap()["status"], json!("open"));
+    let listed = rt
+        .call(Call::ListMyQuestions {
+            include_closed: false,
+        })
+        .unwrap();
+    assert_eq!(listed["questions"][0]["question"], json!("Stale stamp?"));
+    let now: i64 = conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(now, stamp);
+    assert_eq!(schema(&conn), before);
 }
 
 /// One pane whose agent's session can change between calls (`/clear`).

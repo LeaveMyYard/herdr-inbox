@@ -10,13 +10,13 @@
 //! - [`server`]: the rmcp adapter; nothing else sees rmcp.
 //!
 //! - [`caller`]: who is asking, per call.
-//! - [`answers`]: the `check_answers` tool.
+//! - [`answers`]: the `check_answers` tool; [`mine`]: `list_my_questions`
+//!   and `withdraw_question`; [`alerting`]: `alert_operator` and `withdraw_alert`.
 //! - [`runtime`](mod@runtime): the bodies as the server runs them; [`effects`] and
 //!   [`herald`]: what a call does to herdr afterwards, off the call.
 //!
-//! The tools' bodies run behind [`Tools`] ([`runtime::Runtime`]). Ported so
-//! far: `ask_operator` and `check_answers`; the other four follow in P5-F3.
-//! Until the switch (P5-I) nothing runs this server.
+//! The tools' bodies run behind [`Tools`] ([`runtime::Runtime`]). Until the
+//! switch (P5-I) nothing runs this server.
 //!
 //! Stated deviations from the Python server:
 //! - a call the schema refuses lists every refused field and reason as
@@ -30,12 +30,14 @@
 //!   `_meta.io.modelcontextprotocol/serverInfo` (discovery carries it). JSON-RPC
 //!   edges no client sends are answered as rmcp answers them.
 
+pub mod alerting;
 pub mod answers;
 pub mod args;
 pub mod ask;
 pub mod caller;
 pub mod effects;
 pub mod herald;
+pub mod mine;
 pub mod open;
 pub mod receipts;
 pub mod retry;
@@ -47,9 +49,11 @@ use std::sync::Arc;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 use herdr_agent_kit::plugin_env::PluginEnv;
+use herdr_agent_kit::plugin_env::config::ConfigFile;
 use serde_json::Value;
 
 use crate::claude::Transcripts;
+use crate::tabs::settings::PLUGIN_ID;
 use args::Call;
 
 /// The tools' bodies: one call, its arguments already checked. Blocking.
@@ -65,7 +69,9 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
     use herdr_agent_kit::internal::plugin_paths::inbox;
 
     let herdr = || Herdr::from_env();
-    let effects = effects::Effects::start(Arc::new(herald::Live { herdr: herdr() }));
+    let config = ConfigFile::resolve(env, || herdr().plugin_config_dir(PLUGIN_ID).ok().flatten());
+    let herald = herald::Live::new(herdr(), inbox::db_path(env), config);
+    let effects = effects::Effects::start(Arc::new(herald));
     runtime::Runtime {
         env: caller::Env {
             pane_id: env.pane_id().map(str::to_owned),
@@ -86,7 +92,9 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
         server: inbox::server_id(env).to_string_lossy().into_owned(),
         backoff: retry::Backoff::default(),
         effects: Arc::new(effects),
-        // the delivery worker's start (Python `worker.ensure`) is P5-E1's (#106): wired with it
+        // the delivery worker's start (Python `worker.ensure`, ported as `worker::spawn::ensure`)
+        // spawns `herdr-inbox worker`, which this binary has no subcommand for until P5-E2/I:
+        // wired with it, as the CLI's `ensure_worker`
         ensure_worker: Box::new(|| {}),
         sleep: std::thread::sleep,
     }

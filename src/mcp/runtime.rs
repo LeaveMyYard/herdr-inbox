@@ -2,8 +2,9 @@
 //! [`busy_safe`], its store opened as a tool's, its caller resolved per call,
 //! its herdr side effects queued ([`Effects`]).
 //!
-//! Ported so far: `ask_operator` and `check_answers`. The other four answer
-//! "not ported yet" until P5-F3.
+//! The order of the store open and the caller's resolution is Python's:
+//! `ask_operator`, `alert_operator` and `withdraw_alert` open the store first;
+//! `check_answers`, `list_my_questions` and `withdraw_question` resolve first.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,14 +13,18 @@ use std::time::Duration;
 use serde_json::Value;
 
 use super::Tools;
+use super::alerting::{self, Raise};
 use super::answers::check_answers;
 use super::args::{Ask, Call};
 use super::ask::{checks, file};
-use super::caller::{self, Env, World};
+use super::caller::{self, Caller, Env, World};
 use super::effects::Effects;
+use super::mine;
 use super::open::{failure, open};
 use super::retry::{Backoff, Failure, busy_safe};
 use crate::claude::Transcripts;
+use crate::store::Store;
+use crate::store::alerts::Effect;
 
 /// Everything a call needs.
 pub struct Runtime {
@@ -49,17 +54,20 @@ impl Runtime {
             Ok(items) => items,
             Err(receipt) => return Ok(receipt),
         };
-        let store = open(&self.db)?; // Python opens the store before it resolves the caller
-        let caller = caller::resolve(&*self.world, &self.env)?;
+        let (store, caller) = self.store_then_caller()?;
         let call = file::Call {
             items: &items,
             context: a.context.as_deref(),
             asked_by: a.asked_by.as_deref(),
             title: a.title.as_deref(),
         };
-        let (receipt, effects) =
-            file::ask_group(&store, &caller, &call, &self.server, &self.files).map_err(failure)?;
-        self.effects.later(effects);
+        let receipt = self.with_effects(file::ask_group(
+            &store,
+            &caller,
+            &call,
+            &self.server,
+            &self.files,
+        ))?;
         // `question` gets its one receipt; `questions` the group's
         Ok(if a.questions.as_ref().is_some_and(|q| !q.is_empty()) {
             receipt
@@ -68,20 +76,73 @@ impl Runtime {
         })
     }
 
-    fn check(&self) -> Result<Value, Failure> {
-        let caller = caller::resolve(&*self.world, &self.env)?; // Python resolves first here
+    /// The store, then the caller (Python `with tool_store() as store: ...(resolve_caller())`).
+    fn store_then_caller(&self) -> Result<(Store, Caller), Failure> {
         let store = open(&self.db)?;
-        check_answers(&store, &caller, &self.files).map_err(failure)
+        Ok((store, caller::resolve(&*self.world, &self.env)?))
+    }
+
+    /// The caller, then the store (Python `caller = resolve_caller(); with tool_store()`).
+    fn caller_then_store(&self) -> Result<(Store, Caller), Failure> {
+        let caller = caller::resolve(&*self.world, &self.env)?;
+        Ok((open(&self.db)?, caller))
+    }
+
+    /// A body's receipt, its effects queued.
+    fn with_effects(&self, done: rusqlite::Result<(Value, Vec<Effect>)>) -> Result<Value, Failure> {
+        let (receipt, effects) = done.map_err(failure)?;
+        self.effects.later(effects);
+        Ok(receipt)
+    }
+
+    fn run(&self, call: &Call) -> Result<Value, Failure> {
+        let files = &self.files;
+        match call {
+            Call::AskOperator(a) => self.ask(a),
+            Call::CheckAnswers => {
+                let (store, c) = self.caller_then_store()?;
+                check_answers(&store, &c, files).map_err(failure)
+            }
+            Call::ListMyQuestions { include_closed } => {
+                let (store, c) = self.caller_then_store()?;
+                mine::list_my_questions(&store, &c, *include_closed, files).map_err(failure)
+            }
+            Call::WithdrawQuestion { id, reason } => {
+                let (store, c) = self.caller_then_store()?;
+                self.with_effects(mine::withdraw_question(&store, &c, *id, reason, files))
+            }
+            Call::AlertOperator {
+                title,
+                message,
+                severity,
+                asked_by,
+            } => {
+                let (store, c) = self.store_then_caller()?;
+                let raise = Raise {
+                    title,
+                    message: message.as_deref(),
+                    severity,
+                    asked_by: asked_by.as_deref(),
+                };
+                self.with_effects(alerting::alert_operator(
+                    &store,
+                    &c,
+                    &raise,
+                    &self.server,
+                    files,
+                ))
+            }
+            Call::WithdrawAlert { id } => {
+                let (store, c) = self.store_then_caller()?;
+                self.with_effects(alerting::withdraw_alert(&store, &c, *id, files))
+            }
+        }
     }
 }
 
 impl Tools for Runtime {
     fn call(&self, call: Call) -> Result<Value, String> {
-        match &call {
-            Call::AskOperator(a) => self.safely(|| self.ask(a)),
-            Call::CheckAnswers => self.safely(|| self.check()),
-            _ => Err("not ported to the Rust server yet (P5-F)".into()),
-        }
+        self.safely(|| self.run(&call))
     }
 }
 
