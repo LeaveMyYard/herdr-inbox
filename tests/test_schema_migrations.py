@@ -376,3 +376,29 @@ def test_the_popup_migrates(fake_herdr):
     make_older_head(path)
     InboxApp().store.close()
     assert stamp_of(path) == revision_stamp() and "sending_at" in columns(path, "remote_outbox")
+
+
+def test_the_switch_to_wal_waits_out_a_writer_on_a_rollback_journal_database(tmp_path):
+    """The concurrent-open flake's root cause: on a fresh (rollback-journal) file the switch to
+    WAL asks for the write lock while holding a read lock, and SQLite says "database is locked"
+    at once instead of waiting out busy_timeout. _switch_to_wal retries until its deadline."""
+    import sqlite3
+    import threading
+    import time
+
+    path = tmp_path / "inbox.db"
+    sqlite3.connect(path).execute("CREATE TABLE t (x)").connection.close()
+    holder = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+    holder.execute("BEGIN IMMEDIATE")
+    db = sqlite3.connect(path, timeout=5.0, isolation_level=None)
+    started = time.monotonic()
+    try:
+        st._switch_to_wal(db, wait=0.0)
+        raise AssertionError("the switch got the lock a writer holds")
+    except sqlite3.OperationalError:
+        assert time.monotonic() - started < 2.5, "no busy handler ran"
+    release = threading.Timer(0.3, lambda: holder.execute("COMMIT"))
+    release.start()
+    st._switch_to_wal(db, wait=5.0)
+    release.join()
+    assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
