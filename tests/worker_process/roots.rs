@@ -63,7 +63,9 @@ pub fn python_root(dir: &Path, name: &str, version: &str, revision: i64) -> Path
         let text = text.replacen(rev.0, &rev.1, 1).replacen(cols.0, &cols.1, 1);
         fs::write(&store, text).unwrap();
     }
-    root
+    // as the OS names it: macOS's temporary directory is behind a symlink,
+    // and a worker's cwd is the resolved path
+    fs::canonicalize(root).unwrap()
 }
 
 /// `root/target/release/herdr-inbox`: this executable, which runs as a
