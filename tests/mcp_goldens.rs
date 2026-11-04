@@ -166,7 +166,8 @@ fn ask_operators_refusals_are_the_python_receipts() {
     let recs = golden("outside-herdr");
     let (got, _dir) = replay(&of(&recs, "client->server"));
     let want = of(&recs, "server->client");
-    for id in 2..=5 {
+    // 12-14: JSON text in a non-`str` argument is read as JSON first (FastMCP's pre-pass)
+    for id in (2..=5).chain(12..=14) {
         assert_eq!(
             by_id(&got, &json!(id)),
             by_id(&want, &json!(id)),
