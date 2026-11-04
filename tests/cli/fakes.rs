@@ -171,11 +171,17 @@ impl Delivery for FakeDelivery {
         self.effects.borrow_mut().push(json!(["ensure", server]));
     }
 
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()> {
         let ids: Vec<i64> = qs.iter().map(|q| q.id).collect();
         self.effects
             .borrow_mut()
-            .push(json!(["deliver", ids, false, false]));
+            .push(json!(["deliver", ids, retry, force]));
         let w = self.world.borrow();
         for q in qs {
             if w.delivered {
