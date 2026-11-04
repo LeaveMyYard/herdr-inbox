@@ -47,17 +47,21 @@ fn a_stored_detail_reads_as_its_picks_notes_and_text() {
 }
 
 #[test]
-fn a_draft_read_with_loss_goes_into_the_answer_as_stored() {
+fn a_draft_read_with_loss_is_never_answered() {
+    // Python: the lone surrogate reaches SQLite in the answer, which raises (UnicodeEncodeError):
+    // the drafts before it stay answered, it stays open, nothing after it is answered
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("inbox.db");
     let store = Store::open_migrating(&path, Duration::from_secs(5)).unwrap();
-    let raw = r#"{"choices": [], "notes": {}, "text": "a\udc80b"}"#;
+    let lossy = r#"{"choices": [], "notes": {}, "text": "a\udc80b"}"#;
+    let fine = r#"{"choices": [], "notes": {}, "text": "ok"}"#;
     store
         .db()
         .execute_batch(&format!(
-            "INSERT INTO questions (id, created_at, question, norm, status) \
-             VALUES (1, '2026-10-21T10:00:00+00:00', 'q?', 'q', 'open'); \
-             INSERT INTO question_ext (id, group_id, draft_json) VALUES (1, 1, '{raw}');"
+            "INSERT INTO questions (id, created_at, question, norm, status) VALUES \
+             (1, 'x', 'a?', 'a', 'open'), (2, 'x', 'b?', 'b', 'open'), (3, 'x', 'c?', 'c', 'open'); \
+             INSERT INTO question_ext (id, group_id, draft_json) VALUES \
+             (1, 1, '{lossy}'), (2, 2, '{fine}'), (3, 3, '{fine}');"
         ))
         .unwrap();
     let mut config = ConfigFile::default();
@@ -70,18 +74,17 @@ fn a_draft_read_with_loss_goes_into_the_answer_as_stored() {
         lock_wait: Duration::ZERO,
         warn: &mut warn,
     };
-    let done = submit(&store, &[1, 1], None, &mut markers).unwrap();
-    assert_eq!(done.len(), 1, "a question is answered once");
-    let stored: String = store
-        .db()
-        .query_row(
-            "SELECT answer_json FROM question_ext WHERE id = 1",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap();
-    assert_eq!(stored, raw, "never the U+FFFD the lossy read holds");
-    assert_eq!(done[0].answer.as_deref(), Some("a\u{fffd}b"));
+    assert!(submit(&store, &[2, 1, 3], None, &mut markers).is_err());
+    let status = |id: i64| store.get(id).unwrap().unwrap().status;
+    assert_eq!(
+        (status(2), status(1), status(3)),
+        ("answered".into(), "open".into(), "open".into())
+    );
+    assert_eq!(
+        submit(&store, &[3, 3], None, &mut markers).unwrap().len(),
+        1,
+        "answered once"
+    );
 }
 
 #[test]

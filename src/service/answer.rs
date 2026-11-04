@@ -7,7 +7,8 @@ use inbox_core::popup_view::format_answer;
 use serde_json::{Map, Value, json};
 
 use super::Delivery;
-use crate::pyjson::{dumps, lossless};
+use crate::pyjson::{dumps, loads, lossless};
+use crate::remote::pyvalue::py_truthy;
 use crate::store::{Question, Store};
 use crate::surface::markers::Markers;
 
@@ -45,8 +46,10 @@ pub fn answer_text(d: &Value) -> String {
 
 /// Sends the drafted answers among `qids` (Python `submit`); questions not
 /// open or without a draft are skipped. Each answer is its draft, formatted,
-/// and the draft goes into `answer_json` as Python writes it back (never the
-/// lossy decoded form: see [`lossless`]). With `deliver`, the
+/// and the draft goes into `answer_json` as Python writes it back. A draft
+/// that cannot be read without loss (a lone surrogate, see [`lossless`]) is
+/// an error, as Python's write raises there: answers before it stay
+/// recorded, nothing is delivered or marked. With `deliver`, the
 /// answered ones go to [`Delivery::deliver`] in one batch; without, they are
 /// only recorded (the popup hands delivery to a detached process). Then
 /// every pane they came from gets its marks refreshed. Returns them as they
@@ -60,19 +63,25 @@ pub fn submit(
     let mut answered = Vec::new();
     for &qid in qids {
         let Some(q) = store.get(qid)? else { continue };
-        let Some(draft) = q.draft_json.as_ref().filter(|d| truthy(d)) else {
-            continue;
-        };
         if q.status != "open" {
             continue;
         }
-        // Python writes dumps(loads(raw)): so does this, unless the read was lossy (a lone
-        // surrogate), where the stored text is carried on as it is instead
-        let detail = match store.draft_text(qid)? {
-            Some(raw) if !lossless(&raw) => raw,
-            _ => dumps(draft),
+        // the draft as stored, read once; Python writes dumps(loads(raw)) back
+        let Some(raw) = store.draft_text(qid)? else {
+            continue;
         };
-        if store.set_answer_text(qid, &answer_text(draft), Some(&detail))? {
+        let Ok(draft) = loads(&raw) else { continue };
+        if !py_truthy(&draft) {
+            continue;
+        }
+        if !lossless(&raw) {
+            // a lone surrogate: Python's SQLite write raises (UnicodeEncodeError), the
+            // question stays open and nothing after it is answered, delivered or marked
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                format!("Q{qid}'s draft holds a lone surrogate: not answerable").into(),
+            ));
+        }
+        if store.set_answer_text(qid, &answer_text(&draft), Some(&dumps(&draft)))? {
             answered.extend(store.get(qid)?);
         }
     }
@@ -131,18 +140,6 @@ pub fn close(
     }
     markers.update(q.pane_id.as_deref());
     Ok(true)
-}
-
-/// Python's truthiness of a decoded JSON value.
-fn truthy(v: &Value) -> bool {
-    match v {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64() != Some(0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(o) => !o.is_empty(),
-    }
 }
 
 #[cfg(test)]
