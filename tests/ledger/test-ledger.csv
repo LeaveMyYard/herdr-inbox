@@ -43,7 +43,7 @@ tests/test_arrivals.py::test_orphaned_answer_shows_as_failed,tests/test_arrivals
 tests/test_arrivals.py::test_claim_refuses_answers_the_agent_already_fetched,tests/test_arrivals.py,,todo,,
 tests/test_async_actions.py::test_popup_records_hands_delivery_off_and_closes_at_once,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_send_now_hands_off_with_force,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_cli_deliver_delivers_recorded_answers,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_cli_deliver_delivers_recorded_answers,tests/test_async_actions.py,herdr-inbox --test cli live::deliver_keeps_out_of_the_operators_pane_unless_sent_now,mapped,,P5
 tests/test_async_actions.py::test_ask_does_not_wait_for_the_tab_label_lock,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_ask_notification_runs_in_the_background,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_popup_never_calls_herdr_for_tab_labels_on_the_ui_thread,tests/test_async_actions.py,,todo,,
@@ -59,7 +59,7 @@ tests/test_async_actions.py::test_an_id_mentioned_inside_another_answer_is_not_a
 tests/test_async_actions.py::test_a_record_older_than_the_answer_does_not_count,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_a_landed_multiline_answer_is_recognised_as_typed,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_h1_a_landed_long_answer_reference_stays_unseen,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in,tests/test_async_actions.py,herdr-inbox --test cli live::deliver_keeps_out_of_the_operators_pane_unless_sent_now,mapped,,P5
 tests/test_async_actions.py::test_m1_the_return_pane_is_typed_while_the_popup_still_holds_the_keyboard,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_m1_inbox_verify_records_the_outcome_with_the_claim,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_l1_the_popup_drains_background_jobs_before_exit,tests/test_async_actions.py,,todo,,
