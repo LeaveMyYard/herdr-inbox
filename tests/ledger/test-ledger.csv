@@ -555,7 +555,7 @@ tests/test_manifests.py::test_hooks_manifest_parses,tests/test_manifests.py,,tod
 tests/test_manifests.py::test_herdr_manifest_required_fields,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_license_declared_and_present,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_ui_mod_is_its_own_plugin,tests/test_manifests.py,,todo,,
-tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,,todo,,
+tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,herdr-inbox --test mcp_goldens tools_list_is_the_python_servers_byte_for_byte,mapped,,P5
 tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,,todo,,
 tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,,todo,,
@@ -1000,3 +1000,4 @@ tests/test_worker_handover.py::test_a_worker_this_run_did_not_start_is_never_sig
 tests/test_worker_handover.py::test_a_run_token_is_never_inherited,tests/test_worker_handover.py,,todo,,
 tests/test_worker_handover.py::test_signal_verified_never_signals_what_fails_the_check,tests/test_worker_handover.py,,todo,,
 tests/test_goldens.py::test_the_popup_transition_golden_is_what_the_popup_does,tests/test_goldens.py,,retired,Python-side check that the golden is what tui.py does; the Rust side is inbox-core --test popup_transitions (one test per scenario),P6
+tests/test_goldens.py::test_the_mcp_recordings_are_what_the_server_does,tests/test_goldens.py,,retired,Python-side check that the MCP recordings are what server.py does; the Rust side is herdr-inbox --test mcp_goldens,P5
