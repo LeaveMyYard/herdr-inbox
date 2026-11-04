@@ -4,7 +4,7 @@
 
 /// `YYYY-MM-DD[T ]HH:MM:SS[.fraction][Z|±HH:MM]` as Unix seconds (no
 /// offset: UTC); `None` if it does not parse.
-pub(crate) fn unix_seconds(s: &str) -> Option<i64> {
+pub fn unix_seconds(s: &str) -> Option<i64> {
     let s = s.trim();
     let (date, rest) = (s.get(..10)?, s.get(10..)?);
     let mut d = date.split('-');
