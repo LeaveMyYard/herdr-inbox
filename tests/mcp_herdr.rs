@@ -73,7 +73,12 @@ fn stored(dir: &Path) -> Value {
                group_id, options_json, herdr_server, title FROM questions JOIN question_ext USING (id) \
                LEFT JOIN question_groups USING (group_id) ORDER BY id";
     let mut stmt = db.prepare(sql).unwrap();
-    let cwd = dir.to_string_lossy().into_owned();
+    // the server's cwd as it reads it: on macOS the temp dir is under a symlink (/var -> /private/var)
+    let real = dir.canonicalize().unwrap();
+    let cwds = [
+        dir.to_string_lossy().into_owned(),
+        real.to_string_lossy().into_owned(),
+    ];
     let rows = stmt
         .query_map([], |r| {
             let mut row = Vec::new();
@@ -82,7 +87,9 @@ fn stored(dir: &Path) -> Value {
                 row.push(match v {
                     rusqlite::types::Value::Null => Value::Null,
                     rusqlite::types::Value::Integer(n) => json!(n),
-                    rusqlite::types::Value::Text(t) if i == 5 && t == cwd => json!("<cwd>"),
+                    rusqlite::types::Value::Text(t) if i == 5 && cwds.contains(&t) => {
+                        json!("<cwd>")
+                    }
                     rusqlite::types::Value::Text(_) if i == 20 => json!("<server>"),
                     rusqlite::types::Value::Text(t) => json!(t),
                     other => panic!("{other:?}"),
