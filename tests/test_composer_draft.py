@@ -100,8 +100,7 @@ def test_another_kinds_unreadable_box_tells_nobody(store, fake_herdr, monkeypatc
     monkeypatch.setattr(service, "later", lambda fn: fn())
     service._unreadable_since.clear()
     service._unreadable_notified.clear()
-    qid = answered(store, monkeypatch, screen_name=None)
-    service.deliver(store, store.get(qid), retry=True, force=True)
+    answered(store, monkeypatch, screen_name=None)  # (Send now: the delivery-messages.json scenario)
     assert fake_herdr.calls_of("agent", "prompt")
     told = [c[2] for c in fake_herdr.calls_of("notification", "show")]
     assert not [t for t in told if "input box" in t or "not sent" in t], told
