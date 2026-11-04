@@ -339,3 +339,15 @@ fn a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database() {
     release.join().unwrap();
     assert_eq!(stamp_of(&path), STAMP);
 }
+
+#[test]
+fn the_switch_to_wal_returns_any_other_error_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    std::fs::write(&path, vec![b'x'; 4096]).unwrap(); // not a database
+    let db = open(&path);
+    let started = std::time::Instant::now();
+    let err = switch_to_wal(&db, TIMEOUT).unwrap_err();
+    assert!(!herdr_inbox::store::busy::is_busy(&err), "{err}");
+    assert!(started.elapsed() < TIMEOUT / 2, "not retried");
+}

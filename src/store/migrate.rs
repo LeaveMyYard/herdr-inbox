@@ -201,7 +201,8 @@ impl Store {
 /// SQLite answers BUSY at once instead of calling the busy handler (it
 /// would deadlock), so the busy timeout never applies there. Retrying from
 /// scratch drops the read lock and lets the other one finish; the migrating
-/// open retries for its connection's busy timeout.
+/// open retries for its connection's busy timeout (its `BEGIN IMMEDIATE`
+/// then waits its own). Any other error is returned at once.
 pub fn switch_to_wal(db: &Connection, wait: Duration) -> rusqlite::Result<()> {
     let deadline = Instant::now() + wait;
     loop {
