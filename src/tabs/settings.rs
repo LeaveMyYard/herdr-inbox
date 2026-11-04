@@ -1,10 +1,11 @@
-//! The tab-prefix settings (Python `tabs.settings`, `prefix`,
-//! `prefix_unnamed`): `config.toml` in the inbox's herdr plugin config dir,
+//! The inbox's settings (Python `tabs.settings`, `prefix`,
+//! `prefix_unnamed`, `radar.hint_enabled`): `config.toml` in the inbox's herdr plugin config dir,
 //! the one place herdr-side processes and Claude-spawned ones both see:
 //!
 //! ```toml
 //! tab_prefix = "❓"            # "" turns the prefix off
 //! prefix_unnamed_tabs = false
+//! radar_sidebar_hint = true      # the popup's herdr-radar hint
 //! ```
 //!
 //! Read on every use (a [`ConfigFile`] re-parses only when the file
@@ -27,6 +28,9 @@ pub struct Settings {
     pub prefix: String,
     /// Prefix tabs whose label is only their position too (Python `tabs.prefix_unnamed()`).
     pub prefix_unnamed: bool,
+    /// The popup's hint that herdr-radar's rows lack `$inbox_q` (Python
+    /// `radar.hint_enabled()`, `radar_sidebar_hint`, on by default).
+    pub radar_hint: bool,
 }
 
 /// The settings as they are in `config` now. A file that is missing or does
@@ -48,6 +52,7 @@ pub fn from_table(table: &Map<String, Value>) -> Settings {
     Settings {
         prefix: prefix.trim_matches(py_isspace).to_string(),
         prefix_unnamed: table.get("prefix_unnamed_tabs").is_some_and(py_truthy),
+        radar_hint: table.get("radar_sidebar_hint").is_none_or(py_truthy),
     }
 }
 

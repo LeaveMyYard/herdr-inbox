@@ -440,6 +440,7 @@ dependencies = [
  "inbox-core",
  "ratatui-core",
  "ratatui-crossterm",
+ "regex",
  "rmcp",
  "rusqlite",
  "rustix",

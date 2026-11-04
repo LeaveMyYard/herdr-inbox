@@ -1,15 +1,17 @@
-//! The live [`Handoff`]: delivery in the send's own thread, for now.
+//! The live [`Handoff`] (Python `_send`'s detached branch): answers for
+//! other panes go to a detached `herdr-inbox deliver` (Python
+//! `spawn_delivery`); answers for the operator's own pane are typed by the
+//! send's thread while the popup still holds the keyboard.
 //!
-//! Python hands the answers for other panes to a detached `inbox deliver`
-//! and the transcript check of the ones it typed to a detached `inbox
-//! verify`, so the popup can close at once. Neither command is in this
-//! binary yet (`deliver` is herdr-inbox #112; `verify` comes with the
-//! worker's verify-later jobs, P5-E2), so until they are this delivers
-//! every answer in the send's thread and verifies it there, as Python does
-//! with `DETACHED_SEND` off: the same pass, the same claims, only the popup
-//! closes after the check instead of before it. The worker start is the CLI's
+//! One step differs from Python for now: Python hands the transcript check
+//! of what it typed to a detached `inbox verify`, which this binary does not
+//! have yet (P5-E2's verify-later jobs). Until it does, that check runs in
+//! the send's thread too (Python's own path with `verify_later=None`: the
+//! same pass, the same claims), so closing the popup after answering the
+//! operator's own pane waits for the check. The worker start is the CLI's
 //! seam (a no-op until P5-E2 spawns `<exe> worker`).
 
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
@@ -24,25 +26,46 @@ use crate::store::{Question, Store};
 use crate::surface::Surface;
 use crate::surface::live::Live;
 use crate::tui::send::handoff::Handoff;
+use crate::worker::spawn::{reap_later, spawn_detached};
+use crate::worker::spawn_env;
 
-/// Delivery in this process.
-pub struct InProcess {
+/// The live hand-off.
+pub struct LiveHandoff {
     /// herdr.
     pub herdr: Herdr,
-    /// The database (a send's own connection is opened per call).
-    pub db_path: PathBuf,
-    /// The inbox's state directory.
+    /// The inbox's state directory (`worker.log` is there).
     pub state_dir: PathBuf,
     /// This herdr server's id.
     pub server: String,
-    /// How long a statement waits for the write lock.
-    pub timeout: std::time::Duration,
+    /// This binary.
+    pub exe: Option<PathBuf>,
 }
 
-impl InProcess {
-    fn pass(&self, store: &Store, qs: &[Question], force: bool) -> rusqlite::Result<()> {
+/// The detached sender's arguments (Python `spawn_delivery`'s
+/// `deliver <ids> [--force]`).
+pub fn deliver_args(qids: &[i64], force: bool) -> Vec<OsString> {
+    let mut args: Vec<OsString> = vec!["deliver".into()];
+    args.extend(qids.iter().map(|q| OsString::from(q.to_string())));
+    if force {
+        args.push("--force".into());
+    }
+    args
+}
+
+impl LiveHandoff {
+    fn ensure(&self, _server: Option<&str>) {
+        // P5-E2 (`<exe> worker`): wired with the CLI's `ensure_worker`
+    }
+}
+
+impl Handoff for LiveHandoff {
+    fn ensure_worker(&self) {
+        self.ensure(None);
+    }
+
+    fn deliver_here(&self, store: &Store, qs: &[Question], force: bool) -> rusqlite::Result<()> {
         let local = local_answers(store, qs, false, &self.server, &mut |s| self.ensure(s))?;
-        let mut surface = Live::new(self.herdr.clone(), warn);
+        let mut surface = Live::new(self.herdr.clone(), super::log);
         let mut notify = |title: &str, body: &str| surface.notify(title, body);
         let mut unreadable = Unreadable::after(UNREADABLE_NOTIFY_AFTER);
         let files = Transcripts::from_env();
@@ -62,38 +85,35 @@ impl InProcess {
         deliver_batch(&mut ctx, &local, mode, None)
     }
 
-    fn ensure(&self, _server: Option<&str>) {
-        // P5-E2 (`<exe> worker`): wired with the CLI's `ensure_worker`
-    }
-}
-
-impl Handoff for InProcess {
-    fn ensure_worker(&self) {
-        self.ensure(None);
-    }
-
-    fn deliver_here(&self, store: &Store, qs: &[Question], force: bool) -> rusqlite::Result<()> {
-        self.pass(store, qs, force)
-    }
-
     fn spawn_delivery(&self, qids: &[i64], force: bool) {
-        let delivered = Store::open(&self.db_path, self.timeout)
-            .map_err(|e| e.to_string())
-            .and_then(|store| {
-                let mut qs = Vec::new();
-                for &q in qids {
-                    qs.extend(store.get(q).map_err(|e| e.to_string())?);
-                }
-                self.pass(&store, &qs, force).map_err(|e| e.to_string())
-            });
-        if let Err(err) = delivered {
-            warn(&format!(
-                "could not deliver now; the worker will retry: {err}"
-            ));
+        let log = self.state_dir.join("worker.log");
+        let started = self.exe.as_ref().map_or_else(
+            || Err(std::io::Error::other("this binary's path is unknown")),
+            |exe| {
+                let stderr = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log)
+                    .ok();
+                let env = spawn_env(std::env::vars_os(), "".as_ref());
+                spawn_detached(
+                    exe.as_os_str(),
+                    &deliver_args(qids, force),
+                    None,
+                    &env,
+                    stderr,
+                )
+            },
+        );
+        match started {
+            Ok(child) => reap_later(child),
+            // recorded, not yet claimed: the worker retries them
+            Err(err) => super::log(&format!(
+                "could not start the delivery; the worker will retry: {err}"
+            )),
         }
     }
 }
 
-fn warn(msg: &str) {
-    crate::tui::live::log(msg);
-}
+#[cfg(test)]
+mod tests;
