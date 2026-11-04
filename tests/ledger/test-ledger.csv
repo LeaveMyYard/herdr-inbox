@@ -288,7 +288,10 @@ tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_cla
 tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_claude_input_box[None],tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_send_now_never_types_onto_a_draft_and_says_so,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_typed_once_the_draft_is_gone,tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_other_agents_are_typed_into_as_before,tests/test_composer_draft.py,,todo,,
+tests/test_composer_draft.py::test_other_agents_are_typed_into_as_before,tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[codex],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[claude-code],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_composer_draft.py::test_a_delivery_typed_after_a_draft_counts_as_landed,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_a_mere_mention_after_other_text_still_does_not_count,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_send_now_after_a_merged_landing_records_it_instead_of_typing_again,tests/test_composer_draft.py,,todo,,
@@ -389,6 +392,9 @@ tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_d
 tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,herdr-inbox --test cli live::answer_list_and_dismiss_through_the_binary,mapped,,P5
 tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,,todo,,
+tests/test_delivery.py::test_only_the_asked_panes_agent_counts[w1:p1-True],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
+tests/test_delivery.py::test_only_the_asked_panes_agent_counts[w1:p9-False],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
+tests/test_delivery.py::test_only_the_asked_panes_agent_counts[None-True],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::one_tick_delivers_pending_answers_for_every_pane,mapped,,P5
 tests/test_delivery_worker.py::test_a_busy_miss_waits_for_idle_and_shows_as_not_delivered,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_busy_miss_waits_for_idle_and_shows_as_not_delivered,mapped,,P5
 tests/test_delivery_worker.py::test_a_focused_task_panel_is_not_typed_into,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_focused_task_panel_is_not_typed_into,mapped,,P5

@@ -92,6 +92,15 @@ def test_other_agents_are_typed_into_as_before(store, fake_herdr, monkeypatch):
     assert fake_herdr.calls_of("agent", "prompt")
 
 
+@pytest.mark.parametrize("kind", ["codex", "claude-code", ""])
+def test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports(store, fake_herdr, monkeypatch, kind):
+    # #96: a renamed or misreported kind must not switch the draft guard off
+    monkeypatch.setenv("FAKE_HERDR_AGENT_KIND", kind)
+    qid = answered(store, monkeypatch)
+    assert not fake_herdr.calls_of("agent", "prompt")
+    assert store.get(qid).delivery_error.endswith(service.COMPOSER_DRAFT)
+
+
 # The incident's record SHAPE (captured 2026-10-16, transcript line 4713): the operator's draft
 # glued straight onto our batch, one `user` record, origin human. Texts neutralised: the repo
 # is public.

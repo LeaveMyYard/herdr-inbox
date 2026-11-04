@@ -2276,9 +2276,9 @@
    ]
   },
   {
-   "name": "a codex agent: no input box check",
+   "name": "a codex agent onto a Claude draft: held",
    "scenario": {
-    "name": "a codex agent: no input box check",
+    "name": "a codex agent onto a Claude draft: held",
     "mode": {
      "retry": true,
      "force": false,
@@ -2322,19 +2322,17 @@
     {
      "status": "answered",
      "pane": "w1:p1",
-     "delivered": true,
-     "error": null,
-     "acknowledged": true,
+     "delivered": false,
+     "error": "pending: waiting: the agent's input box holds unsent text (send or clear it there)",
+     "acknowledged": false,
      "attempts": 0,
-     "verified": true,
+     "verified": false,
      "busy_attempts": 0,
      "pending_since": false,
      "tab_label": null
     }
    ],
-   "prompts": [
-    "[inbox] Q1 answered — Merge it?: yes"
-   ],
+   "prompts": [],
    "notifications": [],
    "jobs": []
   },
@@ -3636,6 +3634,258 @@
    "prompts": [
     "[inbox] Q1 answered — Merge it?: yes"
    ],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "a codex agent, an unreadable box: typed",
+   "scenario": {
+    "name": "a codex agent, an unreadable box: typed",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "plain output",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes",
+      "tab_label": "node"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": true,
+     "error": null,
+     "acknowledged": true,
+     "attempts": 0,
+     "verified": true,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": "node"
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: yes"
+   ],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "send now, a codex agent onto a draft: not sent, said so",
+   "scenario": {
+    "name": "send now, a codex agent onto a draft: not sent, said so",
+    "mode": {
+     "retry": true,
+     "force": true,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ [E2E TEST] Ok, so how is it going? Is it done yet?\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle)\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "pending: waiting: the agent's input box holds unsent text (send or clear it there)",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [],
+   "notifications": [
+    [
+     "Q1 not sent",
+     "the agent's input box holds unsent text (send or clear it there)"
+    ]
+   ],
+   "jobs": []
+  },
+  {
+   "name": "no kind onto a Claude draft: held",
+   "scenario": {
+    "name": "no kind onto a Claude draft: held",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": null,
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ [E2E TEST] Ok, so how is it going? Is it done yet?\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle)\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "pending: waiting: the agent's input box holds unsent text (send or clear it there)",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "another pane's agent answers",
+   "scenario": {
+    "name": "another pane's agent answers",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p9",
+     "tab_id": "w1:t1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "no live agent in pane w1:p1",
+     "acknowledged": false,
+     "attempts": 1,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [],
    "notifications": [],
    "jobs": []
   }
