@@ -109,3 +109,20 @@ def test_the_decision_table_is_a_function():
         outcomes.setdefault(key, set()).add(json.dumps({k: r.get(k) for k in ("after", "action")}, sort_keys=True))
     conflicts = {k: v for k, v in outcomes.items() if len(v) > 1}
     assert not conflicts, "\n".join(f"{k}\n  -> {sorted(v)}" for k, v in list(conflicts.items())[:3])
+
+
+def test_the_popup_transition_golden_is_what_the_popup_does(tmp_path):
+    """tests/fixtures/popup-transitions.json (plan herdr-app-inbox §2.3, P6-A): the popup's
+    key-safety contract, which the Rust model and the herdr-app mod replay. Captured again,
+    it must be byte-identical. If the change is deliberate: uv run python tools/capture_popup_transitions.py"""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
+    out = tmp_path / "popup-transitions.json"
+    res = subprocess.run([sys.executable, str(ROOT / "tools" / "capture_popup_transitions.py"), "--out", str(out)],
+                         env=env, cwd=ROOT, capture_output=True, text=True, timeout=900)
+    assert res.returncode == 0, (res.stdout + res.stderr)[-4000:]
+    want, got = (FIX / "popup-transitions.json").read_text().splitlines(), out.read_text().splitlines()
+    if want != got:
+        diff = next((i for i, (a, b) in enumerate(zip(want, got)) if a != b), min(len(want), len(got)))
+        pytest.fail(f"popup-transitions.json differs from line {diff + 1}:\n  want {want[diff:diff + 1]}\n"
+                    f"  got  {got[diff:diff + 1]}\na behaviour change; if deliberate: "
+                    "uv run python tools/capture_popup_transitions.py")
