@@ -448,8 +448,9 @@ anything the operator is half-way through typing in that pane.
 **Live, 2026-10-17.** Session `00000001` continued in `00000002` (10:00:00Z), and
 `00000002` asked Q9001, Q9002, Q9003, Q9004, Q9005 and Q9006. herdr later resumed the pane under
 the **older** id `00000001`. That conversation has nothing `00000002` said after the fork.
-The inbox typed the six answers there (08:00:00Z). The agent replied "Agent Text 2": it declined them as another session's questions. Then
-the 0.10.5 reconcile marked them delivered and verified, because the text was in `00000001`'s transcript. The asking conversation never
+The inbox typed the six answers there (08:00:00Z). The agent replied "Agent Text 2": it
+declined them as another session's questions. Then the 0.10.5 reconcile marked them delivered
+and verified, because the text was in `00000001`'s transcript. The asking conversation never
 got its answers.
 
 An **ancestor** (a session that continued into the asker) is a different conversation, without
