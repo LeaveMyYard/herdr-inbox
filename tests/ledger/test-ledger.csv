@@ -9,7 +9,7 @@ tests/test_agent_gone.py::test_pending_rows_say_they_are_already_answered,tests/
 tests/test_alerts.py::test_raise_notifies_counts_in_the_badge_and_dedupes,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_bad_input_and_outside_herdr,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_withdraw_and_acknowledge,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_mcp_tools,tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_mcp_tools,tests/test_alerts.py,herdr-inbox --test mcp_herdr the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported,mapped,,P5
 tests/test_alerts.py::test_popup_shows_alerts_first_unnumbered_and_d_acknowledges,tests/test_alerts.py,inbox-core --test popup_transitions alerts::popup_shows_alerts_first_unnumbered_and_d_acknowledges,mapped,,P6
 tests/test_alerts.py::test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,tests/test_alerts.py,inbox-core --test popup_transitions alerts::popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,mapped,,P6
 tests/test_alerts.py::test_an_agent_stuck_at_a_prompt_becomes_an_alert_and_clears_itself,tests/test_alerts.py,,todo,,
@@ -425,7 +425,7 @@ tests/test_failed_pile.py::test_reconcile_never_verifies_answers_that_landed_onl
 tests/test_failed_pile.py::test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_an_acknowledged_answer_never_keeps_a_failure,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_a_truly_gone_answer_that_never_landed_stays_visible,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in,tests/test_failed_pile.py,herdr-inbox --test mcp_herdr a_moved_pane_files_under_the_pane_that_runs_the_conversation,mapped,,P5
 tests/test_failed_pile.py::test_reconcile_backs_off_per_answer,tests/test_failed_pile.py,,todo,,
 tests/test_failed_pile.py::test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,mapped,,P6
 tests/test_failed_pile.py::test_q167_a_single_gone_answer_keeps_its_own_row,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_a_single_gone_answer_keeps_its_own_row,mapped,,P6
@@ -487,7 +487,7 @@ tests/test_group_title.py::test_list_row_and_group_view_show_the_title,tests/tes
 tests/test_group_title.py::test_list_follows_the_cursor_in_a_narrow_popup,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_notification_for_an_untitled_single_question_shows_header_and_text,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_untitled_group_is_named_after_its_first_open_question,tests/test_group_title.py,,todo,,
-tests/test_groups.py::test_group_ask_shares_group_and_dedupes_per_item,tests/test_groups.py,,todo,,
+tests/test_groups.py::test_group_ask_shares_group_and_dedupes_per_item,tests/test_groups.py,herdr-inbox --lib mcp::ask::tests::a_group_shares_its_id_and_title_and_dedupes_within_the_call,mapped,,P5
 tests/test_groups.py::test_drafts_are_not_sent_and_submit_sends_only_drafted,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_batched_delivery_one_message_per_pane,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_batch_respects_session_and_retry_rules,tests/test_groups.py,,todo,,
@@ -557,15 +557,15 @@ tests/test_manifests.py::test_herdr_manifest_required_fields,tests/test_manifest
 tests/test_manifests.py::test_license_declared_and_present,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_ui_mod_is_its_own_plugin,tests/test_manifests.py,,todo,,
 tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,herdr-inbox --test mcp_goldens tools_list_is_the_python_servers_byte_for_byte,mapped,,P5
-tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,,todo,,
+tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,herdr-inbox --test mcp_herdr a_pane_asks_dedupes_gets_its_answer_once_and_files_a_group,mapped,,P5
+tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,herdr-inbox --test mcp_herdr the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported,mapped,,P5
+tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,herdr-inbox --lib mcp::mine::tests::another_sessions_question_cannot_be_withdrawn_or_listed,mapped,,P5
 tests/test_mcp.py::test_session_change_is_resolved_per_call,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::the_session_is_resolved_on_every_call,mapped,,P5
 tests/test_mcp.py::test_claude_session_env_is_the_fallback,tests/test_mcp.py,herdr-inbox --test mcp_herdr without_herdrs_session_the_environments_is_used,mapped,,P5
-tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_stdio_server_end_to_end[auto],tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_tools_on_a_pre_bridge_stamp_work_without_any_schema_work,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_tools_on_an_older_schema_return_the_unavailable_receipt,tests/test_mcp.py,,todo,,
+tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,herdr-inbox --test mcp_herdr the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported,mapped,,P5
+tests/test_mcp.py::test_stdio_server_end_to_end[auto],tests/test_mcp.py,herdr-inbox --test mcp_goldens claude_codes_tool_calls_get_the_python_servers_results,mapped,,P5
+tests/test_mcp.py::test_tools_on_a_pre_bridge_stamp_work_without_any_schema_work,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::a_pre_bridge_stamp_with_the_whole_schema_works_and_is_never_restamped,mapped,,P5
+tests/test_mcp.py::test_tools_on_an_older_schema_return_the_unavailable_receipt,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::a_database_not_migrated_yet_gets_the_unavailable_receipt_and_asks_for_the_worker,mapped,,P5
 tests/test_mcp.py::test_a_tool_waits_briefly_for_the_worker_it_started,tests/test_mcp.py,herdr-inbox --lib mcp::retry::tests::a_worker_that_migrates_in_time_lets_the_call_through,mapped,,P5
 tests/test_pane_moved.py::test_an_answer_follows_its_agent_to_the_pane_it_moved_to,tests/test_pane_moved.py,,todo,,
 tests/test_pane_moved.py::test_no_agent_with_that_session_anywhere_is_still_no_agent,tests/test_pane_moved.py,,todo,,
@@ -703,7 +703,7 @@ tests/test_rereview_fixes.py::test_first_delivery_from_the_popup_ignores_focus,t
 tests/test_rereview_fixes.py::test_retry_gives_up_on_a_changed_conversation,tests/test_rereview_fixes.py,,todo,,
 tests/test_rereview_fixes.py::test_retry_keeps_trying_a_blocked_or_failing_agent,tests/test_rereview_fixes.py,,todo,,
 tests/test_rereview_fixes.py::test_nested_detection,tests/test_rereview_fixes.py,,todo,,
-tests/test_rereview_fixes.py::test_nested_claude_cannot_file_into_the_pane,tests/test_rereview_fixes.py,,todo,,
+tests/test_rereview_fixes.py::test_nested_claude_cannot_file_into_the_pane,tests/test_rereview_fixes.py,herdr-inbox --lib mcp::caller::tests::a_nested_claude_is_not_the_panes_agent,mapped,,P5
 tests/test_rereview_fixes.py::test_nested_claude_hooks_are_silent,tests/test_rereview_fixes.py,,todo,,
 tests/test_review_fixes.py::test_no_delivery_when_pane_holds_another_conversation,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_no_delivery_into_a_different_agent,tests/test_review_fixes.py,,todo,,

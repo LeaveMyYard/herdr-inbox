@@ -66,3 +66,6 @@ impl World for Live {
         marks_for(store.db(), tab).map_err(failure)
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -166,9 +166,9 @@ fn outside_herdr_ask_and_check_answer_as_python_does() {
     let recs = golden("outside-herdr");
     let (got, _dir) = replay(&of(&recs, "client->server"));
     let want = of(&recs, "server->client");
-    // 1, 6: outside herdr: the unavailable receipt, no answers
+    // outside herdr: the unavailable receipts, nothing of the caller's
     // 12-14: JSON text in a non-`str` argument is read as JSON first (FastMCP's pre-pass)
-    for id in (1..=6).chain(12..=14) {
+    for id in 1..=14 {
         assert_eq!(
             by_id(&got, &json!(id)),
             by_id(&want, &json!(id)),
