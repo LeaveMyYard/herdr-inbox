@@ -92,9 +92,15 @@ impl Delivery for LiveDelivery {
         // this binary's CLI, so nothing relies on it yet.
     }
 
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()> {
         let server = self.server.clone();
-        let local = local_answers(store, qs, false, &server, &mut |s| self.ensure_worker(s))?;
+        let local = local_answers(store, qs, retry, &server, &mut |s| self.ensure_worker(s))?;
         let mut surface = Live::new(self.herdr.clone(), warn);
         let mut notify = |title: &str, body: &str| surface.notify(title, body);
         let mut ctx = Ctx {
@@ -106,6 +112,11 @@ impl Delivery for LiveDelivery {
             unreadable: &mut self.unreadable,
             verify_wait: VERIFY_SECONDS,
         };
-        deliver_batch(&mut ctx, &local, Mode::default(), None)
+        let mode = Mode {
+            retry,
+            force,
+            ..Mode::default()
+        };
+        deliver_batch(&mut ctx, &local, mode, None)
     }
 }

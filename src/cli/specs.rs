@@ -103,6 +103,21 @@ pub const RADAR_SIDEBAR: Command = Command {
     positionals: &[],
 };
 
+/// `inbox deliver [--force] IDS...`.
+pub const DELIVER: Command = Command {
+    prog: "inbox deliver",
+    usage: "usage: inbox deliver [-h] [--force] ids [ids ...]",
+    help: "usage: inbox deliver [-h] [--force] ids [ids ...]\n\npositional arguments:\n  ids\n\n\
+           options:\n  -h, --help  show this help message and exit\n  \
+           --force     the operator's Send now: skip the busy grace and focus wait\n",
+    options: &[Opt::flag("--force")],
+    positionals: &[Positional {
+        name: "ids",
+        nargs: Nargs::Plus,
+        check: QUESTION_ID,
+    }],
+};
+
 /// The subcommand named `cmd`, if this CLI has it.
 pub fn command(cmd: &str) -> Option<&'static Command> {
     match cmd {
@@ -112,6 +127,7 @@ pub fn command(cmd: &str) -> Option<&'static Command> {
         "open" => Some(&OPEN),
         "sync-tokens" => Some(&SYNC_TOKENS),
         "radar-sidebar" => Some(&RADAR_SIDEBAR),
+        "deliver" => Some(&DELIVER),
         _ => None,
     }
 }

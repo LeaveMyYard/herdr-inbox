@@ -1,6 +1,7 @@
-//! `inbox answer ID TEXT...` and `inbox dismiss ID` (Python
-//! `cli._command`). **SAFETY**: `answer` decides whether an answer is
-//! typed into the asking conversation or recorded as already there.
+//! `inbox answer ID TEXT...`, `inbox dismiss ID` and `inbox deliver IDS...`
+//! (Python `cli._command`). **SAFETY**: `answer` decides whether an answer
+//! is typed into the asking conversation or recorded as already there;
+//! `deliver` which answers go to delivery.
 
 use super::args::parse::Args;
 use super::args::question_id;
@@ -64,6 +65,31 @@ pub fn dismiss(store: &Store, args: &Args, io: &mut Io<'_>) -> rusqlite::Result<
         return Ok(1);
     }
     let _ = writeln!(io.out, "Q{id} dismissed");
+    Ok(0)
+}
+
+/// `inbox deliver IDS... [--force]` (the popup's detached sender, Python
+/// `cli._command`'s `deliver`): the answered questions among `ids` not yet
+/// delivered nor seen go to delivery, as the worker's retry (it keeps out
+/// of the pane the operator is in) unless `--force` (Send now). The worker
+/// is made sure of first. Always 0, silent.
+pub fn deliver(store: &Store, args: &Args, io: &mut Io<'_>) -> rusqlite::Result<i32> {
+    let force = args.has("--force");
+    let mut qs = Vec::new();
+    for v in &args.values[0] {
+        let id = question_id(v).expect("the parser checks the ids");
+        if let Some(q) = store.get(id)?
+            && q.status == "answered"
+            && q.delivered_at.is_none()
+            && q.acknowledged_at.is_none()
+        {
+            qs.push(q);
+        }
+    }
+    io.delivery.ensure_worker(None);
+    if !qs.is_empty() {
+        io.delivery.deliver_as(store, &qs, !force, force)?;
+    }
     Ok(0)
 }
 
