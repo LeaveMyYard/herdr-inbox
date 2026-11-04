@@ -1,6 +1,9 @@
 //! The `herdr-inbox` binary (plan §2.2): one binary, subcommands keeping
 //! today's CLI names. So far: `hook <event>` (the Claude Code hooks), `mcp`
-//! (the MCP stdio server; nothing launches it before P5-I), `contract` (the
+//! (the MCP stdio server; nothing launches it before P5-I), `worker
+//! [--ensure]` (the delivery worker, [`herdr_inbox::worker::process`]; the
+//! Python bridge hands over to it only from an install that has this
+//! binary built, which no release has before P5-I), `contract` (the
 //! launcher contract, `scripts/launch`) and the CLI's `list`, `answer` and
 //! `dismiss` ([`herdr_inbox::cli`]).
 //!
@@ -18,6 +21,9 @@ fn main() -> ExitCode {
             ExitCode::from(u8::try_from(code).unwrap_or(0))
         }
         [cmd, ..] if cmd == "hook" => ExitCode::SUCCESS,
+        [cmd, rest @ ..] if cmd == "worker" => {
+            ExitCode::from(u8::try_from(herdr_inbox::worker::process::main(rest)).unwrap_or(1))
+        }
         [cmd] if cmd == "mcp" => ExitCode::from(u8::try_from(herdr_inbox::mcp::run()).unwrap_or(1)),
         [cmd, rest @ ..] if herdr_inbox::cli::handles(cmd) => {
             let code = herdr_inbox::cli::live::main(cmd, rest);

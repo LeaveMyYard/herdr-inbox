@@ -94,7 +94,7 @@ fn notify(herdr: &Herdr, notices: Vec<Notice>) {
 }
 
 fn warn(what: &str, err: &dyn std::fmt::Display) {
-    eprintln!("herdr_inbox: remote {what}: {err}");
+    eprintln!("inbox: remote {what}: {err}");
 }
 
 /// One machine (Python `_sync_one`): pulled on a connection of its own, and

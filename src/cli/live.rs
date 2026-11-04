@@ -80,10 +80,8 @@ struct LiveDelivery {
 }
 
 impl Delivery for LiveDelivery {
-    fn ensure_worker(&mut self, _server: Option<&str>) {
-        // Starting a delivery worker is P5-E1's (`worker::spawn::ensure`, herdr-inbox
-        // #106); this is wired to it when that lands. Until P5-I no live command runs
-        // this binary's CLI, so nothing relies on it yet.
+    fn ensure_worker(&mut self, server: Option<&str>) {
+        crate::worker::process::ensure_worker(server);
     }
 
     fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {

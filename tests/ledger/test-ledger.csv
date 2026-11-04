@@ -15,7 +15,7 @@ tests/test_alerts.py::test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,
 tests/test_alerts.py::test_an_agent_stuck_at_a_prompt_becomes_an_alert_and_clears_itself,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_a_short_prompt_never_raises_an_alert,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_markup_escape_keeps_upper_case_brackets_and_trailing_backslashes,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_the_worker_stays_alive_while_herdr_reports_agents_and_exits_without,tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_the_worker_stays_alive_while_herdr_reports_agents_and_exits_without,tests/test_alerts.py,herdr-inbox --test worker_duties live::the_worker_stays_alive_while_herdr_reports_agents,mapped,,P5
 tests/test_alerts.py::test_tick_counts_the_agents_it_watches,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_an_alert_withdrawn_while_on_screen_becomes_inert,tests/test_alerts.py,inbox-core --test popup_transitions alerts::an_alert_withdrawn_while_on_screen_becomes_inert,mapped,,P6
 tests/test_alerts.py::test_a_dismissed_blocked_alert_holds_until_the_prompt_ends,tests/test_alerts.py,,todo,,
@@ -400,7 +400,7 @@ tests/test_delivery_worker.py::test_ensure_spawns_only_when_not_running,tests/te
 tests/test_delivery_worker.py::test_worker_process_runs_and_exits_when_idle,tests/test_delivery_worker.py,herdr-inbox --test worker_process exits::the_rust_worker_exits_when_idle,mapped,,P5
 tests/test_delivery_worker.py::test_mcp_servers_no_longer_run_their_own_retry_loop,tests/test_delivery_worker.py,,todo,,
 tests/test_delivery_worker.py::test_herdr_startup_ensures_the_worker,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_every_answer_or_send_ensures_the_worker,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_every_answer_or_send_ensures_the_worker,tests/test_delivery_worker.py,herdr-inbox --test worker_duties process::every_cli_answer_ensures_the_worker,mapped,,P5
 tests/test_delivery_worker.py::test_a_worker_that_idles_out_with_new_work_starts_a_successor,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::a_worker_that_idles_out_with_new_work_starts_a_successor,mapped,,P5
 tests/test_delivery_worker.py::test_panel_detection_reads_only_the_footer,tests/test_delivery_worker.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery_worker.py::test_send_now_overrides_the_panel_wait,tests/test_delivery_worker.py,,todo,,
@@ -664,7 +664,7 @@ tests/test_remote_sync.py::test_an_old_remote_is_a_permanent_upgrade_error,tests
 tests/test_remote_sync.py::test_expired_and_stale_actions_are_not_sent,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_actions_go_fifo_per_question,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_hostile_export_rows_are_dropped,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_the_worker_stays_alive_while_a_remote_is_enabled,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_the_worker_stays_alive_while_a_remote_is_enabled,tests/test_remote_sync.py,herdr-inbox --test worker_duties live::the_worker_stays_alive_while_a_remote_is_enabled,mapped,,P5
 tests/test_remote_sync.py::test_popup_lists_and_answers_a_remote_question,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_popup_dismisses_a_remote_group_with_confirmation,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_popup_shows_an_offline_machine_and_a_rejection,tests/test_remote_sync.py,,todo,,

@@ -13,7 +13,9 @@ mod fake;
 mod gone;
 #[path = "../delivery/herdr_stub.rs"]
 mod herdr_stub;
+mod live;
 mod moved;
+mod process;
 mod reconcile;
 mod retry;
 

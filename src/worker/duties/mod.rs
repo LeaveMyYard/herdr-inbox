@@ -20,6 +20,7 @@
 pub mod alerts;
 pub mod failed;
 pub mod hooks;
+pub mod live;
 pub mod moved;
 pub mod retry;
 pub mod served;
@@ -44,7 +45,7 @@ pub struct Round<'r, 'a> {
 /// A tick step's failure, as Python's `log.warning(..., exc_info=True)`
 /// writes it to the worker's log (its stderr).
 pub fn warn(what: &str, err: &dyn std::fmt::Display) {
-    eprintln!("herdr_inbox: {what}: {err}");
+    eprintln!("inbox: {what}: {err}");
 }
 
 /// What a worker remembers between ticks (Python's module-level

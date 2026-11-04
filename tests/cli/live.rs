@@ -92,6 +92,7 @@ impl Rig {
             .env("HERDR_INBOX_DB", &self.db)
             .env("HERDR_PLUGIN_CONFIG_DIR", d.join("cfg"))
             .env("CLAUDE_CONFIG_DIR", d.join("claude"))
+            .env("HERDR_INBOX_NO_WORKER", "1") // the CLI starts no real worker here
             .output()
             .unwrap()
     }
