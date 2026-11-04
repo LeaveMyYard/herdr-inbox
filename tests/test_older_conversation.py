@@ -1,9 +1,9 @@
-"""Live 2026-10-17: session synthetic_89 continued in synthetic_90 (11:22:22Z); synthetic_90 asked synthetic_100,
-synthetic_99, synthetic_97, synthetic_102, synthetic_101, synthetic_98. herdr later resumed the pane under the OLDER id synthetic_89 (its
-transcript still ended in `continued-in`), the inbox typed the answers there (06:32:56Z), and
-the agent replied "they belong to another session's questions ... I'm leaving them alone".
+"""Live 2026-10-17: session 00000001 continued in 00000002 (10:00:00Z); 00000002 asked Q9001,
+Q9002, Q9003, Q9004, Q9005, Q9006. herdr later resumed the pane under the OLDER id 00000001 (its
+transcript still ended in `continued-in`), the inbox typed the answers there (08:00:00Z), and
+the agent replied "Agent Text 2" (it declined them as another session's questions).
 The 0.10.5 reconcile then marked them delivered and verified, because the text was in
-synthetic_89's transcript.
+00000001's transcript.
 
 An ANCESTOR (a session that continued into the asker) is a different conversation, without
 the asker's context. An answer goes to the asker or its forward continuations only; a pane
@@ -63,7 +63,7 @@ def test_the_session_start_hook_marks_a_resumed_old_session_as_running_itself(st
 
 def test_a_pane_running_an_older_session_gets_nothing_typed_and_says_why(store, fake_herdr, monkeypatch):
     herdr_resumed_old(monkeypatch)
-    q = filed(store, "w1:p1", NEW, "Synthetic Text 54", "Secrets Manager")
+    q = filed(store, "w1:p1", NEW, "Question Text 3", "Answer Text 2")
     service.deliver(store, q)
     assert not prompts(fake_herdr)
     r = store.get(q.id)
@@ -79,14 +79,14 @@ def test_a_pane_running_an_older_session_gets_nothing_typed_and_says_why(store, 
 
 def test_send_now_never_types_into_an_older_session_either(store, fake_herdr, monkeypatch):
     herdr_resumed_old(monkeypatch)
-    q = filed(store, "w1:p1", NEW, "Revoke and add redacted views?", "Revoke + views")
+    q = filed(store, "w1:p1", NEW, "Question Text 9?", "Answer Text 12")
     service.deliver(store, q, retry=True, force=True)
     assert not prompts(fake_herdr) and store.get(q.id).delivery_error.startswith(service.OLDER)
 
 
 def test_the_asker_resumed_later_gets_it_exactly_once(store, fake_herdr, monkeypatch):
     herdr_resumed_old(monkeypatch)
-    q = filed(store, "w1:p1", NEW, "Rotate the gateway creds now?", "yes, tonight")
+    q = filed(store, "w1:p1", NEW, "Question Text 10?", "Answer Text 13")
     service.deliver(store, q)
     assert not prompts(fake_herdr)
     # the operator resumes the asking session in that pane
@@ -104,7 +104,7 @@ def test_the_asker_resumed_later_gets_it_exactly_once(store, fake_herdr, monkeyp
 
 def test_the_asker_resumed_in_another_pane_gets_it_there_once(store, fake_herdr, monkeypatch):
     herdr_resumed_old(monkeypatch)
-    q = filed(store, "w1:p1", NEW, "Ship the redaction migration?", "after the views")
+    q = filed(store, "w1:p1", NEW, "Question Text 11?", "Answer Text 14")
     service.deliver(store, q)
     assert store.get(q.id).delivery_error.startswith(service.OLDER)
     monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w1:p1", OLD), ("w2:p9", NEW)))
@@ -125,7 +125,7 @@ def test_typed_into_an_unmarked_older_session_is_recorded_and_never_typed_again(
     continued_then_resumed()
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)
     monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)
-    q = filed(store, "w1:p1", NEW, "Which KMS key alias?", "alias/gw-creds")
+    q = filed(store, "w1:p1", NEW, "Question Text 12?", "Answer Text 15")
     service.deliver(store, q)
     assert len(prompts(fake_herdr)) == 1
     r = store.get(q.id)
@@ -252,7 +252,7 @@ def test_r1_b1_the_cli_from_the_old_continuation_is_not_the_branch_askers_own(st
 
 def test_r1_b1_a_branch_landing_in_the_old_continuation_is_never_verified(store, fake_herdr):
     resumed_branch()
-    q = filed(store, "w6:p1", OLD, "Branch question, reconciled?", "branch")
+    q = filed(store, "w9:p8", OLD, "Branch question, reconciled?", "branch")
     store.db.execute("UPDATE questions SET delivery_error = ?, delivery_attempts = 2 WHERE id = ?",
                      (service.NOT_VERIFIED, q.id))
     write(NEW, [{"type": "user", "timestamp": st.now(), "message": {"role": "user", "content":
@@ -310,8 +310,8 @@ def test_r1_l2_old_start_markers_are_pruned(store, fake_herdr):
 
 @pytest.mark.parametrize("source", ["compact", "clear", "fork", "startup"])
 def test_final_m1_only_a_resume_writes_a_start_marker(store, fake_herdr, monkeypatch, source):
-    """A compaction continuation fires SessionStart:compact (captured: synthetic_90, 10-15 18:22,
-    17 h before synthetic_89's continued-in record). Only a resume re-runs an old id."""
+    """A compaction continuation fires SessionStart:compact (captured: 00000002, 10-15 17:00,
+    17 h before 00000001's continued-in record). Only a resume re-runs an old id."""
     continued()
     hook_session_start(OLD, monkeypatch, source=source)
     assert st.started_at(OLD) is None
@@ -349,7 +349,7 @@ def test_final_l2_a_planless_verify_job_from_0_10_5_still_verifies(store, fake_h
 def test_final_l1_continued_edges_streams_and_waits_for_a_whole_line(fake_herdr):
     path = write(OLD, [{"type": "user", "message": {"role": "user", "content": "x" * 1000}}])
     with open(path, "a") as fh:
-        fh.write('{"type": "continued-in", "timestamp": "2026-10-16T11:22:22.458Z", "sessionId": "%s", '
+        fh.write('{"type": "continued-in", "timestamp": "2026-10-16T10:00:00.000Z", "sessionId": "%s", '
                  '"continuedInSessionId": "%s"' % (OLD, NEW))  # not yet a whole line
     assert transcript.continued_edges(path) == frozenset()
     with open(path, "a") as fh:

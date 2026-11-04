@@ -14,7 +14,7 @@ use serde_json::json;
 use crate::common::migrated;
 
 const ASKER: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
-const OLD: &str = "synthetic_89-0000-4000-8000-000000000001";
+const OLD: &str = "00000001-0000-4000-8000-0000000000a1";
 
 /// #100 review L1: a pane whose herdr session continued into the asker's is
 /// found through that session's recorded transcript (Python passes
