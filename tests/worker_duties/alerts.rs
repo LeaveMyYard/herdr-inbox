@@ -140,3 +140,41 @@ fn a_scan_that_fails_watches_no_one() {
     w.sql("DROP TABLE blocked_panes", []);
     assert_eq!(w.scan(&mut BlockedScan::default(), 0.0).0, 0);
 }
+
+#[test]
+fn an_alert_committed_before_a_failed_pane_is_notified_and_marked_all_the_same() {
+    // #132: a database error on the second pane must not lose the first pane's effects, or
+    // `open_auto` keeps its alert from ever being notified
+    let mut w = World::new();
+    let since = herdr_inbox::clock::now_minus(std::time::Duration::from_secs(60));
+    for pane in ["w1:p1", "w1:p2"] {
+        w.sql(
+            "INSERT INTO blocked_panes (herdr_server, pane_id, since) VALUES (?, ?, ?)",
+            rusqlite::params![w.server, pane, since],
+        );
+    }
+    w.fake.set(|k| {
+        k.agents = json!([{"pane_id": "w1:p1", "agent": "claude", "agent_status": "blocked"},
+                          {"pane_id": "w1:p2", "agent": "claude", "agent_status": "blocked"}]);
+    });
+    w.store
+        .db()
+        .execute_batch(
+            "CREATE TRIGGER fault BEFORE INSERT ON alerts WHEN NEW.pane_id = 'w1:p2' \
+             BEGIN SELECT RAISE(ABORT, 'injected fault'); END",
+        )
+        .unwrap();
+    let mut scan = BlockedScan::default();
+
+    let (n, marked) = w.scan(&mut scan, 0.0);
+
+    assert_eq!(n, 0, "a failed scan watches nobody");
+    assert_eq!(marked, [Some("w1:p1".to_string())]);
+    let titles: Vec<&str> = w.notes.iter().map(|(t, _)| t.as_str()).collect();
+    assert_eq!(titles, ["A1 · w1:p1"]);
+
+    w.store.db().execute_batch("DROP TRIGGER fault").unwrap();
+    w.scan(&mut scan, 1.0);
+    let titles: Vec<&str> = w.notes.iter().map(|(t, _)| t.as_str()).collect();
+    assert_eq!(titles, ["A1 · w1:p1", "A2 · w1:p2"], "each exactly once");
+}

@@ -143,7 +143,8 @@ fn run(store: &Store, op: &str, a: &Value) -> (Value, Vec<Value>) {
             let m = &a["machine"];
             let mut ssh = scripted_ssh(a, &mut effects);
             let (ok, got) = store
-                .pull(m["id"].as_str().unwrap(), m["label"].as_str(), m["target"].as_str(), at(a), &mut ssh)
+                .pull(m["id"].as_str().unwrap(), m["label"].as_str(), m["target"].as_str(), &mut || at(a), &mut ssh)
+                .into_result()
                 .unwrap();
             drop(ssh);
             notices(&mut effects, got);
@@ -176,7 +177,7 @@ fn run(store: &Store, op: &str, a: &Value) -> (Value, Vec<Value>) {
             Value::Null
         }
         "notify_problems" => {
-            notices(&mut effects, store.notify_problems(s(a, "machine_id").unwrap(), s(a, "label").unwrap(), at(a)).unwrap());
+            notices(&mut effects, store.notify_problems(s(a, "machine_id").unwrap(), s(a, "label").unwrap(), at(a)).into_result().unwrap());
             Value::Null
         }
         other => panic!("no Rust call for {other}"),

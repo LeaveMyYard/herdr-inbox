@@ -26,6 +26,7 @@ pub mod migrate;
 pub mod mirror;
 pub mod norm;
 pub mod outcomes;
+mod partial;
 pub mod pending;
 pub mod question;
 pub mod questions;
@@ -41,6 +42,7 @@ use herdr_agent_kit::plugin_env::PluginEnv;
 
 pub use claims::Claim;
 pub use connect::{OpenError, Store};
+pub use partial::Partial;
 pub use question::Question;
 
 /// After this many hook sends that never showed up in the conversation, an

@@ -13,6 +13,7 @@ mod liveness;
 mod migrate;
 mod mirror_golden;
 mod outbox_golden;
+mod partial;
 mod pending;
 mod questions_golden;
 mod readiness;

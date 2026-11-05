@@ -6,11 +6,13 @@
 
 mod agent;
 mod blocked;
+mod seen;
 
 use rusqlite::Row;
 
 pub use agent::{Asker, RaiseOutcome, WithdrawOutcome};
-pub use blocked::{BLOCKED_AFTER, BlockedScan, CLEAR_AFTER, SeenAgent};
+pub use blocked::{BLOCKED_AFTER, BlockedScan, CLEAR_AFTER};
+pub use seen::SeenAgent;
 
 /// Severities an agent may give (Python `SEVERITIES`); anything else is `warning`.
 pub const SEVERITIES: [&str; 3] = ["info", "warning", "urgent"];
