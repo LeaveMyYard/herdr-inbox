@@ -34,7 +34,7 @@ fn sent(st: &Store, qid: i64) -> Option<Claim> {
 }
 
 /// (name, the table whose write is aborted, setup, the write)
-const CASES: [(&str, &str, Prep, Write); 8] = [
+const CASES: [(&str, &str, Prep, Write); 9] = [
     ("set_pending", "question_ext", claimed, |st, q, c| {
         st.set_pending(q, c.unwrap(), "busy: working")
     }),
@@ -62,6 +62,10 @@ const CASES: [(&str, &str, Prep, Write); 8] = [
     ),
     ("mark_landed", "question_ext", nothing, |st, q, _| {
         st.mark_landed(q, true).map(drop)
+    }),
+    // no other process may see delivered and acknowledged without verified_at
+    ("record_delivery", "question_ext", claimed, |st, q, c| {
+        st.record_delivery(q, None, true, c, true)
     }),
 ];
 

@@ -54,3 +54,15 @@ fn the_recorded_path_is_used_for_the_first_session_only() {
     let files = Transcripts::new(None);
     assert_eq!(chain(&files, &sid(1), elsewhere.to_str()), [sid(1), sid(2)]);
 }
+
+/// Only the transcript's own place decides, never a folder above the projects dir.
+#[test]
+fn a_config_dir_under_a_folder_named_subagents_still_follows() {
+    let dir = tempfile::tempdir().unwrap();
+    let projects = dir.path().join("subagents/claude/projects");
+    let project = projects.join("p");
+    fs::create_dir_all(&project).unwrap();
+    let files = Transcripts::new(Some(ProjectsRoot::new(projects)));
+    continues(&project, &sid(1), &sid(2));
+    assert_eq!(chain(&files, &sid(1), None), [sid(1), sid(2)]);
+}

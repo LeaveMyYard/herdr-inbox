@@ -60,3 +60,28 @@ fn an_invalid_target_is_never_written() {
     assert_eq!(write_request(d.path(), "question", "QQ1", true, 1.0), None);
     assert!(!request_path(d.path()).exists());
 }
+
+#[test]
+fn concurrent_popups_consume_a_request_exactly_once() {
+    let d = dir();
+    let nonce = write_request(d.path(), "question", "3", true, 100.0).unwrap();
+    let start = std::sync::Barrier::new(8);
+    let got: Vec<_> = std::thread::scope(|s| {
+        let popups: Vec<_> = (0..8)
+            .map(|_| {
+                s.spawn(|| {
+                    start.wait();
+                    consume_request(d.path(), Some(&nonce), 101.0)
+                })
+            })
+            .collect();
+        popups.into_iter().map(|p| p.join().unwrap()).collect()
+    });
+    let taken: Vec<_> = got.into_iter().flatten().collect();
+    assert_eq!(taken.len(), 1, "{taken:?}");
+    assert_eq!(
+        (taken[0].kind.as_str(), taken[0].value.as_str()),
+        ("question", "3")
+    );
+    assert!(fs::read_dir(d.path()).unwrap().next().is_none());
+}

@@ -40,6 +40,10 @@ pub struct Knobs {
     pub tab_label: String,
     /// `FAKE_HERDR_FAIL=agent list`.
     pub fail_agent_list: bool,
+    /// `FAKE_HERDR_FAIL=agent prompt`.
+    pub fail_prompt: bool,
+    /// `FAKE_HERDR_SCREEN_ANSI`: the input box as it reads (default: an empty one).
+    pub ansi: Option<String>,
 }
 
 impl Default for Knobs {
@@ -55,6 +59,8 @@ impl Default for Knobs {
             agent_list_result: None,
             tab_label: "my-tab".into(),
             fail_agent_list: false,
+            fail_prompt: false,
+            ansi: None,
         }
     }
 }
@@ -97,6 +103,7 @@ impl Fake {
                     }
                     json!({"agent": agent})
                 }
+                "agent.prompt" if k.fail_prompt => return Err("fake failure".into()),
                 "agent.prompt" => {
                     let text = clean(params["text"].as_str().unwrap_or_default(), MAX_ARG);
                     if let (Some(s), false) = (&k.session, k.land == "none") {
@@ -112,7 +119,9 @@ impl Fake {
                     }
                     json!({})
                 }
-                "pane.read" if params["format"] == "ansi" => json!({"read": {"text": EMPTY}}),
+                "pane.read" if params["format"] == "ansi" => {
+                    json!({"read": {"text": k.ansi.as_deref().unwrap_or(EMPTY)}})
+                }
                 "pane.read" => json!({"read": {"text": k.screen}}),
                 "agent.list" if k.fail_agent_list => return Err("fake failure".into()),
                 "agent.list" => k

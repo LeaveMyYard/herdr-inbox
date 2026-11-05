@@ -6,6 +6,8 @@
 
 mod alerts;
 mod ancestor_replay;
+mod blocked;
+mod claims;
 #[path = "../store/common.rs"]
 mod common;
 mod failed;
@@ -20,6 +22,7 @@ mod process;
 mod reconcile;
 mod retry;
 mod tick;
+mod unreadable;
 
 use std::path::PathBuf;
 use std::time::Duration;

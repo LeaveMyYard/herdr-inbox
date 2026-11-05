@@ -19,3 +19,4 @@ mod remote_e2e;
 #[allow(dead_code)]
 mod store_golden;
 mod tabs;
+mod tabs_races;

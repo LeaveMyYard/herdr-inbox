@@ -378,3 +378,28 @@ fn each_tool_opens_the_store_or_resolves_the_caller_first_as_python_does() {
         assert_eq!(asked.load(Ordering::SeqCst) > 0, caller_first, "{name}");
     }
 }
+
+/// herdr's side failing outright: a locked tab label, a refused notification.
+struct Failing;
+
+impl Herald for Failing {
+    fn notify(&self, _: &str, _: &str) {}
+    fn markers(&self, _: &str) {
+        panic!("database is locked");
+    }
+}
+
+#[test]
+fn an_ask_returns_the_open_receipt_when_the_markers_fail() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
+    let mut rt = runtime(db.clone(), Arc::default());
+    rt.effects = Arc::new(Effects::start(Arc::new(Failing)));
+    let r = rt.call(ask("Question Title 123")).unwrap();
+    assert_eq!(r["status"], json!("open"));
+    assert!(rt.effects.drain(Duration::from_secs(5)));
+    let s = Store::open(&db, Duration::from_secs(3)).unwrap();
+    assert_eq!(s.list(false).unwrap().len(), 1, "filed once");
+    assert_eq!(s.get(1).unwrap().unwrap().repeat_count, 0);
+}
