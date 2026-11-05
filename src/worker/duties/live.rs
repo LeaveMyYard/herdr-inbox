@@ -4,6 +4,7 @@
 //! open does), the remote thread started once a saved machine is enabled,
 //! the tick run, and what keeps the worker alive reported.
 
+use std::io::Write;
 use std::time::{Duration, Instant};
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
@@ -49,7 +50,7 @@ pub struct LiveDuties {
 }
 
 fn say(msg: &str) {
-    eprintln!("inbox: {msg}");
+    let _ = writeln!(std::io::stderr(), "inbox: {msg}"); // a full disk never ends the worker
 }
 
 impl LiveDuties {

@@ -14,6 +14,7 @@
 
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 use herdr_agent_kit::plugin_env::PluginEnv;
@@ -66,6 +67,13 @@ impl LiveHandoff {
             None => super::log("could not start the worker: this binary's path is unknown"),
         }
     }
+}
+
+/// Makes sure a worker runs, off the popup's thread (Python's mount:
+/// `run_worker(thread=True)`): it retries what the popup answers.
+pub fn ensure_in_background(handoff: &Arc<LiveHandoff>) {
+    let handoff = Arc::clone(handoff);
+    std::thread::spawn(move || handoff.ensure_worker());
 }
 
 impl Handoff for LiveHandoff {

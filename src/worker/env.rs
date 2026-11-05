@@ -80,10 +80,9 @@ impl Waits {
     }
 }
 
-/// Everything the worker's life depends on outside this process. Nothing in
-/// [`crate::worker`] reads the process environment: only a binary's `main`
-/// builds this, so a test never reaches the operator's database, lock or
-/// herdr.
+/// Everything the worker's life depends on outside this process. Only
+/// [`crate::worker::process`] reads the process environment to build this, so
+/// a test of the rest never reaches the operator's database, lock or herdr.
 #[derive(Clone, Debug)]
 pub struct WorkerEnv {
     /// The inbox database (its directory holds the lock and its records).

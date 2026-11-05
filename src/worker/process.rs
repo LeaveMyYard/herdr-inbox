@@ -4,6 +4,7 @@
 //! from the process environment ([`worker_env`] is its pure half).
 
 use std::ffi::{OsStr, OsString};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
@@ -49,14 +50,15 @@ pub fn worker_env(
     }
 }
 
-fn exe() -> PathBuf {
+/// This binary, for starting a worker.
+pub fn own_exe() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|_| PathBuf::from("herdr-inbox"))
 }
 
 /// Starts a worker for `server` (`None`: this process's) unless one runs
 /// (Python `_ensure_worker`: never fails the caller). True if one started.
 pub fn ensure_worker(server: Option<&str>) -> bool {
-    ensure_worker_in(&PluginEnv::from_env(), server, &exe())
+    ensure_worker_in(&PluginEnv::from_env(), server, &own_exe())
 }
 
 /// [`ensure_worker`] in `env`, starting `exe`: for a process that holds both.
@@ -76,7 +78,7 @@ pub fn main(args: &[String]) -> i32 {
             0
         }
         _ => {
-            eprintln!("usage: herdr-inbox worker [--ensure]");
+            let _ = writeln!(std::io::stderr(), "usage: herdr-inbox worker [--ensure]");
             2
         }
     }
@@ -84,7 +86,7 @@ pub fn main(args: &[String]) -> i32 {
 
 fn serve() -> i32 {
     let env = PluginEnv::from_env();
-    let exe = exe();
+    let exe = own_exe();
     let wenv = worker_env(&env, std::env::vars_os(), None, &exe);
     let herdr = Herdr::from_env();
     let config = ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());

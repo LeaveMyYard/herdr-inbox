@@ -29,6 +29,7 @@ pub mod tick;
 pub mod unverified;
 
 use std::collections::HashMap;
+use std::io::Write;
 use std::time::Instant;
 
 use crate::claude::evidence::Evidence;
@@ -45,7 +46,7 @@ pub struct Round<'r, 'a> {
 /// A tick step's failure, as Python's `log.warning(..., exc_info=True)`
 /// writes it to the worker's log (its stderr).
 pub fn warn(what: &str, err: &dyn std::fmt::Display) {
-    eprintln!("inbox: {what}: {err}");
+    let _ = writeln!(std::io::stderr(), "inbox: {what}: {err}");
 }
 
 /// What a worker remembers between ticks (Python's module-level

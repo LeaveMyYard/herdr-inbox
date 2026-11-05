@@ -8,7 +8,7 @@
 
 use std::ffi::OsStr;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -82,6 +82,26 @@ fn a_bad_worker_argument_is_a_usage_error() {
     assert_eq!(wait(child, 30), Some(2));
 }
 
+/// `ensure`'s spawn stamp beside `lock`: this revision started that worker.
+fn stamp_of(lock: &Path) -> PathBuf {
+    lock.with_file_name(format!(
+        "{}.spawned-{}",
+        lock.file_name().unwrap().to_string_lossy(),
+        herdr_inbox::store::revision::MIGRATION_REVISION
+    ))
+}
+
+/// A worker started from a test idles out by itself (IDLE_EXIT 1 s, inherited)
+/// and lets its lock go.
+fn wait_for_the_end(lock: &Path) {
+    let stamp = stamp_of(lock);
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while (is_running(lock) || stamp_fresh(&stamp)) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert!(!is_running(lock), "the started worker did not end");
+}
+
 #[test]
 fn every_cli_answer_ensures_the_worker() {
     let mut w = World::new();
@@ -89,20 +109,55 @@ fn every_cli_answer_ensures_the_worker() {
     let id = format!("Q{qid}");
     let out = w.command(&["answer", &id, "yes"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0));
-    // ensure's spawn stamp: this revision started a worker for this server
-    let stamp = w.lock().with_file_name(format!(
-        "{}.spawned-{}",
-        w.lock().file_name().unwrap().to_string_lossy(),
-        herdr_inbox::store::revision::MIGRATION_REVISION
-    ));
-    assert!(stamp.exists(), "no worker was started");
-    // that worker idles out by itself (IDLE_EXIT 1 s, inherited) and lets the lock go
-    let deadline = Instant::now() + Duration::from_secs(60);
-    while (is_running(&w.lock()) || stamp_fresh(&stamp)) && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    assert!(!is_running(&w.lock()), "the started worker did not end");
+    assert!(stamp_of(&w.lock()).exists(), "no worker was started");
+    wait_for_the_end(&w.lock());
     assert!(w.store.get(qid).unwrap().unwrap().verified_at.is_some());
+}
+
+#[test]
+fn worker_ensure_starts_one_and_returns() {
+    let w = World::new();
+    let out = w.command(&["worker", "--ensure"]).output().unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    assert!(stamp_of(&w.lock()).exists(), "no worker was started");
+    wait_for_the_end(&w.lock());
+}
+
+#[test]
+fn a_cli_answer_of_another_server_starts_that_servers_worker() {
+    let mut w = World::new();
+    let other = w.dir.path().join("other.sock");
+    let qid = w.ask_on(("w1:p1", "w1:t1"), Some(&other.to_string_lossy()));
+    let id = format!("Q{qid}");
+    let out = w.command(&["answer", &id, "yes"]).output().unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    let key = server_key(other.as_os_str());
+    let lock = w.db.parent().unwrap().join(format!("worker-{key}.lock"));
+    assert!(stamp_of(&lock).exists(), "no worker for the other server");
+    wait_for_the_end(&lock);
+    wait_for_the_end(&w.lock());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_warning_that_cannot_be_written_never_ends_the_worker() {
+    let w = World::new();
+    let full = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    // the database path is a directory: the migration warns, and the tick; the server
+    // is gone, so the worker then ends by itself
+    let db = w.dir.path().join("state-dir").join("inbox.db");
+    std::fs::create_dir_all(&db).unwrap();
+    let child = w
+        .command(&["worker"])
+        .env("HERDR_INBOX_DB", &db)
+        .env("HERDR_SOCKET_PATH", w.dir.path().join("gone.sock"))
+        .stderr(full)
+        .spawn()
+        .unwrap();
+    assert_eq!(wait(child, 60), Some(0));
 }
 
 /// The stamp is under a second old: the worker may not hold the lock yet.
@@ -141,17 +196,29 @@ const MCP_SESSION: &str = concat!(
 );
 
 #[test]
+fn an_mcp_server_starting_on_a_ready_database_starts_the_worker() {
+    let w = World::new();
+    let mut child = w.command(&["mcp"]).stdin(Stdio::piped()).spawn().unwrap();
+    let stdin = child.stdin.take().unwrap();
+    let stamp = stamp_of(&w.lock());
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !stamp.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(stamp.exists(), "the MCP server started no worker");
+    drop(stdin); // the client goes: the server ends
+    assert!(wait(child, 30).is_some(), "the MCP server did not end");
+    wait_for_the_end(&w.lock());
+}
+
+#[test]
 fn an_mcp_call_on_a_database_not_ready_starts_the_worker() {
     let w = World::new();
     // never migrated: the store refuses it, and only a worker migrates
     let db = w.dir.path().join("fresh").join("inbox.db");
     std::fs::create_dir_all(db.parent().unwrap()).unwrap();
     let lock = db.parent().unwrap().join(w.lock().file_name().unwrap());
-    let stamp = lock.with_file_name(format!(
-        "{}.spawned-{}",
-        lock.file_name().unwrap().to_string_lossy(),
-        herdr_inbox::store::revision::MIGRATION_REVISION
-    ));
+    let stamp = stamp_of(&lock);
     let mut child = w
         .command(&["mcp"])
         .env("HERDR_INBOX_DB", &db)
@@ -167,10 +234,5 @@ fn an_mcp_call_on_a_database_not_ready_starts_the_worker() {
     assert!(stamp.exists(), "the MCP server started no worker");
     drop(stdin); // the client goes: the server ends
     assert!(wait(child, 30).is_some(), "the MCP server did not end");
-    // that worker idles out by itself (IDLE_EXIT 1 s, inherited) and lets the lock go
-    let deadline = Instant::now() + Duration::from_secs(60);
-    while (is_running(&lock) || stamp_fresh(&stamp)) && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    assert!(!is_running(&lock), "the started worker did not end");
+    wait_for_the_end(&lock);
 }

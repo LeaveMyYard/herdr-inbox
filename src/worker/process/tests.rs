@@ -112,3 +112,16 @@ fn ensure_starts_exe_worker_for_the_server_it_names() {
         "worker /run/other.sock"
     );
 }
+
+#[test]
+fn an_empty_server_name_is_this_processs_server() {
+    let dir = tempfile::tempdir().unwrap();
+    let v = vars(dir.path(), &[]);
+    let e = worker_env(
+        &plugin_env(&v),
+        v.clone(),
+        Some(OsStr::new("")),
+        Path::new("/nowhere/herdr-inbox"),
+    );
+    assert_eq!(e.server, dir.path().join("mine.sock"));
+}

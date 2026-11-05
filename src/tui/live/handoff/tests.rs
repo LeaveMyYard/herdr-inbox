@@ -63,7 +63,7 @@ fn recording(dir: &std::path::Path, out: &std::path::Path, extra: &[(&str, &str)
     std::fs::write(
         &exe,
         format!(
-            "#!/bin/sh\necho \"$@ $HERDR_SOCKET_PATH\" > {}.tmp && mv {0}.tmp {0}\n",
+            "#!/bin/sh\necho \"$@ $HERDR_SOCKET_PATH\" >> {}\n",
             out.display()
         ),
     )
@@ -127,4 +127,42 @@ fn no_worker_keeps_the_popup_from_starting_one() {
     h.ensure_worker();
     std::thread::sleep(Duration::from_millis(300));
     assert!(!out.exists(), "a worker was started");
+}
+
+#[test]
+fn opening_the_popup_starts_the_worker_off_its_thread() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("args");
+    let h = Arc::new(recording(dir.path(), &out, &[]));
+    ensure_in_background(&h);
+    assert!(wait_for(&out).starts_with("worker "));
+}
+
+#[test]
+fn delivering_an_answer_of_another_server_starts_that_servers_worker() {
+    use crate::store::questions::NewQuestion;
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("args");
+    let mut h = recording(dir.path(), &out, &[]);
+    h.server = "/mine.sock".into();
+    let store =
+        Store::open_migrating(&dir.path().join("inbox.db"), Duration::from_secs(5)).unwrap();
+    let q = store
+        .insert(&NewQuestion {
+            question: "Question Text 123",
+            ..NewQuestion::default()
+        })
+        .unwrap();
+    store.set_server(q.id, Some("/other/herdr.sock")).unwrap();
+    store.set_answer(q.id, "yes", None).unwrap();
+    let q = store.get(q.id).unwrap().unwrap();
+    h.deliver_here(&store, &[q], false).unwrap();
+    let t = Instant::now();
+    while t.elapsed() < Duration::from_secs(10) {
+        if std::fs::read_to_string(&out).is_ok_and(|s| s.contains("worker /other/herdr.sock\n")) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("no worker for the other server");
 }

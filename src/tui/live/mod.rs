@@ -90,6 +90,7 @@ pub fn main() -> i32 {
         env: env.clone(),
     });
     let answer_expiry = answer_expiry(&env, &herdr);
+    handoff::ensure_in_background(&handoff);
     let radar_missing = Arc::new(AtomicBool::new(false));
     check_radar(env.clone(), herdr.clone(), Arc::clone(&radar_missing));
     let sender = Sender::new(

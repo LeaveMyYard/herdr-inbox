@@ -8,6 +8,7 @@
 
 pub mod ssh;
 
+use std::io::Write;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -96,7 +97,7 @@ fn notify(herdr: &Herdr, notices: Vec<Notice>) {
 }
 
 fn warn(what: &str, err: &dyn std::fmt::Display) {
-    eprintln!("inbox: remote {what}: {err}");
+    let _ = writeln!(std::io::stderr(), "inbox: remote {what}: {err}");
 }
 
 /// One machine (Python `_sync_one`): pulled on a connection of its own, and

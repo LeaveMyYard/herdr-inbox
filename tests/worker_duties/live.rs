@@ -8,8 +8,10 @@
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::time::{Duration, Instant};
 
 use herdr_agent_kit::plugin_env::config::ConfigFile;
+use herdr_inbox::clock::now_minus;
 use herdr_inbox::worker::duties::live::LiveDuties;
 use herdr_inbox::worker::live::Duties;
 use herdr_inbox::worker::remote::RemoteEnv;
@@ -21,13 +23,34 @@ use crate::World;
 
 impl World {
     fn duties(&self, machines: &str) -> LiveDuties {
+        self.duties_on(machines, &self.db)
+    }
+
+    /// How often `machine list` was asked for.
+    fn machine_lists(&self) -> usize {
+        fs::read_to_string(self.dir.path().join("herdr-cli.log"))
+            .unwrap_or_default()
+            .lines()
+            .filter(|l| l.contains("machine list"))
+            .count()
+    }
+
+    fn duties_on(&self, machines: &str, db: &std::path::Path) -> LiveDuties {
         let d = self.dir.path();
         let bin = d.join("herdr-cli");
-        fs::write(&bin, format!("#!/bin/sh\ncat <<'EOF'\n{machines}\nEOF\n")).unwrap();
+        let log = d.join("herdr-cli.log");
+        fs::write(
+            &bin,
+            format!(
+                "#!/bin/sh\necho \"$@\" >> '{}'\ncat <<'EOF'\n{machines}\nEOF\n",
+                log.display()
+            ),
+        )
+        .unwrap();
         fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
         let herdr = self.herdr.clone().with_bin(bin);
         let env = WorkerEnv {
-            db: self.db.clone(),
+            db: db.to_path_buf(),
             server: self.server.clone().into(),
             revision: herdr_inbox::store::revision::MIGRATION_REVISION,
             version: "0.0.0".into(),
@@ -97,4 +120,47 @@ fn other_servers_rows_are_not_pending_here_after_the_lock_goes_either() {
     let mut d = w.duties("[]");
     assert_eq!(d.tick().pending, 0);
     assert_eq!(d.pending_now(), 0);
+}
+
+#[test]
+fn the_remote_thread_starts_once_and_the_machine_list_is_reused() {
+    let w = World::new();
+    let machines = r#"[{"id": "m1", "label": "box", "target": "box.lan", "enabled": true}]"#;
+    let mut d = w.duties(machines);
+    for _ in 0..3 {
+        d.tick();
+    }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while w.machine_lists() < 2 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    std::thread::sleep(Duration::from_millis(500)); // a second thread would ask too
+    assert_eq!(w.machine_lists(), 2, "the duties' and the one thread's");
+}
+
+#[test]
+fn a_database_that_cannot_open_keeps_the_worker_but_starts_nobody() {
+    let w = World::new();
+    let mut d = w.duties_on("[]", w.dir.path()); // a directory
+    assert_eq!(d.tick().pending, 1);
+    assert_eq!(d.pending_now(), 0);
+}
+
+#[test]
+fn a_failed_tick_keeps_the_worker() {
+    let w = World::new();
+    let mut d = w.duties("[]");
+    w.sql("DROP TABLE changes", []); // the tick's trim is fatal
+    assert_eq!(d.tick().pending, 1);
+}
+
+#[test]
+fn the_open_re_checks_unverified_acknowledgements() {
+    let mut w = World::new();
+    let qid = w.answered();
+    w.signature(qid, &now_minus(Duration::from_secs(60)));
+    w.landed(qid);
+    let mut d = w.duties("[]");
+    d.pending_now(); // the only pass it gets is its open's
+    assert!(w.store.get(qid).unwrap().unwrap().verified_at.is_some());
 }
