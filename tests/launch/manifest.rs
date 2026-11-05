@@ -57,7 +57,7 @@ fn only_the_watchers_wake_code_becomes_claude_codes_exit_2() {
             &r.data_bin().join("herdr-inbox-1.0.0"),
             "bin",
             "1.0.0",
-            1,
+            2,
             code,
         );
         for (event, spec) in specs() {
@@ -79,7 +79,7 @@ fn every_hook_reaches_the_binary_with_its_own_event() {
         &r.data_bin().join("herdr-inbox-1.0.0"),
         "bin",
         "1.0.0",
-        1,
+        2,
         0,
     );
     let mut seen: Vec<(String, String)> = specs()

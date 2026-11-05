@@ -115,8 +115,9 @@ def ensure(server: str | None = None) -> bool:
         return False
     log_path = db_path().parent / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    binary = launcher_binary()
     with open(log_path, "a") as err:
-        subprocess.Popen(python_worker_argv(_package_src()),
+        subprocess.Popen([binary, "worker"] if binary else python_worker_argv(_package_src()),
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
                          start_new_session=True, close_fds=True, env=_spawn_env(server))
     return True
@@ -148,6 +149,21 @@ def _may_spawn(server: str | None = None) -> bool:
     except OSError:
         pass
     return True
+
+
+def launcher_binary() -> str | None:
+    """The binary scripts/launch would run from this checkout, or None (it runs Python, or
+    there is no launcher to ask): one place decides, so the popup and every other Python caller
+    start the worker the manifest chose, and whoever asks first cannot undo the switch."""
+    root = herdr._own_checkout()
+    if not root:
+        return None
+    try:
+        found = subprocess.run(["sh", os.path.join(root, "scripts", "launch"), "which"], stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return found.stdout.strip() or None
 
 
 def _package_src() -> str:
@@ -357,9 +373,22 @@ RUST_WORKER_BINARIES = ("target/release/herdr-inbox", "bin/herdr-inbox")
 RUST_HANDOVER_WAIT = 5.0
 
 
+def runs_rust(root: str) -> bool:
+    """Whether ``root``'s ``engine`` file says rust (scripts/launch; anything else, or no file, is
+    Python): a root that went back to Python must not be followed into a binary still on disk."""
+    try:
+        with open(os.path.join(root, "engine"), encoding="utf-8") as f:
+            return f.readline().rstrip("\n") == "rust"
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
 def rust_worker_binary(root: str) -> str | None:
     """The installed Rust worker under ``root``: the first of RUST_WORKER_BINARIES that is a
-    regular file this user may execute (a symlink to one counts). None: no Rust worker."""
+    regular file this user may execute (a symlink to one counts), when ``root`` runs_rust.
+    None: no Rust worker there, or that root runs Python."""
+    if not runs_rust(root):
+        return None
     for rel in RUST_WORKER_BINARIES:
         path = os.path.join(root, rel)
         if os.path.isfile(path) and os.access(path, os.X_OK):

@@ -958,8 +958,8 @@ answers (other agents, "Send now") still arrive as user messages.
 ## Rust hooks and the release path: P2 as built (2026-10-18)
 
 The Claude Code hooks and the rewake watcher run as `herdr-inbox hook <event>` (Rust), started
-through `scripts/launch`. The launcher runs the newest binary whose `contract` matches; with none it
-runs the Python hooks (`hooks/run.py`), and with no Python it prints the static rules. herdr's build
+through `scripts/launch`. The launcher runs the newest binary whose `contract` matches (since P5-I
+only when the `engine` file says rust); with none it runs the Python hooks (`hooks/run.py`), and with no Python it prints the static rules. herdr's build
 step `scripts/install-bin.sh` installs the verified release binary named in `release.toml`.
 `.github/workflows/release.yml` builds, publishes and writes `release.toml`. The plan is
 herdr-panorama `docs/plans/rust-rewrite.md`, P2.
@@ -987,6 +987,58 @@ real musl and darwin binaries.
 Still open: #74. A local-folder Claude marketplace may copy `target/` into the plugin cache, and
 the exit test's marketplace was a fresh clone. Also open: #72 (pruning recorded binaries) and #73
 (a time bound on the contract probe).
+
+## The switch to Rust: P5-I as built
+
+One file decides what runs: `engine` at the plugin root, one word. `rust` runs the binary for the
+worker, the MCP server, the hooks and the CLI commands the binary has. Anything else, or no file,
+runs Python for all of them and nothing looks for a binary. Going back to Python is that one line.
+The popup is the `uv run` pane until P6-E, whatever the file says.
+
+Everything goes through `scripts/launch`, so that line is the whole switch:
+
+| Who | Runs | When the binary cannot |
+|---|---|---|
+| herdr actions and startup (`herdr-plugin.toml`) | `sh scripts/launch cli <args>` | `uv run ... inbox <args>` |
+| Claude Code's MCP server (`plugin.json`) | `sh scripts/launch mcp` | `uv run ... inbox mcp` |
+| Claude Code's hooks (`hooks.json`) | `sh scripts/launch hook <event>` | the Python hooks, then the static rules |
+| Python's own `worker.ensure` (the popup, Python MCP servers and hooks) | `scripts/launch which`, then `<binary> worker` | the Python worker |
+| A worker after an update, or for a newer revision (both languages) | the new root's binary, if that root's `engine` says rust | that root's Python worker |
+
+**Commands.** `scripts/launch cli` gives the binary only what it has: `list`, `answer`, `dismiss`,
+`deliver`, `open`, `sync-tokens`, `radar-sidebar`, `export`, `apply` and `worker`. Everything else
+goes to Python, so nothing is lost: `redeliver`, `clean-venvs`, `remote` and `verify` until they
+are ported, and any later Python command. The `inbox` entry point of the venv (`uv run inbox ...`,
+also what herdr-panorama calls) is Python and stays a complete CLI until P8. It shares the
+database and the delivery claims with the binary, so either may run at any time.
+
+**Finding the binary.** First match wins, and it must print the launcher's contract: a git
+checkout's `target/release`; the install's `bin/`; then the newest in `$CLAUDE_PLUGIN_DATA/bin` and
+`$XDG_STATE_HOME/herdr-inbox/bin`. The contract is 2 from here on, because a contract 1 binary has
+the hooks only and answers `mcp` by printing its version, which would be a dead MCP server. A
+missing binary, one of another contract and one that does not run all mean Python, silently. The
+one failure the launcher cannot catch is a binary that passes the contract and then crashes; that
+is what the `engine` line is for.
+
+**Getting the binary there.** herdr's build step `scripts/install-bin.sh` fetches the release
+`release.toml` names. There is no release yet, so a fresh install runs Python until one exists,
+with `engine` saying rust. A checkout goes live without a release by
+`sh scripts/install-bin.sh --build`: it builds this commit into `bin/` and records a copy under
+`$XDG_STATE_HOME/herdr-inbox/bin` for the Claude Code side.
+
+**Why Python's `ensure` asks the launcher.** The popup and old sessions stay on Python, and any of
+them may be the one to start a worker. If each started its own language, whoever came first would
+hold the lock and the switch would not stick.
+
+**Why a worker reads the root's `engine`.** `rust_worker_binary` once took any binary under a root,
+so a rollback that left `target/release` in place would have followed that binary straight back
+into Rust at the next update.
+
+**What it does not do.** Neither language's worker watches `engine` while it runs, and two workers
+of one revision never hand over. A running worker keeps running until it exits, so the switch
+needs one worker restart in either direction, as does an update that keeps the version. A Rust MCP
+server already running keeps running and, finding no worker, starts a Rust one, from its own
+binary, until its session ends.
 
 ## Deep links: opening the popup on a target (0.6.0)
 
@@ -1246,9 +1298,9 @@ question ids are separate namespaces: the outbox FIFO keys on `(is_alert, id)`.
 
 `herdr-plugin.toml` lives at the repo root, id `leavemyyard.herdr-inbox`,
 `min_herdr_version = "0.9.0"`, platforms linux and macos. Actions and startup run from the
-plugin dir as `uv run --project . inbox ...`; the popup command resolves the
-project from `$HERDR_PLUGIN_ROOT`, since a pane's cwd is not documented to be
-the plugin dir.
+plugin dir as `sh scripts/launch cli ...` ("The switch to Rust"); the popup command is
+`uv run` and resolves the project from `$HERDR_PLUGIN_ROOT`, since a pane's cwd is not
+documented to be the plugin dir.
 
 ## Questions, groups and drafts (v0.2)
 

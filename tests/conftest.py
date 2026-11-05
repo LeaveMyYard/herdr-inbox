@@ -333,6 +333,8 @@ def fake_herdr(tmp_path, monkeypatch, _no_live_herdr) -> FakeHerdr:
     monkeypatch.setenv("HERDR_PANE_ID", "w1:p1")
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))  # transcripts the fake writes
     monkeypatch.setenv("HERDR_INBOX_NO_WORKER", "1")  # never spawn a real delivery worker
+    # this checkout's own build or `engine` never decides what a test starts (tests/test_engine.py)
+    monkeypatch.setattr("herdr_inbox.worker.launcher_binary", lambda: None)
     from herdr_inbox import tui as _tui
 
     monkeypatch.setattr(_tui, "DETACHED_SEND", False)  # the popup delivers in its thread here

@@ -2,6 +2,7 @@
 //! scripts/release-lib.sh) run by `sh` in scratch plugin roots, with stand-in
 //! binaries, and stand-in curl and cargo (world.rs).
 
+mod cli;
 mod fallback;
 mod fetch;
 #[path = "../support/herdr_cli.rs"]

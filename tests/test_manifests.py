@@ -63,6 +63,19 @@ def test_herdr_manifest_required_fields():
     assert m["build"][1]["command"] == ["sh", "scripts/install-bin.sh"]  # the Rust binary (plan §4 item 3)
 
 
+def test_the_cli_runs_through_the_launcher_and_the_popup_stays_python():
+    """Which code runs is the `engine` file's call, in scripts/launch, for every command here;
+    a command that named its runtime here would not follow a rollback of that one line."""
+    m = _toml("herdr-plugin.toml")
+    for entry in [*m["actions"], *m["startup"]]:
+        assert entry["command"][:3] == ["sh", "scripts/launch", "cli"], entry
+    assert m["panes"][0]["command"][-1].endswith("inbox tui")  # until P6-E
+
+
+def test_the_engine_file_is_one_word():
+    assert (ROOT / "engine").read_text() in ("python\n", "rust\n")
+
+
 def test_license_declared_and_present():
     assert _toml("pyproject.toml")["project"]["license"] == "MIT"
     assert (ROOT / "LICENSE").read_text().startswith("MIT License")

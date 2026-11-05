@@ -38,10 +38,10 @@ fn the_newest_of_each_contract_stay_and_nothing_else_is_touched() {
     let r = Root::new();
     let bin = r.state_bin();
     for v in ["0.9.0", "0.9.10", "0.10.0", "0.10.2", "0.9.9"] {
-        stand_in(&bin.join(format!("herdr-inbox-{v}")), v, v, 1, 0);
+        stand_in(&bin.join(format!("herdr-inbox-{v}")), v, v, 2, 0);
     }
     for v in ["0.12.0", "0.12.1"] {
-        stand_in(&bin.join(format!("herdr-inbox-{v}")), v, v, 2, 0);
+        stand_in(&bin.join(format!("herdr-inbox-{v}")), v, v, 1, 0);
     }
     fs::write(bin.join("notes.txt"), "kept").unwrap();
     fs::write(bin.join(".herdr-inbox-0.1.0.123"), "a copy in flight").unwrap();
@@ -66,7 +66,7 @@ fn the_binary_just_recorded_is_never_removed() {
     let r = Root::new();
     let bin = r.state_bin();
     for v in ["1.0.0", "1.0.1", "0.0.1"] {
-        stand_in(&bin.join(format!("herdr-inbox-{v}")), v, v, 1, 0);
+        stand_in(&bin.join(format!("herdr-inbox-{v}")), v, v, 2, 0);
     }
     let old = bin.join("herdr-inbox-0.0.1");
     prune(&bin, 1, old.to_str().unwrap());
@@ -77,7 +77,7 @@ fn the_binary_just_recorded_is_never_removed() {
 fn an_install_prunes_the_recorded_copies() {
     let r = Root::new();
     for v in ["0.10.0", "0.10.1", "0.10.2", "0.10.3"] {
-        stand_in(&r.state_bin().join(format!("herdr-inbox-{v}")), v, v, 1, 0);
+        stand_in(&r.state_bin().join(format!("herdr-inbox-{v}")), v, v, 2, 0);
     }
     let sha = publish(&r, "0.11.0");
     release_toml(&r, "0.11.0", &sha);

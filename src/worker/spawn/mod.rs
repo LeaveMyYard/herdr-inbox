@@ -16,8 +16,8 @@ use std::io::Write;
 use std::path::Path;
 
 pub use binary::{
-    PYTHON, PYTHON_WORKER, RUST_WORKER_BINARIES, python_worker_args, rust_worker_args,
-    rust_worker_binary, uv_worker_args,
+    ENGINE_FILE, PYTHON, PYTHON_WORKER, RUST_WORKER_BINARIES, python_worker_args, runs_rust,
+    rust_worker_args, rust_worker_binary, uv_worker_args,
 };
 pub use child::{POLL, reap_later, spawn_detached, watch};
 pub use rate::{ENSURE_EVERY, may_spawn, stamp_path};

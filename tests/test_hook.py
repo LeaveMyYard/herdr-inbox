@@ -102,7 +102,7 @@ def test_plugin_hook_and_mcp_config_point_at_the_cli():
     assert hooks["SubagentStart"][0]["hooks"][0]["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/scripts/launch", "subagent-start"]
     server = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["mcpServers"]["herdr-inbox"]
     assert server["command"] == "sh" and server["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/launch", "mcp"]
-    # the launcher starts the MCP server (Python until P5)
+    # the launcher starts the MCP server (Python when no binary fits, tests/launch/cli.rs)
     assert 'exec uv run --quiet --frozen --no-dev --project "$root" inbox mcp' in (ROOT / "scripts/launch").read_text()
     assert (ROOT / "skills/operator-questions/SKILL.md").exists()
 

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The `engine` file and the launcher's CLI (P5-I)**. `engine` at the plugin root says which code
+  runs, in one line. herdr's actions and startup now go through `scripts/launch cli`, which runs
+  the binary for the commands it has and Python for the rest (`redeliver`, `clean-venvs`, `remote`,
+  `verify`). A missing or unfit binary means Python, never a dead inbox. The launcher's contract is
+  2. `scripts/install-bin.sh --build` makes a checkout's binary without a release.
+- **`inbox apply` on a Rust remote delivers at once**: its detached sender was a stub.
 - **Fix (Rust worker): a database error part way through a pass no longer loses notifications**
   (#132). The blocked-agent scan, the outbox flush and expiry sweep and a remote pull now hand
   back what they committed alongside the error, so an alert or a settled outbox row is still

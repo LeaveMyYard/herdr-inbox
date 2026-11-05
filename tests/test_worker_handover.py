@@ -54,6 +54,7 @@ def install(dest: Path, revision: int) -> Path:
         assert "added_in_r2" in text
         store.write_text(text)
         # a release's binary before P5: no `worker`, prints its version and exits 0
+        (dest / "engine").write_text("rust\n")
         binary = dest / "bin" / "herdr-inbox"
         binary.parent.mkdir()
         binary.write_text("#!/bin/sh\necho 'herdr-inbox 0.10.6'\n")

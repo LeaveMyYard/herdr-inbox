@@ -22,10 +22,25 @@ pub const PYTHON_WORKER: &str = "import runpy, sys; sys.path.insert(0, sys.argv.
 /// none, so the `python3` on the spawn environment's `PATH`).
 pub const PYTHON: &str = "python3";
 
+/// The file at a plugin root that says which code runs (`scripts/launch`).
+pub const ENGINE_FILE: &str = "engine";
+
+/// Whether `root`'s `engine` file says `rust`. Anything else, or no file, is
+/// Python: a root that went back to Python must not be followed into a
+/// binary it still has on disk.
+pub fn runs_rust(root: &Path) -> bool {
+    fs::read_to_string(root.join(ENGINE_FILE))
+        .is_ok_and(|text| text.lines().next().is_some_and(|l| l == "rust"))
+}
+
 /// The installed Rust worker under `root`: the first of
 /// [`RUST_WORKER_BINARIES`] that is a regular file with an execute bit (a
-/// symlink to one counts). `None`: no Rust worker there.
+/// symlink to one counts), when `root` [`runs_rust`]. `None`: no Rust worker
+/// there, or that root runs Python.
 pub fn rust_worker_binary(root: &Path) -> Option<PathBuf> {
+    if !runs_rust(root) {
+        return None;
+    }
     // an execute bit stands in for Python's os.access(X_OK): this crate holds
     // no unsafe code to ask access(2), and the spawn's error covers the rest
     RUST_WORKER_BINARIES

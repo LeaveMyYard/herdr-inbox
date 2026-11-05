@@ -11,6 +11,7 @@ use std::sync::OnceLock;
 
 use tempfile::TempDir;
 
+use crate::worker::spawn::ENGINE_FILE;
 use crate::worker::{Waits, WorkerEnv};
 
 /// The interpreter behind `python3` here (a pyenv shim needs its own
@@ -130,6 +131,7 @@ impl Fakes {
     pub fn root(&self, name: &str) -> PathBuf {
         let root = self.dir.path().join(name);
         fs::create_dir_all(&root).unwrap();
+        fs::write(root.join(ENGINE_FILE), "rust\n").unwrap();
         fs::canonicalize(root).unwrap()
     }
 }
