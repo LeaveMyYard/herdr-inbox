@@ -21,7 +21,8 @@ fn the_detached_sender_runs_deliver_with_the_ids_and_force() {
     let h = LiveHandoff {
         herdr: Herdr::new(herdr_agent_kit::herdr_api::ServerId::new(
             dir.path().join("no-herdr.sock"),
-        )),
+        ))
+        .with_bin("/nonexistent/herdr-cli"),
         state_dir: dir.path().to_path_buf(),
         server: String::new(),
         exe: Some(exe),
@@ -44,7 +45,8 @@ fn a_sender_that_cannot_start_is_only_logged() {
     let h = LiveHandoff {
         herdr: Herdr::new(herdr_agent_kit::herdr_api::ServerId::new(
             dir.path().join("no-herdr.sock"),
-        )),
+        ))
+        .with_bin("/nonexistent/herdr-cli"),
         state_dir: dir.path().to_path_buf(),
         server: String::new(),
         exe: Some(dir.path().join("missing-binary")),
