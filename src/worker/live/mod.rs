@@ -2,8 +2,8 @@
 //! is gone and where the inbox is installed, the disk holds the versions,
 //! the marker and the stamp, and [`crate::worker::spawn`] starts workers.
 //! What one tick does (delivery, verification, alerts, remotes) and the
-//! migration come in as [`Duties`]: the worker's duties are slice P5-E2, so
-//! this lifecycle is complete and tested without them.
+//! migration come in as [`Duties`] ([`crate::worker::duties::live::LiveDuties`]),
+//! so this lifecycle is complete and tested without them.
 
 mod db;
 mod herdr;

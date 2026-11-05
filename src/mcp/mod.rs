@@ -90,10 +90,9 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
         server: inbox::server_id(env).to_string_lossy().into_owned(),
         backoff: retry::Backoff::default(),
         effects: Arc::new(effects),
-        // the delivery worker's start (Python `worker.ensure`, ported as `worker::spawn::ensure`)
-        // spawns `herdr-inbox worker`, which this binary has no subcommand for until P5-E2/I:
-        // wired with it, as the CLI's `ensure_worker`
-        ensure_worker: Box::new(|| {}),
+        ensure_worker: Box::new(|| {
+            crate::worker::process::ensure_worker(None);
+        }),
         sleep: std::thread::sleep,
     }
 }

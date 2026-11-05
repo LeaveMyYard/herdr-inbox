@@ -3,8 +3,7 @@
 //! herdr server holds `worker-<key>.lock` ([`lock`]), hands it to a newer
 //! revision ([`handover`]) or to an update's install ([`spawn`]), and exits
 //! when idle or when its server is gone ([`run`]). [`live::Live`] is the
-//! real world it runs in; what one tick does comes in as [`live::Duties`]
-//! (slice P5-E2).
+//! real world it runs in; what one tick does comes in as [`live::Duties`].
 //!
 //! [`duties`] is what one tick does ([`duties::live::LiveDuties`] in the
 //! real world) and [`remote`] the remote thread; [`process`] is the

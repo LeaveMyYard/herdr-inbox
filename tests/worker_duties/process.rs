@@ -7,6 +7,7 @@
 //! the test waits for its lock to be free.
 
 use std::ffi::OsStr;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -127,4 +128,49 @@ fn no_worker_keeps_the_cli_from_starting_one() {
         .flatten()
         .any(|e| e.file_name().to_string_lossy().contains(".spawned-"));
     assert!(!spawned);
+}
+
+/// The `tools/call` of `list_my_questions` a fresh MCP session sends.
+const MCP_SESSION: &str = concat!(
+    r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}"#,
+    "\n",
+    r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+    "\n",
+    r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_my_questions","arguments":{}}}"#,
+    "\n",
+);
+
+#[test]
+fn an_mcp_call_on_a_database_not_ready_starts_the_worker() {
+    let w = World::new();
+    // never migrated: the store refuses it, and only a worker migrates
+    let db = w.dir.path().join("fresh").join("inbox.db");
+    std::fs::create_dir_all(db.parent().unwrap()).unwrap();
+    let lock = db.parent().unwrap().join(w.lock().file_name().unwrap());
+    let stamp = lock.with_file_name(format!(
+        "{}.spawned-{}",
+        lock.file_name().unwrap().to_string_lossy(),
+        herdr_inbox::store::revision::MIGRATION_REVISION
+    ));
+    let mut child = w
+        .command(&["mcp"])
+        .env("HERDR_INBOX_DB", &db)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(MCP_SESSION.as_bytes()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !stamp.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(stamp.exists(), "the MCP server started no worker");
+    drop(stdin); // the client goes: the server ends
+    assert!(wait(child, 30).is_some(), "the MCP server did not end");
+    // that worker idles out by itself (IDLE_EXIT 1 s, inherited) and lets the lock go
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while (is_running(&lock) || stamp_fresh(&stamp)) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert!(!is_running(&lock), "the started worker did not end");
 }
