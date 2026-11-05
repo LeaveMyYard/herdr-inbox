@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use herdr_inbox::store::migrate::switch_to_wal;
 use herdr_inbox::store::revision::STAMP;
@@ -226,8 +226,11 @@ fn a_due_migration_behind_a_held_lock_fails_and_leaves_the_database_alone() {
     let path = migrated(dir.path());
     older_head(&path, pre_bridge());
     let holder = locked(&path, "IMMEDIATE");
+    let started = Instant::now();
     assert!(Store::open_migrating(&path, Duration::from_millis(200)).is_err());
+    let elapsed = started.elapsed();
     holder.execute_batch("ROLLBACK").unwrap();
+    assert!(elapsed < Duration::from_millis(2500), "{elapsed:?}");
     assert_eq!(stamp_of(&path), pre_bridge());
     assert!(!has_column(&path, "remote_outbox", "sending_at"));
 }
