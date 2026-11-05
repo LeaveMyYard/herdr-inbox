@@ -37,4 +37,9 @@ pub trait Delivery {
         retry: bool,
         force: bool,
     ) -> rusqlite::Result<()>;
+    /// Starts `inbox deliver <qids> [--force]` detached, so the caller returns
+    /// at once and this machine's worker retries what it cannot deliver
+    /// (Python `remote_api.spawn_delivery`, `service.spawn_cli`): `inbox
+    /// apply` after a remote answer (`force`: the operator's Send now).
+    fn spawn_deliver(&mut self, qids: &[i64], force: bool);
 }

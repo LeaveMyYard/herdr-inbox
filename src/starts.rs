@@ -30,5 +30,27 @@ pub fn record_start(state_dir: &Path, session_id: &str, pane_id: Option<&str>) -
     fs::rename(&tmp, dir.join(sid.as_str()))
 }
 
+/// Drops the start markers under `state_dir` older than `keep` (Python
+/// `store.prune_starts`, which the worker runs at most hourly); the number
+/// dropped. A marker only matters while it is newer than its session's
+/// `continued-in` record; a session idle longer than `keep` with its marker
+/// gone falls back to D6 plus the typed-once path.
+pub fn prune_starts(state_dir: &Path, keep: std::time::Duration) -> usize {
+    let cutoff = std::time::SystemTime::now() - keep;
+    let Ok(entries) = fs::read_dir(state_dir.join("starts")) else {
+        return 0;
+    };
+    let mut n = 0;
+    for entry in entries.flatten() {
+        let old = fs::metadata(entry.path())
+            .and_then(|m| m.modified())
+            .is_ok_and(|m| m < cutoff);
+        if old && fs::remove_file(entry.path()).is_ok() {
+            n += 1;
+        }
+    }
+    n
+}
+
 #[cfg(test)]
 mod tests;

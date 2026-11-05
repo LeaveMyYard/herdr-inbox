@@ -8,6 +8,7 @@ mod hook;
 mod live;
 mod piles;
 mod retry;
+pub mod unverified;
 
 use std::time::Duration;
 

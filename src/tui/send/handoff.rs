@@ -24,8 +24,7 @@ pub trait Handoff: std::marker::Send + Sync {
     /// spawn_verify)`). `Err`: the database failed.
     fn deliver_here(&self, store: &Store, qs: &[Question], force: bool) -> rusqlite::Result<()>;
     /// Starts the detached sender for `qids` (Python `spawn_delivery`); a
-    /// failure to start is only logged: a running worker retries them (the
-    /// live `ensure_worker` starts none until P5-E2).
+    /// failure to start is only logged: a running worker retries them.
     fn spawn_delivery(&self, qids: &[i64], force: bool);
 }
 

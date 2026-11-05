@@ -1,0 +1,54 @@
+{
+ "source": "Synthetic. The shape of herdr-inbox #53's incident, with placeholder values only: a session (old) continued in a newer one (new), herdr later resumed the older one in the asking pane by mistake, six answers asked by the newer session were typed into the older one, and a reconcile that counted ancestors as proof marked them verified. Every id, name, text and time here is made up; only the order of events and the gaps between them matter.",
+ "old": "00000000-0000-4000-8000-000000000011",
+ "new": "00000000-0000-4000-8000-000000000012",
+ "pane": "w1:p1",
+ "tab": "w1:t1",
+ "asked_by": "Agent Name 2",
+ "project": "Project Name 1",
+ "continued_at": "2026-01-01T00:00:00.000Z",
+ "typed_at": "2026-01-02T00:00:00.000Z",
+ "rows": [
+  {
+   "id": 9001,
+   "title": "Question Title 9001",
+   "question": "Question Text 9001",
+   "answer": "Answer Text 9001"
+  },
+  {
+   "id": 9002,
+   "title": "Question Title 9002",
+   "question": "Question Text 9002",
+   "answer": "Answer Text 9002"
+  },
+  {
+   "id": 9003,
+   "title": "Question Title 9003",
+   "question": "Question Text 9003",
+   "answer": "Answer Text 9003"
+  },
+  {
+   "id": 9004,
+   "title": "Question Title 9004",
+   "question": "Question Text 9004",
+   "answer": "Answer Text 9004"
+  },
+  {
+   "id": 9005,
+   "title": "Question Title 9005",
+   "question": "Question Text 9005",
+   "answer": "Answer Text 9005"
+  },
+  {
+   "id": 9006,
+   "title": "Question Title 9006",
+   "question": "Question Text 9006",
+   "answer": "Answer Text 9006"
+  }
+ ],
+ "states": [
+  "not verified: herdr accepted the text but it never reached the conversation",
+  "agent gone: conversation changed in pane w1:p1",
+  "agent gone: no live agent in pane w1:p1"
+ ]
+}

@@ -6,6 +6,7 @@
 use super::data::{Detail, Snapshot};
 use super::entry::Entry;
 use super::key::Key;
+use super::remote::RemoteRef;
 
 /// How the popup opens.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -57,6 +58,22 @@ pub enum Event {
     /// a fresh read before each key, or whenever the database changed. Only
     /// the data is replaced; rows and placeholders change at polls only.
     Data(Snapshot),
+    /// The IO layer refused a remote write ([`Effect::RemoteAnswer`],
+    /// [`Effect::RemoteDismiss`], [`Effect::RemoteAck`],
+    /// [`Effect::ClearOutbox`], [`Effect::ClearProblem`]), or the database
+    /// failed it. Send it at once, in place of the rest of that batch: the
+    /// model has already moved on as if the write was made, and this takes
+    /// that back. The popup returns to where the action started (the typed
+    /// answer in its view, the row open), as when the model refuses by
+    /// itself. Python refuses before it moves on.
+    RemoteRefused {
+        /// What to tell the operator; none: nothing (Python says nothing when
+        /// an outbox row is no longer clearable).
+        notice: Option<String>,
+        /// The database now, if it could be read; else the model's copy from
+        /// before the action stands.
+        snapshot: Option<Snapshot>,
+    },
     /// A [`Effect::GoTo`] finished (Python `_focused`).
     Focused {
         /// The pane.
@@ -153,6 +170,58 @@ pub enum Effect {
         pane: String,
         /// The `g` came after a pause (Python `go_graced`).
         graced: bool,
+    },
+    /// Queue an answer for a remote machine (Python `remote.enqueue(…,
+    /// "answer", detail)`): a local database write only; the delivery worker
+    /// sends it. The IO layer queues it under `question` only. If the mirror
+    /// holds another question there now, it stops the batch here, which keeps
+    /// the announcement after this effect from showing, and reports
+    /// [`Event::RemoteRefused`] with `not queued: …`.
+    RemoteAnswer {
+        /// The question as shown.
+        question: RemoteRef,
+        /// The answer.
+        detail: Detail,
+    },
+    /// Queue a dismissal of a remote question (Python `remote.enqueue(…,
+    /// "dismiss")`), one per question of the row, under the same rule: those
+    /// before a refused one stay queued.
+    RemoteDismiss {
+        /// The question as shown.
+        question: RemoteRef,
+    },
+    /// Queue the acknowledgement of a remote alert, and show it acknowledged
+    /// at once (Python `remote.enqueue_alert_ack`). Refused
+    /// ([`Event::RemoteRefused`]) when the mirror holds another alert there.
+    RemoteAck {
+        /// Its machine.
+        machine_id: String,
+        /// The alert over there.
+        alert: i64,
+        /// Its inbox database's id.
+        db_id: String,
+        /// The alert's key.
+        akey: String,
+    },
+    /// Clear an outbox row the operator has seen (Python `remote.mark_seen`);
+    /// with `expire`, first settle a queued row past its expiry as failed
+    /// (`remote._settle(…, "failed", "expired")`). The IO layer asks
+    /// `remote.clearable` again first, as Python does at `d`: the row may have
+    /// started sending since the read. If it did, nothing changes and it
+    /// reports [`Event::RemoteRefused`] with no notice.
+    ClearOutbox {
+        /// Its request id.
+        request_id: String,
+        /// It was still queued (past its expiry).
+        expire: bool,
+    },
+    /// Stop showing an answer its machine cannot deliver (Python
+    /// `remote.clear_problem`; the machine keeps it for check_answers).
+    ClearProblem {
+        /// Its machine.
+        machine_id: String,
+        /// The question over there.
+        remote_id: i64,
     },
     /// Close the popup now.
     Exit,

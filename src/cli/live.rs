@@ -49,8 +49,9 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
         unreadable: Unreadable::after(UNREADABLE_NOTIFY_AFTER),
     };
     let session = std::env::var("CLAUDE_CODE_SESSION_ID").ok();
-    let (mut out, mut err) = (std::io::stdout(), std::io::stderr());
+    let (mut input, mut out, mut err) = (std::io::stdin(), std::io::stdout(), std::io::stderr());
     let mut io = Io {
+        input: &mut input,
         out: &mut out,
         err: &mut err,
         db_path: &db_path,
@@ -86,10 +87,16 @@ struct LiveDelivery {
 }
 
 impl Delivery for LiveDelivery {
-    fn ensure_worker(&mut self, _server: Option<&str>) {
-        // Starting a delivery worker is P5-E1's (`worker::spawn::ensure`, herdr-inbox
-        // #106); this is wired to it when that lands. Until P5-I no live command runs
-        // this binary's CLI, so nothing relies on it yet.
+    fn ensure_worker(&mut self, server: Option<&str>) {
+        crate::worker::process::ensure_worker(server);
+    }
+
+    fn spawn_deliver(&mut self, _qids: &[i64], _force: bool) {
+        // Python spawns `inbox deliver <qids> [--force]` detached. This binary has `deliver`
+        // (#112); the detached spawn is wired before P5-I (a P5-I precondition, #113's
+        // "Before P5-I"). Until then the answer stays recorded, undelivered, for this
+        // machine's worker, as when Python's spawn fails. Until P5-I no live command runs
+        // this binary's CLI.
     }
 
     fn deliver_as(

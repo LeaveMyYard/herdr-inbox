@@ -6,6 +6,8 @@
 #[path = "../store/common.rs"]
 mod common;
 mod delivery;
+#[path = "../support/herdr_cli.rs"]
+mod herdr_cli;
 mod rewake;
 mod run;
 mod session_start;

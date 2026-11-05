@@ -49,7 +49,7 @@ fn a_poisoned_state_still_notifies() {
         1000,
     );
     let herald = std::sync::Arc::new(Live::new(
-        fake.blocking_client(),
+        fake.blocking_client().with_bin("/nonexistent/herdr-cli"),
         env,
         dir.path().join("inbox.db"),
     ));

@@ -52,6 +52,7 @@ use herdr_agent_kit::plugin_env::PluginEnv;
 use serde_json::Value;
 
 use crate::claude::Transcripts;
+use crate::worker::process::{ensure_worker_in, own_exe};
 use args::Call;
 
 /// The tools' bodies: one call, its arguments already checked. Blocking.
@@ -90,10 +91,12 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
         server: inbox::server_id(env).to_string_lossy().into_owned(),
         backoff: retry::Backoff::default(),
         effects: Arc::new(effects),
-        // the delivery worker's start (Python `worker.ensure`, ported as `worker::spawn::ensure`)
-        // spawns `herdr-inbox worker`, which this binary has no subcommand for until P5-E2/I:
-        // wired with it, as the CLI's `ensure_worker`
-        ensure_worker: Box::new(|| {}),
+        ensure_worker: {
+            let (env, exe) = (env.clone(), own_exe());
+            Box::new(move || {
+                ensure_worker_in(&env, None, &exe);
+            })
+        },
         sleep: std::thread::sleep,
     }
 }
@@ -113,6 +116,7 @@ pub fn run() -> i32 {
         }
     };
     let tools = Arc::new(runtime(&PluginEnv::from_env()));
+    (tools.ensure_worker)(); // Python `prepare`: every server start makes sure one runs
     let effects = Arc::clone(&tools.effects);
     let srv = server::Server { tools };
     let code = rt.block_on(async move {

@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, SystemTime};
 
 use ::herdr_agent_kit::herdr_api::blocking::Herdr;
 use ::herdr_agent_kit::internal::plugin_paths::inbox;
@@ -74,7 +75,7 @@ pub fn main() -> i32 {
     let focus = focus_pane(invocation_pane(&env), std::env::var(FOCUS_ENV).ok(), || {
         focused_pane(&herdr)
     });
-    let snapshot = read(&store, &Shown::default()).unwrap_or_else(|err| {
+    let snapshot = read(&store, &Shown::default(), SystemTime::now()).unwrap_or_else(|err| {
         let _ = back_tx.send(Back::Toast(Toast::new(failure(&err), Severity::Warning)));
         Snapshot::default()
     });
@@ -86,7 +87,10 @@ pub fn main() -> i32 {
         state_dir: state_dir.clone(),
         server: inbox::server_id(&env).to_string_lossy().into_owned(),
         exe: std::env::current_exe().ok(),
+        env: env.clone(),
     });
+    let answer_expiry = answer_expiry(&env, &herdr);
+    handoff::ensure_in_background(&handoff);
     let radar_missing = Arc::new(AtomicBool::new(false));
     check_radar(env.clone(), herdr.clone(), Arc::clone(&radar_missing));
     let sender = Sender::new(
@@ -104,6 +108,7 @@ pub fn main() -> i32 {
         marks,
         back_tx,
         back_rx,
+        answer_expiry,
         radar_missing,
         theme: Theme::DARK, // the popup runs on textual-dark, as Python's; a light theme comes later
     };
@@ -158,6 +163,13 @@ fn marker(env: PluginEnv, db_path: PathBuf, herdr: Herdr) -> impl FnMut(Option<&
         }
         .update(pane);
     }
+}
+
+/// `remote_answer_expiry_hours`, read once as the popup opens: asking herdr
+/// where the config lives never happens on the popup's thread once it runs.
+fn answer_expiry(env: &PluginEnv, herdr: &Herdr) -> Duration {
+    let mut config = ConfigFile::resolve(env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());
+    settings::read(&mut config, &mut |m: &str| log(m)).answer_expiry
 }
 
 /// Read-only, off the popup's thread (Python `check_radar`): herdr-radar is

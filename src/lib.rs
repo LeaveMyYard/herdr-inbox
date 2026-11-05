@@ -19,6 +19,7 @@ pub mod pyint;
 pub mod pyjson;
 pub mod radar;
 pub mod remote;
+pub mod remote_api;
 pub mod rewake;
 pub mod service;
 pub mod starts;

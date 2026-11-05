@@ -36,8 +36,12 @@ impl Popup {
                 let armed_at = self.armed_at();
                 self.mount(View::Alert(AlertView {
                     alert: *id,
+                    label: None,
                     armed_at,
                 }));
+            }
+            Entry::Remote(_) | Entry::Outbox(_) | Entry::Problem(_) | Entry::RemoteAlert(_) => {
+                self.open_remote(entry)
             }
             Entry::Gone => self.notify(
                 "Those agents are gone: d hides all these answers (check_answers still has them)",
@@ -198,7 +202,11 @@ impl Popup {
     /// Esc (Python `action_back`): back to the list, or close the popup
     /// (from the list, or when it opened straight into the only group).
     pub(super) fn back(&mut self) {
-        if matches!(self.mode, Mode::Group | Mode::Failed | Mode::Alert) && !self.direct {
+        if matches!(
+            self.mode,
+            Mode::Group | Mode::Failed | Mode::Remote | Mode::Alert
+        ) && !self.direct
+        {
             return self.show_list(self.list_cursor.clone());
         }
         self.quit();

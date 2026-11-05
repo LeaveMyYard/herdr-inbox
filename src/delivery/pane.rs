@@ -14,12 +14,23 @@ use super::screen::{composer_state, panel_focused};
 use crate::claude::{Transcripts, live_session};
 use crate::remote::pyvalue::{py_repr_str, py_truthy};
 
-/// The agent in an `agent.get` result (Python `live_agent` after its call),
-/// `live` following a reported session to the one that runs now. `None`
-/// when there is none. The status is herdr's own text (`"None"` when it
+/// The agent in an `agent.get` result for `pane` (Python `live_agent` after
+/// its call), `live` following a reported session to the one that runs now.
+/// `None` when there is none, or when the agent answers for another pane:
+/// herdr's target also matches agent names (#97; a reply without a pane id
+/// is taken as before). The status is herdr's own text (`"None"` when it
 /// sends none, as Python prints it); an empty reported session stays empty.
-pub fn agent_from(result: Option<&Value>, live: impl Fn(&str) -> String) -> Option<Agent> {
+pub fn agent_from(
+    result: Option<&Value>,
+    pane: &str,
+    live: impl Fn(&str) -> String,
+) -> Option<Agent> {
     let agent = result?.get("agent").filter(|a| py_truthy(a))?.as_object()?;
+    match agent.get("pane_id") {
+        None | Some(Value::Null) => {}
+        Some(Value::String(p)) if p == pane => {}
+        Some(_) => return None,
+    }
     // Python `(agent_session or {}).get("value")`: no falsy JSON value has a `value`
     let reported = agent
         .get("agent_session")
@@ -48,7 +59,7 @@ pub fn live_agent(
             json!({"target": Sanitized::new(pane).as_str()}),
         )
         .ok();
-    agent_from(result.as_ref(), |reported| {
+    agent_from(result.as_ref(), pane, |reported| {
         live_session(files, state_dir, reported, Some(pane))
     })
 }

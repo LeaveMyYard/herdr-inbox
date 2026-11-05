@@ -52,6 +52,8 @@ rustix = { version = "1", features = ["process"] }
 ratatui-core = { version = "0.1", features = ["std"] }
 # A character's width in cells, as ratatui counts it.
 unicode-width = "0.2"
+# `inbox export`'s question and alert keys (Python `hashlib.sha256`, src/remote_api/keys.rs).
+sha2 = "0.10"
 
 # The `herdr-inbox` binary: one binary, subcommands keep today's CLI names (§2.2).
 # Its version is the workspace's: the plugin's (see [workspace.package]).
@@ -92,11 +94,15 @@ rustix.workspace = true
 rmcp = { version = "=3.5.1", default-features = false, features = ["server", "transport-io"] }
 # rmcp's runtime: the server runs one current_thread runtime; the tools run on its blocking pool.
 tokio = { version = "1", features = ["rt"] }
+sha2.workspace = true
 # The popup's terminal (`herdr-inbox tui`, plan §2.6 D5: ratatui 0.30 over crossterm 0.29, as
 # herdr-panorama's): ratatui 0.30's own two halves, its core (the diffing `Terminal`; the
 # cells come from inbox-core's renderer) and its crossterm backend, without its widgets.
 ratatui-core.workspace = true
 ratatui-crossterm = "0.1"
+# The operator's local time in the popup's remote rows (`expires 10:42`): the clock half of the
+# chrono rmcp's schemars already builds.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # A toast folds its text by cell width, as ratatui counts it.
 unicode-width.workspace = true
 

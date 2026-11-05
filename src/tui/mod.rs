@@ -8,7 +8,7 @@
 //! - [`run`]: the loop, events in and effects out, a frame after each;
 //! - [`snapshot`]: the database as the model reads it;
 //! - [`writes`]: the model's database writes (drafts, dismissals, hides,
-//!   acknowledgements);
+//!   acknowledgements, a remote machine's queued actions);
 //! - [`send`]: background sends (recorded, then handed to delivery), and
 //!   closing only once they are recorded;
 //! - [`goto`]: `g`, going to the asking agent;
@@ -24,6 +24,8 @@ pub mod goto;
 pub mod keys;
 pub mod live;
 pub mod marks;
+#[cfg(test)]
+mod mirror_rows;
 pub mod open;
 pub mod run;
 pub mod screen;
