@@ -4,6 +4,8 @@
 
 mod fallback;
 mod fetch;
+#[path = "../support/herdr_cli.rs"]
+mod herdr_cli;
 mod install;
 mod manifest;
 mod pick;

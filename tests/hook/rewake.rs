@@ -66,6 +66,7 @@ fn a_wake_whose_text_cannot_be_written_exits_0() {
         .env("XDG_STATE_HOME", w.state().join("state"))
         .env("CLAUDE_CONFIG_DIR", w.state().join("claude"))
         .env("HERDR_SOCKET_PATH", herdr.socket())
+        .env("HERDR_BIN_PATH", &w.cli.bin)
         .stdin(std::process::Stdio::piped())
         .stdout(writer)
         .stderr(std::process::Stdio::null())
@@ -79,4 +80,5 @@ fn a_wake_whose_text_cannot_be_written_exits_0() {
         .write_all(w.payload(json!({})).as_bytes())
         .unwrap();
     assert_eq!(child.wait().unwrap().code(), Some(0));
+    w.cli.assert_only(&[]);
 }
