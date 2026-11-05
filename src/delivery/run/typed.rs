@@ -187,7 +187,9 @@ impl PaneLook<'_, '_> {
                 .iter()
                 .map(|i| u64::try_from(*i).unwrap_or(0))
                 .collect();
-            let hits = wait_hits(&t.watch, &qids, Some(&t.text), self.ctx.verify_wait);
+            let hits = crate::trace::timed("deliver.verify_wait", || {
+                wait_hits(&t.watch, &qids, Some(&t.text), self.ctx.verify_wait)
+            });
             self.typed[k].hits = Some(hits);
         }
         let hits = self.typed[k].hits.clone().unwrap_or_default();

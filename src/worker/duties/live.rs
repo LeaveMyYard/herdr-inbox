@@ -83,7 +83,10 @@ impl LiveDuties {
     /// unverified acknowledgements re-checked (Python `Store(migrate=True)`).
     fn open(&self) -> Result<Store, String> {
         let store = Store::open_migrating(&self.env.db, DB_TIMEOUT).map_err(|e| e.to_string())?;
-        reconcile_unverified(&store, &self.files).map_err(|e| e.to_string())?;
+        crate::trace::timed("store.reconcile", || {
+            reconcile_unverified(&store, &self.files)
+        })
+        .map_err(|e| e.to_string())?;
         Ok(store)
     }
 

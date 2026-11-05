@@ -6,7 +6,7 @@
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use herdr_agent_kit::plugin_env::lock::{HeldLock, LockFile};
 
@@ -31,9 +31,13 @@ pub fn marker_lock(
     wait: Duration,
     warn: &mut dyn FnMut(&str),
 ) -> io::Result<Option<HeldLock>> {
+    let started = Instant::now();
     let held = LockFile::new(lock_path(db)).exclusive_within(wait, POLL, || true)?;
     if held.is_none() {
         warn(BUSY);
+    } else {
+        let ms = started.elapsed().as_secs_f64() * 1000.0;
+        crate::trace::record("tabs.marker_lock_wait", ms, &[]);
     }
     Ok(held)
 }

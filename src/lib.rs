@@ -28,5 +28,6 @@ pub mod surface;
 pub mod tabs;
 pub mod text;
 pub mod token;
+pub mod trace;
 pub mod tui;
 pub mod worker;

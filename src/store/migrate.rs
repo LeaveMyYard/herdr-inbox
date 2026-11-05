@@ -162,7 +162,7 @@ impl Store {
         let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE;
         let store = Store::from_connection(with_flags(path, flags, timeout)?);
         if due(store.db())? {
-            store.migrate()?;
+            crate::trace::timed("store.schema", || store.migrate())?;
         }
         Ok(store)
     }

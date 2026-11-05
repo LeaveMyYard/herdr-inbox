@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 use super::screen::{composer_state, panel_focused};
 use crate::claude::{Transcripts, live_session};
 use crate::remote::pyvalue::{py_repr_str, py_truthy};
+use crate::trace;
 
 /// The agent in an `agent.get` result for `pane` (Python `live_agent` after
 /// its call), `live` following a reported session to the one that runs now.
@@ -53,12 +54,13 @@ pub fn live_agent(
     state_dir: &Path,
     pane: &str,
 ) -> Option<Agent> {
-    let result = herdr
-        .raw(
+    let result = trace::herdr("agent.get", || {
+        herdr.raw(
             "agent.get",
             json!({"target": Sanitized::new(pane).as_str()}),
         )
-        .ok();
+    })
+    .ok();
     agent_from(result.as_ref(), pane, |reported| {
         live_session(files, state_dir, reported, Some(pane))
     })
@@ -67,25 +69,32 @@ pub fn live_agent(
 /// Claude Code's input box in `pane` (Python `herdr.composer_state`): an
 /// unreadable pane is [`Composer::Unknown`], never typed into.
 pub fn composer(herdr: &Herdr, pane: &str) -> Composer {
-    herdr
-        .read_pane(&PaneId::new(pane), 30, true)
-        .map_or(Composer::Unknown, |screen| composer_state(&screen))
+    trace::herdr("pane.read", || {
+        herdr.read_pane(&PaneId::new(pane), 30, true)
+    })
+    .map_or(Composer::Unknown, |screen| composer_state(&screen))
 }
 
 /// Claude Code's background-agents panel has the keyboard in `pane`
 /// (Python `herdr.panel_focused`); an unreadable pane says no.
 pub fn panel(herdr: &Herdr, pane: &str) -> bool {
-    herdr
-        .read_pane(&PaneId::new(pane), 20, false)
-        .is_ok_and(|screen| panel_focused(&screen))
+    trace::herdr("pane.read", || {
+        herdr.read_pane(&PaneId::new(pane), 20, false)
+    })
+    .is_ok_and(|screen| panel_focused(&screen))
 }
 
 /// Types `text` into the agent in `pane` without waiting (Python
 /// `herdr.prompt_agent`, cleaned to herdr's argument cap): herdr's error, if
 /// any. The error's wording is the socket client's, not the CLI's.
 pub fn prompt(herdr: &Herdr, pane: &str, text: &str) -> Option<String> {
-    herdr
-        .prompt(&PaneId::new(pane), &Sanitized::new(text))
-        .err()
-        .map(|e| e.to_string())
+    let _deliver = trace::step_with(
+        "deliver.prompt",
+        vec![("chars", text.chars().count().into())],
+    );
+    trace::herdr("agent.prompt", || {
+        herdr.prompt(&PaneId::new(pane), &Sanitized::new(text))
+    })
+    .err()
+    .map(|e| e.to_string())
 }

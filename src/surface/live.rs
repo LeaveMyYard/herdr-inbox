@@ -14,6 +14,7 @@ use super::popup::{ENTRYPOINT, FOCUS_ENV, INBOX_PLUGIN_ID};
 use super::{SOURCE, Surface, TOKEN};
 use crate::radar::RADAR_ID;
 use crate::remote::pyvalue::py_truthy;
+use crate::trace;
 
 /// The live herdr.
 pub struct Live {
@@ -44,13 +45,19 @@ impl Live {
 
     /// The inbox's root as herdr lists it (Python `herdr._listed_root`).
     fn listed_root(&self) -> Option<PathBuf> {
-        let plugins = self.ok("plugin.list", self.herdr.plugins()).ok()?;
+        let plugins = self.call("plugin.list", Herdr::plugins);
+        let plugins = self.ok("plugin.list", plugins).ok()?;
         plugins
             .into_iter()
             .find(|p| p.plugin_id.as_deref() == Some(INBOX_PLUGIN_ID))
             .and_then(|p| p.plugin_root)
             .filter(|r| !r.is_empty())
             .map(PathBuf::from)
+    }
+
+    /// `work` on herdr, traced as `herdr <command>` (Python's `run_raw`).
+    fn call<T>(&self, method: &str, work: impl FnOnce(&Herdr) -> T) -> T {
+        trace::herdr(method, || work(&self.herdr))
     }
 
     fn ok<T>(&self, method: &str, result: Result<T, HerdrError>) -> Result<T, String> {
@@ -65,14 +72,15 @@ impl Live {
 impl Surface for Live {
     fn set_open_count(&mut self, pane: &str, count: i64) {
         let value = (count > 0).then(|| Sanitized::new(&format!("?{count}")));
-        let sent = self
-            .herdr
-            .set_token(&PaneId::new(pane), SOURCE, TOKEN, value.as_ref());
+        let sent = self.call("pane.report_metadata", |h| {
+            h.set_token(&PaneId::new(pane), SOURCE, TOKEN, value.as_ref())
+        });
         let _ = self.ok("pane.report_metadata", sent);
     }
 
     fn pane_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
-        let panes = self.ok("pane.list", self.herdr.panes()).ok()?;
+        let panes = self.call("pane.list", Herdr::panes);
+        let panes = self.ok("pane.list", panes).ok()?;
         Some(
             panes
                 .into_iter()
@@ -85,12 +93,12 @@ impl Surface for Live {
     }
 
     fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
-        let spaces = self.ok("workspace.list", self.herdr.workspaces()).ok()?;
+        let spaces = self.call("workspace.list", Herdr::workspaces);
+        let spaces = self.ok("workspace.list", spaces).ok()?;
         let mut out = Vec::new();
         for ws in spaces.into_iter().filter_map(|w| w.workspace_id) {
-            let tabs = self
-                .ok("tab.list", self.herdr.tabs(&ws))
-                .unwrap_or_default();
+            let tabs = self.call("tab.list", |h| h.tabs(&ws));
+            let tabs = self.ok("tab.list", tabs).unwrap_or_default();
             out.extend(
                 tabs.into_iter()
                     .filter_map(|t| Some((t.tab_id?.as_str().to_string(), t.label))),
@@ -100,23 +108,25 @@ impl Surface for Live {
     }
 
     fn tab_label(&mut self, tab: &str) -> Option<String> {
-        let got = self.herdr.tab(&TabId::new(tab));
+        let got = self.call("tab.get", |h| h.tab(&TabId::new(tab)));
         self.ok("tab.get", got).ok()?.label
     }
 
     fn rename_tab(&mut self, tab: &str, label: &str) -> Result<(), String> {
-        let got = self
-            .herdr
-            .rename_tab(&TabId::new(tab), &Sanitized::new(label));
+        let got = self.call("tab.rename", |h| {
+            h.rename_tab(&TabId::new(tab), &Sanitized::new(label))
+        });
         self.ok("tab.rename", got).map(drop)
     }
 
     fn notify(&mut self, title: &str, body: &str) {
-        let sent = self.herdr.notify(
-            &Sanitized::new(title),
-            &Sanitized::new(body),
-            Some("request"),
-        );
+        let sent = self.call("notification.show", |h| {
+            h.notify(
+                &Sanitized::new(title),
+                &Sanitized::new(body),
+                Some("request"),
+            )
+        });
         let _ = self.ok("notification.show", sent);
     }
 
@@ -127,24 +137,25 @@ impl Surface for Live {
         if let Some(pane) = &self.focused {
             open.env.push((FOCUS_ENV.to_string(), pane.clone()));
         }
-        let opened = self.herdr.open_plugin_pane(&open);
+        let opened = self.call("plugin.pane_open", |h| h.open_plugin_pane(&open));
         self.ok("plugin.pane_open", opened).map(drop)
     }
 
     fn radar_installed(&mut self) -> bool {
-        let Ok(listed) = self.ok("plugin.list", self.herdr.raw("plugin.list", json!({}))) else {
+        let listed = self.call("plugin.list", |h| h.raw("plugin.list", json!({})));
+        let Ok(listed) = self.ok("plugin.list", listed) else {
             return false;
         };
         radar_listed(&listed)
     }
 
     fn radar_config_dir(&mut self) -> Option<PathBuf> {
-        let dir = self.herdr.plugin_config_dir(RADAR_ID);
+        let dir = self.call("plugin config-dir", |h| h.plugin_config_dir(RADAR_ID));
         self.ok("plugin config-dir", dir).ok().flatten()
     }
 
     fn reload_config(&mut self) {
-        let reloaded = self.herdr.reload_config();
+        let reloaded = self.call("server.reload_config", Herdr::reload_config);
         let _ = self.ok("server.reload_config", reloaded);
     }
 }

@@ -19,14 +19,28 @@ use std::sync::Arc;
 use inbox_core::popup::{Effect, Event, Millis, Severity};
 
 use super::Ui;
+use crate::trace;
 use crate::tui::goto::go_to;
 use crate::tui::send::failure;
 use crate::tui::toasts::Toast;
 use crate::tui::writes::{Outcome, RemoteEnv, write};
 
+/// The trace step of an effect: what Python's handler of that action is
+/// called. Its retry and group dismissal are the same effects here as a
+/// submit and a dismissal.
+fn step_of(effect: &Effect) -> Option<&'static str> {
+    match effect {
+        Effect::Draft { .. } => Some("popup.answered"),
+        Effect::Send(_) => Some("popup.submit"),
+        Effect::Dismiss { .. } => Some("popup.dismiss"),
+        _ => None,
+    }
+}
+
 impl Ui<'_> {
     pub(super) fn apply(&mut self, fx: Vec<Effect>, now: Millis) {
         for effect in fx {
+            let _step = step_of(&effect).map(trace::step);
             match effect {
                 Effect::Notify { text, severity } => {
                     self.toasts.push(Toast::new(text, severity), now);
