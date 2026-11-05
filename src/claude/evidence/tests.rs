@@ -259,13 +259,14 @@ fn the_index_keeps_the_newest_transcripts_only() {
 fn a_line_with_a_lone_surrogate_is_skipped_as_less_evidence() {
     // a deviation from Python, whose json.loads takes a lone `\ud83d`: less evidence, never more
     let good = json!({"answers": [{"id": 7, "answer": "yes"}]}).to_string();
-    let (_d, p) = transcript(&[
-        tool_use(CHECK_ANSWERS, json!({}), "u6", AT),
-        tool_result("u6", &good, AT),
-    ]);
+    let result = tool_result("u6", &good, AT).to_string();
+    let (_d, p) = transcript(&[tool_use(CHECK_ANSWERS, json!({}), "u6", AT)]);
+    let surrogate = result.replacen('{', "{\"x\":\"\\ud83d\",", 1);
+    assert_ne!(surrogate, result);
     let mut f = fs::OpenOptions::new().append(true).open(&p).unwrap();
-    f.write_all(b"{\"type\": \"user\", \"x\": \"\\ud83d\"}\n")
-        .unwrap();
+    writeln!(f, "{surrogate}").unwrap();
     let mut ev = Evidence::default();
+    assert!(!seen_answer(&mut ev, &p, 7, "yes", None));
+    writeln!(f, "{result}").unwrap(); // the same line without it is read
     assert!(seen_answer(&mut ev, &p, 7, "yes", None));
 }

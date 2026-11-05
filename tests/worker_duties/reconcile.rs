@@ -248,7 +248,7 @@ fn the_change_log_keeps_its_newest_rows_only() {
     let mut w = World::new();
     let insert = "INSERT INTO changes (seq, qid) VALUES (?, 1)";
     let newest = 10_005; // Python keeps 10 000 rows
-    w.sql(insert, params![1]);
+    w.sql(insert, params![5]);
     w.sql(insert, params![6]);
     w.sql(insert, params![newest]);
     w.tick_alone();
@@ -260,7 +260,7 @@ fn the_change_log_keeps_its_newest_rows_only() {
             })
             .unwrap()
     };
-    assert_eq!(seqs(&w, 1), 0); // past the kept window
+    assert_eq!(seqs(&w, 5), 0); // just past the kept window
     assert_eq!(seqs(&w, 6), 1);
     assert_eq!(seqs(&w, newest), 1);
 }
