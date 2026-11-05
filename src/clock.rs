@@ -35,6 +35,21 @@ pub fn now_minus(ago: Duration) -> String {
     iso_seconds(SystemTime::now() - ago)
 }
 
+/// A Unix time as the operator's clock shows it (Python
+/// `.astimezone().strftime("%H:%M")`).
+pub fn local_hhmm(unix: i64) -> String {
+    let offset = chrono::DateTime::from_timestamp(unix, 0).map_or(0, |t| {
+        t.with_timezone(&chrono::Local).offset().local_minus_utc()
+    });
+    hhmm(unix, i64::from(offset))
+}
+
+/// `unix` as `HH:MM`, `offset` seconds east of UTC.
+fn hhmm(unix: i64, offset: i64) -> String {
+    let secs = (unix + offset).rem_euclid(86_400);
+    format!("{:02}:{:02}", secs / 3600, secs % 3600 / 60)
+}
+
 /// The proleptic Gregorian (year, month, day) of a day count from 1970-01-01
 /// (Howard Hinnant's `civil_from_days`).
 fn civil_from_days(z: i64) -> (i64, u32, u32) {

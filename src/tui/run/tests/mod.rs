@@ -5,4 +5,5 @@ mod contract;
 mod fake;
 mod goto;
 mod links;
+mod remote;
 mod sends;

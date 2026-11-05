@@ -100,6 +100,9 @@ sha2.workspace = true
 # cells come from inbox-core's renderer) and its crossterm backend, without its widgets.
 ratatui-core.workspace = true
 ratatui-crossterm = "0.1"
+# The operator's local time in the popup's remote rows (`expires 10:42`): the clock half of the
+# chrono rmcp's schemars already builds.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # A toast folds its text by cell width, as ratatui counts it.
 unicode-width.workspace = true
 
