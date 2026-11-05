@@ -32,7 +32,9 @@ case "$1 $2" in
   if [ -S "$HERDR_SOCKET_PATH" ]; then echo '{"result": {"workspaces": []}}'
   else echo '{"error": {"code": "server_not_running", "message": "gone"}}' >&2; exit 1; fi ;;
 "plugin list")
-  printf '{"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "%s"}]}}\n' "$(cat "$E1_LISTED")" ;;
+  root=$(cat "$E1_LISTED")
+  printf '{"result": {"plugins": [{"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "%s"}]}}\n' "$root"
+  echo "$$ plugin list answered" >> "$E1_HERDR_LOG" ;;
 *) echo '{"result": {}}' ;;
 esac
 "#;
@@ -236,11 +238,30 @@ impl Rig {
         text.lines().map(PathBuf::from).collect()
     }
 
-    /// A Python worker has listed herdr's plugins: it has decided whether it
-    /// is herdr's install (it decides once, on the first answer).
+    /// A Python worker has herdr's list of plugins: it decides from that first
+    /// answer, once, whether it is herdr's install. The answer counts, not the
+    /// call: a [`Rig::list`] after the call and before the fake reads the
+    /// listed root tells the worker it is not herdr's install, for good.
     pub fn python_asked_for_its_root(&self) -> bool {
+        self.herdr_called(" plugin list answered")
+    }
+
+    /// The fake herdr CLI logged a line ending in `suffix`.
+    pub fn herdr_called(&self, suffix: &str) -> bool {
         fs::read_to_string(self.dir.path().join("herdr.log"))
-            .is_ok_and(|log| log.lines().any(|l| l.ends_with(" plugin list --json")))
+            .is_ok_and(|log| log.lines().any(|l| l.ends_with(suffix)))
+    }
+
+    /// The fake herdr CLI with `args`, in the workers' environment.
+    pub fn herdr_cli(&self, args: &[&str]) -> Command {
+        let mut cmd = Command::new(self.bin.join("herdr"));
+        cmd.args(args).env_clear().envs(self.env());
+        cmd
+    }
+
+    /// The file the fake herdr CLI reads the listed root from.
+    pub fn listed_file(&self) -> &Path {
+        &self.listed
     }
 
     /// The pids that ticked, in order of their first tick.

@@ -15,6 +15,7 @@
 mod child;
 mod exclusion;
 mod exits;
+mod fake_cli;
 mod handover;
 mod rig;
 mod roots;
@@ -25,6 +26,10 @@ use std::process::ExitCode;
 type Case = (&'static str, fn());
 
 const CASES: &[Case] = &[
+    (
+        "fake_cli::the_listing_counts_once_it_is_answered",
+        fake_cli::the_listing_counts_once_it_is_answered,
+    ),
     (
         "handover::python_hands_over_to_rust_on_an_update",
         handover::python_hands_over_to_rust_on_an_update,
