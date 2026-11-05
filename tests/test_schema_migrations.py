@@ -423,6 +423,22 @@ def test_a_migrating_store_waits_out_a_writer_on_a_rollback_journal_database(tmp
     release.join()
 
 
+def test_a_migrating_store_gives_up_behind_a_held_lock_and_leaves_the_database_alone(tmp_path):
+    """The Rust a_due_migration_behind_a_held_lock_fails_...: the open stops about when its
+    busy timeout says, not much later, and the stamp stays."""
+    path = tmp_path / "inbox.db"
+    sqlite3.connect(path).execute("CREATE TABLE t (x)").connection.close()
+    holder = sqlite3.connect(path, isolation_level=None)
+    holder.execute("BEGIN IMMEDIATE")
+    started = time.monotonic()
+    with pytest.raises(sqlite3.OperationalError):
+        Store(path, timeout=0.2, migrate=True, maintenance=False)
+    elapsed = time.monotonic() - started
+    holder.execute("ROLLBACK")
+    assert elapsed < 2.5, elapsed
+    assert holder.execute("PRAGMA user_version").fetchone()[0] == 0
+
+
 def test_the_switch_to_wal_raises_any_other_error_at_once(tmp_path):
     """A non-busy OperationalError (journal mode cannot change inside a transaction: code 1)
     is raised at once, never retried until the deadline."""
