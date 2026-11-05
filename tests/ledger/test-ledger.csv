@@ -76,7 +76,7 @@ tests/test_background_keys.py::test_typing_after_the_question_closes_never_reach
 tests/test_background_keys.py::test_keys_are_swallowed_briefly_after_a_background_view_change,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::keys_are_swallowed_briefly_after_a_background_view_change,mapped,,P6
 tests/test_background_keys.py::test_gone_tab_disables_g_and_d,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::gone_tab_disables_g_and_d,mapped,,P6
 tests/test_background_keys.py::test_dismiss_needs_y,tests/test_background_keys.py,inbox-core --test popup_transitions background_keys::dismiss_needs_y,mapped,,P6
-tests/test_background_keys.py::test_delivery_claims_the_row_before_sending,tests/test_background_keys.py,herdr-inbox --test store claims::a_claim_is_exclusive_until_released_or_stale,mapped,,P5
+tests/test_background_keys.py::test_delivery_claims_the_row_before_sending,tests/test_background_keys.py,,todo,,P5
 tests/test_bridge_inbox.py::test_a_nested_claude_is_found_whatever_the_install[inner0-outer0],tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --test inbox_nested_claude test_a_nested_claude_is_found_whatever_the_install,mapped,,P5
 tests/test_bridge_inbox.py::test_a_nested_claude_is_found_whatever_the_install[inner1-outer1],tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --test inbox_nested_claude test_a_nested_claude_is_found_whatever_the_install,mapped,,P5
 tests/test_bridge_inbox.py::test_a_nested_claude_is_found_whatever_the_install[inner2-outer2],tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --test inbox_nested_claude test_a_nested_claude_is_found_whatever_the_install,mapped,,P5
@@ -131,8 +131,8 @@ tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_i
 tests/test_bridge_inbox.py::test_rewake_never_names_a_file_after_a_bad_session_id[agent-a1],tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::a_bad_session_id_never_names_a_file,mapped,,P2
 tests/test_bridge_inbox.py::test_rewake_files_use_the_canonical_id,tests/test_bridge_inbox.py,herdr-inbox --test rewake locks::the_files_use_the_canonical_id,mapped,,P2
 tests/test_bridge_inbox.py::test_chain_keeps_the_known_path_for_an_id_in_another_case,tests/test_bridge_inbox.py,herdr-inbox --lib claude::chain::tests::the_recorded_path_is_used_for_the_first_session_only ; herdr-inbox --lib claude::chain::tests::the_chain_follows_continuations_in_order_and_stops_at_a_cycle_or_the_hop_cap,mapped,,P5
-tests/test_bridge_inbox.py::test_a_workflow_agents_transcript_is_a_subagents_too,tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --lib agent_session::claude::io::follower::tests::subagent_dirs_are_recognized,mapped,,P5
-tests/test_bridge_inbox.py::test_a_config_dir_under_a_folder_named_subagents_still_follows,tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --lib agent_session::claude::io::follower::tests::subagent_dirs_are_recognized,mapped,,P5
+tests/test_bridge_inbox.py::test_a_workflow_agents_transcript_is_a_subagents_too,tests/test_bridge_inbox.py,,todo,,P5
+tests/test_bridge_inbox.py::test_a_config_dir_under_a_folder_named_subagents_still_follows,tests/test_bridge_inbox.py,,todo,,P5
 tests/test_bridge_inbox.py::test_a_transcript_that_shrank_is_read_again_from_its_tail,tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --test agent_session_claude_io a_rewritten_transcript_is_read_again_from_the_start,mapped,,P5
 tests/test_bridge_inbox.py::test_a_bad_session_link_never_matches_questions_without_a_session,tests/test_bridge_inbox.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_bridge_inbox.py::test_without_procfs_a_walk_reads_the_process_table_once,tests/test_bridge_inbox.py,herdr-agent-kit@v0.1.3 --lib agent_procs::system::table::tests::test_without_procfs_a_walk_reads_the_process_table_once,mapped,,P5
@@ -297,8 +297,8 @@ tests/test_composer_draft.py::test_a_delivery_typed_after_a_draft_counts_as_land
 tests/test_composer_draft.py::test_a_mere_mention_after_other_text_still_does_not_count,tests/test_composer_draft.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python ; herdr-inbox --test delivery_watch contains_reads_a_record_as_python_does,mapped,,P5
 tests/test_composer_draft.py::test_send_now_after_a_merged_landing_records_it_instead_of_typing_again,tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_composer_draft.py::test_l1_a_draft_with_a_blank_first_line_is_a_draft,tests/test_composer_draft.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
-tests/test_composer_draft.py::test_l2_an_unreadable_input_box_says_why_once,tests/test_composer_draft.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
-tests/test_composer_draft.py::test_l2_a_brief_unreadable_read_does_not_notify,tests/test_composer_draft.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
+tests/test_composer_draft.py::test_l2_an_unreadable_input_box_says_why_once,tests/test_composer_draft.py,,todo,,P5
+tests/test_composer_draft.py::test_l2_a_brief_unreadable_read_does_not_notify,tests/test_composer_draft.py,,todo,,P5
 tests/test_cursor_targets.py::test_cancel_stays_cancel_when_a_question_arrives,tests/test_cursor_targets.py,inbox-core --test popup_transitions cursor_targets::cancel_stays_cancel_when_a_question_arrives,mapped,,P6
 tests/test_cursor_targets.py::test_item_cursor_follows_its_question,tests/test_cursor_targets.py,inbox-core --test popup_transitions cursor_targets::item_cursor_follows_its_question,mapped,,P6
 tests/test_cursor_targets.py::test_vanished_target_parks_on_nothing,tests/test_cursor_targets.py,inbox-core --test popup_transitions cursor_targets::vanished_target_parks_on_nothing,mapped,,P6
@@ -309,7 +309,7 @@ tests/test_deep_link.py::test_request_is_written_atomically_and_consumed_once,te
 tests/test_deep_link.py::test_newest_request_wins,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::the_newest_request_wins_and_a_stale_one_is_dropped,mapped,,P5
 tests/test_deep_link.py::test_stale_request_is_ignored_and_removed,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::the_newest_request_wins_and_a_stale_one_is_dropped,mapped,,P5
 tests/test_deep_link.py::test_garbage_request_is_ignored,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_deep_link.py::test_concurrent_popups_consume_a_request_exactly_once,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::a_request_is_taken_once_by_its_popup,mapped,,P5
+tests/test_deep_link.py::test_concurrent_popups_consume_a_request_exactly_once,tests/test_deep_link.py,,todo,,P5
 tests/test_deep_link.py::test_targets_resolve_to_a_group_and_question,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_popup_opens_on_the_requested_question,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_requested_question,mapped,,P6
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[group-3],tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_group_for_each_target_kind,mapped,,P6
@@ -386,13 +386,13 @@ tests/test_delivery.py::test_answer_is_prompted_into_the_asking_pane,tests/test_
 tests/test_delivery.py::test_long_question_is_truncated_in_delivery,tests/test_delivery.py,herdr-inbox --test delivery_messages every_set_of_answers_splits_as_python_splits_it,mapped,,P5
 tests/test_delivery.py::test_failed_prompt_records_delivery_error,tests/test_delivery.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
 tests/test_delivery.py::test_no_live_agent_skips_prompt,tests/test_delivery.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
-tests/test_delivery.py::test_missing_herdr_binary_degrades,tests/test_delivery.py,herdr-inbox --test delivery_pane the_live_agent_is_asked_of_its_pane_and_a_failing_herdr_is_no_agent,mapped,,P5
+tests/test_delivery.py::test_missing_herdr_binary_degrades,tests/test_delivery.py,herdr-inbox --test delivery_pane the_live_agent_is_asked_of_its_pane_and_a_failing_herdr_is_no_agent ; herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
 tests/test_delivery.py::test_answering_twice_is_refused,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_token_counts_follow_state,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did ; herdr-inbox --lib mcp::runtime::tests::a_question_is_filed_its_effects_queued_and_its_answer_checked_once,mapped,,P5
 tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,herdr-inbox --test cli live::answer_list_and_dismiss_through_the_binary,mapped,,P5
-tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,herdr-inbox --test delivery_pane a_prompt_is_typed_cleaned_and_its_failure_is_its_error,mapped,,P5
+tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,herdr-inbox --test delivery_pane a_prompt_is_typed_cleaned_and_its_failure_is_its_error ; herdr-agent-kit@v0.1.3 --lib herdr_api::sanitize::tests::clean_matches_the_captured_python_outputs,mapped,,P5
 tests/test_delivery.py::test_only_the_asked_panes_agent_counts[w1:p1-True],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery.py::test_only_the_asked_panes_agent_counts[w1:p9-False],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery.py::test_only_the_asked_panes_agent_counts[None-True],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
