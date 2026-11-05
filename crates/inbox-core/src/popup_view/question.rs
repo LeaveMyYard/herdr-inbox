@@ -33,7 +33,7 @@ pub(crate) fn draw(
 ) {
     let t = &ctx.theme;
     layout::hint(buf, &mut area, &Ln::new().plain(&hint(v)).done(), t.muted);
-    let Some(q) = popup.data().question(v.qid) else {
+    let Some(q) = popup.view_question(v.qid) else {
         return;
     };
     let mut stack = Stack::new(area);

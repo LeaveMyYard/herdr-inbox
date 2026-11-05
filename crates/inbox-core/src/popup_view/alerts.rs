@@ -11,7 +11,7 @@ use super::layout::{self, Stack};
 use super::text::{Line, Ln, Look, lines_of};
 use super::theme::Theme;
 use crate::empty_inbox::Rgb;
-use crate::popup::{Alert, AlertView, Popup};
+use crate::popup::{Alert, AlertView, Entry, Popup};
 
 /// Python `SEVERITY_STYLE`: `info` in suggestion, the rest in warning.
 fn severity(a: &Alert, t: &Theme) -> Rgb {
@@ -33,9 +33,10 @@ fn place(a: &Alert) -> Option<String> {
         .or(a.pane_id.clone().filter(|s| !s.is_empty()))
 }
 
-/// Who and when: tab (or pane), asker, age.
-fn meta(a: &Alert, ctx: &Ctx) -> String {
+/// Who and when: the machine (a remote alert's), tab (or pane), asker, age.
+fn meta(a: &Alert, label: Option<&str>, ctx: &Ctx) -> String {
     let parts = [
+        label.map(str::to_string),
         place(a),
         a.asked_by.clone(),
         Some(age(&a.created_at, ctx.wall)),
@@ -48,26 +49,38 @@ fn meta(a: &Alert, ctx: &Ctx) -> String {
     parts.join(" · ")
 }
 
-/// An alert's list row, after its `head` (cursor and the blank number).
+/// An alert's list row, after its `head` (cursor and the blank number): a
+/// local one (`entry` [`Entry::Alert`]) or a remote machine's
+/// ([`Entry::RemoteAlert`], its ref `<label>:A<id>`).
 pub(crate) fn row(
     popup: &Popup,
-    id: i64,
+    entry: &Entry,
     here: bool,
     head: Ln,
     closed: Option<&String>,
     ctx: &Ctx,
 ) -> Vec<Line> {
     let t = &ctx.theme;
-    let a = popup.data().alert(id);
+    let data = popup.data();
+    let (a, r#ref, remote) = match entry {
+        Entry::Alert(id) => (data.alert(*id), format!("A{id}"), false),
+        Entry::RemoteAlert(key) => {
+            // the name comes from the key: an ended alert keeps its machine's
+            let (mid, aid) = key.rsplit_once('|').unwrap_or(("", key));
+            let found = data.remote.alert(key).map(|a| &a.alert);
+            (found, format!("{}:A{aid}", data.remote.name(mid)), true)
+        }
+        _ => return vec![head.done()],
+    };
     let open = a.filter(|a| a.status == "open");
     let (Some(a), None) = (open, closed) else {
         let why = closed
             .cloned()
             .unwrap_or_else(|| a.map_or("gone".to_string(), |a| a.status.clone()));
-        return vec![head.on(Look::dimmed(), &format!("✓ A{id} · {why}")).done()];
+        return vec![head.on(Look::dimmed(), &format!("✓ {ref} · {why}")).done()];
     };
     let style = severity(a, t);
-    let text = format!("{} A{id} · {} · {}", mark(a), a.severity, a.title);
+    let text = format!("{} {ref} · {} · {}", mark(a), a.severity, a.title);
     let line1 = head.on(
         if here {
             Look::bold(style)
@@ -76,21 +89,27 @@ pub(crate) fn row(
         },
         &text,
     );
-    let tail = if a.kind == "blocked" {
-        "g goes there · d dismisses"
-    } else {
-        "d acknowledges · g goes there"
+    let tail = match (remote, a.kind == "blocked") {
+        (true, true) => "open it from herdr's machine view",
+        (true, false) => "d acknowledges",
+        (false, true) => "g goes there · d dismisses",
+        (false, false) => "d acknowledges · g goes there",
     };
     let detail = Ln::new()
         .plain("      ")
-        .on(Look::dimmed(), &format!("{} · {tail}", meta(a, ctx)));
+        .on(Look::dimmed(), &format!("{} · {tail}", meta(a, None, ctx)));
     vec![line1.done(), detail.done()]
 }
 
 /// The alert's own view, in the body `area`.
 pub(crate) fn view(buf: &mut Buffer, mut area: Rect, popup: &Popup, view: &AlertView, ctx: &Ctx) {
     let t = &ctx.theme;
-    let Some(a) = popup.data().alert(view.alert) else {
+    let label = view.label.as_deref();
+    let a = match label {
+        Some(_) => popup.remote_alert().map(|r| &r.alert),
+        None => popup.data().alert(view.alert),
+    };
+    let Some(a) = a else {
         return;
     };
     let (what, keys) = if a.kind == "blocked" {
@@ -104,12 +123,25 @@ pub(crate) fn view(buf: &mut Buffer, mut area: Rect, popup: &Popup, view: &Alert
             "d acknowledge · g go to the agent · Esc back",
         )
     };
-    layout::hint(buf, &mut area, &Ln::new().plain(keys).done(), t.muted);
+    let keys = if label.is_some() {
+        // a remote machine's agent: never gone to from here
+        keys.replace("g go to the agent · ", "")
+            .replace(" · g go to the agent", "")
+    } else {
+        keys.to_string()
+    };
+    layout::hint(buf, &mut area, &Ln::new().plain(&keys).done(), t.muted);
     let mut stack = Stack::new(area);
     let head = Ln::new()
         .on(
             Look::bold(severity(a, t)),
-            &format!("{} A{} · {}", mark(a), a.id, a.severity),
+            &format!(
+                "{} {}A{} · {}",
+                mark(a),
+                label.map_or(String::new(), |l| format!("{l}:")),
+                a.id,
+                a.severity
+            ),
         )
         .plain(": ")
         .on(Look::default().with_bold(), &a.title);
@@ -117,7 +149,7 @@ pub(crate) fn view(buf: &mut Buffer, mut area: Rect, popup: &Popup, view: &Alert
     layout::text(
         buf,
         &mut stack,
-        &lines_of(&meta(a, ctx), Look::default()),
+        &lines_of(&meta(a, label, ctx), Look::default()),
         (0, 0),
         t.muted,
     );

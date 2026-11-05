@@ -81,8 +81,10 @@ impl Popup {
         match view {
             View::None | View::List(_) => false,
             View::Question(v) => {
+                let had = (v.editing.is_some(), v.box_focused);
                 let taken = v.key(key, armed, &mut out);
-                if v.editing.is_none() || v.box_focused {
+                let changed = (v.editing.is_some(), v.box_focused) != had;
+                if changed && (v.editing.is_none() || v.box_focused) {
                     *focus = Focus::View; // a box opened or closed: Textual focuses it, or the view
                 }
                 taken
@@ -110,10 +112,16 @@ impl Popup {
         self.focus() == Focus::Box
     }
 
-    /// Python `check_action("switch")`.
+    /// Python `check_action("switch")`, and a held remote question: it has
+    /// no tabs, but the switch keys must still release its deep link.
     fn can_switch(&self) -> bool {
-        !self.editing()
-            && (self.mode == Mode::Group || (self.mode == Mode::Empty && !self.entries.is_empty()))
+        let tabs = match self.mode {
+            Mode::Group => true,
+            Mode::Empty => !self.entries.is_empty(),
+            Mode::Remote => self.held,
+            _ => false,
+        };
+        tabs && !self.editing()
     }
 
     /// Python `check_action("dismiss" | "goto")`.
@@ -129,7 +137,7 @@ impl Popup {
                 .current
                 .is_some_and(|c| c != Tab::Submit && !self.gone.contains(&c)),
             Mode::Failed | Mode::Alert => goto,
-            Mode::Empty => false,
+            Mode::Empty | Mode::Remote => false,
         }
     }
 

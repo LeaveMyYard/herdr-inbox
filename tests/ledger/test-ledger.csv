@@ -672,23 +672,23 @@ tests/test_remote_sync.py::test_expired_and_stale_actions_are_not_sent,tests/tes
 tests/test_remote_sync.py::test_actions_go_fifo_per_question,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_hostile_export_rows_are_dropped,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_the_worker_stays_alive_while_a_remote_is_enabled,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_lists_and_answers_a_remote_question,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_dismisses_a_remote_group_with_confirmation,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_shows_an_offline_machine_and_a_rejection,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_remote_text_is_escaped,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_deep_link_to_a_remote_question,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_popup_lists_and_answers_a_remote_question,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_lists_and_answers_a_remote_question,mapped,,P6
+tests/test_remote_sync.py::test_popup_dismisses_a_remote_group_with_confirmation,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_dismisses_a_remote_group_with_confirmation,mapped,,P6
+tests/test_remote_sync.py::test_popup_shows_an_offline_machine_and_a_rejection,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_shows_an_offline_machine_and_a_rejection,mapped,,P6
+tests/test_remote_sync.py::test_remote_text_is_escaped,tests/test_remote_sync.py,inbox-core --test popup_screens remote_text_is_drawn_as_written,mapped,,P6
+tests/test_remote_sync.py::test_deep_link_to_a_remote_question,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::deep_link_to_a_remote_question,mapped,,P6
 tests/test_remote_sync.py::test_the_ssh_control_socket_path_stays_short,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_a_question_deleted_on_the_remote_leaves_the_mirror_on_the_next_pull,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement,mapped,,P6
 tests/test_remote_sync.py::test_bidi_overrides_and_line_separators_are_stripped,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_one_hung_machine_does_not_delay_the_others,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_a_remote_question_closed_there_becomes_an_inert_placeholder,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_a_remote_question_closed_there_becomes_an_inert_placeholder,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::a_remote_question_closed_there_becomes_an_inert_placeholder,mapped,,P6
 tests/test_remote_sync.py::test_m1_queued_actions_expire_even_when_the_machine_is_never_reached_again,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_l2_an_expiring_send_that_may_have_landed_is_worded_so,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_m1_the_popup_shows_a_past_expiry_as_expired,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_m1_the_popup_shows_a_past_expiry_as_expired,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::m1_the_popup_shows_a_past_expiry_as_expired,mapped,,P6
 tests/test_remote_sync.py::test_l5_a_settled_row_is_notified_once_even_with_two_workers,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_m2_an_answer_the_remote_cannot_deliver_shows_here_once,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_m2_the_popup_lists_it_and_d_clears_it,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_m2_the_popup_lists_it_and_d_clears_it,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::m2_the_popup_lists_it_and_d_clears_it,mapped,,P6
 tests/test_remote_sync.py::test_l1_a_remote_apply_refreshes_the_tab_markers,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_l4_the_remote_command_needs_no_posix_login_shell,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_l3_a_row_of_another_remote_herdr_session_is_left_to_its_own_worker,tests/test_remote_sync.py,,todo,,
@@ -702,7 +702,7 @@ tests/test_remote_sync.py::test_l2_a_reachable_already_sent_expired_row_goes_to_
 tests/test_remote_sync.py::test_a_remote_alert_is_mirrored_notified_once_and_acked_through_the_outbox,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_a_withdrawn_remote_alert_leaves_the_popup_and_a_stale_ack_is_refused,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_hostile_alert_rows_are_dropped,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_acknowledges_a_remote_alert,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_popup_acknowledges_a_remote_alert,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_acknowledges_a_remote_alert,mapped,,P6
 tests/test_remote_sync.py::test_issue_55_a_machine_whose_name_starts_with_q_is_deep_linked,tests/test_remote_sync.py,,todo,,
 tests/test_rereview_fixes.py::test_retry_skips_focused_pane,tests/test_rereview_fixes.py,,todo,,
 tests/test_rereview_fixes.py::test_retry_skips_blocked_agent,tests/test_rereview_fixes.py,,todo,,

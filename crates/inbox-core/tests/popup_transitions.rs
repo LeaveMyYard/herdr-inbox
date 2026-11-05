@@ -1,7 +1,9 @@
 //! The popup model replays the popup transition golden
 //! (tests/fixtures/popup-transitions.json, captured from the Python popup by
 //! tools/capture_popup_transitions.py): every scenario's events, at their
-//! times, give the same state and the same effects, step by step.
+//! times, give the same state and the same effects, step by step. Where the
+//! Rust popup deliberately differs from Python, a scenario's tail comes from
+//! tests/fixtures/popup-deviations.json instead (the README lists why).
 
 mod popup;
 
@@ -10,6 +12,7 @@ use popup::json;
 use serde_json::Value;
 
 const GOLDEN: &str = include_str!("../../../tests/fixtures/popup-transitions.json");
+const DEVIATIONS: &str = include_str!("../../../tests/fixtures/popup-deviations.json");
 
 /// The keys where two states differ, with both values.
 fn differences(want: &Value, got: &Value) -> Vec<String> {
@@ -79,6 +82,26 @@ fn golden() -> Value {
     serde_json::from_str(GOLDEN).unwrap()
 }
 
+fn deviations() -> Vec<Value> {
+    let doc: Value = serde_json::from_str(DEVIATIONS).unwrap();
+    assert_eq!(doc["schema"], 1);
+    doc["transitions"].as_array().unwrap().clone()
+}
+
+/// The scenario as Rust must play it: Python's, up to a deviation.
+fn with_deviation(scenario: &Value) -> Value {
+    let mut out = scenario.clone();
+    if let Some(d) = deviations()
+        .iter()
+        .find(|d| d["scenario"] == scenario["name"])
+    {
+        let steps = out["steps"].as_array_mut().unwrap();
+        steps.truncate(usize::try_from(d["from_step"].as_u64().unwrap()).unwrap());
+        steps.extend(d["steps"].as_array().unwrap().iter().cloned());
+    }
+    out
+}
+
 /// Replay the golden's scenario `name`.
 fn scenario(name: &str) {
     let golden = golden();
@@ -88,7 +111,7 @@ fn scenario(name: &str) {
         .iter()
         .find(|s| s["name"] == name);
     let scenario = scenario.unwrap_or_else(|| panic!("no scenario {name} in the golden"));
-    if let Err(diff) = replay(scenario) {
+    if let Err(diff) = replay(&with_deviation(scenario)) {
         panic!("{diff}");
     }
 }
@@ -243,6 +266,44 @@ scenarios! {
         submit_tab_digits_arm = "edge.submit_tab_digits_arm",
         g_right_after_the_popup_opens = "edge.g_right_after_the_popup_opens",
     }
+    remote_sync {
+        popup_lists_and_answers_a_remote_question = "remote_sync.popup_lists_and_answers_a_remote_question",
+        popup_dismisses_a_remote_group_with_confirmation = "remote_sync.popup_dismisses_a_remote_group_with_confirmation",
+        popup_shows_an_offline_machine_and_a_rejection = "remote_sync.popup_shows_an_offline_machine_and_a_rejection",
+        deep_link_to_a_remote_question = "remote_sync.deep_link_to_a_remote_question",
+        deep_link_to_a_remote_question_held = "remote_sync.deep_link_to_a_remote_question.held",
+        a_remote_question_closed_there_becomes_an_inert_placeholder = "remote_sync.a_remote_question_closed_there_becomes_an_inert_placeholder",
+        m1_the_popup_shows_a_past_expiry_as_expired = "remote_sync.m1_the_popup_shows_a_past_expiry_as_expired",
+        m2_the_popup_lists_it_and_d_clears_it = "remote_sync.m2_the_popup_lists_it_and_d_clears_it",
+        popup_acknowledges_a_remote_alert = "remote_sync.popup_acknowledges_a_remote_alert",
+        m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement = "remote_sync.m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement",
+    }
+    remote_edge {
+        only_remote_rows = "remote_edge.only_remote_rows",
+        answering_one_of_two = "remote_edge.answering_one_of_two",
+        last_remote_answer_closes = "remote_edge.last_remote_answer_closes",
+        enter_and_g_on_remote_rows = "remote_edge.enter_and_g_on_remote_rows",
+        remote_view_keys = "remote_edge.remote_view_keys",
+        chat_about_this = "remote_edge.chat_about_this",
+        multi_select_and_empty_text = "remote_edge.multi_select_and_empty_text",
+        arrivals_are_armed = "remote_edge.arrivals_are_armed",
+        remote_rows_end = "remote_edge.remote_rows_end",
+        remote_alert_ends_on_screen = "remote_edge.remote_alert_ends_on_screen",
+        remote_alert_d_in_the_list = "remote_edge.remote_alert_d_in_the_list",
+        queued_row_is_not_cleared = "remote_edge.queued_row_is_not_cleared",
+        dismiss_kept_and_polled_under = "remote_edge.dismiss_kept_and_polled_under",
+        unlabelled_machine = "remote_edge.unlabelled_machine",
+        remote_question_ends_after_answer_elsewhere = "remote_edge.remote_question_ends_after_answer_elsewhere",
+        closed_but_group_lives = "remote_edge.closed_but_group_lives",
+        two_machines_same_id = "remote_edge.two_machines_same_id",
+        tab_chain_box = "remote_edge.tab_chain_box",
+        tab_chain_preview = "remote_edge.tab_chain_preview",
+        tab_chain_preview_box = "remote_edge.tab_chain_preview_box",
+        tab_chain_shared_id = "remote_edge.tab_chain_shared_id",
+        tab_choices_then_pick = "remote_edge.tab_choices_then_pick",
+        two_alerts_only = "remote_edge.two_alerts_only",
+        g_in_a_remote_alert_shares_a_local_id = "remote_edge.g_in_a_remote_alert_shares_a_local_id",
+    }
 }
 
 #[test]
@@ -262,6 +323,27 @@ fn every_scenario_of_the_golden_has_its_test() {
         names, listed,
         "the golden was regenerated: list its scenarios here"
     );
+}
+
+/// A deviation starts at the first step that differs from what Python does.
+/// When Python is fixed and the golden recaptured, this asks to drop it.
+#[test]
+fn every_deviation_still_differs_from_python() {
+    let golden = golden();
+    let scenarios = golden["scenarios"].as_array().unwrap();
+    let list = deviations();
+    assert!(!list.is_empty());
+    for d in &list {
+        let name = &d["scenario"];
+        let python = scenarios.iter().find(|s| s["name"] == *name).unwrap();
+        let python = python["steps"].as_array().unwrap();
+        let from = usize::try_from(d["from_step"].as_u64().unwrap()).unwrap();
+        assert!(
+            d["quirk"].as_u64().is_some() && d["why"].is_string(),
+            "{name}"
+        );
+        assert_ne!(python[from], d["steps"][0], "{name}: Python does this now");
+    }
 }
 
 #[test]

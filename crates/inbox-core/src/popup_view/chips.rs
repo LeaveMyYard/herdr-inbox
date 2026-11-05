@@ -19,6 +19,9 @@ const GAP: u16 = 2;
 /// The group's name, if the title row shows (a titled group, or several
 /// questions; a lone untitled one shows its header chip instead).
 pub(crate) fn title(popup: &Popup) -> Option<Line> {
+    if popup.mode() == Mode::Remote {
+        return super::remote::title(popup); // `project1:Q3 · …` over a remote question
+    }
     let (Mode::Group, Some(Entry::Group(g))) = (popup.mode(), popup.entry()) else {
         return None;
     };
