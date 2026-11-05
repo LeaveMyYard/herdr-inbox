@@ -168,7 +168,7 @@ impl World {
                 _ => json!({}),
             })
         });
-        let client = Herdr::new(ServerId::new(&stub.socket));
+        let client = Herdr::new(ServerId::new(&stub.socket)).with_bin("/nonexistent/herdr-cli");
         let store = Store::open(&self.db, Duration::from_secs(5)).unwrap();
         let files = Transcripts::new(Some(ProjectsRoot::new(projects)));
         let qs: Vec<_> = self

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Fix: concurrent migrating opens of a fresh database could fail with "database is locked"**.
+  On a rollback-journal file the switch to WAL asks for the write lock while holding a read
+  lock, and SQLite answers busy at once there instead of waiting out the busy timeout. The
+  worker's and the popup's migration (Python and Rust) now retry the switch until their busy
+  timeout has passed.
+- **Fix: a Claude draft holds an answer whatever agent kind herdr reports** (#96). The input box
+  was read only for herdr's kind `claude`, so a renamed or misreported kind typed onto the
+  operator's unsent text. It is now read for every kind; a recognised Claude Code draft holds
+  the answer for any kind, and an unreadable box still holds only `claude` agents.
+- **Fix: only the pane's own agent counts** (#97). herdr's `agent.get` target also matches agent
+  names; a reply naming another pane is now "no agent in the pane" (delivery, the worker, the
+  rewake watcher and the popup).
+- **Recorded binaries are pruned** (#72). An install (herdr's build step) and the MCP launch's
+  fetch keep the newest three recorded `herdr-inbox-<version>` binaries of each contract, in
+  `$XDG_STATE_HOME/herdr-inbox/bin` and `$CLAUDE_PLUGIN_DATA/bin`, and remove older ones.
+- **Fix: a Claude plugin cache copy no longer runs a copied `target/` build** (#74). The launcher
+  runs `<root>/target/release/herdr-inbox` only in a git checkout.
 - **Hardening of the worker handover** (#50, review of #75). A revision-wanted marker write waits at
   most 200 ms for its lock (a hook never hangs). `ensure()` starts at most one worker per revision
   every 5 s, so a newer worker that crashes at start can no longer cost one process and one

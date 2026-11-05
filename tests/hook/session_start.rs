@@ -154,9 +154,12 @@ fn subagents_get_their_rules_and_garbage_or_no_pane_gets_nothing() {
 fn bad_arguments_exit_0() {
     // Python test_hook_launch::test_hook_crash_and_bad_arguments_exit_0
     for args in [vec!["hook"], vec!["hook", "stop", "extra"]] {
+        let dir = tempfile::tempdir().unwrap();
+        let cli = crate::herdr_cli::CliStub::new(dir.path());
         let out = std::process::Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
             .args(&args)
             .env_clear()
+            .env("HERDR_BIN_PATH", &cli.bin)
             .stdin(std::process::Stdio::null())
             .output()
             .unwrap();
@@ -165,6 +168,7 @@ fn bad_arguments_exit_0() {
             (Some(0), 0),
             "{args:?}"
         );
+        cli.assert_only(&[]);
     }
 }
 
@@ -236,12 +240,14 @@ fn a_claude_nested_in_another_gets_nothing() {
             .env("PATH", std::env::var_os("PATH").unwrap_or_default())
             .env("HERDR_PANE_ID", "w1:p1")
             .env("HERDR_INBOX_DB", &w.db)
+            .env("HERDR_BIN_PATH", &w.cli.bin)
             .status()
             .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while !done.exists() && std::time::Instant::now() < deadline {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
+        w.cli.assert_only(&[]);
         std::fs::read_to_string(&out).unwrap()
     };
     assert!(

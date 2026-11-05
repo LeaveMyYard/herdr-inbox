@@ -63,6 +63,18 @@ pub fn submit(
     deliver: Option<&mut dyn Delivery>,
     markers: &mut Markers<'_>,
 ) -> rusqlite::Result<Vec<Question>> {
+    submit_marking(store, qids, deliver, &mut |pane| markers.update(pane))
+}
+
+/// [`submit`], each pane's marks refreshed by `marks` (the popup queues them
+/// for its background thread, as Python's popup does with
+/// `service.enable_background`).
+pub fn submit_marking(
+    store: &Store,
+    qids: &[i64],
+    deliver: Option<&mut dyn Delivery>,
+    marks: &mut dyn FnMut(Option<&str>),
+) -> rusqlite::Result<Vec<Question>> {
     let mut answered = Vec::new();
     for &qid in qids {
         let Some(q) = store.get(qid)? else { continue };
@@ -105,7 +117,7 @@ pub fn submit(
         }
     }
     for pane in panes {
-        markers.update(pane);
+        marks(pane);
     }
     let mut out = Vec::new();
     for q in &answered {
@@ -132,6 +144,24 @@ pub fn answer(
     Ok(submit(store, &[qid], deliver, markers)?.into_iter().next())
 }
 
+/// Answers one open question right away with a structured `detail` (Python
+/// `answer(store, qid, text, choices=…, notes=…)`, the popup's lone
+/// question): its draft, then [`submit_marking`]. `None`: not open.
+pub fn answer_detail(
+    store: &Store,
+    qid: i64,
+    detail: &Value,
+    deliver: Option<&mut dyn Delivery>,
+    marks: &mut dyn FnMut(Option<&str>),
+) -> rusqlite::Result<Option<Question>> {
+    if !store.set_draft(qid, Some(detail))? {
+        return Ok(None);
+    }
+    Ok(submit_marking(store, &[qid], deliver, marks)?
+        .into_iter()
+        .next())
+}
+
 /// Closes an open question as `status` (`dismissed`, `withdrawn`) with an
 /// optional `note`, and refreshes its pane's marks (Python `close`).
 /// `false`: it is not open.
@@ -142,13 +172,24 @@ pub fn close(
     note: Option<&str>,
     markers: &mut Markers<'_>,
 ) -> rusqlite::Result<bool> {
+    close_marking(store, qid, status, note, &mut |pane| markers.update(pane))
+}
+
+/// [`close`], the pane's marks refreshed by `marks`.
+pub fn close_marking(
+    store: &Store,
+    qid: i64,
+    status: &str,
+    note: Option<&str>,
+    marks: &mut dyn FnMut(Option<&str>),
+) -> rusqlite::Result<bool> {
     let Some(q) = store.get(qid)? else {
         return Ok(false);
     };
     if !store.set_status(qid, status, note)? {
         return Ok(false);
     }
-    markers.update(q.pane_id.as_deref());
+    marks(q.pane_id.as_deref());
     Ok(true)
 }
 

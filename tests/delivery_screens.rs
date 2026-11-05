@@ -68,7 +68,7 @@ fn every_agent_record_reads_as_python_reads_it() {
     assert!(rows.len() >= 19);
     for row in rows {
         let result = Some(&row["result"]).filter(|r| !r.is_null());
-        let got = agent_from(result, |reported| format!("live-of-{reported}"));
+        let got = agent_from(result, "w1:p1", |reported| format!("live-of-{reported}"));
         assert_eq!(got, python_agent(&row["agent"]), "{}", row["name"]);
     }
 }
