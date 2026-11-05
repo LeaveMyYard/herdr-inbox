@@ -185,7 +185,7 @@ impl Duties for LiveDuties {
             unreadable: &mut self.unreadable,
             verify_wait: VERIFY_SECONDS,
         };
-        pending(&mut Round {
+        pending(&Round {
             ctx: &mut ctx,
             server: &server,
         })
