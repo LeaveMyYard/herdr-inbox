@@ -196,3 +196,85 @@ fn exit_codes_pass_through() {
         "`inbox open`: the popup is already open"
     );
 }
+
+#[test]
+fn herdr_startup_ensures_the_worker_through_the_launcher() {
+    // Python test_delivery_worker::test_herdr_startup_ensures_the_worker
+    let manifest = fs::read_to_string(repo().join("herdr-plugin.toml")).unwrap();
+    let start = manifest.find("[[startup]]").expect("a startup command");
+    assert!(
+        manifest[start..]
+            .contains(r#"command = ["sh", "scripts/launch", "cli", "worker", "--ensure"]"#),
+        "{manifest}"
+    );
+    assert!(rust_cli().iter().any(|c| c == "worker"));
+}
+
+/// A plugin copy as Claude Code caches one (no .git), with the real binary recorded.
+fn copy_with_the_real_binary() -> Root {
+    let r = Root::new();
+    let bin = r.state_bin().join("herdr-inbox-1.0.0");
+    fs::copy(env!("CARGO_BIN_EXE_herdr-inbox"), &bin).unwrap();
+    r
+}
+
+#[test]
+fn the_session_start_hook_runs_the_real_binary_from_a_plugin_copy() {
+    // Python test_plugin_copy::test_session_start_hook_runs_from_the_copy
+    let r = copy_with_the_real_binary();
+    let db = r.dir.path().join("inbox.db");
+    let payload = r#"{"session_id": "s", "source": "startup"}"#;
+    let out = r.sh(
+        "launch",
+        &["hook", "session-start"],
+        payload,
+        &[
+            ("HERDR_PANE_ID", Path::new("w1:p1")),
+            ("HERDR_INBOX_DB", &db),
+            ("HERDR_SOCKET_PATH", &r.dir.path().join("no-herdr.sock")),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let doc: serde_json::Value = serde_json::from_str(&stdout(&out)).unwrap();
+    assert_eq!(doc["hookSpecificOutput"]["hookEventName"], "SessionStart");
+}
+
+#[test]
+fn the_mcp_server_runs_the_real_binary_from_a_plugin_copy() {
+    // Python test_plugin_copy::test_mcp_server_runs_from_the_copy
+    let r = copy_with_the_real_binary();
+    let db = r.dir.path().join("inbox.db");
+    let requests = concat!(
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#,
+        "\n",
+        r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+        "\n",
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
+        "\n",
+    );
+    let out = r.sh(
+        "launch",
+        &["mcp"],
+        requests,
+        &[
+            ("HERDR_INBOX_DB", &db),
+            ("HERDR_INBOX_NO_WORKER", Path::new("1")),
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = stdout(&out);
+    let names: Vec<String> = text
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter(|m| m["id"] == 2)
+        .flat_map(|m| m["result"]["tools"].as_array().cloned().unwrap_or_default())
+        .map(|t| t["name"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(names.iter().any(|n| n == "ask_operator"), "{text}");
+    assert_eq!(names.len(), 6, "{names:?}");
+}

@@ -357,7 +357,7 @@ tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/
 tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
-tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd2],tests/test_deep_link.py,,todo,,P5
+tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd2],tests/test_deep_link.py,,todo,,P8
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd3],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
 tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[Q12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
@@ -406,7 +406,7 @@ tests/test_delivery_worker.py::test_the_worker_is_a_singleton,tests/test_deliver
 tests/test_delivery_worker.py::test_ensure_spawns_only_when_not_running,tests/test_delivery_worker.py,herdr-inbox --lib worker::spawn::tests::ensure::ensure_spawns_only_when_not_running,mapped,,P5
 tests/test_delivery_worker.py::test_worker_process_runs_and_exits_when_idle,tests/test_delivery_worker.py,herdr-inbox --test worker_process exits::the_rust_worker_exits_when_idle,mapped,,P5
 tests/test_delivery_worker.py::test_mcp_servers_no_longer_run_their_own_retry_loop,tests/test_delivery_worker.py,,retired,asserts a Python attribute is absent; the Rust MCP server has no retry loop,P5
-tests/test_delivery_worker.py::test_herdr_startup_ensures_the_worker,tests/test_delivery_worker.py,,todo,,P5
+tests/test_delivery_worker.py::test_herdr_startup_ensures_the_worker,tests/test_delivery_worker.py,herdr-inbox --test launch cli::herdr_startup_ensures_the_worker_through_the_launcher,mapped,,P5
 tests/test_delivery_worker.py::test_every_answer_or_send_ensures_the_worker,tests/test_delivery_worker.py,herdr-inbox --test worker_duties process::every_cli_answer_ensures_the_worker,mapped,,P5
 tests/test_delivery_worker.py::test_a_worker_that_idles_out_with_new_work_starts_a_successor,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::a_worker_that_idles_out_with_new_work_starts_a_successor,mapped,,P5
 tests/test_delivery_worker.py::test_panel_detection_reads_only_the_footer,tests/test_delivery_worker.py,herdr-inbox --test delivery_screens every_screen_reads_as_python_reads_it,mapped,,P5
@@ -508,7 +508,7 @@ tests/test_hook.py::test_compact_without_questions_is_just_the_rules,tests/test_
 tests/test_hook.py::test_subagent_start,tests/test_hook.py,herdr-inbox --test hook session_start::subagents_get_their_rules_and_garbage_or_no_pane_gets_nothing,mapped,,P2
 tests/test_hook.py::test_broken_db_never_fails,tests/test_hook.py,herdr-inbox --test hook session_start::an_unusable_or_older_database_costs_the_list_never_the_rules,mapped,,P2
 tests/test_hook.py::test_garbage_input_never_fails,tests/test_hook.py,herdr-inbox --test hook session_start::subagents_get_their_rules_and_garbage_or_no_pane_gets_nothing,mapped,,P2
-tests/test_hook.py::test_plugin_hook_and_mcp_config_point_at_the_cli,tests/test_hook.py,,todo,,P5
+tests/test_hook.py::test_plugin_hook_and_mcp_config_point_at_the_cli,tests/test_hook.py,herdr-inbox --test launch manifest::the_plugin_config_points_at_the_launcher,mapped,,P5
 tests/test_hook.py::test_bounded_retries_extended_busy_codes,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_retries_extended_busy_codes,mapped,,P2
 tests/test_hook.py::test_bounded_gives_up_on_other_errors_and_at_the_deadline,tests/test_hook.py,herdr-inbox --lib store::busy::tests::bounded_gives_up_on_other_errors_and_at_the_deadline,mapped,,P2
 tests/test_hook.py::test_touch_gives_up_quickly_on_a_locked_db,tests/test_hook.py,herdr-inbox --test store liveness::touch_gives_up_quickly_on_a_locked_db,mapped,,P2
@@ -585,8 +585,8 @@ tests/test_pane_moved.py::test_42_a_hidden_answer_is_never_revived,tests/test_pa
 tests/test_pane_moved.py::test_42_a_dismissed_question_is_never_revived,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_dismissed_question_is_never_revived,mapped,,P5
 tests/test_pane_moved.py::test_42_a_send_in_flight_is_not_revived_under_it,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_send_in_flight_is_not_revived_under_it,mapped,,P5
 tests/test_pane_moved.py::test_42_revival_backs_off_per_answer,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::revival_backs_off_per_answer,mapped,,P5
-tests/test_plugin_copy.py::test_session_start_hook_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,P5
-tests/test_plugin_copy.py::test_mcp_server_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,P5
+tests/test_plugin_copy.py::test_session_start_hook_runs_from_the_copy,tests/test_plugin_copy.py,herdr-inbox --test launch cli::the_session_start_hook_runs_the_real_binary_from_a_plugin_copy,mapped,,P5
+tests/test_plugin_copy.py::test_mcp_server_runs_from_the_copy,tests/test_plugin_copy.py,herdr-inbox --test launch cli::the_mcp_server_runs_the_real_binary_from_a_plugin_copy,mapped,,P5
 tests/test_plugin_copy.py::test_plugin_and_marketplace_versions_agree,tests/test_plugin_copy.py,,todo,,P8
 tests/test_poll_teardown.py::test_poll_after_the_widgets_are_gone_is_a_no_op,tests/test_poll_teardown.py,,todo,,P6
 tests/test_poll_teardown.py::test_a_send_finishing_after_the_popup_exits_does_not_raise,tests/test_poll_teardown.py,herdr-inbox --lib tui::run::tests::sends::a_send_reporting_after_the_popup_closed_changes_nothing,mapped,,P6
@@ -720,11 +720,11 @@ tests/test_review_fixes.py::test_retry_delivers_after_a_failed_attempt,tests/tes
 tests/test_review_fixes.py::test_retry_skips_seen_and_other_panes,tests/test_review_fixes.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_review_fixes.py::test_delivery_worker_retries_in_the_background,tests/test_review_fixes.py,herdr-inbox --test worker_duties retry::one_tick_delivers_pending_answers_for_every_pane,mapped,,P5
 tests/test_review_fixes.py::test_ask_outside_herdr_says_ask_in_chat,tests/test_review_fixes.py,herdr-inbox --test mcp_goldens outside_herdr_ask_and_check_answer_as_python_does,mapped,,P5
-tests/test_review_fixes.py::test_hooks_are_silent_outside_herdr,tests/test_review_fixes.py,,todo,,P5
+tests/test_review_fixes.py::test_hooks_are_silent_outside_herdr,tests/test_review_fixes.py,herdr-inbox --test hook session_start::hooks_are_silent_outside_herdr,mapped,,P5
 tests/test_review_fixes.py::test_resume_does_not_list_other_conversations_in_the_pane,tests/test_review_fixes.py,herdr-inbox --test store pending::open_and_answered_unseen_questions_of_this_session_only,mapped,,P2
 tests/test_review_fixes.py::test_concurrent_identical_asks_create_one_question,tests/test_review_fixes.py,herdr-inbox --lib mcp::ask::tests::a_parallel_identical_ask_files_one_question,mapped,,P5
 tests/test_review_fixes.py::test_answered_dedupe_is_time_bounded,tests/test_review_fixes.py,herdr-inbox --test store questions_golden::every_step_leaves_pythons_rows_and_returns_pythons_result,mapped,,P5
-tests/test_review_fixes.py::test_matcher_includes_fork,tests/test_review_fixes.py,,todo,,P5
+tests/test_review_fixes.py::test_matcher_includes_fork,tests/test_review_fixes.py,herdr-inbox --test hook session_start::a_fork_gets_the_rules,mapped,,P5
 tests/test_review_v2.py::test_long_batch_is_split_not_truncated,tests/test_review_v2.py,herdr-inbox --test delivery_messages every_set_of_answers_splits_as_python_splits_it,mapped,,P5
 tests/test_review_v2.py::test_answer_longer_than_a_message_is_referenced,tests/test_review_v2.py,herdr-inbox --test delivery_messages every_set_of_answers_splits_as_python_splits_it,mapped,,P5
 tests/test_review_v2.py::test_retry_picks_up_answers_never_attempted,tests/test_review_v2.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
@@ -900,7 +900,7 @@ tests/test_verified_delivery.py::test_old_server_deliveries_are_rechecked_on_eve
 tests/test_verified_delivery.py::test_check_answers_acknowledgement_is_not_the_old_server_signature,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::check_answers_acknowledgement_is_not_the_old_server_signature,mapped,,P5
 tests/test_verified_delivery.py::test_never_landing_prompt_is_typed_at_most_twice,tests/test_verified_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_verified_delivery.py::test_list_content_and_collapsed_paste_records_count_as_landed,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P5
-tests/test_verified_delivery.py::test_cli_redeliver,tests/test_verified_delivery.py,,todo,,P5
+tests/test_verified_delivery.py::test_cli_redeliver,tests/test_verified_delivery.py,,todo,,P8
 tests/test_verified_delivery.py::test_a_mention_of_a_q_id_is_not_a_delivery_of_it,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P5
 tests/test_verified_delivery.py::test_seven_day_sweep_continues_past_one_batch,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::seven_day_sweep_continues_past_one_batch,mapped,,P5
 tests/test_verified_delivery.py::test_verified_delivery_is_written_in_one_transaction,tests/test_verified_delivery.py,herdr-inbox --test store atomic::every_transactional_write_is_all_or_nothing ; herdr-inbox --test store claims::a_verified_landing_is_delivered_seen_and_verified_in_one_write,mapped,,P5
@@ -944,8 +944,8 @@ tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[1-0-Tr
 tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[1-0-False],tests/test_hook_interp.py,herdr-inbox --test launch manifest::only_the_watchers_wake_code_becomes_claude_codes_exit_2 ; herdr-inbox --test launch pick::the_wake_code_passes_through_and_nothing_else_is_printed,mapped,,P2
 tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[2-0-True],tests/test_hook_interp.py,herdr-inbox --test launch manifest::only_the_watchers_wake_code_becomes_claude_codes_exit_2 ; herdr-inbox --test launch pick::the_wake_code_passes_through_and_nothing_else_is_printed,mapped,,P2
 tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[2-0-False],tests/test_hook_interp.py,herdr-inbox --test launch manifest::only_the_watchers_wake_code_becomes_claude_codes_exit_2 ; herdr-inbox --test launch pick::the_wake_code_passes_through_and_nothing_else_is_printed,mapped,,P2
-tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[127-0-True],tests/test_hook_interp.py,,todo,,P5
-tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[127-0-False],tests/test_hook_interp.py,,todo,,P5
+tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[127-0-True],tests/test_hook_interp.py,herdr-inbox --test launch manifest::only_the_watchers_wake_code_becomes_claude_codes_exit_2,mapped,,P5
+tests/test_hook_interp.py::test_rewake_exit_code_passes_through_the_cache[127-0-False],tests/test_hook_interp.py,herdr-inbox --test launch manifest::only_the_watchers_wake_code_becomes_claude_codes_exit_2,mapped,,P5
 tests/test_hook_interp.py::test_the_payload_reaches_run_py_on_a_cold_cache,tests/test_hook_interp.py,,todo,,P8
 tests/test_successor.py::test_no_binary_starts_the_python_worker_exactly_as_before,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::no_binary_starts_the_python_worker_exactly_as_before,mapped,,P5
 tests/test_successor.py::test_an_installed_rust_worker_takes_over_the_lock_and_no_python_starts,tests/test_successor.py,herdr-inbox --lib worker::spawn::tests::successor::an_installed_rust_worker_takes_over_the_lock_and_no_python_starts,mapped,,P5

@@ -256,3 +256,23 @@ fn a_claude_nested_in_another_gets_nothing() {
     );
     assert_eq!(run(true), "", "a Claude inside a Claude: nothing");
 }
+
+#[test]
+fn hooks_are_silent_outside_herdr() {
+    // Python test_review_fixes::test_hooks_are_silent_outside_herdr
+    let w = World::new();
+    for event in ["session-start", "subagent-start"] {
+        let ran = w.hook_in(event, &w.payload(json!({"source": "startup"})), None);
+        assert_eq!((ran.code, ran.stdout.as_str()), (0, ""), "{event}");
+    }
+}
+
+#[test]
+fn a_fork_gets_the_rules() {
+    // Python test_review_fixes::test_matcher_includes_fork; the matcher half is tests/launch
+    let w = World::new();
+    let ctx = w
+        .hook("session-start", &w.payload(json!({"source": "fork"})))
+        .context("SessionStart");
+    assert_eq!(ctx.as_deref(), Some(SESSION_RULES));
+}

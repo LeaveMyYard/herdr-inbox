@@ -1040,6 +1040,30 @@ needs one worker restart in either direction, as does an update that keeps the v
 server already running keeps running and, finding no worker, starts a Rust one, from its own
 binary, until its session ends.
 
+**A Claude Code directory marketplace** reads the plugin from its folder, so `CLAUDE_PLUGIN_ROOT` is
+the checkout and `claude plugin update` has nothing to do: a pull reaches every new session. Only a
+GitHub marketplace copies the plugin, and that copy changes with the version number.
+
+Exit tests, on an isolated herdr 0.9.5 server (own HOME, XDG dirs, socket and `CLAUDE_CONFIG_DIR`, no
+`HERDR_*` of the caller). A stand-in session in each pane reported itself as a claude agent, drew
+the composer, ran a real MCP server and wrote what was typed into its transcript. As in P2, a local
+remote and a stand-in `curl` served a release-shaped bundle with a gnu build under the musl name.
+
+| Check | Result |
+|---|---|
+| Fresh install, `engine` rust, no release | installs; Python worker and CLI; no binary fetched or built |
+| Update from the Python install to a release | binary fetched; the Python worker hands over to `bin/herdr-inbox worker`, no kill |
+| Update, Rust to Rust | the worker moves to the new root's binary |
+| Update to a root with `engine` python, binary on disk | the Rust worker hands over to that root's Python worker |
+| Linked checkout at one version: pull, `install-bin.sh --build` | the Python worker stays and `worker --ensure` does not displace it; one restart gives the Rust worker |
+| Python MCP server of 80e0e70 and a Rust MCP server, Rust worker | answers from the Rust and Python CLIs each typed once and verified, both ways round |
+| `redeliver`, `clean-venvs`, `remote`, `verify` through the launcher | reach Python |
+| `engine` to python, worker restarted | Python worker; Python lists every row Rust wrote; a question asked before the rollback is delivered after it; `integrity_check` ok |
+| A Rust MCP server still running after that | still files questions; the Python worker delivers |
+
+Not run: a real `claude` session (no credentials in the rig), a real release, macOS, and a rollback
+with an answer pending in the worker (the rig's `blocked` report did not hold the delivery).
+
 ## Deep links: opening the popup on a target (0.6.0)
 
 The integration API for other plugins (e.g. herdr-panorama). It is
