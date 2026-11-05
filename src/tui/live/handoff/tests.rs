@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::*;
+use crate::worker::spawn::deliver_args;
 
 #[test]
 fn the_detached_sender_runs_deliver_with_the_ids_and_force() {

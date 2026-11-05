@@ -25,6 +25,7 @@ use crate::surface::live::Live;
 use crate::surface::popup::{focused_pane, own_checkout};
 use crate::tabs::lock::LOCK_TIMEOUT;
 use crate::tabs::settings::PLUGIN_ID;
+use crate::worker::spawn::start_sender;
 
 /// Runs `cmd` in this process: stdout, stderr and the environment are the
 /// process's own. The exit code.
@@ -37,9 +38,8 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let files = Transcripts::from_env();
     let mut config =
         ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());
-    let root = std::env::current_exe()
-        .ok()
-        .and_then(|exe| own_checkout(&exe));
+    let exe = std::env::current_exe().ok();
+    let root = exe.as_deref().and_then(own_checkout);
     let mut surface = Live::new(herdr.clone(), warn).with_popup(root, focused_pane(&env));
     let mut delivery = LiveDelivery {
         herdr,
@@ -47,6 +47,7 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
         state_dir: state_dir.clone(),
         server: inbox::server_id(&env).to_string_lossy().into_owned(),
         unreadable: Unreadable::after(UNREADABLE_NOTIFY_AFTER),
+        exe,
     };
     let session = std::env::var("CLAUDE_CODE_SESSION_ID").ok();
     let (mut input, mut out, mut err) = (std::io::stdin(), std::io::stdout(), std::io::stderr());
@@ -84,6 +85,7 @@ struct LiveDelivery {
     state_dir: std::path::PathBuf,
     server: String,
     unreadable: Unreadable,
+    exe: Option<std::path::PathBuf>,
 }
 
 impl Delivery for LiveDelivery {
@@ -91,12 +93,13 @@ impl Delivery for LiveDelivery {
         crate::worker::process::ensure_worker(server);
     }
 
-    fn spawn_deliver(&mut self, _qids: &[i64], _force: bool) {
-        // Python spawns `inbox deliver <qids> [--force]` detached. This binary has `deliver`
-        // (#112); the detached spawn is wired before P5-I (a P5-I precondition, #113's
-        // "Before P5-I"). Until then the answer stays recorded, undelivered, for this
-        // machine's worker, as when Python's spawn fails. Until P5-I no live command runs
-        // this binary's CLI.
+    fn spawn_deliver(&mut self, qids: &[i64], force: bool) {
+        // recorded, not yet claimed: this machine's worker retries them
+        if let Err(err) = start_sender(self.exe.as_deref(), &self.state_dir, qids, force) {
+            warn(&format!(
+                "could not start the delivery; the worker will retry: {err}"
+            ));
+        }
     }
 
     fn deliver_as(

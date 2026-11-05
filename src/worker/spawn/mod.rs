@@ -8,6 +8,7 @@
 mod binary;
 mod child;
 mod rate;
+mod sender;
 
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
@@ -20,6 +21,7 @@ pub use binary::{
 };
 pub use child::{POLL, reap_later, spawn_detached, watch};
 pub use rate::{ENSURE_EVERY, may_spawn, stamp_path};
+pub use sender::{deliver_args, start_sender};
 
 use super::WorkerEnv;
 use super::handover::{holder_revision, live_standby};
