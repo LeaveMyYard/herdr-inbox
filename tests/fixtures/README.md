@@ -419,6 +419,21 @@ say why in the PR:
   an alert the operator never saw (Python `_ack_entry` re-reads `alert_by_key`; the model does the
   same). No question or dismissal is affected: those go under the identity shown.
 
+  Known gap, kept as parity: clearing an undeliverable answer (`clear_problem`) has no identity
+  check. It goes by machine and id only (Python `clear_problem` too), so after a remote reset that
+  reuses the number it stamps the question the mirror holds now. It only hides a row here (the
+  remote keeps the answer for check_answers), and the new question's own problem row stays hidden.
+
+  A write refused after the model moved on (P6-D3; no capture: Python writes first and never has
+  to take anything back). The model announces a remote action and moves on in the same step, and
+  the IO layer's write comes after it. When that write is refused (the mirror changed since the
+  read, the outbox row started sending, the database failed), the IO layer stops the batch there,
+  ahead of the announcement, and sends `RemoteRefused`. The model returns to the state it had when
+  the action started, as if it had refused by itself: an answer's view with what was typed, the
+  row open, the popup running. Dismissals queued before the refused one stay queued, and the
+  fresh read leaves the row with the questions that are left. `crates/inbox-core/tests/popup_refused.rs`
+  and `src/tui/run/tests/remote.rs` pin it.
+
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 
 - `design_empty_inbox.json`: design 2C, the empty inbox (the tumbleweed in the desert, Q179),

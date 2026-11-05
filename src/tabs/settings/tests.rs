@@ -45,3 +45,26 @@ fn a_broken_file_is_no_settings_and_is_warned_about() {
     assert_eq!(warned.len(), 1);
     assert!(warned[0].starts_with("ignoring "), "{warned:?}");
 }
+
+#[test]
+fn the_answer_expiry_is_twelve_hours_unless_set() {
+    let hours = |v| {
+        settings(json!({"remote_answer_expiry_hours": v}))
+            .answer_expiry
+            .as_secs_f64()
+            / 3600.0
+    };
+    assert_eq!(settings(json!({})).answer_expiry.as_secs(), 12 * 3600);
+    // Python: float(value or 12)
+    assert_eq!(hours(json!(3)), 3.0);
+    assert_eq!(hours(json!(0.5)), 0.5);
+    assert_eq!(hours(json!(" 2 ")), 2.0);
+    assert_eq!(hours(json!(true)), 1.0);
+    for falsy in [json!(0), json!(""), json!(false)] {
+        assert_eq!(hours(falsy), 12.0);
+    }
+    // Python raises or overflows on these: the popup keeps working on the default
+    for unusable in [json!(-1), json!("soon"), json!([1]), json!(1e300)] {
+        assert_eq!(hours(unusable), 12.0);
+    }
+}

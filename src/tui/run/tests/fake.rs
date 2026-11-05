@@ -235,6 +235,8 @@ pub struct Rig {
     pub marked: Arc<Mutex<Vec<Option<String>>>>,
     /// The popup's busy timeout.
     pub timeout: Duration,
+    /// How long a queued remote action waits.
+    pub answer_expiry: Duration,
 }
 
 /// What a run left.
@@ -257,6 +259,7 @@ impl Rig {
             agents: Arc::default(),
             marked: Arc::default(),
             timeout: Duration::from_secs(5),
+            answer_expiry: Duration::from_secs(12 * 3600),
         }
     }
 
@@ -309,7 +312,7 @@ impl Rig {
             marks.clone(),
             back_tx.clone(),
         );
-        let snapshot = read(&store, &Shown::default()).unwrap();
+        let snapshot = read(&store, &Shown::default(), HeldClock::default().wall_time()).unwrap();
         let parts = Parts {
             store,
             sender,
@@ -317,6 +320,7 @@ impl Rig {
             marks,
             back_tx,
             back_rx,
+            answer_expiry: self.answer_expiry,
             radar_missing: Arc::new(AtomicBool::new(false)),
             theme: Theme::DARK,
         };

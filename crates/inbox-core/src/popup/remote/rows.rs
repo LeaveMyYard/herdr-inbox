@@ -48,6 +48,7 @@ impl Popup {
                     return; // still queued, or being sent right now: nothing to clear
                 };
                 let expire = row.state == "queued";
+                self.checkpoint();
                 self.fx.push(Effect::ClearOutbox {
                     request_id: id.clone(),
                     expire,
@@ -58,6 +59,7 @@ impl Popup {
             Entry::Problem(key) => {
                 let (machine_id, rid) = key.split_once('|').unwrap_or((key, ""));
                 let Ok(remote_id) = rid.parse() else { return };
+                self.checkpoint();
                 self.fx.push(Effect::ClearProblem {
                     machine_id: machine_id.to_string(),
                     remote_id,
@@ -90,6 +92,7 @@ impl Popup {
             return;
         };
         if let Some(a) = self.data.remote.alert(key).cloned() {
+            self.checkpoint();
             self.fx.push(Effect::RemoteAck {
                 machine_id: a.machine_id,
                 alert: a.alert.id,
@@ -112,6 +115,7 @@ impl Popup {
         label: String,
         questions: Vec<RemoteQuestion>,
     ) {
+        self.checkpoint();
         for q in questions {
             let question = q.r#ref();
             if let Some(why) = self.data.remote.refusal(&question) {

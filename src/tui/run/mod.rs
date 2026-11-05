@@ -60,6 +60,8 @@ pub struct Parts {
     pub back_tx: Tx<Back>,
     /// Their reports.
     pub back_rx: Receiver<Back>,
+    /// How long a queued remote action waits (`remote_answer_expiry_hours`).
+    pub answer_expiry: Duration,
     /// herdr-radar lacks `?N` (set by a background check).
     pub radar_missing: Arc<AtomicBool>,
     /// The colours.
@@ -67,12 +69,13 @@ pub struct Parts {
 }
 
 /// The loop's state.
-struct Ui {
+struct Ui<'c> {
     popup: Popup,
     parts: Parts,
     toasts: Toasts,
     view: ViewState,
     busy: BusySince,
+    clock: &'c dyn Clock,
     closing: bool,
     screen_gone: bool,
 }
@@ -89,13 +92,14 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
         toasts: Toasts::default(),
         view: ViewState::default(),
         busy,
+        clock,
         closing: false,
         screen_gone: false,
     };
     ui.apply(fx, clock.now());
     let mut next_poll = clock.now() + POLL;
     let mut next_frame = clock.now() + FRAME;
-    ui.draw(screen, clock);
+    ui.draw(screen);
     loop {
         ui.reports(clock.now());
         if ui.closing && !ui.parts.sender.in_flight() {
@@ -127,7 +131,7 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
             Err(_) => ui.gone(), // the terminal is gone
         }
         ui.reports(clock.now());
-        ui.draw(screen, clock);
+        ui.draw(screen);
         if ui.screen_gone {
             break; // nothing to show or read: wait for the sends below, without spinning
         }
@@ -137,7 +141,7 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
     Ok(())
 }
 
-impl Ui {
+impl Ui<'_> {
     fn input(&mut self, input: Input, now: Millis) {
         if input == Input::Closed {
             return self.gone();
@@ -241,17 +245,18 @@ impl Ui {
     /// The database for the model now (and the busy times with it); `None`
     /// if it could not be read.
     fn read(&mut self) -> Option<inbox_core::popup::Snapshot> {
-        let snap = read(&self.parts.store, &Shown::of(Some(&self.popup))).ok()?;
+        let shown = Shown::of(Some(&self.popup));
+        let snap = read(&self.parts.store, &shown, self.clock.wall_time()).ok()?;
         if let Ok(busy) = BusySince::read(&self.parts.store, &snap) {
             self.busy = busy;
         }
         Some(snap)
     }
 
-    fn draw(&mut self, screen: &mut dyn Screen, clock: &dyn Clock) {
-        let wall = clock.wall();
+    fn draw(&mut self, screen: &mut dyn Screen) {
+        let wall = self.clock.wall();
         let ctx = Ctx {
-            now: clock.now(),
+            now: self.clock.now(),
             wall: wall as i64,
             busy_for: self.busy.at(wall),
             radar_missing: self.parts.radar_missing.load(Ordering::Relaxed),

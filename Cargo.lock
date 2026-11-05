@@ -436,6 +436,7 @@ dependencies = [
 name = "herdr-inbox"
 version = "0.10.6"
 dependencies = [
+ "chrono",
  "herdr-agent-kit",
  "inbox-core",
  "ratatui-core",

@@ -1,10 +1,14 @@
 //! What the popup reads (the local mirror only, never the network; Python
 //! `open_alerts`, `alert_by_key`, `open_groups`, `group_by_key`, `_busy_ids`).
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use inbox_core::popup_view::unix_seconds;
 use serde_json::{Map, Value};
 
 use super::pull::value_str;
 use super::{MACHINE_COLUMNS, Machine};
+use crate::clock::local_hhmm;
 use crate::pyjson;
 use crate::remote::validate::py_int;
 use crate::store::Store;
@@ -26,8 +30,31 @@ fn json_map(text: &str) -> rusqlite::Result<Map<String, Value>> {
     }
 }
 
+impl Machine {
+    /// `offline since 10:42 (3 h)` when the last pull failed (Python
+    /// `offline_note`), `not reached yet` if none ever worked.
+    pub fn offline_note(&self, now: SystemTime) -> Option<String> {
+        self.last_error.as_ref().filter(|e| !e.is_empty())?;
+        let since = self.last_ok_at.as_deref().filter(|s| !s.is_empty());
+        let Some(when) = since.and_then(unix_seconds) else {
+            return Some("not reached yet".to_string());
+        };
+        let unix = now
+            .duration_since(UNIX_EPOCH)
+            .map_or(0.0, |d| d.as_secs_f64());
+        let hours = (unix - when as f64) / 3600.0;
+        let age = if hours >= 1.0 {
+            format!("{hours:.0} h")
+        } else {
+            format!("{:.0} min", hours * 60.0)
+        };
+        Some(format!("offline since {} ({age})", local_hhmm(when)))
+    }
+}
+
 impl Store {
-    fn machines_by_label(&self) -> rusqlite::Result<Vec<Machine>> {
+    /// Every mirrored machine (Python `SELECT * … ORDER BY label`).
+    pub fn machines_by_label(&self) -> rusqlite::Result<Vec<Machine>> {
         let mut stmt = self.db().prepare(&format!(
             "SELECT {MACHINE_COLUMNS} FROM remote_machines ORDER BY label"
         ))?;
@@ -45,6 +72,16 @@ impl Store {
                 data.insert("_db_id".into(), Value::String(db_id));
                 Ok(data)
             })
+            .collect()
+    }
+
+    /// (machine, remote id, db id, qkey) of every mirrored question, open or
+    /// not: what an action queued now is checked against.
+    pub fn mirror_identities(&self) -> rusqlite::Result<Vec<(String, i64, String, String)>> {
+        let mut stmt = self.db().prepare(
+            "SELECT machine_id, remote_id, db_id, qkey FROM remote_questions ORDER BY machine_id, remote_id",
+        )?;
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
             .collect()
     }
 

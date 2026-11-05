@@ -11,6 +11,7 @@
 //! deviations from Python").
 
 mod data;
+mod refused;
 mod rows;
 
 pub use data::{
@@ -79,6 +80,7 @@ impl Popup {
         if let Some(why) = self.data.remote.refusal(&question) {
             return self.notify(&format!("not queued: {why}"), Severity::Warning);
         }
+        self.checkpoint();
         let label = shown.label;
         let text = format!("{label}:Q{qid} answered · sending to {label}");
         self.data.remote.mark_busy(&question);
