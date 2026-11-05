@@ -8,7 +8,9 @@
 # version: `herdr-inbox contract` prints the number of the hook payload handling, hook output,
 # exit codes and MCP tool schemas it implements, and this script carries the number it needs.
 # It runs the newest binary whose contract matches, looking in
-#   1. <plugin root>/target/release (a linked development checkout),
+#   1. <plugin root>/target/release, only in a git checkout (a linked development checkout; a
+#      local-folder marketplace's cache copy of a clone holds no .git, but may hold target/,
+#      #74; a worktree's .git file, were it copied, still leaves the contract check),
 #   2. ${CLAUDE_PLUGIN_DATA}/bin (fetched by the MCP launch, below),
 #   3. ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin (recorded by herdr's build step).
 #
@@ -23,9 +25,10 @@
 # codes stay the hooks.json wrapper's job (`2>/dev/null; exit 0`, and for the rewake watcher
 # `[ $? -eq 3 ] && exit 2`): the launcher passes the hook's 0 or 3 through.
 #
-# The candidates are the release binaries install-bin.sh and the MCP launch verified, or the
-# linked checkout's own build; a candidate that hangs on `contract` would hold the hook until
-# Claude Code's timeout (none of these do).
+# The candidates are the release binaries install-bin.sh and the MCP launch verified (or the
+# install's own build of its commit), or a git checkout's own build; a candidate that hangs on
+# `contract` would hold the hook until Claude Code's timeout. None of these does: `contract`
+# prints its number before any I/O (src/main.rs), so the probe stays unbounded (#73).
 CONTRACT=1
 
 root=$(cd "$(dirname "$0")/.." && pwd) || exit 0
@@ -35,30 +38,18 @@ if [ -n "${XDG_STATE_HOME:-}" ]; then
 elif [ -n "${HOME:-}" ]; then
 	state="$HOME/.local/state/herdr-inbox/bin"
 fi
-tab=$(printf '\t')
-
-# Candidates as "major<TAB>minor<TAB>patch<TAB>path", newest first.
-versions() {
-	for dir in "$@"; do
-		for f in "$dir"/herdr-inbox-*; do
-			[ -f "$f" ] || continue
-			v=${f##*/herdr-inbox-}
-			case $v in
-			*[!0-9.]* | .* | *.) continue ;;
-			esac
-			printf '%s\t%s\n' "$v" "$f" | awk -F '\t' '{ n = split($1, v, "."); if (n == 3) printf "%d\t%d\t%d\t%s\n", v[1], v[2], v[3], $2 }'
-		done
-	done | sort -t "$tab" -k1,1nr -k2,2nr -k3,3nr
-}
+# inbox_versions, inbox_fetch, inbox_prune (without it no binary is found: Python runs)
+# shellcheck source=scripts/release-lib.sh
+[ -r "$root/scripts/release-lib.sh" ] && . "$root/scripts/release-lib.sh"
 
 # The binary to run: the first candidate whose contract matches, or nothing.
 pick() {
 	dev="$root/target/release/herdr-inbox"
-	if [ -x "$dev" ] && [ "$("$dev" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
+	if [ -e "$root/.git" ] && [ -x "$dev" ] && [ "$("$dev" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
 		printf '%s\n' "$dev"
 		return
 	fi
-	versions ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/bin"} ${state:+"$state"} | cut -f 4- | while IFS= read -r c; do
+	inbox_versions ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/bin"} ${state:+"$state"} | cut -f 4- | while IFS= read -r c; do
 		if [ -x "$c" ] && [ "$("$c" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
 			printf '%s\n' "$c"
 			break
@@ -87,8 +78,6 @@ hook)
 	;;
 mcp)
 	if [ -n "${CLAUDE_PLUGIN_DATA:-}" ] && [ -z "$(pick)" ]; then
-		# shellcheck source=scripts/release-lib.sh
-		. "$root/scripts/release-lib.sh"
 		tag=$(inbox_release_value "$root/release.toml" tag)
 		if [ -n "$tag" ]; then
 			# in the background, detached (double fork: init reaps it, not the MCP server), one
@@ -99,7 +88,8 @@ mcp)
 				mkdir -p "$CLAUDE_PLUGIN_DATA/bin" || exit 0
 				find "$lock" -maxdepth 0 -mmin +10 -exec rmdir {} \; 2>/dev/null
 				mkdir "$lock" 2>/dev/null || exit 0
-				inbox_fetch "$root/release.toml" "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}"
+				inbox_fetch "$root/release.toml" "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}" &&
+					inbox_prune "$CLAUDE_PLUGIN_DATA/bin" 3 "$CLAUDE_PLUGIN_DATA/bin/herdr-inbox-${tag#v}"
 				rmdir "$lock"
 			) </dev/null >/dev/null 2>&1 &)
 		fi
