@@ -242,7 +242,7 @@ impl Rig {
     /// answer, once, whether it is herdr's install. The answer counts, not the
     /// call: a [`Rig::list`] after the call and before the fake reads the
     /// listed root tells the worker it is not herdr's install, for good.
-    pub fn python_asked_for_its_root(&self) -> bool {
+    pub fn python_has_its_listing(&self) -> bool {
         self.herdr_called(" plugin list answered")
     }
 
@@ -259,9 +259,9 @@ impl Rig {
         cmd
     }
 
-    /// The file the fake herdr CLI reads the listed root from.
-    pub fn listed_file(&self) -> &Path {
-        &self.listed
+    /// An executable `name` on the workers' `PATH`, ahead of the system's.
+    pub fn on_path(&self, name: &str, text: &str) {
+        exe(&self.bin.join(name), text);
     }
 
     /// The pids that ticked, in order of their first tick.
