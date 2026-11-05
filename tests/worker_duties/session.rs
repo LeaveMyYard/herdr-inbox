@@ -41,14 +41,14 @@ os.waitpid(pid, 0)
 impl World {
     /// A pane running `command`, closed when `close` appears.
     fn pane(&self, command: &str, close: &Path) -> Child {
-        let exe = env!("CARGO_BIN_EXE_herdr-inbox");
+        let exe = self.exe();
         let cmd = self.command(&[]);
         let args: Vec<_> = cmd
             .get_envs()
             .map(|(k, v)| (k.to_owned(), v.map(ToOwned::to_owned)))
             .collect();
         let mut py = std::process::Command::new("python3");
-        py.args(["-c", PANE, &command.replace("EXE", exe)])
+        py.args(["-c", PANE, &command.replace("EXE", &exe.to_string_lossy())])
             .arg(close)
             .env_clear()
             .stdin(Stdio::null())

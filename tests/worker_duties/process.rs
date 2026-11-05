@@ -18,9 +18,22 @@ use herdr_inbox::worker::lock::is_running;
 use crate::World;
 
 impl World {
+    /// The binary, outside this repository: a default target directory sits in
+    /// the checkout, whose `engine` file would decide what `ensure` may start.
+    fn exe(&self) -> PathBuf {
+        let exe = self.dir.path().join("herdr-inbox");
+        if !exe.exists() {
+            let built = env!("CARGO_BIN_EXE_herdr-inbox");
+            std::fs::hard_link(built, &exe)
+                .or_else(|_| std::fs::copy(built, &exe).map(drop))
+                .unwrap();
+        }
+        exe
+    }
+
     fn command(&self, args: &[&str]) -> Command {
         let d = self.dir.path();
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
+        let mut cmd = Command::new(self.exe());
         cmd.args(args)
             .env_clear()
             .env("HOME", d)
