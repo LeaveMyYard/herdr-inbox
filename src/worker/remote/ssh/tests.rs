@@ -22,6 +22,12 @@ fn env(program: OsString, runtime: Option<PathBuf>, home: PathBuf) -> SshEnv {
     }
 }
 
+/// A directory short enough for a control socket: macOS's default temporary
+/// directory is not, and connection sharing is then rightly off.
+fn short_dir() -> tempfile::TempDir {
+    tempfile::tempdir_in("/tmp").unwrap()
+}
+
 #[test]
 fn the_exit_code_stdout_stderr_and_stdin_come_back() {
     let dir = tempfile::tempdir().unwrap();
@@ -63,7 +69,7 @@ fn a_client_that_cannot_start_reads_127() {
 
 #[test]
 fn connection_sharing_needs_a_short_existing_directory() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = short_dir();
     let ok = env("ssh".into(), Some(dir.path().into()), "/nonexistent".into());
     let opts = control_options(&ok);
     assert_eq!(opts[1], "ControlMaster=auto");
@@ -85,7 +91,7 @@ fn connection_sharing_needs_a_short_existing_directory() {
         ["-o", "ControlMaster=no"]
     );
     // no runtime directory: ~/.ssh
-    let home = tempfile::tempdir().unwrap();
+    let home = short_dir();
     fs::create_dir(home.path().join(".ssh")).unwrap();
     let opts = control_options(&env("ssh".into(), Some(PathBuf::new()), home.path().into()));
     assert!(opts[3].starts_with(&format!(
@@ -96,7 +102,7 @@ fn connection_sharing_needs_a_short_existing_directory() {
 
 #[test]
 fn only_an_inbox_call_shares_the_connection_and_the_command_goes_last() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = short_dir();
     let p = script(dir.path(), "printf '%s\\n' \"$@\"");
     let e = env(p, Some(dir.path().into()), "/x".into());
     let target = SafeTarget::for_ssh(Some("box.lan")).unwrap();
