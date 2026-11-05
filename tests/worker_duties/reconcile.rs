@@ -17,7 +17,7 @@ use crate::World;
 
 impl World {
     /// Answered without delivery.
-    fn answered(&mut self) -> i64 {
+    pub fn answered(&mut self) -> i64 {
         let qid = self.ask();
         self.store.set_answer(qid, "yes", None).unwrap();
         qid
@@ -25,7 +25,7 @@ impl World {
 
     /// A pre-0.5.1 server's "typed = seen" at `at` (Python `_signature` /
     /// `_old_server_delivery`).
-    fn signature(&self, qid: i64, at: &str) {
+    pub fn signature(&self, qid: i64, at: &str) {
         self.sql(
             "UPDATE questions SET delivered_at = ?, acknowledged_at = ? WHERE id = ?",
             params![at, at, qid],
@@ -36,7 +36,7 @@ impl World {
         self.store.get(qid).unwrap().unwrap()
     }
 
-    fn landed(&self, qid: i64) {
+    pub fn landed(&self, qid: i64) {
         let text = self.batch_text(&[qid]);
         self.write(
             crate::A,

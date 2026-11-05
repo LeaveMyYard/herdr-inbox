@@ -11,6 +11,7 @@ mod rate;
 
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::Path;
 
 pub use binary::{
@@ -121,9 +122,17 @@ pub fn ensure(env: &WorkerEnv, exe: &Path) -> bool {
     let log = env.state_dir().join("worker.log");
     let err = OpenOptions::new().create(true).append(true).open(log).ok();
     let args = rust_worker_args();
-    spawn_detached(exe.as_os_str(), &args, None, &env.spawn_env, err)
-        .map(reap_later)
-        .is_ok()
+    match spawn_detached(exe.as_os_str(), &args, None, &env.spawn_env, err) {
+        Ok(child) => {
+            reap_later(child);
+            true
+        }
+        Err(e) => {
+            // Python `log.warning("delivery worker: %s", exc)`
+            let _ = writeln!(std::io::stderr(), "inbox: delivery worker: {e}");
+            false
+        }
+    }
 }
 
 #[cfg(test)]

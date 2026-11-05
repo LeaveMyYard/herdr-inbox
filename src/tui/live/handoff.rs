@@ -4,19 +4,20 @@
 //! send's thread while the popup still holds the keyboard, and their
 //! transcript check is handed off (Python `verify_later=spawn_verify`).
 //!
-//! This binary has no `inbox verify` yet (P5-E2's verify-later jobs), so the
+//! This binary has no `inbox verify` yet, so the
 //! hand-off is Python's own fallback for a check that cannot start: the typed
 //! rows keep their claim, the claim goes stale after
 //! [`CLAIM_STALE`](crate::store::claims::CLAIM_STALE), and the worker takes
 //! them over, looking at the transcript before it types anything again. The
-//! popup closes as soon as the answer is typed. TODO(P5-E2): spawn
-//! `<exe> verify <job>` here, and start the worker in `ensure` (both no-ops
-//! until then; a mixed install's Python hooks and MCP start the worker today).
+//! popup closes as soon as the answer is typed. TODO(before P6-E): spawn
+//! `<exe> verify <job>` here.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
+use herdr_agent_kit::plugin_env::PluginEnv;
 use inbox_core::deliver::Mode;
 
 use crate::claude::Transcripts;
@@ -28,6 +29,7 @@ use crate::store::{Question, Store};
 use crate::surface::Surface;
 use crate::surface::live::Live;
 use crate::tui::send::handoff::Handoff;
+use crate::worker::process::ensure_worker_in;
 use crate::worker::spawn::{reap_later, spawn_detached};
 use crate::worker::spawn_env;
 
@@ -41,6 +43,8 @@ pub struct LiveHandoff {
     pub server: String,
     /// This binary.
     pub exe: Option<PathBuf>,
+    /// The plugin's environment, which says where a worker's lock and database are.
+    pub env: PluginEnv,
 }
 
 /// The detached sender's arguments (Python `spawn_delivery`'s
@@ -55,9 +59,21 @@ pub fn deliver_args(qids: &[i64], force: bool) -> Vec<OsString> {
 }
 
 impl LiveHandoff {
-    fn ensure(&self, _server: Option<&str>) {
-        // TODO(P5-E2): `<exe> worker`, as the CLI's `ensure_worker`
+    fn ensure(&self, server: Option<&str>) {
+        match &self.exe {
+            Some(exe) => {
+                ensure_worker_in(&self.env, server, exe);
+            }
+            None => super::log("could not start the worker: this binary's path is unknown"),
+        }
     }
+}
+
+/// Makes sure a worker runs, off the popup's thread (Python's mount:
+/// `run_worker(thread=True)`): it retries what the popup answers.
+pub fn ensure_in_background(handoff: &Arc<LiveHandoff>) {
+    let handoff = Arc::clone(handoff);
+    std::thread::spawn(move || handoff.ensure_worker());
 }
 
 impl Handoff for LiveHandoff {
@@ -84,7 +100,7 @@ impl Handoff for LiveHandoff {
             force,
             ..Mode::default()
         };
-        // TODO(P5-E2): a detached `verify` takes the job; until then the worker's
+        // TODO(before P6-E): a detached `verify` takes the job; until then the worker's
         // stale-claim takeover checks the transcript (Python's fallback). Live code
         // behind herdr: no test covers passing `Some` here.
         let mut later = |_job: serde_json::Value| {
@@ -115,8 +131,7 @@ impl Handoff for LiveHandoff {
         );
         match started {
             Ok(child) => reap_later(child),
-            // recorded, not yet claimed: a running worker retries them (TODO(P5-E2): one
-            // started by `ensure`)
+            // recorded, not yet claimed: the worker `ensure` started retries them
             Err(err) => super::log(&format!(
                 "could not start the delivery; the worker will retry: {err}"
             )),

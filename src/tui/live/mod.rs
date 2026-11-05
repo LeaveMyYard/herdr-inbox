@@ -87,8 +87,10 @@ pub fn main() -> i32 {
         state_dir: state_dir.clone(),
         server: inbox::server_id(&env).to_string_lossy().into_owned(),
         exe: std::env::current_exe().ok(),
+        env: env.clone(),
     });
     let answer_expiry = answer_expiry(&env, &herdr);
+    handoff::ensure_in_background(&handoff);
     let radar_missing = Arc::new(AtomicBool::new(false));
     check_radar(env.clone(), herdr.clone(), Arc::clone(&radar_missing));
     let sender = Sender::new(

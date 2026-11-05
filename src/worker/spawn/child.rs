@@ -18,8 +18,10 @@ pub const POLL: Duration = Duration::from_millis(50);
 
 /// `program args…` in `cwd`, detached in a process group of its own, with
 /// exactly `env` as its environment, stdin and stdout on `/dev/null`, stderr
-/// to `stderr` (else `/dev/null`). Python `Popen(start_new_session=True,
-/// close_fds=True)`: Rust closes every other descriptor on exec already.
+/// to `stderr` (else `/dev/null`). Python's `Popen(close_fds=True)`: Rust
+/// closes every other descriptor on exec already. Python's
+/// `start_new_session=True` is only approached: this is a new process group,
+/// not a new session, so the caller's controlling terminal stays.
 pub fn spawn_detached(
     program: &OsStr,
     args: &[OsString],

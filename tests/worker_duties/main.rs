@@ -14,7 +14,9 @@ mod gone;
 #[path = "../delivery/herdr_stub.rs"]
 mod herdr_stub;
 mod hooks;
+mod live;
 mod moved;
+mod process;
 mod reconcile;
 mod retry;
 
