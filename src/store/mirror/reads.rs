@@ -119,7 +119,7 @@ impl Store {
     }
 
     /// This very question (`db_id`, `qkey`) has an answer or a dismissal queued
-    /// or done: [`Store::busy_ids`]' rule, for a write. A later question under
+    /// or done: the `busy_ids` rule, for a write. A later question under
     /// the same number does not count.
     pub fn action_queued(
         &self,
