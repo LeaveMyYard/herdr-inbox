@@ -413,6 +413,12 @@ say why in the PR:
      it. Rust queues the dismissals up to that question, then says `not queued: …` and leaves the
      row open.
 
+  Known gap, kept as parity (main's decision, not a deviation): a remote alert's acknowledgement
+  goes under the alert the mirror holds now, not the one on screen. Its row's key is
+  `<machine>|<id>`, with no `db_id`, so after a remote reset that reuses the number, `d` acknowledges
+  an alert the operator never saw (Python `_ack_entry` re-reads `alert_by_key`; the model does the
+  same). No question or dismissal is affected: those go under the identity shown.
+
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 
 - `design_empty_inbox.json`: design 2C, the empty inbox (the tumbleweed in the desert, Q179),
