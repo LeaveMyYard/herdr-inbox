@@ -16,7 +16,7 @@ pub const BILLING: Caller = Caller("w1:p1", "Billing API");
 pub const SEARCH: Caller = Caller("w1:p2", "Search refactor");
 pub const DOCS: Caller = Caller("w1:p3", "Docs site");
 
-fn iso(unix: i64) -> String {
+pub fn iso(unix: i64) -> String {
     let days = unix.div_euclid(86400);
     let secs = unix.rem_euclid(86400);
     let (y, m, d) = civil(days);

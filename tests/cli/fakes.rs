@@ -18,6 +18,14 @@ pub struct World {
     pub pane_tabs: Option<Vec<(String, Option<String>)>>,
     pub labels: BTreeMap<String, String>,
     pub rename_fails: bool,
+    /// herdr's error opening the popup.
+    pub open_error: Option<String>,
+    /// herdr-radar is installed.
+    pub radar: bool,
+    /// Every tab herdr lists (their labels from `labels`), or unreachable.
+    pub all_tabs: Option<Vec<String>>,
+    /// herdr-radar's config dir (set by the test).
+    pub radar_dir: Option<std::path::PathBuf>,
     /// The stubbed delivery's outcome: delivered, else this error.
     pub delivered: bool,
     pub error: Option<String>,
@@ -49,6 +57,16 @@ impl World {
             pane_tabs,
             labels,
             rename_fails: a.get("rename_fails").and_then(Value::as_bool) == Some(true),
+            open_error: a
+                .get("open_error")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            radar: a.get("radar").and_then(Value::as_bool) == Some(true),
+            radar_dir: None,
+            all_tabs: a
+                .get("all_tabs")
+                .and_then(Value::as_array)
+                .map(|l| l.iter().map(|t| t.as_str().unwrap().to_string()).collect()),
             delivered: d.get("delivered").and_then(Value::as_bool) == Some(true),
             error: d.get("error").and_then(Value::as_str).map(str::to_string),
         }
@@ -97,6 +115,49 @@ impl Surface for FakeHerdr {
             .borrow_mut()
             .push(json!(["notify", title, body]));
     }
+
+    fn open_popup(&mut self, env: &[(String, String)]) -> Result<(), String> {
+        let env: serde_json::Map<String, Value> = env
+            .iter()
+            .map(|(k, v)| {
+                let v = if k == "INBOX_OPEN_NONCE" {
+                    "<nonce>"
+                } else {
+                    v
+                };
+                (k.clone(), json!(v))
+            })
+            .collect();
+        self.effects.borrow_mut().push(json!(["open_popup", env]));
+        match &self.world.borrow().open_error {
+            Some(e) => Err(e.clone()),
+            None => Ok(()),
+        }
+    }
+
+    fn radar_installed(&mut self) -> bool {
+        self.effects.borrow_mut().push(json!(["radar_installed"]));
+        self.world.borrow().radar
+    }
+
+    fn radar_config_dir(&mut self) -> Option<std::path::PathBuf> {
+        self.effects.borrow_mut().push(json!(["radar_config_dir"]));
+        self.world.borrow().radar_dir.clone()
+    }
+
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        self.effects.borrow_mut().push(json!(["all_tabs"]));
+        let w = self.world.borrow();
+        w.all_tabs.as_ref().map(|tabs| {
+            tabs.iter()
+                .map(|t| (t.clone(), w.labels.get(t).cloned()))
+                .collect()
+        })
+    }
+
+    fn reload_config(&mut self) {
+        self.effects.borrow_mut().push(json!(["reload_config"]));
+    }
 }
 
 /// The stubbed delivery and worker.
@@ -110,11 +171,23 @@ impl Delivery for FakeDelivery {
         self.effects.borrow_mut().push(json!(["ensure", server]));
     }
 
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+    fn spawn_deliver(&mut self, qids: &[i64], force: bool) {
+        self.effects
+            .borrow_mut()
+            .push(json!(["spawn_deliver", qids, force]));
+    }
+
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()> {
         let ids: Vec<i64> = qs.iter().map(|q| q.id).collect();
         self.effects
             .borrow_mut()
-            .push(json!(["deliver", ids, false, false]));
+            .push(json!(["deliver", ids, retry, force]));
         let w = self.world.borrow();
         for q in qs {
             if w.delivered {

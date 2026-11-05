@@ -10,7 +10,7 @@ use super::layout::{self, Stack};
 use super::marks::{cursor, focused, number};
 use super::scroll::{self, Frame, Item};
 use super::text::{Line, Ln, Look};
-use super::{Ctx, alerts};
+use super::{Ctx, alerts, remote};
 use crate::popup::{Entry, ListView, Popup};
 
 const HINT: &str = "Enter to open · ↑/↓ to navigate · g go to agent · d dismiss · Esc to cancel";
@@ -123,7 +123,12 @@ fn row(popup: &Popup, entry: &Entry, here: bool, num: Option<&str>, ctx: &Ctx) -
     let detail = |text: &str| Ln::new().plain("      ").on(Look::dimmed(), text).done();
     let data = popup.data();
     match entry {
-        Entry::Alert(id) => alerts::row(popup, *id, here, head, closed, ctx),
+        Entry::Alert(_) | Entry::RemoteAlert(_) => {
+            alerts::row(popup, entry, here, head, closed, ctx)
+        }
+        Entry::Remote(_) | Entry::Outbox(_) | Entry::Problem(_) => {
+            remote::row(popup, entry, here, head, closed, ctx)
+        }
         Entry::Gone => {
             if let Some(why) = closed {
                 return vec![

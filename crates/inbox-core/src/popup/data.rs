@@ -191,6 +191,8 @@ pub struct Snapshot {
     pub alerts: Vec<Alert>,
     /// The open alerts' ids, in order (Python `alerts.open_alerts`).
     pub open_alerts: Vec<i64>,
+    /// The remote machines' mirror (Python `remote`'s popup reads).
+    pub remote: super::remote::Remote,
 }
 
 impl Snapshot {

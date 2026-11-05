@@ -16,6 +16,9 @@
 //!   placeholder until the operator moves.
 //! - Nothing joins an open group; whether Enter sends at once (a lone
 //!   question) is fixed when the group opens.
+//! - A remote machine's question is answered under the identity it was shown
+//!   with ([`RemoteRef`]), never whatever its machine holds under that number
+//!   now; one remote question at a time, no tabs ([`Mode::Remote`]).
 //! - Every view ignores Enter, digits and Space for [`VIEW_ARM`] after it
 //!   appears; after a view change the operator did not cause, every key is
 //!   dropped for [`GRACE`].
@@ -27,6 +30,7 @@
 //! every event and carries out the returned [`Effect`]s.
 
 mod actions;
+mod confirm;
 mod data;
 mod entry;
 mod event;
@@ -38,11 +42,13 @@ mod list;
 mod ordered;
 mod poll;
 mod question;
+mod remote;
 mod review;
 mod rows;
 mod state;
 mod textbox;
 mod views;
+mod writes;
 
 pub use data::{AGENT_GONE, Alert, Detail, Millis, QOption, Question, Snapshot};
 pub use entry::{Entry, Mode, Tab};
@@ -51,6 +57,9 @@ pub use focus::Focus;
 pub use key::Key;
 pub use ordered::Ordered;
 pub use question::{Editing, QuestionView, Row};
+pub use remote::{
+    Machine, OutboxRow, Problem, Remote, RemoteAlert, RemoteGroup, RemoteQuestion, RemoteRef,
+};
 pub use review::{ReviewCursor, ReviewView};
 pub use state::{Confirm, Popup, Timers};
 pub use textbox::TextBox;

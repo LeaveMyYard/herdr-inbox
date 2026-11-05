@@ -6,6 +6,7 @@
 use super::data::{Detail, Snapshot};
 use super::entry::Entry;
 use super::key::Key;
+use super::remote::RemoteRef;
 
 /// How the popup opens.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -153,6 +154,51 @@ pub enum Effect {
         pane: String,
         /// The `g` came after a pause (Python `go_graced`).
         graced: bool,
+    },
+    /// Queue an answer for a remote machine (Python `remote.enqueue(…,
+    /// "answer", detail)`): a local database write only; the delivery worker
+    /// sends it. The IO layer queues it under `question` only (it refuses, and
+    /// says `not queued: …`, if the mirror holds another question there now).
+    RemoteAnswer {
+        /// The question as shown.
+        question: RemoteRef,
+        /// The answer.
+        detail: Detail,
+    },
+    /// Queue a dismissal of a remote question (Python `remote.enqueue(…,
+    /// "dismiss")`), one per question of the row, under the same rule.
+    RemoteDismiss {
+        /// The question as shown.
+        question: RemoteRef,
+    },
+    /// Queue the acknowledgement of a remote alert, and show it acknowledged
+    /// at once (Python `remote.enqueue_alert_ack`).
+    RemoteAck {
+        /// Its machine.
+        machine_id: String,
+        /// The alert over there.
+        alert: i64,
+        /// Its inbox database's id.
+        db_id: String,
+        /// The alert's key.
+        akey: String,
+    },
+    /// Clear an outbox row the operator has seen (Python `remote.mark_seen`);
+    /// with `expire`, first settle a queued row past its expiry as failed
+    /// (`remote._settle(…, "failed", "expired")`).
+    ClearOutbox {
+        /// Its request id.
+        request_id: String,
+        /// It was still queued (past its expiry).
+        expire: bool,
+    },
+    /// Stop showing an answer its machine cannot deliver (Python
+    /// `remote.clear_problem`; the machine keeps it for check_answers).
+    ClearProblem {
+        /// Its machine.
+        machine_id: String,
+        /// The question over there.
+        remote_id: i64,
     },
     /// Close the popup now.
     Exit,

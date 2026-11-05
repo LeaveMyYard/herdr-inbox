@@ -91,7 +91,7 @@ def resolve_caller() -> Caller:
         ident = herdr.pane_identity(pane_id) if pane_id else {}
     if pane_id and ident.get("exists") is False:
         # HERDR_PANE_ID is the pane this process STARTED in; herdr gives a moved pane a new id
-        # (w6:p48 -> w6:p57, live 2026-10-17: Q158-Q166 were filed under the dead id). Find
+        # (w9:p1 -> w9:p2, live 2026-10-17: Q158-Q166 were filed under the dead id). Find
         # the pane that runs our conversation now.
         moved = _pane_running(os.environ.get("CLAUDE_CODE_SESSION_ID"))
         if moved:
@@ -546,7 +546,7 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
             # died mid-verify, whose stale claim we just took over): look before EVERY typing,
             # in every transcript of the asker's forward family (a continuation moved it, #41) and
             # what the pane runs (in that family, see ``ours``). Never an older session's file:
-            # text there never reached the asking conversation (live 2026-10-17, synthetic_100-synthetic_98).
+            # text there never reached the asking conversation (live 2026-10-17, Q9001-Q9006).
             landed = landed_across(store, ours, [path])
             # (no "seen another way" evidence here: live, `inbox answer` from the conversation
             # marks the row seen itself; that transcript heuristic only reconciles old rows)
@@ -588,25 +588,31 @@ def deliver_batch(store: Store, qs: list[Question], retry: bool = False, force: 
                         for q in batch:
                             store.set_pending(q.id, claims[q.id], "waiting: the operator is in that pane")
                         continue
-                if agent.get("agent") == "claude":
-                    # never type onto unsent text in Claude Code's input box: it would be appended
-                    # to the draft and submitted with it (live 2026-10-16, Q124/Q125). Not even
-                    # for Send now; an input box we cannot read counts as not empty.
-                    state = _obs(frame, "composer", herdr.composer_state(pane), [q.id for q in batch])
+                # never type onto unsent text in Claude Code's input box: it would be appended
+                # to the draft and submitted with it (live 2026-10-16, Q124/Q125). Not even for
+                # Send now. For herdr's kind "claude" an input box we cannot read counts as not
+                # empty. The box is read for every other kind too (#96: a renamed or misreported
+                # kind must not switch the guard off), but there only a recognised Claude Code
+                # draft holds: another harness draws no such box and reads as unknown. The last
+                # herdr read before the prompt; a keystroke between the two calls stays unseen
+                # (#99, accepted: herdr has no conditional prompt).
+                claude = agent.get("agent") == "claude"
+                state = _obs(frame, "composer", herdr.composer_state(pane), [q.id for q in batch])
+                if claude:
                     _note_unreadable(pane, state, batch)
-                    if state != "empty":
-                        reason = COMPOSER_DRAFT if state == "draft" else COMPOSER_UNKNOWN
-                        for q in batch:
-                            store.set_pending(q.id, claims[q.id], reason)
-                        if force:
-                            refs = ", ".join(q.ref for q in batch)
-                            later(lambda refs=refs, reason=reason: herdr.notify(
-                                f"{refs} not sent", reason[len("waiting: "):]))
-                        continue
+                if state == "draft" or (claude and state != "empty"):
+                    reason = COMPOSER_DRAFT if state == "draft" else COMPOSER_UNKNOWN
+                    for q in batch:
+                        store.set_pending(q.id, claims[q.id], reason)
+                    if force:
+                        refs = ", ".join(q.ref for q in batch)
+                        later(lambda refs=refs, reason=reason: herdr.notify(
+                            f"{refs} not sent", reason[len("waiting: "):]))
+                    continue
                 # the transcripts the typed text can land in: the followed conversation's AND the
                 # session herdr reports (after herdr resumed an OLD id unseen by our SessionStart
                 # hook, the first prompt lands in the OLD file and only then ends its
-                # continuation; live 2026-10-17, synthetic_100-synthetic_98). Only a landing in the batch's forward
+                # continuation; live 2026-10-17, Q9001-Q9006). Only a landing in the batch's forward
                 # family delivers; one in an older session is recorded as such, never verified.
                 watch = _watch_paths(store, agent)
                 offset = transcript.size(path)
@@ -714,8 +720,8 @@ def session_pane(store: Store, session_id: str | None, agents: list | None = Non
 
 
 def _relocate(store: Store, items: list[Question], pane: str, claims: dict) -> list[Question]:
-    """Rows whose conversation runs in ANOTHER pane now (the pane moved, e.g. w6:p48 ->
-    w6:p57, live 2026-10-16 Q155): moved there, pending for the next pass. Returns the rest."""
+    """Rows whose conversation runs in ANOTHER pane now (the pane moved, e.g. w9:p1 ->
+    w9:p2, live 2026-10-16 Q155): moved there, pending for the next pass. Returns the rest."""
     rest, agents = [], None
     for q in items:
         if agents is None:
@@ -741,8 +747,8 @@ def forward_family(store: Store, session: str | None, since: str | None = None) 
     current continuation chain (D6) plus the sessions its transcript EVER continued in (a
     resumed session keeps its record mid-file). Never an ANCESTOR (a session that continued
     into it): that is an older, different conversation without the asker's context (live
-    2026-10-17: synthetic_100-synthetic_98 counted as delivered because they landed in synthetic_89, an ancestor
-    of synthetic_90).
+    2026-10-17: Q9001-Q9006 counted as delivered because they landed in 00000001, an ancestor
+    of 00000002).
 
     ``since`` (a question's created_at): a past continuation counts only if its record is
     dated at or after it -- the question was in the conversation when it moved. A session

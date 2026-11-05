@@ -351,7 +351,7 @@ Another plugin (or a script) can open the popup straight on one question or grou
 root=$(herdr plugin list --json | jq -r '.result.plugins[] | select(.plugin_id == "leavemyyard.herdr-inbox") | .plugin_root')
 uv run --quiet --frozen --no-dev --project "$root" inbox open --question Q12   # or:
 #   inbox open --group 7            the group (one ask_operator call)
-#   inbox open --pane w6:p3A        that pane's oldest open group
+#   inbox open --pane w9:p5         that pane's oldest open group
 #   inbox open --session <id>       that Claude session's oldest open group
 ```
 

@@ -12,7 +12,7 @@ from herdr_inbox.service import Caller
 from herdr_inbox.store import Store
 
 A = Caller("w1:p1", "w1:t1", "tab-A", "aaaaaaaa-0000-4000-8000-00000000000a", "/r")
-M = {"id": "m1", "label": "moneylust", "target": "moneylust", "session": "default", "enabled": True}
+M = {"id": "m1", "label": "project1", "target": "project1", "session": "default", "enabled": True}
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ cmd = args[-1]
 with open({str(tmp_path / 'ssh.log')!r}, "a") as fh:
     fh.write(cmd + "\\n")
 if os.environ.get("FAKE_SSH_DOWN"):
-    sys.stderr.write("ssh: connect to host moneylust: No route to host\\n"); sys.exit(255)
+    sys.stderr.write("ssh: connect to host project1: No route to host\\n"); sys.exit(255)
 if "command -v" in cmd:
     print("/remote/bin/uv\\n/remote/bin/herdr\\n/remote/bin/claude"); sys.exit(0)
 if "plugin list --json" in cmd:
@@ -72,7 +72,7 @@ def test_pull_mirrors_and_notifies_once(store, remote_db, fake_herdr):
     assert list(rows) == [q] and rows[q]["status"] == "open"
     assert json.loads(rows[q]["data_json"])["options"][0]["label"] == "yes"
     assert remote.pull(store, M)  # incremental: nothing new
-    assert [n for n in notes(fake_herdr) if n.startswith("moneylust · Q")] == [f"moneylust · Q{q} · tab-A"]
+    assert [n for n in notes(fake_herdr) if n.startswith("project1 · Q")] == [f"project1 · Q{q} · tab-A"]
     q2 = service.ask(remote_db, A, "Remote two?")["id"]
     remote.pull(store, M)
     assert set(mirror(store)) == {q, q2}
@@ -203,18 +203,18 @@ async def test_popup_lists_and_answers_a_remote_question(store, remote_db, fake_
     async with app.run_test() as pilot:
         await pilot.pause()
         body = app.query_one(GroupListView).body_text()
-        assert f"moneylust:Q{q} Ship it? · 1 question" in body and "moneylust · tab-A" in body
+        assert f"project1:Q{q} Ship it? · 1 question" in body and "project1 · tab-A" in body
         await pilot.press("down", "enter")
         await pilot.pause()
         assert app.mode == "remote" and app.query_one(QuestionView).q.question == "Ship it?"
         await pilot.press("enter")  # option 1
         await pilot.pause()
         assert app.mode == "list"
-        assert "✓ moneylust · answered · sending to moneylust" in app.query_one(GroupListView).body_text()
+        assert "✓ project1 · answered · sending to project1" in app.query_one(GroupListView).body_text()
         app.poll()  # the queued action arrives as its own row
         await pilot.pause()
         body = app.query_one(GroupListView).body_text()
-        assert f"⏳ moneylust:Q{q} answer queued · sending to moneylust" in body
+        assert f"⏳ project1:Q{q} answer queued · sending to project1" in body
     row = store.db.execute("SELECT action, detail_json, state FROM remote_outbox").fetchone()
     assert row[0] == "answer" and json.loads(row[1])["choices"] == ["yes"] and row[2] == "queued"
     assert not fake_herdr.calls_of("agent", "prompt")  # never typed from here
@@ -244,7 +244,7 @@ async def test_popup_shows_an_offline_machine_and_a_rejection(store, remote_db, 
         await pilot.pause()
         body = app.query_one(GroupListView).body_text()
         assert "offline since" in body
-        assert f"⚠ moneylust:Q{q} hide rejected: answered with no" in body
+        assert f"⚠ project1:Q{q} hide rejected: answered with no" in body
         await pilot.press("down", "down", "d")
         await pilot.pause()
     assert store.db.execute("SELECT state FROM remote_outbox WHERE request_id = ?", (rid,)).fetchone()[0] == "seen"
@@ -266,9 +266,9 @@ async def test_deep_link_to_a_remote_question(store, remote_db, fake_herdr, monk
     q = service.ask(remote_db, A, "Remote?", options=["yes"])["id"]
     remote.pull(store, M)
     monkeypatch.setattr(remote, "enabled_machines", lambda ttl=60.0: [M])
-    assert deeplink.resolve(store, {"kind": "question", "value": f"moneylust:Q{q}"})[0][0] == "remote"
+    assert deeplink.resolve(store, {"kind": "question", "value": f"project1:Q{q}"})[0][0] == "remote"
     assert deeplink.resolve(store, {"kind": "question", "value": f"elsewhere:Q{q}"}) is None
-    monkeypatch.setenv("INBOX_OPEN_NONCE", deeplink.write_request("question", f"moneylust:Q{q}", hold=False))
+    monkeypatch.setenv("INBOX_OPEN_NONCE", deeplink.write_request("question", f"project1:Q{q}", hold=False))
     app = InboxApp(store, focus_pane="w9:p9")
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -276,7 +276,7 @@ async def test_deep_link_to_a_remote_question(store, remote_db, fake_herdr, monk
 
 
 def test_the_ssh_control_socket_path_stays_short(monkeypatch, tmp_path):
-    """moneylust e2e: a ControlPath next to a deep checkout's DB was over the unix limit."""
+    """project1 e2e: a ControlPath next to a deep checkout's DB was over the unix limit."""
     monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1000")
     monkeypatch.setattr(remote.os.path, "isdir", lambda p: True)
     opts = remote.control_options()
@@ -287,7 +287,7 @@ def test_the_ssh_control_socket_path_stays_short(monkeypatch, tmp_path):
 
 
 def test_a_question_deleted_on_the_remote_leaves_the_mirror_on_the_next_pull(store, remote_db, fake_herdr):
-    """moneylust e2e: an incremental pull skipped deleted rows; the mirror kept them 'open'
+    """project1 e2e: an incremental pull skipped deleted rows; the mirror kept them 'open'
     until the next full snapshot."""
     q = service.ask(remote_db, A, "Gone soon?")["id"]
     remote.pull(store, M)
@@ -406,7 +406,7 @@ async def test_m1_the_popup_shows_a_past_expiry_as_expired(store, remote_db, fak
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert f"⚠ moneylust:Q{q} answer expired" in app.query_one(GroupListView).body_text()
+        assert f"⚠ project1:Q{q} answer expired" in app.query_one(GroupListView).body_text()
 
 
 def test_l5_a_settled_row_is_notified_once_even_with_two_workers(store, remote_db, fake_herdr):
@@ -416,8 +416,8 @@ def test_l5_a_settled_row_is_notified_once_even_with_two_workers(store, remote_d
     rid = remote.enqueue(store, "m1", shown(store, q), "answer", {"choices": ["no"]})
     other = Store(store.path)
     fake_herdr.reset()
-    assert remote._settle(store, rid, "rejected", "answered with yes", "moneylust:Q1: rejected", "x") is True
-    assert remote._settle(other, rid, "rejected", "answered with yes", "moneylust:Q1: rejected", "x") is False
+    assert remote._settle(store, rid, "rejected", "answered with yes", "project1:Q1: rejected", "x") is True
+    assert remote._settle(other, rid, "rejected", "answered with yes", "project1:Q1: rejected", "x") is False
     assert len(fake_herdr.calls_of("notification", "show")) == 1
 
 
@@ -430,7 +430,7 @@ def test_m2_an_answer_the_remote_cannot_deliver_shows_here_once(store, remote_db
     remote.pull(store, M)
     remote.pull(store, M)
     gone = [n for n in notes(fake_herdr) if "gone" in n or "not delivered" in n]
-    assert len(gone) == 1 and f"moneylust:Q{q}" in gone[0]
+    assert len(gone) == 1 and f"project1:Q{q}" in gone[0]
     assert [i["remote_id"] for i in remote.problem_rows(store)] == [q]
 
 
@@ -445,7 +445,7 @@ async def test_m2_the_popup_lists_it_and_d_clears_it(store, remote_db, fake_herd
     async with app.run_test() as pilot:
         await pilot.pause()
         body = app.query_one(GroupListView).body_text()
-        assert f"⚠ moneylust:Q{q} answered · agent closed — answer kept for check_answers" in body
+        assert f"⚠ project1:Q{q} answered · agent closed — answer kept for check_answers" in body
         await pilot.press("down", "d")
         await pilot.pause()
     assert remote.problem_rows(store) == []
@@ -547,7 +547,7 @@ def test_an_older_remote_that_cannot_answer_status_expires_as_may_have_reached(s
     remote.flush(store, M)
     assert store.db.execute("SELECT state, result FROM remote_outbox").fetchone()[:] == ("failed", "expired")
     shows = fake_herdr.calls_of("notification", "show")
-    assert len(shows) == 1 and "may have reached moneylust" in shows[0][4]
+    assert len(shows) == 1 and "may have reached project1" in shows[0][4]
 
 
 # -- final pass 2 -----------------------------------------------------------------------------
@@ -606,7 +606,7 @@ def test_a_remote_alert_is_mirrored_notified_once_and_acked_through_the_outbox(s
     aid = alerts.raise_alert(remote_db, A, "[E2E TEST] check disk", "92%", "urgent")["id"]
     fake_herdr.reset()
     assert remote.pull(store, M) and remote.pull(store, M)
-    assert [n for n in notes(fake_herdr) if "A" in n] == [f"moneylust · A{aid} · urgent · tab-A"]
+    assert [n for n in notes(fake_herdr) if "A" in n] == [f"project1 · A{aid} · urgent · tab-A"]
     data = ralert(store, aid)
     assert data["title"] == "[E2E TEST] check disk" and data["_status"] == "open"
     rid = remote.enqueue_alert_ack(store, "m1", data)
@@ -656,7 +656,7 @@ async def test_popup_acknowledges_a_remote_alert(store, remote_db, fake_herdr):
     app = InboxApp(store, focus_pane="w1:p2")
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert f"⚑ moneylust:A{aid} · warning · [E2E TEST] remote alert" in app.query_one(GroupListView).body_text()
+        assert f"⚑ project1:A{aid} · warning · [E2E TEST] remote alert" in app.query_one(GroupListView).body_text()
         await pilot.press("up", "enter")
         await pilot.pause()
         assert app.mode == "alert"

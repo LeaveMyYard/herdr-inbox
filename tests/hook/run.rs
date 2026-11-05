@@ -5,11 +5,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::common::{A, migrated};
+use crate::herdr_cli::CliStub;
 
 pub struct World {
     pub dir: tempfile::TempDir,
     pub db: PathBuf,
     pub transcript: PathBuf,
+    /// herdr's CLI: a logging stub, never the machine's herdr.
+    pub cli: CliStub,
 }
 
 pub struct Ran {
@@ -20,6 +23,7 @@ pub struct Ran {
 impl World {
     pub fn new() -> World {
         let dir = tempfile::tempdir().unwrap();
+        let cli = CliStub::new(&dir.path().join("bin"));
         let db = migrated(dir.path());
         let project = dir.path().join("claude").join("projects").join("-r");
         std::fs::create_dir_all(&project).unwrap();
@@ -29,6 +33,7 @@ impl World {
             dir,
             db,
             transcript,
+            cli,
         }
     }
 
@@ -61,6 +66,7 @@ impl World {
             .env("HERDR_INBOX_DB", &self.db)
             .env("XDG_STATE_HOME", self.dir.path().join("state"))
             .env("CLAUDE_CONFIG_DIR", self.dir.path().join("claude"))
+            .env("HERDR_BIN_PATH", &self.cli.bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -81,6 +87,8 @@ impl World {
             "{}",
             String::from_utf8_lossy(&out.stderr)
         );
+        // the hooks talk to herdr over its socket only
+        self.cli.assert_only(&[]);
         Ran {
             code: out.status.code().unwrap_or(-1),
             stdout: String::from_utf8(out.stdout).unwrap(),

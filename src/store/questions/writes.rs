@@ -2,7 +2,7 @@
 //! `set_answer`, `set_status`, `bump_repeat`, `acknowledge`, `redeliver`,
 //! `hide_failed`), statement for statement.
 
-use rusqlite::params;
+use rusqlite::{Connection, params};
 use serde_json::Value;
 
 use super::PENDING;
@@ -105,22 +105,7 @@ impl Store {
         answer: &str,
         detail: Option<&str>,
     ) -> rusqlite::Result<bool> {
-        self.immediate(|db| {
-            let n = db.execute(
-                "UPDATE questions SET status = 'answered', answer = ?, answered_at = ?, delivered_at = NULL, \
-                 delivery_error = NULL, acknowledged_at = NULL WHERE id = ? AND status = 'open'",
-                params![answer, now(), qid],
-            )?;
-            if n != 1 {
-                return Ok(false);
-            }
-            db.execute(
-                "INSERT INTO question_ext (id, group_id, answer_json) VALUES (?, ?, ?) \
-                 ON CONFLICT(id) DO UPDATE SET answer_json = excluded.answer_json, draft_json = NULL, drafted_at = NULL",
-                params![qid, qid, detail],
-            )?;
-            Ok(true)
-        })
+        self.immediate(|db| write_answer(db, qid, answer, detail))
     }
 
     /// Closes an open question (`dismissed`, `withdrawn`); `note` goes into `answer`.
@@ -184,6 +169,31 @@ impl Store {
         )?;
         Ok(())
     }
+}
+
+/// Answers an open question inside the caller's transaction (Python
+/// `Store._set_answer`); `false` when it is not open. The detail is stored
+/// JSON text, carried on as it is.
+pub fn write_answer(
+    db: &Connection,
+    qid: i64,
+    answer: &str,
+    detail: Option<&str>,
+) -> rusqlite::Result<bool> {
+    let n = db.execute(
+        "UPDATE questions SET status = 'answered', answer = ?, answered_at = ?, delivered_at = NULL, \
+         delivery_error = NULL, acknowledged_at = NULL WHERE id = ? AND status = 'open'",
+        params![answer, now(), qid],
+    )?;
+    if n != 1 {
+        return Ok(false);
+    }
+    db.execute(
+        "INSERT INTO question_ext (id, group_id, answer_json) VALUES (?, ?, ?) \
+         ON CONFLICT(id) DO UPDATE SET answer_json = excluded.answer_json, draft_json = NULL, drafted_at = NULL",
+        params![qid, qid, detail],
+    )?;
+    Ok(true)
 }
 
 /// Python's `if detail` for a dict: `None` and `{}` are no detail.

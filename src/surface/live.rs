@@ -4,20 +4,53 @@
 //! nothing.
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
-use herdr_agent_kit::herdr_api::{HerdrError, PaneId, Sanitized, TabId};
+use std::path::PathBuf;
 
+use herdr_agent_kit::herdr_api::{HerdrError, OpenPluginPane, PaneId, Sanitized, TabId};
+
+use serde_json::{Value, json};
+
+use super::popup::{ENTRYPOINT, FOCUS_ENV, INBOX_PLUGIN_ID};
 use super::{SOURCE, Surface, TOKEN};
+use crate::radar::RADAR_ID;
+use crate::remote::pyvalue::py_truthy;
 
 /// The live herdr.
 pub struct Live {
     herdr: Herdr,
     warn: fn(&str),
+    root: Option<PathBuf>,
+    focused: Option<String>,
 }
 
 impl Live {
     /// Calls `herdr`; failures go to `warn`.
     pub fn new(herdr: Herdr, warn: fn(&str)) -> Live {
-        Live { herdr, warn }
+        Live {
+            herdr,
+            warn,
+            root: None,
+            focused: None,
+        }
+    }
+
+    /// Where the popup opens from: the inbox's own checkout (`None`: ask
+    /// herdr where it is installed) and the pane that was focused.
+    pub fn with_popup(mut self, root: Option<PathBuf>, focused: Option<String>) -> Live {
+        self.root = root;
+        self.focused = focused;
+        self
+    }
+
+    /// The inbox's root as herdr lists it (Python `herdr._listed_root`).
+    fn listed_root(&self) -> Option<PathBuf> {
+        let plugins = self.ok("plugin.list", self.herdr.plugins()).ok()?;
+        plugins
+            .into_iter()
+            .find(|p| p.plugin_id.as_deref() == Some(INBOX_PLUGIN_ID))
+            .and_then(|p| p.plugin_root)
+            .filter(|r| !r.is_empty())
+            .map(PathBuf::from)
     }
 
     fn ok<T>(&self, method: &str, result: Result<T, HerdrError>) -> Result<T, String> {
@@ -51,6 +84,21 @@ impl Surface for Live {
         )
     }
 
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        let spaces = self.ok("workspace.list", self.herdr.workspaces()).ok()?;
+        let mut out = Vec::new();
+        for ws in spaces.into_iter().filter_map(|w| w.workspace_id) {
+            let tabs = self
+                .ok("tab.list", self.herdr.tabs(&ws))
+                .unwrap_or_default();
+            out.extend(
+                tabs.into_iter()
+                    .filter_map(|t| Some((t.tab_id?.as_str().to_string(), t.label))),
+            );
+        }
+        Some(out)
+    }
+
     fn tab_label(&mut self, tab: &str) -> Option<String> {
         let got = self.herdr.tab(&TabId::new(tab));
         self.ok("tab.get", got).ok()?.label
@@ -71,4 +119,46 @@ impl Surface for Live {
         );
         let _ = self.ok("notification.show", sent);
     }
+
+    fn open_popup(&mut self, env: &[(String, String)]) -> Result<(), String> {
+        let mut open = OpenPluginPane::new(INBOX_PLUGIN_ID, ENTRYPOINT);
+        open.cwd = self.root.clone().or_else(|| self.listed_root());
+        open.env = env.to_vec();
+        if let Some(pane) = &self.focused {
+            open.env.push((FOCUS_ENV.to_string(), pane.clone()));
+        }
+        let opened = self.herdr.open_plugin_pane(&open);
+        self.ok("plugin.pane_open", opened).map(drop)
+    }
+
+    fn radar_installed(&mut self) -> bool {
+        let Ok(listed) = self.ok("plugin.list", self.herdr.raw("plugin.list", json!({}))) else {
+            return false;
+        };
+        radar_listed(&listed)
+    }
+
+    fn radar_config_dir(&mut self) -> Option<PathBuf> {
+        let dir = self.herdr.plugin_config_dir(RADAR_ID);
+        self.ok("plugin config-dir", dir).ok().flatten()
+    }
+
+    fn reload_config(&mut self) {
+        let reloaded = self.herdr.reload_config();
+        let _ = self.ok("server.reload_config", reloaded);
+    }
 }
+
+/// herdr's `plugin.list` result lists herdr-radar enabled (Python
+/// `radar.radar_installed`: `p.get("enabled", True)`, so a missing flag is
+/// enabled and `false` or `null` is not).
+pub fn radar_listed(listed: &Value) -> bool {
+    let plugins = listed.get("plugins").and_then(Value::as_array);
+    plugins.into_iter().flatten().any(|p| {
+        p.get("plugin_id").and_then(Value::as_str) == Some(RADAR_ID)
+            && p.get("enabled").is_none_or(py_truthy)
+    })
+}
+
+#[cfg(test)]
+mod tests;

@@ -8,12 +8,15 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use herdr_agent_kit::herdr_api::{MAX_ARG, clean};
 use herdr_inbox::pyjson::dumps;
 use serde_json::{Value, json};
 
 use crate::common::{migrated, open};
+use crate::herdr_cli::CliStub;
 use crate::herdr_stub::Stub;
 
 const S: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
@@ -23,6 +26,10 @@ struct Rig {
     dir: tempfile::TempDir,
     db: PathBuf,
     stub: Stub,
+    /// The operator is in the asking pane.
+    focused: Arc<AtomicBool>,
+    /// herdr's CLI: a logging stub, never the machine's herdr.
+    cli: CliStub,
 }
 
 fn append(path: &Path, content: &str) {
@@ -45,16 +52,22 @@ impl Rig {
         fs::write(&transcript, "{\"type\": \"user\"}\n").unwrap();
         fs::create_dir_all(dir.path().join("cfg")).unwrap();
         fs::write(dir.path().join("cfg/config.toml"), "tab_prefix = \"❓\"\n").unwrap();
+        let focused = Arc::new(AtomicBool::new(false));
+        let operator_there = Arc::clone(&focused);
         let stub = Stub::start(dir.path(), move |method, params| {
             Ok(match method {
                 "agent.get" => {
                     json!({"agent": {"pane_id": "w1:p1", "agent": "claude", "agent_status": "idle",
-                                                "agent_session": {"kind": "id", "value": S}}})
+                                     "focused": operator_there.load(Ordering::SeqCst),
+                                     "agent_session": {"kind": "id", "value": S}}})
                 }
                 "agent.list" => json!({"agents": []}),
                 "pane.read" => json!({"read": {"text": EMPTY}}),
                 "pane.list" => json!({"panes": [{"pane_id": "w1:p1", "tab_id": "w1:t1"}]}),
                 "tab.get" => json!({"tab": {"tab_id": "w1:t1", "label": "❓2 my-tab"}}),
+                "plugin.list" => json!({"plugins": [
+                    {"plugin_id": "someone.else", "plugin_root": "/elsewhere"},
+                    {"plugin_id": "leavemyyard.herdr-inbox", "plugin_root": "/inbox/root"}]}),
                 "agent.prompt" => {
                     append(
                         &transcript,
@@ -74,27 +87,43 @@ impl Rig {
             )
             .unwrap();
         }
-        Rig { dir, db, stub }
+        let cli = CliStub::new(&dir.path().join("bin"));
+        Rig {
+            dir,
+            db,
+            stub,
+            focused,
+            cli,
+        }
     }
 
     /// `herdr-inbox <args>` with only the test's own environment.
     fn run(&self, args: &[&str]) -> Output {
+        self.run_with(args, &[])
+    }
+
+    /// [`Rig::run`] with `extra` variables too.
+    fn run_with(&self, args: &[&str], extra: &[(&str, &str)]) -> Output {
         let d = self.dir.path();
-        Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
+        let out = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
             .args(args)
             .env_clear()
+            .envs(extra.iter().copied())
             .env("HOME", d)
             .env("PATH", "/usr/bin:/bin")
             .env("XDG_STATE_HOME", d.join("state"))
             .env("XDG_CONFIG_HOME", d.join("xdg"))
             .env("HERDR_SOCKET_PATH", &self.stub.socket)
-            .env("HERDR_BIN_PATH", d.join("no-herdr"))
+            .env("HERDR_BIN_PATH", &self.cli.bin)
             .env("HERDR_INBOX_DB", &self.db)
             .env("HERDR_PLUGIN_CONFIG_DIR", d.join("cfg"))
             .env("CLAUDE_CONFIG_DIR", d.join("claude"))
             .env("HERDR_INBOX_NO_WORKER", "1") // the CLI starts no real worker here
             .output()
-            .unwrap()
+            .unwrap();
+        // herdr is the socket stub; its CLI is never needed here
+        self.cli.assert_only(&[]);
+        out
     }
 
     fn status(&self, id: i64) -> String {
@@ -163,5 +192,118 @@ fn answer_list_and_dismiss_through_the_binary() {
     assert_eq!(
         rig.stub.params_of("pane.report_metadata").last().unwrap()["tokens"],
         json!({"inbox_q": null})
+    );
+}
+
+#[test]
+fn open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane() {
+    let rig = Rig::new();
+    let ctx = r#"{"focused_pane_id": "w1:p7"}"#;
+    // run from another plugin's action: its root and id are never the inbox's
+    let caller = [
+        ("HERDR_PLUGIN_CONTEXT_JSON", ctx),
+        ("HERDR_PLUGIN_ID", "leavemyyard.herdr-panorama"),
+        ("HERDR_PLUGIN_ROOT", "/plugins/panorama"),
+    ];
+    let out = rig.run_with(&["open", "--question", "Q2"], &caller);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    let opened = rig.stub.params_of("plugin.pane.open");
+    assert_eq!(opened.len(), 1);
+    let p = &opened[0];
+    assert_eq!(
+        (p["plugin_id"].as_str(), p["entrypoint"].as_str()),
+        (Some("leavemyyard.herdr-inbox"), Some("inbox"))
+    );
+    // the inbox's own checkout when the binary sits in one (a default target dir), else
+    // herdr's listed root; never the calling plugin's
+    let exe = std::path::Path::new(env!("CARGO_BIN_EXE_herdr-inbox"));
+    let own = herdr_inbox::surface::popup::own_checkout(exe);
+    let want = own.map_or("/inbox/root".to_string(), |r| r.display().to_string());
+    assert_eq!(p["cwd"], want.as_str());
+    assert!(!p.to_string().contains("/plugins/panorama"), "{p}");
+    assert_eq!(p["env"]["INBOX_FOCUS_PANE"], "w1:p7");
+    let nonce = p["env"]["INBOX_OPEN_NONCE"].as_str().unwrap();
+    let state = rig.db.parent().unwrap();
+    let request = herdr_inbox::deeplink::request::consume_request(
+        state,
+        Some(nonce),
+        herdr_inbox::deeplink::request::unix_now(),
+    )
+    .unwrap();
+    assert_eq!(
+        (request.kind.as_str(), request.value.as_str(), request.hold),
+        ("question", "2", true)
+    );
+}
+
+#[test]
+fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
+    // Python test_async_actions: test_cli_deliver_delivers_recorded_answers and
+    // test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in
+    let rig = Rig::new();
+    open(&rig.db)
+        .execute_batch(
+            "UPDATE questions SET status = 'answered', answer = 'yes', \
+             answered_at = strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now') WHERE id IN (1, 2)",
+        )
+        .unwrap();
+    // the operator is elsewhere: the worker's retry types it
+    let out = rig.run(&["deliver", "2"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    let error2: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT delivery_error FROM questions WHERE id = 2",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let methods: Vec<String> = (rig.stub.requests.lock().unwrap().iter())
+        .map(|(m, _)| m.clone())
+        .collect();
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        1,
+        "typed in retry mode; Q2 delivery_error {error2:?}, herdr calls {methods:?}, stderr {}",
+        text(&out.stderr)
+    );
+    rig.focused.store(true, Ordering::SeqCst);
+    let out = rig.run(&["deliver", "1"]);
+    assert_eq!(
+        (out.status.code(), text(&out.stdout)),
+        (Some(0), String::new())
+    );
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        1,
+        "the operator is in that pane"
+    );
+    let error: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT delivery_error FROM questions WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(error.unwrap_or_default().contains("operator"));
+    let out = rig.run(&["deliver", "1", "--force"]);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        2,
+        "Send now types it"
+    );
+    let verified: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT verified_at FROM question_ext WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(verified.is_some());
+    rig.run(&["deliver", "1"]);
+    assert_eq!(
+        rig.stub.params_of("agent.prompt").len(),
+        2,
+        "delivered: never again"
     );
 }

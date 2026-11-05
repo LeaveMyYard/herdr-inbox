@@ -9,7 +9,7 @@ tests/test_agent_gone.py::test_pending_rows_say_they_are_already_answered,tests/
 tests/test_alerts.py::test_raise_notifies_counts_in_the_badge_and_dedupes,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_bad_input_and_outside_herdr,tests/test_alerts.py,,todo,,
 tests/test_alerts.py::test_withdraw_and_acknowledge,tests/test_alerts.py,,todo,,
-tests/test_alerts.py::test_mcp_tools,tests/test_alerts.py,,todo,,
+tests/test_alerts.py::test_mcp_tools,tests/test_alerts.py,herdr-inbox --test mcp_herdr the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported,mapped,,P5
 tests/test_alerts.py::test_popup_shows_alerts_first_unnumbered_and_d_acknowledges,tests/test_alerts.py,inbox-core --test popup_transitions alerts::popup_shows_alerts_first_unnumbered_and_d_acknowledges,mapped,,P6
 tests/test_alerts.py::test_popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,tests/test_alerts.py,inbox-core --test popup_transitions alerts::popup_d_acknowledges_an_alert_and_g_goes_to_the_pane,mapped,,P6
 tests/test_alerts.py::test_an_agent_stuck_at_a_prompt_becomes_an_alert_and_clears_itself,tests/test_alerts.py,,todo,,
@@ -40,32 +40,32 @@ tests/test_arrivals.py::test_arrival_into_the_empty_view_still_opens_with_tab,te
 tests/test_arrivals.py::test_question_view_is_armed_only_after_a_moment,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::question_view_is_armed_only_after_a_moment,mapped,,P6
 tests/test_arrivals.py::test_list_and_lone_question_are_armed_too,tests/test_arrivals.py,inbox-core --test popup_transitions arrivals::list_and_lone_question_are_armed_too,mapped,,P6
 tests/test_arrivals.py::test_orphaned_answer_shows_as_failed,tests/test_arrivals.py,,todo,,
-tests/test_arrivals.py::test_claim_refuses_answers_the_agent_already_fetched,tests/test_arrivals.py,,todo,,
-tests/test_async_actions.py::test_popup_records_hands_delivery_off_and_closes_at_once,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_send_now_hands_off_with_force,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_cli_deliver_delivers_recorded_answers,tests/test_async_actions.py,,todo,,
+tests/test_arrivals.py::test_claim_refuses_answers_the_agent_already_fetched,tests/test_arrivals.py,herdr-inbox --lib mcp::answers::tests::an_answer_the_agent_fetched_is_never_claimed_for_typing,mapped,,P5
+tests/test_async_actions.py::test_popup_records_hands_delivery_off_and_closes_at_once,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::sends::a_lone_answer_is_recorded_handed_off_and_the_popup_closes,mapped,,P6
+tests/test_async_actions.py::test_send_now_hands_off_with_force,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::sends::send_now_hands_off_with_force,mapped,,P6
+tests/test_async_actions.py::test_cli_deliver_delivers_recorded_answers,tests/test_async_actions.py,herdr-inbox --test cli live::deliver_keeps_out_of_the_operators_pane_unless_sent_now,mapped,,P5
 tests/test_async_actions.py::test_ask_does_not_wait_for_the_tab_label_lock,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_ask_notification_runs_in_the_background,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_popup_never_calls_herdr_for_tab_labels_on_the_ui_thread,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_go_to_agent_focuses_off_the_ui_thread,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_spawn_delivery_runs_inbox_deliver_detached,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_go_to_agent_focuses_off_the_ui_thread,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::goto::g_focuses_the_agent_off_the_popups_thread_then_closes,mapped,,P6
+tests/test_async_actions.py::test_spawn_delivery_runs_inbox_deliver_detached,tests/test_async_actions.py,herdr-inbox --lib tui::live::handoff::tests::the_detached_sender_runs_deliver_with_the_ids_and_force,mapped,,P6
 tests/test_async_actions.py::test_inbox_trace_logs_steps_only_when_set,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_m1_a_stale_claim_takeover_looks_at_the_transcript_first,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_the_detached_sender_end_to_end,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_a_hidden_pending_answer_is_still_delivered,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_the_worker_is_ensured_before_the_sender_is_spawned,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_a_failing_background_job_does_not_stop_later_ones,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_the_worker_is_ensured_before_the_sender_is_spawned,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::sends::a_lone_answer_is_recorded_handed_off_and_the_popup_closes,mapped,,P6
+tests/test_async_actions.py::test_a_failing_background_job_does_not_stop_later_ones,tests/test_async_actions.py,herdr-inbox --lib tui::marks::tests::drain_is_bounded_and_a_panicking_job_does_not_stop_the_queue,mapped,,P6
 tests/test_async_actions.py::test_an_id_mentioned_inside_another_answer_is_not_a_delivery,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_a_record_older_than_the_answer_does_not_count,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_a_landed_multiline_answer_is_recognised_as_typed,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_h1_a_landed_long_answer_reference_stays_unseen,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_m1_the_return_pane_is_typed_while_the_popup_still_holds_the_keyboard,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_m1_inbox_deliver_keeps_out_of_the_pane_the_operator_is_in,tests/test_async_actions.py,herdr-inbox --test cli live::deliver_keeps_out_of_the_operators_pane_unless_sent_now,mapped,,P5
+tests/test_async_actions.py::test_m1_the_return_pane_is_typed_while_the_popup_still_holds_the_keyboard,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::sends::the_return_pane_is_typed_while_the_popup_holds_the_keyboard,mapped,,P6
 tests/test_async_actions.py::test_m1_inbox_verify_records_the_outcome_with_the_claim,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_l1_the_popup_drains_background_jobs_before_exit,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_l1_the_popup_drains_background_jobs_before_exit,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::contract::a_dismissal_marks_its_pane_and_exit_waits_for_the_marks,mapped,,P6
 tests/test_async_actions.py::test_l1_the_mcp_server_drains_on_exit,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_l2_mark_agent_gone_on_a_never_attempted_row,tests/test_async_actions.py,,todo,,
-tests/test_async_actions.py::test_l3_send_now_says_when_the_answer_is_already_being_delivered,tests/test_async_actions.py,,todo,,
+tests/test_async_actions.py::test_l3_send_now_says_when_the_answer_is_already_being_delivered,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::sends::send_now_says_when_the_answer_is_already_being_delivered,mapped,,P6
 tests/test_async_actions.py::test_a_reopened_store_skips_schema_work_and_tools_skip_reconcile,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_a_failing_verify_spawn_does_not_break_the_send,tests/test_async_actions.py,,todo,,
 tests/test_async_actions.py::test_waiting_for_the_operator_to_leave_the_pane_says_so,tests/test_async_actions.py,,todo,,
@@ -288,7 +288,11 @@ tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_cla
 tests/test_composer_draft.py::test_never_typed_onto_a_draft_or_an_unreadable_claude_input_box[None],tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_send_now_never_types_onto_a_draft_and_says_so,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_typed_once_the_draft_is_gone,tests/test_composer_draft.py,,todo,,
-tests/test_composer_draft.py::test_other_agents_are_typed_into_as_before,tests/test_composer_draft.py,,todo,,
+tests/test_composer_draft.py::test_other_agents_are_typed_into_as_before,tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_another_kinds_unreadable_box_tells_nobody,tests/test_composer_draft.py,herdr-inbox --test delivery scenarios::every_scenario_ends_as_it_does_in_python,mapped,,P5
+tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[codex],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[claude-code],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
+tests/test_composer_draft.py::test_a_claude_draft_holds_the_answer_whatever_kind_herdr_reports[],tests/test_composer_draft.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_composer_draft.py::test_a_delivery_typed_after_a_draft_counts_as_landed,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_a_mere_mention_after_other_text_still_does_not_count,tests/test_composer_draft.py,,todo,,
 tests/test_composer_draft.py::test_send_now_after_a_merged_landing_records_it_instead_of_typing_again,tests/test_composer_draft.py,,todo,,
@@ -301,65 +305,65 @@ tests/test_cursor_targets.py::test_vanished_target_parks_on_nothing,tests/test_c
 tests/test_cursor_targets.py::test_stranded_claim_shows_as_failed,tests/test_cursor_targets.py,,todo,,
 tests/test_cursor_targets.py::test_error_paths_never_overwrite_someone_elses_claim,tests/test_cursor_targets.py,,todo,,
 tests/test_cursor_targets.py::test_retry_that_backs_off_releases_its_claim,tests/test_cursor_targets.py,,todo,,
-tests/test_deep_link.py::test_request_is_written_atomically_and_consumed_once,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_newest_request_wins,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_stale_request_is_ignored_and_removed,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_garbage_request_is_ignored,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_request_is_written_atomically_and_consumed_once,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::a_request_is_taken_once_by_its_popup,mapped,,P5
+tests/test_deep_link.py::test_newest_request_wins,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::the_newest_request_wins_and_a_stale_one_is_dropped,mapped,,P5
+tests/test_deep_link.py::test_stale_request_is_ignored_and_removed,tests/test_deep_link.py,herdr-inbox --lib deeplink::request::tests::the_newest_request_wins_and_a_stale_one_is_dropped,mapped,,P5
+tests/test_deep_link.py::test_garbage_request_is_ignored,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_concurrent_popups_consume_a_request_exactly_once,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_targets_resolve_to_a_group_and_question,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_targets_resolve_to_a_group_and_question,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_popup_opens_on_the_requested_question,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_requested_question,mapped,,P6
 tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[group-3],tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::popup_opens_on_the_group_for_each_target_kind,mapped,,P6
-tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[pane-w1:p2],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[session-bbbbbbbb-0000-4000-8000-00000000000b],tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[pane-w1:p2],tests/test_deep_link.py,herdr-inbox --lib tui::run::tests::links::a_request_names_its_group_for_every_target_kind,mapped,,P6
+tests/test_deep_link.py::test_popup_opens_on_the_group_for_each_target_kind[session-bbbbbbbb-0000-4000-8000-00000000000b],tests/test_deep_link.py,herdr-inbox --lib tui::run::tests::links::a_request_names_its_group_for_every_target_kind,mapped,,P6
 tests/test_deep_link.py::test_gone_target_falls_back_to_the_list_with_a_notice,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::gone_target_falls_back_to_the_list_with_a_notice,mapped,,P6
 tests/test_deep_link.py::test_no_request_keeps_the_normal_start,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_request_keeps_the_normal_start,mapped,,P6
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args0-expected0],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args1-expected1],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args2-expected2],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args3-expected3],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_takes_one_target,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_from_another_plugins_action_opens_the_inbox,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_cli_rejects_a_malformed_target,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_a_manual_open_does_not_take_someone_elses_request,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_the_nonce_is_passed_to_the_popup,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_reports_a_popup_that_is_already_open,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_the_popup_marks_itself_running,tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args0-expected0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args1-expected1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args2-expected2],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_writes_the_request_then_opens_the_popup[args3-expected3],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_takes_one_target,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_from_another_plugins_action_opens_the_inbox,tests/test_deep_link.py,herdr-inbox --test cli live::open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane,mapped,,P5
+tests/test_deep_link.py::test_cli_rejects_a_malformed_target,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_a_manual_open_does_not_take_someone_elses_request,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_the_nonce_is_passed_to_the_popup,tests/test_deep_link.py,herdr-inbox --test cli live::open_asks_herdr_for_the_popup_with_its_request_and_the_operators_pane,mapped,,P5
+tests/test_deep_link.py::test_open_reports_a_popup_that_is_already_open,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_the_popup_marks_itself_running,tests/test_deep_link.py,herdr-inbox --lib deeplink::lock::tests::a_held_lock_reads_as_a_running_popup,mapped,,P5
 tests/test_deep_link.py::test_a_deep_linked_view_waits_for_a_deliberate_key,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::a_deep_linked_view_waits_for_a_deliberate_key,mapped,,P6
 tests/test_deep_link.py::test_without_no_hold_the_popup_stays_held,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::a_deep_linked_view_waits_for_a_deliberate_key,mapped,,P6
 tests/test_deep_link.py::test_no_hold_opens_like_a_normal_popup,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
 tests/test_deep_link.py::test_no_hold_still_arms,tests/test_deep_link.py,inbox-core --test popup_transitions deep_link::no_hold_opens_like_a_normal_popup,mapped,,P6
-tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_open_command_no_hold_flag[flag0-True],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_open_command_no_hold_flag[flag1-False],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:Q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:q12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[qnap:12-qnap:12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Qnap:Q7-Qnap:7],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[QQ12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[-],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[nap-nap],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_ref_removes_one_q_before_the_number[Q-],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_ref_loses_one_q_right_before_the_number,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[Q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[q12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_accepts_one_optional_q[12-12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[QQ12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qq12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[nap],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[Q],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_question_id_rejects_anything_else[qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::qref::tests::a_question_id_is_a_local_ref_as_int_reads_it,mapped,,P5
+tests/test_deep_link.py::test_open_keeps_a_machine_name_that_starts_with_q,tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd0],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd1],tests/test_deep_link.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd2],tests/test_deep_link.py,,todo,,
 tests/test_deep_link.py::test_id_arguments_take_one_optional_q[cmd3],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[12-Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[Q12-Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:12-qnap:Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[box:12-box:Q12],tests/test_deep_link.py,,todo,,
-tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:Q12-qnap:Q12],tests/test_deep_link.py,,todo,,
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[Q12-Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:12-qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[box:12-box:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
+tests/test_deep_link.py::test_describe_names_a_question_with_one_q_before_the_number[qnap:Q12-qnap:Q12],tests/test_deep_link.py,herdr-inbox --lib deeplink::tests::a_target_is_named_as_the_notice_names_it,mapped,,P5
 tests/test_decision_edges.py::test_an_answer_without_a_pane_waits_for_check_answers,tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_decision_edges.py::test_a_watched_idle_session_keeps_answers_its_hooks_missed_once[1],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_decision_edges.py::test_a_watched_idle_session_keeps_answers_its_hooks_missed_once[2],tests/test_decision_edges.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
@@ -385,10 +389,13 @@ tests/test_delivery.py::test_no_live_agent_skips_prompt,tests/test_delivery.py,,
 tests/test_delivery.py::test_missing_herdr_binary_degrades,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_answering_twice_is_refused,tests/test_delivery.py,,todo,,
 tests/test_delivery.py::test_token_counts_follow_state,tests/test_delivery.py,,todo,,
-tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_delivery.py,,todo,,
-tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,,todo,,
+tests/test_delivery.py::test_sync_tokens_sets_and_clears_every_pane,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_delivery.py::test_sync_tokens_cli,tests/test_delivery.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_delivery.py::test_cli_answer_list_dismiss,tests/test_delivery.py,herdr-inbox --test cli live::answer_list_and_dismiss_through_the_binary,mapped,,P5
 tests/test_delivery.py::test_control_characters_never_reach_herdr,tests/test_delivery.py,,todo,,
+tests/test_delivery.py::test_only_the_asked_panes_agent_counts[w1:p1-True],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
+tests/test_delivery.py::test_only_the_asked_panes_agent_counts[w1:p9-False],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
+tests/test_delivery.py::test_only_the_asked_panes_agent_counts[None-True],tests/test_delivery.py,herdr-inbox --test delivery_screens every_agent_record_reads_as_python_reads_it,mapped,,P5
 tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::one_tick_delivers_pending_answers_for_every_pane,mapped,,P5
 tests/test_delivery_worker.py::test_a_busy_miss_waits_for_idle_and_shows_as_not_delivered,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_busy_miss_waits_for_idle_and_shows_as_not_delivered,mapped,,P5
 tests/test_delivery_worker.py::test_a_focused_task_panel_is_not_typed_into,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_focused_task_panel_is_not_typed_into,mapped,,P5
@@ -425,7 +432,7 @@ tests/test_failed_pile.py::test_reconcile_never_verifies_answers_that_landed_onl
 tests/test_failed_pile.py::test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,mapped,,P5
 tests/test_failed_pile.py::test_an_acknowledged_answer_never_keeps_a_failure,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::an_acknowledged_answer_never_keeps_a_failure,mapped,,P5
 tests/test_failed_pile.py::test_a_truly_gone_answer_that_never_landed_stays_visible,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::a_truly_gone_answer_that_never_landed_stays_visible,mapped,,P5
-tests/test_failed_pile.py::test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in,tests/test_failed_pile.py,herdr-inbox --test mcp_herdr a_moved_pane_files_under_the_pane_that_runs_the_conversation,mapped,,P5
 tests/test_failed_pile.py::test_reconcile_backs_off_per_answer,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::reconcile_backs_off_per_answer,mapped,,P5
 tests/test_failed_pile.py::test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,mapped,,P6
 tests/test_failed_pile.py::test_q167_a_single_gone_answer_keeps_its_own_row,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_a_single_gone_answer_keeps_its_own_row,mapped,,P6
@@ -444,7 +451,7 @@ tests/test_failed_pile.py::test_r1_the_evidence_scan_reads_each_transcript_once,
 tests/test_failed_pile.py::test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r2_a_quoted_cli_line_without_the_own_command_is_not_evidence,mapped,,P5
 tests/test_failed_pile.py::test_r2_json_the_agent_printed_itself_is_not_evidence,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r2_json_the_agent_printed_itself_is_not_evidence,mapped,,P5
 tests/test_failed_pile.py::test_r2_a_same_size_rewrite_is_re_indexed,tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::tests::r2_a_same_size_rewrite_is_re_indexed,mapped,,P5
-"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[grep -n ""answer {n}"" ~/Code/herdr-inbox/worker.log-1234: Q{n} answered, not delivered: no live agent in pane w6:p48]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
+"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[grep -n ""answer {n}"" ~/Code/herdr-inbox/worker.log-1234: Q{n} answered, not delivered: no live agent in pane w9:p1]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
 "tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[gh pr comment 44 -R LeaveMyYard/herdr-inbox --body ""run inbox answer {n} x to reproduce""-https://github.com/x/1\nQ{n} answered, pending: busy]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
 "tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[inbox answer {n} x; grep 'Q{n}' ~/.local/state/herdr-inbox/worker.log-Q{n} is not open\nQ{n} answered, delivered to w1:p1]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
 "tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n$B answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_the_real_invocation_forms_count,mapped,,P5
@@ -459,11 +466,11 @@ tests/test_failed_pile.py::test_r3_the_captured_multi_answer_command_counts_ever
 "tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[HERDR_INBOX_DB=~/copy.db && inbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
 tests/test_final_review.py::test_cursor_row_stays_visible_in_a_short_popup,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_cursor_row_stays_visible_without_previews,tests/test_final_review.py,,todo,,
-tests/test_final_review.py::test_send_runs_in_the_background,tests/test_final_review.py,,todo,,
+tests/test_final_review.py::test_send_runs_in_the_background,tests/test_final_review.py,herdr-inbox --lib tui::run::tests::sends::the_popup_keeps_taking_keys_while_a_send_is_in_flight,mapped,,P6
 tests/test_final_review.py::test_marker_failure_never_fails_ask,tests/test_final_review.py,,todo,,
 tests/test_final_review.py::test_mcp_ask_returns_the_open_receipt_when_markers_fail,tests/test_final_review.py,,todo,,
-tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_final_review.py,,todo,,
-tests/test_final_review.py::test_closing_the_popup_waits_for_an_in_flight_send,tests/test_final_review.py,,todo,,
+tests/test_final_review.py::test_mcp_store_uses_a_short_busy_timeout,tests/test_final_review.py,herdr-inbox --lib mcp::runtime::tests::a_locked_database_gets_the_busy_receipt_and_changes_nothing,mapped,,P5
+tests/test_final_review.py::test_closing_the_popup_waits_for_an_in_flight_send,tests/test_final_review.py,herdr-inbox --lib tui::run::tests::sends::closing_waits_for_the_send_in_flight_and_drops_later_keys,mapped,,P6
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[decisions],tests/test_goldens.py,,todo,,
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[screens],tests/test_goldens.py,inbox-core --test popup_screens every_golden_screen_is_drawn_cell_for_cell,mapped,,P6
 tests/test_goldens.py::test_the_goldens_are_what_the_code_does[landed],tests/test_goldens.py,,todo,,
@@ -481,18 +488,18 @@ tests/test_group_list.py::test_last_group_sent_closes_the_popup,tests/test_group
 tests/test_group_title.py::test_title_is_stored_per_group_in_the_side_table,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_title_is_sanitised,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_fallback_name_for_untitled_groups,tests/test_group_title.py,,todo,,
-tests/test_group_title.py::test_mcp_title_parameter,tests/test_group_title.py,,todo,,
+tests/test_group_title.py::test_mcp_title_parameter,tests/test_group_title.py,herdr-inbox --lib mcp::ask::tests::a_group_shares_its_id_and_title_and_dedupes_within_the_call,mapped,,P5
 tests/test_group_title.py::test_session_start_text_mentions_title_once_and_stays_short,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_list_row_and_group_view_show_the_title,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_list_follows_the_cursor_in_a_narrow_popup,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_notification_for_an_untitled_single_question_shows_header_and_text,tests/test_group_title.py,,todo,,
 tests/test_group_title.py::test_untitled_group_is_named_after_its_first_open_question,tests/test_group_title.py,,todo,,
-tests/test_groups.py::test_group_ask_shares_group_and_dedupes_per_item,tests/test_groups.py,,todo,,
+tests/test_groups.py::test_group_ask_shares_group_and_dedupes_per_item,tests/test_groups.py,herdr-inbox --lib mcp::ask::tests::a_group_shares_its_id_and_title_and_dedupes_within_the_call,mapped,,P5
 tests/test_groups.py::test_drafts_are_not_sent_and_submit_sends_only_drafted,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_batched_delivery_one_message_per_pane,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_batch_respects_session_and_retry_rules,tests/test_groups.py,,todo,,
 tests/test_groups.py::test_cli_answer_still_answers_immediately,tests/test_groups.py,,todo,,
-tests/test_groups.py::test_mcp_questions_parameter,tests/test_groups.py,,todo,,
+tests/test_groups.py::test_mcp_questions_parameter,tests/test_groups.py,herdr-inbox --test mcp_herdr a_pane_asks_dedupes_gets_its_answer_once_and_files_a_group,mapped,,P5
 tests/test_hook.py::test_rules_are_short,tests/test_hook.py,herdr-inbox --lib hook::rules::tests::the_rules_are_short,mapped,,P2
 tests/test_hook.py::test_startup_injects_rules,tests/test_hook.py,herdr-inbox --test hook session_start::startup_injects_the_rules_and_lists_nothing,mapped,,P2
 tests/test_hook.py::test_startup_does_not_list_questions,tests/test_hook.py,herdr-inbox --test hook session_start::startup_injects_the_rules_and_lists_nothing,mapped,,P2
@@ -557,16 +564,16 @@ tests/test_manifests.py::test_herdr_manifest_required_fields,tests/test_manifest
 tests/test_manifests.py::test_license_declared_and_present,tests/test_manifests.py,,todo,,
 tests/test_manifests.py::test_ui_mod_is_its_own_plugin,tests/test_manifests.py,,todo,,
 tests/test_mcp.py::test_tools_are_registered_with_guidance,tests/test_mcp.py,herdr-inbox --test mcp_goldens tools_list_is_the_python_servers_byte_for_byte,mapped,,P5
-tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_session_change_is_resolved_per_call,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_claude_session_env_is_the_fallback,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_stdio_server_end_to_end[auto],tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_tools_on_a_pre_bridge_stamp_work_without_any_schema_work,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_tools_on_an_older_schema_return_the_unavailable_receipt,tests/test_mcp.py,,todo,,
-tests/test_mcp.py::test_a_tool_waits_briefly_for_the_worker_it_started,tests/test_mcp.py,,todo,,
+tests/test_mcp.py::test_full_round_trip_through_registered_tools,tests/test_mcp.py,herdr-inbox --test mcp_herdr a_pane_asks_dedupes_gets_its_answer_once_and_files_a_group,mapped,,P5
+tests/test_mcp.py::test_withdraw_question,tests/test_mcp.py,herdr-inbox --test mcp_herdr the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported,mapped,,P5
+tests/test_mcp.py::test_cannot_withdraw_another_sessions_question,tests/test_mcp.py,herdr-inbox --lib mcp::mine::tests::another_sessions_question_cannot_be_withdrawn_or_listed,mapped,,P5
+tests/test_mcp.py::test_session_change_is_resolved_per_call,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::the_session_is_resolved_on_every_call,mapped,,P5
+tests/test_mcp.py::test_claude_session_env_is_the_fallback,tests/test_mcp.py,herdr-inbox --test mcp_herdr without_herdrs_session_the_environments_is_used,mapped,,P5
+tests/test_mcp.py::test_stdio_server_end_to_end[legacy],tests/test_mcp.py,herdr-inbox --test mcp_goldens the_legacy_handshake_answers_and_refuses_as_python_does,mapped,,P5
+tests/test_mcp.py::test_stdio_server_end_to_end[auto],tests/test_mcp.py,herdr-inbox --test mcp_goldens claude_codes_tool_calls_get_the_python_servers_results,mapped,,P5
+tests/test_mcp.py::test_tools_on_a_pre_bridge_stamp_work_without_any_schema_work,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::a_pre_bridge_stamp_with_the_whole_schema_works_and_is_never_restamped,mapped,,P5
+tests/test_mcp.py::test_tools_on_an_older_schema_return_the_unavailable_receipt,tests/test_mcp.py,herdr-inbox --lib mcp::runtime::tests::a_database_not_migrated_yet_gets_the_unavailable_receipt_and_asks_for_the_worker,mapped,,P5
+tests/test_mcp.py::test_a_tool_waits_briefly_for_the_worker_it_started,tests/test_mcp.py,herdr-inbox --lib mcp::retry::tests::a_worker_that_migrates_in_time_lets_the_call_through,mapped,,P5
 tests/test_pane_moved.py::test_an_answer_follows_its_agent_to_the_pane_it_moved_to,tests/test_pane_moved.py,,todo,,
 tests/test_pane_moved.py::test_no_agent_with_that_session_anywhere_is_still_no_agent,tests/test_pane_moved.py,,todo,,
 tests/test_pane_moved.py::test_two_panes_with_the_session_are_ambiguous_and_never_chosen,tests/test_pane_moved.py,,todo,,
@@ -582,7 +589,7 @@ tests/test_plugin_copy.py::test_session_start_hook_runs_from_the_copy,tests/test
 tests/test_plugin_copy.py::test_mcp_server_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,
 tests/test_plugin_copy.py::test_plugin_and_marketplace_versions_agree,tests/test_plugin_copy.py,,todo,,
 tests/test_poll_teardown.py::test_poll_after_the_widgets_are_gone_is_a_no_op,tests/test_poll_teardown.py,,todo,,
-tests/test_poll_teardown.py::test_a_send_finishing_after_the_popup_exits_does_not_raise,tests/test_poll_teardown.py,,todo,,
+tests/test_poll_teardown.py::test_a_send_finishing_after_the_popup_exits_does_not_raise,tests/test_poll_teardown.py,herdr-inbox --lib tui::run::tests::sends::a_send_reporting_after_the_popup_closed_changes_nothing,mapped,,P6
 tests/test_poll_teardown.py::test_poll_does_nothing_once_unmounting,tests/test_poll_teardown.py,,todo,,
 tests/test_poll_teardown.py::test_an_error_inside_the_send_report_still_surfaces,tests/test_poll_teardown.py,,todo,,
 tests/test_poll_teardown.py::test_a_runtime_error_while_the_app_still_runs_is_not_swallowed,tests/test_poll_teardown.py,,todo,,
@@ -592,27 +599,27 @@ tests/test_race.py::test_several_to_one_does_not_make_enter_send,tests/test_race
 tests/test_race.py::test_new_question_mid_typing_keeps_the_text,tests/test_race.py,inbox-core --test popup_transitions race::new_question_mid_typing_keeps_the_text,mapped,,P6
 tests/test_race.py::test_go_to_agent_works_for_multi_select,tests/test_race.py,inbox-core --test popup_transitions race::go_to_agent_works_for_multi_select,mapped,,P6
 tests/test_race.py::test_failed_delivery_entry_retry_and_hide,tests/test_race.py,inbox-core --test popup_transitions race::failed_delivery_entry_retry_and_hide,mapped,,P6
-tests/test_race.py::test_focus_pane_comes_from_the_plugin_context,tests/test_race.py,,todo,,
-tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-font],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-no-vendors],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[light-text],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_matches_the_operators_hand_patch,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_no_radar_no_block_or_invalid_toml_are_left_alone,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_never_crosses_herdrs_16_token_row_limit,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_steps_aside_once_radar_carries_the_token,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_a_concurrent_write_wins,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_missing_is_read_only,tests/test_radar.py,,todo,,
+tests/test_race.py::test_focus_pane_comes_from_the_plugin_context,tests/test_race.py,herdr-inbox --lib tui::open::tests::the_operators_pane_is_the_invocation_then_the_variable_then_herdrs_focus,mapped,,P6
+tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-font],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[dark-no-vendors],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_adds_the_token_to_every_agent_title_row_and_nothing_else[light-text],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_matches_the_operators_hand_patch,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::our_cell_follows_the_unknown_title_in_the_rows_blocked_red,mapped,,P5
+tests/test_radar.py::test_no_radar_no_block_or_invalid_toml_are_left_alone,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_never_crosses_herdrs_16_token_row_limit,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::every_cell_form_counts_toward_the_row_limit,mapped,,P5
+tests/test_radar.py::test_steps_aside_once_radar_carries_the_token,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_a_concurrent_write_wins,tests/test_radar.py,herdr-inbox --lib radar::tests::a_write_meanwhile_wins_and_herdr_reloads_only_what_was_written,mapped,,P5
+tests/test_radar.py::test_missing_is_read_only,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_radar.py::test_nothing_runs_it_automatically,tests/test_radar.py,,todo,,
 tests/test_radar.py::test_popup_shows_a_hint_and_edits_nothing,tests/test_radar.py,,todo,,
 tests/test_radar.py::test_popup_has_no_hint_without_radar,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_cli,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_every_cell_form_counts_toward_the_16_token_limit,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[lf],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[crlf],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_a_symlinked_config_is_edited_through_the_link,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_step_aside_needs_a_real_extra_tokens_entry_and_never_blocks_remove,tests/test_radar.py,,todo,,
-tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[array-of-tables],tests/test_radar.py,,todo,,
-tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[multiline-string],tests/test_radar.py,,todo,,
+tests/test_radar.py::test_cli,tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_every_cell_form_counts_toward_the_16_token_limit,tests/test_radar.py,herdr-inbox --lib radar::rows::tests::every_cell_form_counts_toward_the_row_limit,mapped,,P5
+tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[lf],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_line_endings_and_backup_are_kept_byte_for_byte[crlf],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_a_symlinked_config_is_edited_through_the_link,tests/test_radar.py,herdr-inbox --lib radar::tests::the_config_is_written_through_a_symlink_with_a_backup,mapped,,P5
+tests/test_radar.py::test_step_aside_needs_a_real_extra_tokens_entry_and_never_blocks_remove,tests/test_radar.py,herdr-inbox --lib radar::tests::radar_carries_the_token_only_with_a_real_extra_tokens_entry,mapped,,P5
+tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[array-of-tables],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_radar.py::test_unsupported_toml_inside_the_block_is_refused[multiline-string],tests/test_radar.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_real_timing.py::test_list_wrap_with_real_arming,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::list_wrap_with_real_arming,mapped,,P6
 tests/test_real_timing.py::test_list_row_that_just_arrived_is_not_selectable,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::list_row_that_just_arrived_is_not_selectable,mapped,,P6
 tests/test_real_timing.py::test_question_view_ignores_keys_until_armed,tests/test_real_timing.py,inbox-core --test popup_transitions real_timing::question_view_ignores_keys_until_armed,mapped,,P6
@@ -629,20 +636,20 @@ tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8
 tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8.7-rc1],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8.7 ],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_release_manifest.py::test_a_manifest_it_cannot_rewrite_leaves_every_file_untouched,tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
-tests/test_remote_api.py::test_every_database_has_a_stable_random_id,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_export_full_then_incremental,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_export_with_another_db_id_or_a_pruned_cursor_is_full,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_export_does_not_reconcile,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_answers_once_and_records_the_request_atomically,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_same_answer_without_a_record_is_already_applied,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-reset],tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question0],tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question1],tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_on_a_closed_question,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_dismiss_and_hide,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_cli_export_and_apply_read_stdin_write_stdout,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_status_tombstones_an_unknown_request_so_a_late_apply_refuses,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_status_reports_an_applied_request,tests/test_remote_api.py,,todo,,
+tests/test_remote_api.py::test_every_database_has_a_stable_random_id,tests/test_remote_api.py,herdr-inbox --lib remote_api::keys::tests::every_database_has_a_stable_random_id,mapped,,P5
+tests/test_remote_api.py::test_export_full_then_incremental,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_export_with_another_db_id_or_a_pruned_cursor_is_full,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_export_does_not_reconcile,tests/test_remote_api.py,herdr-inbox --lib remote_api::tests::export_makes_no_data_writes_but_its_id,mapped,,P5
+tests/test_remote_api.py::test_apply_answers_once_and_records_the_request_atomically,tests/test_remote_api.py,herdr-inbox --lib remote_api::tests::the_record_and_the_action_commit_together,mapped,,P5
+tests/test_remote_api.py::test_apply_same_answer_without_a_record_is_already_applied,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-reset],tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question0],tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question1],tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_on_a_closed_question,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_dismiss_and_hide,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_cli_export_and_apply_read_stdin_write_stdout,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_status_tombstones_an_unknown_request_so_a_late_apply_refuses,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_status_reports_an_applied_request,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_remote_install.py::test_install_runs_both_plugins_over_batchmode_ssh,tests/test_remote_install.py,,todo,,
 tests/test_remote_install.py::test_install_with_a_ref,tests/test_remote_install.py,,todo,,
 tests/test_remote_install.py::test_a_ref_with_shell_characters_is_refused,tests/test_remote_install.py,,todo,,
@@ -665,23 +672,23 @@ tests/test_remote_sync.py::test_expired_and_stale_actions_are_not_sent,tests/tes
 tests/test_remote_sync.py::test_actions_go_fifo_per_question,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_hostile_export_rows_are_dropped,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_the_worker_stays_alive_while_a_remote_is_enabled,tests/test_remote_sync.py,herdr-inbox --test worker_duties live::the_worker_stays_alive_while_a_remote_is_enabled,mapped,,P5
-tests/test_remote_sync.py::test_popup_lists_and_answers_a_remote_question,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_dismisses_a_remote_group_with_confirmation,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_shows_an_offline_machine_and_a_rejection,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_remote_text_is_escaped,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_deep_link_to_a_remote_question,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_popup_lists_and_answers_a_remote_question,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_lists_and_answers_a_remote_question,mapped,,P6
+tests/test_remote_sync.py::test_popup_dismisses_a_remote_group_with_confirmation,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_dismisses_a_remote_group_with_confirmation,mapped,,P6
+tests/test_remote_sync.py::test_popup_shows_an_offline_machine_and_a_rejection,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_shows_an_offline_machine_and_a_rejection,mapped,,P6
+tests/test_remote_sync.py::test_remote_text_is_escaped,tests/test_remote_sync.py,inbox-core --test popup_screens remote_text_is_drawn_as_written,mapped,,P6
+tests/test_remote_sync.py::test_deep_link_to_a_remote_question,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::deep_link_to_a_remote_question,mapped,,P6
 tests/test_remote_sync.py::test_the_ssh_control_socket_path_stays_short,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_a_question_deleted_on_the_remote_leaves_the_mirror_on_the_next_pull,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::m1_an_answer_to_the_question_on_screen_never_lands_on_a_replacement,mapped,,P6
 tests/test_remote_sync.py::test_bidi_overrides_and_line_separators_are_stripped,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_one_hung_machine_does_not_delay_the_others,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_a_remote_question_closed_there_becomes_an_inert_placeholder,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_a_remote_question_closed_there_becomes_an_inert_placeholder,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::a_remote_question_closed_there_becomes_an_inert_placeholder,mapped,,P6
 tests/test_remote_sync.py::test_m1_queued_actions_expire_even_when_the_machine_is_never_reached_again,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_l2_an_expiring_send_that_may_have_landed_is_worded_so,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_m1_the_popup_shows_a_past_expiry_as_expired,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_m1_the_popup_shows_a_past_expiry_as_expired,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::m1_the_popup_shows_a_past_expiry_as_expired,mapped,,P6
 tests/test_remote_sync.py::test_l5_a_settled_row_is_notified_once_even_with_two_workers,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_m2_an_answer_the_remote_cannot_deliver_shows_here_once,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_m2_the_popup_lists_it_and_d_clears_it,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_m2_the_popup_lists_it_and_d_clears_it,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::m2_the_popup_lists_it_and_d_clears_it,mapped,,P6
 tests/test_remote_sync.py::test_l1_a_remote_apply_refreshes_the_tab_markers,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_l4_the_remote_command_needs_no_posix_login_shell,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_l3_a_row_of_another_remote_herdr_session_is_left_to_its_own_worker,tests/test_remote_sync.py,,todo,,
@@ -695,7 +702,7 @@ tests/test_remote_sync.py::test_l2_a_reachable_already_sent_expired_row_goes_to_
 tests/test_remote_sync.py::test_a_remote_alert_is_mirrored_notified_once_and_acked_through_the_outbox,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_a_withdrawn_remote_alert_leaves_the_popup_and_a_stale_ack_is_refused,tests/test_remote_sync.py,,todo,,
 tests/test_remote_sync.py::test_hostile_alert_rows_are_dropped,tests/test_remote_sync.py,,todo,,
-tests/test_remote_sync.py::test_popup_acknowledges_a_remote_alert,tests/test_remote_sync.py,,todo,,
+tests/test_remote_sync.py::test_popup_acknowledges_a_remote_alert,tests/test_remote_sync.py,inbox-core --test popup_transitions remote_sync::popup_acknowledges_a_remote_alert,mapped,,P6
 tests/test_remote_sync.py::test_issue_55_a_machine_whose_name_starts_with_q_is_deep_linked,tests/test_remote_sync.py,,todo,,
 tests/test_rereview_fixes.py::test_retry_skips_focused_pane,tests/test_rereview_fixes.py,,todo,,
 tests/test_rereview_fixes.py::test_retry_skips_blocked_agent,tests/test_rereview_fixes.py,,todo,,
@@ -703,7 +710,7 @@ tests/test_rereview_fixes.py::test_first_delivery_from_the_popup_ignores_focus,t
 tests/test_rereview_fixes.py::test_retry_gives_up_on_a_changed_conversation,tests/test_rereview_fixes.py,,todo,,
 tests/test_rereview_fixes.py::test_retry_keeps_trying_a_blocked_or_failing_agent,tests/test_rereview_fixes.py,,todo,,
 tests/test_rereview_fixes.py::test_nested_detection,tests/test_rereview_fixes.py,,todo,,
-tests/test_rereview_fixes.py::test_nested_claude_cannot_file_into_the_pane,tests/test_rereview_fixes.py,,todo,,
+tests/test_rereview_fixes.py::test_nested_claude_cannot_file_into_the_pane,tests/test_rereview_fixes.py,herdr-inbox --lib mcp::caller::tests::a_nested_claude_is_not_the_panes_agent,mapped,,P5
 tests/test_rereview_fixes.py::test_nested_claude_hooks_are_silent,tests/test_rereview_fixes.py,,todo,,
 tests/test_review_fixes.py::test_no_delivery_when_pane_holds_another_conversation,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_no_delivery_into_a_different_agent,tests/test_review_fixes.py,,todo,,
@@ -715,7 +722,7 @@ tests/test_review_fixes.py::test_delivery_worker_retries_in_the_background,tests
 tests/test_review_fixes.py::test_ask_outside_herdr_says_ask_in_chat,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_hooks_are_silent_outside_herdr,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_resume_does_not_list_other_conversations_in_the_pane,tests/test_review_fixes.py,,todo,,
-tests/test_review_fixes.py::test_concurrent_identical_asks_create_one_question,tests/test_review_fixes.py,,todo,,
+tests/test_review_fixes.py::test_concurrent_identical_asks_create_one_question,tests/test_review_fixes.py,herdr-inbox --lib mcp::ask::tests::a_parallel_identical_ask_files_one_question,mapped,,P5
 tests/test_review_fixes.py::test_answered_dedupe_is_time_bounded,tests/test_review_fixes.py,,todo,,
 tests/test_review_fixes.py::test_matcher_includes_fork,tests/test_review_fixes.py,,todo,,
 tests/test_review_v2.py::test_long_batch_is_split_not_truncated,tests/test_review_v2.py,,todo,,
@@ -769,6 +776,10 @@ tests/test_schema_migrations.py::test_two_bridge_revisions_interleave_forward_on
 tests/test_schema_migrations.py::test_the_cli_never_migrates,tests/test_schema_migrations.py,,todo,,
 tests/test_schema_migrations.py::test_the_worker_migrates_before_its_remote_thread_starts,tests/test_schema_migrations.py,,todo,,
 tests/test_schema_migrations.py::test_the_popup_migrates,tests/test_schema_migrations.py,,todo,,
+tests/test_schema_migrations.py::test_the_switch_to_wal_waits_out_a_writer_on_a_rollback_journal_database,tests/test_schema_migrations.py,herdr-inbox --test store migrate::the_switch_to_wal_meets_a_writer_with_an_immediate_busy ; herdr-inbox --test store migrate::a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database,mapped,,P5
+tests/test_schema_migrations.py::test_a_migrating_store_waits_out_a_writer_on_a_rollback_journal_database,tests/test_schema_migrations.py,herdr-inbox --test store migrate::a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database,mapped,,P5
+tests/test_schema_migrations.py::test_a_migrating_store_gives_up_behind_a_held_lock_and_leaves_the_database_alone,tests/test_schema_migrations.py,herdr-inbox --test store migrate::a_due_migration_behind_a_held_lock_fails_and_leaves_the_database_alone,mapped,,P5
+tests/test_schema_migrations.py::test_the_switch_to_wal_raises_any_other_error_at_once,tests/test_schema_migrations.py,herdr-inbox --test store migrate::the_switch_to_wal_returns_any_other_error_at_once,mapped,,P5
 tests/test_session_continuation.py::test_follow_reads_the_captured_record,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_follow_chains_and_ignores_a_resumed_old_session,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_live_agent_reports_the_live_conversation,tests/test_session_continuation.py,,todo,,
@@ -780,7 +791,7 @@ tests/test_session_continuation.py::test_the_old_sessions_watcher_ends_and_the_n
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[../../etc/passwd],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[*],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[a/b],tests/test_session_continuation.py,,todo,,
-tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[synthetic_92-0000-4000-8000-000000000002 ],tests/test_session_continuation.py,,todo,,
+tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[00000004-0000-4000-8000-0000000000B2 ],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[],tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_a_remote_answer_in_flight_survives_the_continuation,tests/test_session_continuation.py,,todo,,
@@ -837,12 +848,12 @@ tests/test_tabs.py::test_no_rename_when_label_already_right,tests/test_tabs.py,h
 tests/test_tabs.py::test_operator_rename_meanwhile_is_adopted,tests/test_tabs.py,herdr-inbox --test cli tabs::operator_rename_meanwhile_is_adopted,mapped,,P5
 tests/test_tabs.py::test_question_stores_the_base_label,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_unnamed_tab_is_left_alone_by_default,tests/test_tabs.py,herdr-inbox --test cli tabs::unnamed_tab_is_left_alone_by_default,mapped,,P5
-tests/test_tabs.py::test_prefix_configurable_and_disableable,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_prefix_configurable_and_disableable,tests/test_tabs.py,herdr-inbox --test cli tabs::a_disabled_prefix_does_no_tab_work,mapped,,P5
 tests/test_tabs.py::test_changing_marks_never_stacks_prefixes,tests/test_tabs.py,herdr-inbox --test cli tabs::changing_marks_never_stacks_prefixes,mapped,,P5
 tests/test_tabs.py::test_hung_herdr_never_blocks_the_database,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_concurrent_updates_never_leave_a_stale_count,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_reconcile_adds_missing_and_removes_stale,tests/test_tabs.py,,todo,,
-tests/test_tabs.py::test_remove_prefixes_before_uninstall,tests/test_tabs.py,,todo,,
+tests/test_tabs.py::test_reconcile_adds_missing_and_removes_stale,tests/test_tabs.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_tabs.py::test_remove_prefixes_before_uninstall,tests/test_tabs.py,herdr-inbox --lib surface::sync::tests::removing_prefixes_strips_a_custom_mark_once_per_pane_and_tab,mapped,,P5
 tests/test_tabs.py::test_custom_mark_never_touches_operator_labels,tests/test_tabs.py,,todo,,
 tests/test_tabs.py::test_base_label_strips_only_our_marks,tests/test_tabs.py,herdr-inbox --lib tabs::tests::every_leading_mark_of_ours_goes,mapped,,P5
 tests/test_tui.py::test_tab_order_focused_pane_first_groups_adjacent,tests/test_tui.py,inbox-core --test popup_transitions tui::tab_order_focused_pane_first_groups_adjacent,mapped,,P6
@@ -860,7 +871,7 @@ tests/test_tui.py::test_cancel_and_drafts_survive_a_restart,tests/test_tui.py,in
 tests/test_tui.py::test_new_groups_never_join_an_open_group,tests/test_tui.py,inbox-core --test popup_transitions tui::new_groups_never_join_an_open_group,mapped,,P6
 tests/test_tui.py::test_one_becomes_several_while_open,tests/test_tui.py,inbox-core --test popup_transitions tui::one_becomes_several_while_open,mapped,,P6
 tests/test_tui.py::test_dismiss_question_in_group_and_whole_group_in_list,tests/test_tui.py,inbox-core --test popup_transitions tui::dismiss_question_in_group_and_whole_group_in_list,mapped,,P6
-tests/test_tui.py::test_busy_database_never_crashes_the_popup,tests/test_tui.py,,todo,,
+tests/test_tui.py::test_busy_database_never_crashes_the_popup,tests/test_tui.py,herdr-inbox --lib tui::run::tests::contract::a_busy_database_ends_the_action_with_a_notice,mapped,,P6
 tests/test_tui.py::test_tab_row_scrolls_to_keep_the_current_tab_visible,tests/test_tui.py,inbox-core --test popup_screens the_tab_row_scrolls_to_keep_the_current_tab_in_view,mapped,,P6
 tests/test_venvs.py::test_scope_older_settled_versions_only,tests/test_venvs.py,,todo,,
 tests/test_venvs.py::test_a_live_holder_blocks_deletion_and_a_released_lock_allows_it,tests/test_venvs.py,,todo,,

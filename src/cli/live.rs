@@ -22,6 +22,7 @@ use crate::service::own::Me;
 use crate::store::{Question, Store};
 use crate::surface::Surface;
 use crate::surface::live::Live;
+use crate::surface::popup::{focused_pane, own_checkout};
 use crate::tabs::lock::LOCK_TIMEOUT;
 use crate::tabs::settings::PLUGIN_ID;
 
@@ -30,12 +31,16 @@ use crate::tabs::settings::PLUGIN_ID;
 pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let env = PluginEnv::from_env();
     let db_path = inbox::db_path(&env);
+    let herdr_config = crate::radar::config_path(&env);
     let state_dir = inbox::state_dir(&env);
     let herdr = Herdr::from_env();
     let files = Transcripts::from_env();
     let mut config =
         ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());
-    let mut surface = Live::new(herdr.clone(), warn);
+    let root = std::env::current_exe()
+        .ok()
+        .and_then(|exe| own_checkout(&exe));
+    let mut surface = Live::new(herdr.clone(), warn).with_popup(root, focused_pane(&env));
     let mut delivery = LiveDelivery {
         herdr,
         files: Transcripts::from_env(),
@@ -44,8 +49,9 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
         unreadable: Unreadable::after(UNREADABLE_NOTIFY_AFTER),
     };
     let session = std::env::var("CLAUDE_CODE_SESSION_ID").ok();
-    let (mut out, mut err) = (std::io::stdout(), std::io::stderr());
+    let (mut input, mut out, mut err) = (std::io::stdin(), std::io::stdout(), std::io::stderr());
     let mut io = Io {
+        input: &mut input,
         out: &mut out,
         err: &mut err,
         db_path: &db_path,
@@ -58,6 +64,7 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
         delivery: &mut delivery,
         herdr: &mut surface,
         config: &mut config,
+        herdr_config: &herdr_config,
         lock_wait: LOCK_TIMEOUT,
         now: SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -84,9 +91,23 @@ impl Delivery for LiveDelivery {
         crate::worker::process::ensure_worker(server);
     }
 
-    fn deliver(&mut self, store: &Store, qs: &[Question]) -> rusqlite::Result<()> {
+    fn spawn_deliver(&mut self, _qids: &[i64], _force: bool) {
+        // Python spawns `inbox deliver <qids> [--force]` detached. This binary has `deliver`
+        // (#112); the detached spawn is wired before P5-I (a P5-I precondition, #113's
+        // "Before P5-I"). Until then the answer stays recorded, undelivered, for this
+        // machine's worker, as when Python's spawn fails. Until P5-I no live command runs
+        // this binary's CLI.
+    }
+
+    fn deliver_as(
+        &mut self,
+        store: &Store,
+        qs: &[Question],
+        retry: bool,
+        force: bool,
+    ) -> rusqlite::Result<()> {
         let server = self.server.clone();
-        let local = local_answers(store, qs, false, &server, &mut |s| self.ensure_worker(s))?;
+        let local = local_answers(store, qs, retry, &server, &mut |s| self.ensure_worker(s))?;
         let mut surface = Live::new(self.herdr.clone(), warn);
         let mut notify = |title: &str, body: &str| surface.notify(title, body);
         let mut ctx = Ctx {
@@ -98,6 +119,11 @@ impl Delivery for LiveDelivery {
             unreadable: &mut self.unreadable,
             verify_wait: VERIFY_SECONDS,
         };
-        deliver_batch(&mut ctx, &local, Mode::default(), None)
+        let mode = Mode {
+            retry,
+            force,
+            ..Mode::default()
+        };
+        deliver_batch(&mut ctx, &local, mode, None)
     }
 }

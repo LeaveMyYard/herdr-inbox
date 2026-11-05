@@ -1,11 +1,13 @@
 //! The `herdr-inbox` binary (plan §2.2): one binary, subcommands keeping
 //! today's CLI names. So far: `hook <event>` (the Claude Code hooks), `mcp`
-//! (the MCP stdio server; nothing launches it before P5-I), `worker
-//! [--ensure]` (the delivery worker, [`herdr_inbox::worker::process`]; the
-//! Python bridge hands over to it only from an install that has this
-//! binary built, which no release has before P5-I), `contract` (the
-//! launcher contract, `scripts/launch`) and the CLI's `list`, `answer` and
-//! `dismiss` ([`herdr_inbox::cli`]).
+//! (the MCP stdio server; nothing launches it before P5-I), `tui` (the
+//! popup; nothing launches it before P6-E), `worker [--ensure]` (the
+//! delivery worker, [`herdr_inbox::worker::process`]; the Python bridge
+//! hands over to it only from an install that has this binary built, which
+//! no release has before P5-I), `contract` (the launcher contract,
+//! `scripts/launch`) and the CLI's `list`, `answer`, `dismiss`, `open`,
+//! `sync-tokens`, `radar-sidebar`, `export` and `apply`
+//! ([`herdr_inbox::cli`]).
 //!
 //! A hook never fails the session: a panic, a bad argument or any error
 //! exits 0 (the rewake watcher's wake code is the only other exit).
@@ -21,6 +23,9 @@ fn main() -> ExitCode {
             ExitCode::from(u8::try_from(code).unwrap_or(0))
         }
         [cmd, ..] if cmd == "hook" => ExitCode::SUCCESS,
+        [cmd] if cmd == "tui" => {
+            ExitCode::from(u8::try_from(herdr_inbox::tui::live::main()).unwrap_or(1))
+        }
         [cmd, rest @ ..] if cmd == "worker" => {
             ExitCode::from(u8::try_from(herdr_inbox::worker::process::main(rest)).unwrap_or(1))
         }

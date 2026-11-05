@@ -12,9 +12,27 @@ use serde_json::json;
 
 use super::*;
 
-fn script(path: &Path, body: &str) {
-    fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
+/// Writes an executable stand-in script and runs it once (it exits at once
+/// under `STAND_IN_SETTLE`) until it starts: another test forking while this
+/// one wrote the file can hold its write descriptor until that child execs,
+/// and running the file meanwhile fails with ETXTBSY. Once it ran, no such
+/// descriptor is left.
+pub(in crate::worker::remote) fn script(path: &Path, body: &str) {
+    fs::write(
+        path,
+        format!("#!/bin/sh\n[ -n \"$STAND_IN_SETTLE\" ] && exit 0\n{body}\n"),
+    )
+    .unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    for _ in 0..500 {
+        match std::process::Command::new(path)
+            .env("STAND_IN_SETTLE", "1")
+            .status()
+        {
+            Err(e) if e.raw_os_error() == Some(26) => std::thread::sleep(Duration::from_millis(5)),
+            _ => return,
+        }
+    }
 }
 
 fn herdr(dir: &Path, machines: &str) -> Herdr {
@@ -79,13 +97,17 @@ fn remote_env(dir: &Path) -> RemoteEnv {
     script(
         &ssh,
         &format!(
-            "for a; do cmd=\"$a\"; done\necho \"$cmd\" >> '{log}'\n\
+            "for a; do target=\"$cmd\"; cmd=\"$a\"; done\n\
+             [ \"$target\" = slow.lan ] && sleep 2\n\
+             echo \"$target $cmd\" >> '{log}'\n\
+             [ -e '{down}' ] && exit 255\n\
              case \"$cmd\" in\n\
              *'command -v'*) printf '/r/bin/uv\\n/r/bin/herdr\\n/r/bin/claude\\n' ;;\n\
              *'plugin list --json') echo '{{\"result\": {{\"plugins\": [{{\"plugin_id\": \"leavemyyard.herdr-inbox\", \"plugin_root\": \"/r/root\"}}]}}}}' ;;\n\
              *' inbox export') cat > /dev/null; cat <<'EOF'\n{EXPORT}\nEOF\n ;;\n\
              *) exit 9 ;;\nesac",
-            log = dir.join("ssh.log").display()
+            log = dir.join("ssh.log").display(),
+            down = dir.join("down").display()
         ),
     );
     let db = dir.join("inbox.db");
@@ -111,10 +133,9 @@ fn machine(id: &str, target: &str) -> Machine {
 fn a_round_pulls_every_machine_into_the_mirror() {
     let dir = tempfile::tempdir().unwrap();
     let env = remote_env(dir.path());
-    sync_all(
-        &env,
-        &[machine("m1", "box.lan"), machine("m2", "-oProxyCommand=x")],
-    );
+    sync_all(&env, || {
+        vec![machine("m1", "box.lan"), machine("m2", "-oProxyCommand=x")]
+    });
     let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
     let ok: Option<String> = store
         .db()
@@ -158,6 +179,53 @@ fn a_machine_without_an_id_is_skipped() {
     let m: Machine =
         serde_json::from_value(json!({"label": "x", "target": "box.lan", "enabled": true}))
             .unwrap();
-    sync_all(&env, &[m]);
+    sync_all(&env, || vec![m]);
     assert!(!dir.path().join("ssh.log").exists());
+}
+
+#[test]
+fn a_slow_machine_never_holds_up_the_others() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = remote_env(dir.path());
+    sync_all(&env, || {
+        vec![machine("m1", "slow.lan"), machine("m2", "box.lan")]
+    });
+    let calls = fs::read_to_string(dir.path().join("ssh.log")).unwrap();
+    let lines: Vec<&str> = calls.lines().collect();
+    let first = |target: &str| lines.iter().position(|l| l.starts_with(target)).unwrap();
+    let box_done = lines
+        .iter()
+        .rposition(|l| l.starts_with("box.lan"))
+        .unwrap();
+    // the slow one's first call is logged after it waited: the other was done by then
+    assert!(box_done < first("slow.lan"), "{calls}");
+}
+
+#[test]
+fn a_failed_pull_flushes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = remote_env(dir.path());
+    sync_all(&env, || vec![machine("m1", "box.lan")]);
+    let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
+    let data = json!({"id": 1, "qkey": "00000001", "_db_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"});
+    let queued = store
+        .enqueue(
+            "m1",
+            data.as_object().unwrap(),
+            "answer",
+            Some(&json!({"choices": ["yes"]})),
+            "r1",
+            &mut SystemTime::now,
+            Duration::from_secs(3600),
+        )
+        .unwrap();
+    assert!(queued.is_ok(), "{queued:?}");
+    fs::write(dir.path().join("down"), "").unwrap(); // the machine is unreachable now
+    sync_all(&env, || vec![machine("m1", "box.lan")]);
+    let calls = fs::read_to_string(dir.path().join("ssh.log")).unwrap();
+    assert!(
+        calls.lines().last().unwrap().ends_with(" inbox export"),
+        "{calls}"
+    );
+    assert!(!calls.contains(" inbox apply"), "{calls}");
 }

@@ -8,6 +8,7 @@
 
 pub mod ssh;
 
+use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime};
@@ -134,8 +135,9 @@ pub fn sync_one(env: &RemoteEnv, m: &Machine) {
 }
 
 /// One round (Python `sync_all_parallel`): the expiry sweep over every
-/// machine, then `found` (the enabled machines) at once.
-pub fn sync_all(env: &RemoteEnv, found: &[Machine]) {
+/// machine, then the machines `enabled` lists (asked after the sweep, as
+/// Python) at once.
+pub fn sync_all(env: &RemoteEnv, enabled: impl FnOnce() -> Vec<Machine>) {
     let sweep = || -> Result<Vec<Notice>, String> {
         let store = Store::open(&env.db, Duration::from_secs(5)).map_err(|e| e.to_string())?;
         store
@@ -146,13 +148,18 @@ pub fn sync_all(env: &RemoteEnv, found: &[Machine]) {
         Ok(notices) => notify(&env.herdr, notices),
         Err(e) => warn("expiry sweep failed", &e),
     }
+    let found = enabled();
     // a pool of at most MAX_PARALLEL threads, each taking the next machine
     let next = AtomicUsize::new(0);
     std::thread::scope(|s| {
         for _ in 0..found.len().min(MAX_PARALLEL) {
             s.spawn(|| {
                 while let Some(m) = found.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    sync_one(env, m);
+                    // Python catches everything per machine: a panic in one never
+                    // ends the round, nor the thread
+                    if std::panic::catch_unwind(AssertUnwindSafe(|| sync_one(env, m))).is_err() {
+                        warn(m.id.as_deref().unwrap_or("?"), &"panicked");
+                    }
                 }
             });
         }
@@ -164,8 +171,7 @@ pub fn sync_all(env: &RemoteEnv, found: &[Machine]) {
 pub fn sync_loop(env: RemoteEnv) {
     let mut machines = Machines::default();
     loop {
-        let found = machines.enabled(&env.herdr);
-        sync_all(&env, &found);
+        sync_all(&env, || machines.enabled(&env.herdr));
         let mut config = env.config_dir.as_ref().map(ConfigFile::in_dir);
         let table: Map<String, Value> = config
             .as_mut()

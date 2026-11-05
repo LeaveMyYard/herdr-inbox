@@ -19,6 +19,15 @@ use crate::token::hex8;
 /// A claim older than this belongs to a process that died mid-send.
 pub const CLAIM_STALE: Duration = Duration::from_secs(60);
 
+/// `delivery_error` is a claim a live process holds right now (younger than
+/// [`CLAIM_STALE`]): Python's popup Retry test (`err.startswith("sending:")
+/// and err > f"sending:{now(-CLAIM_STALE)}"`), the rule `claim_delivery`'s
+/// SQL applies.
+pub fn is_live(delivery_error: &str) -> bool {
+    delivery_error.starts_with("sending:")
+        && delivery_error > format!("sending:{}", now_minus(CLAIM_STALE)).as_str()
+}
+
 /// A claim on one answer: the exact `delivery_error` value written.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Claim(pub String);
@@ -124,3 +133,6 @@ impl Store {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

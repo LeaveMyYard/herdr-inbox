@@ -6,11 +6,17 @@
 //!   `herdr.py` makes it and never failing the caller (a failure is a
 //!   `None`, an `Err` text, or nothing). [`live::Live`] makes them over the
 //!   kit's client; the tests script them.
+//! - [`popup`]: where the popup opens from (the plugin's root, the pane
+//!   that was focused).
 //! - [`markers`]: one pane's token and its tab's prefix
 //!   ([`markers::Markers::update`]).
 
+use std::path::PathBuf;
+
 pub mod live;
 pub mod markers;
+pub mod popup;
+pub mod sync;
 
 /// The pane token's source and key (Python `herdr.SOURCE`, `herdr.TOKEN`).
 pub const SOURCE: &str = "herdr-inbox";
@@ -25,10 +31,23 @@ pub trait Surface {
     /// `(pane, tab)` for every pane, in herdr's order; `None` if herdr is
     /// unreachable (Python `herdr.pane_tabs`).
     fn pane_tabs(&mut self) -> Option<Vec<(String, Option<String>)>>;
+    /// `(tab, label)` of every tab in every workspace; `None` if herdr is
+    /// unreachable (Python `herdr.all_tabs`).
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>>;
     /// The tab's label now, if herdr says (Python `herdr.tab_label`).
     fn tab_label(&mut self, tab: &str) -> Option<String>;
     /// Renames the tab; `Err` is herdr's error (Python `herdr.rename_tab`).
     fn rename_tab(&mut self, tab: &str, label: &str) -> Result<(), String>;
     /// A desktop notification with the inbox's sound (Python `herdr.notify`).
     fn notify(&mut self, title: &str, body: &str);
+    /// Opens the inbox's popup with `env` added to its command's environment
+    /// (Python `herdr.open_popup`); `Err` is herdr's error.
+    fn open_popup(&mut self, env: &[(String, String)]) -> Result<(), String>;
+    /// herdr-radar is installed and enabled (Python `radar.radar_installed`).
+    fn radar_installed(&mut self) -> bool;
+    /// herdr-radar's plugin config dir, if herdr says (Python
+    /// `herdr.plugin_config_dir(RADAR_ID)`).
+    fn radar_config_dir(&mut self) -> Option<PathBuf>;
+    /// herdr reloads its `config.toml` (`herdr server reload-config`).
+    fn reload_config(&mut self);
 }
