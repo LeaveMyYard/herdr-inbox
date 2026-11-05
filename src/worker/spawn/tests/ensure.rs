@@ -74,3 +74,20 @@ fn ensure_starts_at_most_one_worker_per_revision_per_interval() {
     );
     assert!(wait_for(|| workers_started(&f) == 1));
 }
+
+#[test]
+fn a_worker_that_cannot_start_is_logged_never_written_over_the_callers_screen() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = WorkerEnv {
+        db: dir.path().join("inbox.db"),
+        server: "/fake/herdr.sock".into(),
+        revision: 1,
+        version: "0.10.5".into(),
+        waits: crate::worker::Waits::default(),
+        spawn_env: Vec::new(),
+        no_worker: false,
+    };
+    assert!(!ensure(&env, &dir.path().join("no-such-binary")));
+    let log = fs::read_to_string(env.state_dir().join("worker.log")).unwrap();
+    assert!(log.starts_with("inbox: delivery worker: "), "{log}");
+}

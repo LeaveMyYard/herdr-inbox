@@ -106,7 +106,7 @@ fn timeout_of(command: &FixedCommand, stdin: Option<&str>) -> Duration {
 /// timeout keeps the stdout read so far, else it is dropped (`call()`).
 /// Python's `ssh()` gets that partial stdout as bytes, so a timed-out probe
 /// fails its pull there; here the partial paths are parsed (and validated).
-pub fn exec(
+fn exec(
     program: &OsString,
     args: &[String],
     stdin: Option<&str>,

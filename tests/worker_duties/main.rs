@@ -19,6 +19,7 @@ mod moved;
 mod process;
 mod reconcile;
 mod retry;
+mod tick;
 
 use std::path::PathBuf;
 use std::time::Duration;

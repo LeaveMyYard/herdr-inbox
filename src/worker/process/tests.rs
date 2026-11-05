@@ -125,3 +125,59 @@ fn an_empty_server_name_is_this_processs_server() {
     );
     assert_eq!(e.server, dir.path().join("mine.sock"));
 }
+
+/// A checkout at version `version`, with its binary at `target/release`.
+fn checkout(root: &Path, version: &str) -> PathBuf {
+    let bin = root.join("target/release");
+    fs::create_dir_all(&bin).unwrap();
+    fs::write(root.join("herdr-plugin.toml"), "").unwrap();
+    fs::write(
+        root.join("pyproject.toml"),
+        format!("[project]\nname = \"x\"\nversion = \"{version}\"\n"),
+    )
+    .unwrap();
+    bin.join("herdr-inbox")
+}
+
+#[test]
+fn a_worker_in_a_checkout_runs_the_version_on_its_disk_not_the_compiled_one() {
+    // pulled but not rebuilt: comparing the compiled version with the disk would hand over
+    // to this same binary on every tick, forever
+    let dir = tempfile::tempdir().unwrap();
+    let exe = checkout(dir.path(), "99.1.2");
+    let v = vars(dir.path(), &[]);
+    let e = worker_env(&plugin_env(&v), v.clone(), None, &exe);
+    assert_eq!(e.version, "99.1.2");
+    assert_ne!(e.version, env!("CARGO_PKG_VERSION"));
+}
+
+#[test]
+fn a_worker_in_a_dev_checkout_never_follows_the_root_herdr_lists() {
+    // a dev worktree whose server lists another install: following it would hand this
+    // worker over to other code, possibly older
+    let dir = tempfile::tempdir().unwrap();
+    let exe = checkout(&dir.path().join("dev"), "99.1.2");
+    let listed = dir.path().join("installed");
+    fs::create_dir_all(&listed).unwrap();
+    let mut install = install_of(&exe);
+    assert_eq!(install.own(), Some(dir.path().join("dev").as_path()));
+    assert!(!install.follows(|| Some(listed.clone())));
+    assert_eq!(
+        install.current(|| Some(listed.clone())),
+        Some(dir.path().join("dev"))
+    );
+}
+
+#[test]
+fn a_worker_in_the_listed_checkout_follows_it_and_one_with_no_checkout_always_does() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("installed");
+    let exe = checkout(&root, "99.1.2");
+    let moved = dir.path().join("update");
+    let mut install = install_of(&exe);
+    assert!(install.follows(|| Some(root.clone())));
+    assert_eq!(install.current(|| Some(moved.clone())), Some(moved.clone()));
+    let mut copy = install_of(&dir.path().join("copy/herdr-inbox"));
+    assert_eq!(copy.own(), None);
+    assert_eq!(copy.current(|| Some(moved.clone())), Some(moved));
+}

@@ -120,16 +120,25 @@ pub fn ensure(env: &WorkerEnv, exe: &Path) -> bool {
     }
     let _ = fs::create_dir_all(env.state_dir());
     let log = env.state_dir().join("worker.log");
-    let err = OpenOptions::new().create(true).append(true).open(log).ok();
+    let open_log = || OpenOptions::new().create(true).append(true).open(&log);
     let args = rust_worker_args();
-    match spawn_detached(exe.as_os_str(), &args, None, &env.spawn_env, err) {
+    match spawn_detached(
+        exe.as_os_str(),
+        &args,
+        None,
+        &env.spawn_env,
+        open_log().ok(),
+    ) {
         Ok(child) => {
             reap_later(child);
             true
         }
         Err(e) => {
-            // Python `log.warning("delivery worker: %s", exc)`
-            let _ = writeln!(std::io::stderr(), "inbox: delivery worker: {e}");
+            // Python `log.warning("delivery worker: %s", exc)`, in the worker's log: the
+            // caller may be the popup, and stderr would land on top of what it draws
+            if let Ok(mut file) = open_log() {
+                let _ = writeln!(file, "inbox: delivery worker: {e}");
+            }
             false
         }
     }

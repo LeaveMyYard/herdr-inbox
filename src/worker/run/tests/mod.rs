@@ -233,6 +233,27 @@ fn no_handover_loop_when_no_successor_can_start() {
     );
 }
 
+#[test]
+fn a_panicking_tick_ends_the_tick_and_never_the_worker() {
+    let (_dir, env, mut w) = setup();
+    w.panics = 2;
+    w.stop_after = Some(5);
+    assert_eq!(run(&env, &mut w), 0);
+    assert_eq!(w.ticks, 5, "it went on ticking");
+}
+
+#[test]
+fn a_panicking_tick_counts_one_answer_pending_so_the_worker_stays_for_it() {
+    let (_dir, mut env, mut w) = setup();
+    env.waits.tick = Duration::from_secs(1);
+    env.waits.idle_exit = Duration::from_secs(3);
+    w.ticked = Ticked::default(); // nothing pending, nothing watched: only the panics hold it
+    w.panics = 10;
+    assert_eq!(run(&env, &mut w), 0);
+    // the 10th tick panics at t = 9: idle from there, without it the worker leaves at t = 3
+    assert_eq!(w.t, 12.0);
+}
+
 /// Python test_a_worker_that_idles_out_with_new_work_starts_a_successor.
 #[test]
 fn a_worker_that_idles_out_with_new_work_starts_a_successor() {

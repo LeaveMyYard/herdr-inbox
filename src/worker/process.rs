@@ -50,6 +50,12 @@ pub fn worker_env(
     }
 }
 
+/// The install of the worker running `exe`: its checkout, so a dev worktree
+/// never follows the root herdr lists into other code, or a downgrade.
+fn install_of(exe: &Path) -> Install {
+    Install::new(own_checkout(exe))
+}
+
 /// This binary, for starting a worker.
 pub fn own_exe() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|_| PathBuf::from("herdr-inbox"))
@@ -111,8 +117,7 @@ fn serve() -> i32 {
         config,
         remote,
     );
-    let install = Install::new(own_checkout(&exe));
-    let mut world = Live::new(wenv.clone(), herdr, install, exe, duties);
+    let mut world = Live::new(wenv.clone(), herdr, install_of(&exe), exe, duties);
     run(&wenv, &mut world)
 }
 

@@ -21,7 +21,7 @@ fn agents(pairs: &[(&str, &str)]) -> Value {
 
 impl World {
     /// Python `gone`: answered in w1:p1, then marked gone there.
-    fn gone_in_p1(&mut self) -> i64 {
+    pub fn gone_in_p1(&mut self) -> i64 {
         let qid = self.ask();
         self.store.set_answer(qid, "here", None).unwrap();
         self.sql(
@@ -36,7 +36,7 @@ impl World {
     }
 
     /// The conversation now runs in w1:p7 (and another one in w1:p8).
-    fn moved_to_p7(&self) {
+    pub fn moved_to_p7(&self) {
         self.fake.set(|k| {
             k.agents = agents(&[
                 ("w1:p7", crate::A),
@@ -163,6 +163,12 @@ impl World {
     pub fn hook_sent(&mut self, sent_at: &str) -> i64 {
         let qid = self.ask();
         self.store.set_answer(qid, "squash", None).unwrap();
+        self.mark_hook_sent(qid, sent_at);
+        qid
+    }
+
+    /// The answered `qid` was handed over as hook context at `sent_at`.
+    pub fn mark_hook_sent(&self, qid: i64, sent_at: &str) {
         self.sql(
             "UPDATE questions SET delivered_at = ?, delivery_error = NULL WHERE id = ?",
             params![sent_at, qid],
@@ -171,7 +177,6 @@ impl World {
             "UPDATE question_ext SET hook_sent_at = ? WHERE id = ?",
             params![sent_at, qid],
         );
-        qid
     }
 }
 
