@@ -1,4 +1,4 @@
-"""Claude Code session continuation (live 2026-10-16, pane "Ghostpaw frontend v2 rework"):
+"""Claude Code session continuation (live 2026-10-16, pane "Project Name 1"):
 the conversation moved from session OLD to NEW in the same process. The old transcript ends
 with a `continued-in` record; nothing in the new one points back; herdr (and the process
 env) keep reporting OLD. The inbox must follow the record: questions, verification, hook
@@ -13,8 +13,8 @@ import pytest
 from herdr_inbox import herdr, rewake, service, store as st, transcript, worker
 from herdr_inbox.service import Caller
 
-OLD = "synthetic_91-0000-4000-8000-000000000001"
-NEW = "synthetic_92-0000-4000-8000-000000000002"
+OLD = "00000003-0000-4000-8000-0000000000b1"
+NEW = "00000004-0000-4000-8000-0000000000b2"
 
 
 def tdir():
@@ -34,7 +34,7 @@ def write(session, records):
 def continued(old=OLD, new=NEW, after=("last-prompt", "cost-state")):
     """The captured shape (2.1.301): continued-in, then only bookkeeping records."""
     write(old, [{"type": "user", "message": {"role": "user", "content": "earlier work"}, "sessionId": old},
-                {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": old,
+                {"type": "continued-in", "timestamp": "2026-10-16T18:30:00.000Z", "sessionId": old,
                  "continuedInSessionId": new}]
           + [{"type": t, "sessionId": old} for t in after])
     write(new, [{"type": "ai-title", "aiTitle": "x", "sessionId": new}])
@@ -139,7 +139,7 @@ def test_the_old_sessions_watcher_ends_and_the_new_one_wakes(store, herdr_says_o
     assert rewake.run({"session_id": NEW, "transcript_path": str(tdir() / f"{NEW}.jsonl")}, clock=c, sleep=c.sleep)
 
 
-@pytest.mark.parametrize("bad", ["../../etc/passwd", "*", "a/b", "synthetic_92-0000-4000-8000-000000000002 ", "x" * 36, ""])
+@pytest.mark.parametrize("bad", ["../../etc/passwd", "*", "a/b", "00000004-0000-4000-8000-0000000000B2 ", "x" * 36, ""])
 def test_a_continuation_id_that_is_not_a_uuid_is_never_followed(fake_herdr, bad):
     """Path traversal guard: the id becomes part of a transcript path."""
     write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": bad}])
@@ -222,7 +222,7 @@ def resumed_old(store):
     service.ask(store, Caller("w9:p9", None, None, OLD, "/r"), "In play before the switch?")
     continued()
     worker.tick(store)  # records OLD -> NEW
-    write(OLD, [{"type": "user", "timestamp": "2026-10-17T06:32:56.399Z",  # later than the continued-in (D6)
+    write(OLD, [{"type": "user", "timestamp": "2026-10-17T08:00:00.399Z",  # later than the continued-in (D6)
                  "message": {"role": "user", "content": "back in the old one"}}])
 
 

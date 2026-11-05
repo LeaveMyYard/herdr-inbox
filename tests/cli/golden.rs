@@ -12,16 +12,21 @@ use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 use herdr_agent_kit::plugin_env::config::ConfigFile;
 use herdr_inbox::claude::Transcripts;
 use herdr_inbox::cli::{Io, run};
+use herdr_inbox::deeplink::lock::hold_popup_lock;
 use herdr_inbox::delivery::send::local_answers;
 use herdr_inbox::service::answer::submit;
 use herdr_inbox::service::own::Me;
 use herdr_inbox::store::Store;
 use herdr_inbox::store::sessions::record_session;
 use herdr_inbox::surface::markers::Markers;
+use herdr_inbox::tabs::settings;
 use serde_json::{Value, json};
 
 use crate::common::migrated;
+use crate::deeplink;
 use crate::fakes::{Effects, FakeDelivery, FakeHerdr, World};
+use crate::radar;
+use crate::remote;
 use crate::store_golden::{s, sql, tables};
 
 const GOLDEN: &str = include_str!("../fixtures/cli.json");
@@ -92,7 +97,7 @@ fn now() -> i64 {
     i64::try_from(secs).unwrap()
 }
 
-/// A `cli` step: (code, stdout, stderr).
+/// A `cli` step: (code, stdout as printed, stderr masked).
 fn cli(
     rig: &mut Rig,
     a: &Value,
@@ -124,9 +129,12 @@ fn cli(
         effects: Rc::clone(effects),
     };
     let (mut out, mut err) = (Vec::new(), Vec::new());
+    let mut input = s(a, "stdin").unwrap_or_default().as_bytes();
     let state_dir = rig.dir.path().to_path_buf();
+    let herdr_config = rig.dir.path().join("herdr-config/config.toml");
     let code = {
         let mut io = Io {
+            input: &mut input,
             out: &mut out,
             err: &mut err,
             db_path: &db,
@@ -139,12 +147,15 @@ fn cli(
             delivery: &mut delivery,
             herdr: &mut herdr,
             config: &mut rig.config,
+            herdr_config: &herdr_config,
             lock_wait: Duration::from_secs(1),
             now: now(),
         };
         run(&argv[0], &argv[1..], &mut io)
     };
-    (code, String::from_utf8(out).unwrap(), rig.masked(&err))
+    let out = String::from_utf8(out).unwrap();
+    let out = out.replace(&rig.dir.path().display().to_string(), "<work>");
+    (code, out, rig.masked(&err))
 }
 
 fn submit_step(rig: &mut Rig, a: &Value, world: &Rc<RefCell<World>>, effects: &Effects) -> Value {
@@ -192,6 +203,7 @@ fn the_cli_does_what_pythons_did() {
     let golden: Value = serde_json::from_str(GOLDEN).unwrap();
     let mut rig = Rig::new();
     let mut migrated_yet = false;
+    let mut fresh = false; // the remote side's database, its own tables
     let mut last = Value::Null; // the tables as the golden last dumped them
     for (n, step) in golden["steps"].as_array().unwrap().iter().enumerate() {
         let (op, a) = (step["op"].as_str().unwrap(), &step["args"]);
@@ -204,6 +216,10 @@ fn the_cli_does_what_pythons_did() {
                 migrated(rig.dir.path());
                 migrated_yet = true;
             }
+            "fresh" => {
+                remote::fresh(rig.dir.path());
+                fresh = true;
+            }
             "sql" => sql(&Store::open(&rig.db(), Duration::from_secs(5)).unwrap(), a),
             "submit" => {
                 let got = submit_step(&mut rig, a, &world, &effects);
@@ -213,11 +229,52 @@ fn the_cli_does_what_pythons_did() {
                 let got = preamble(&rig.db(), a, &effects);
                 assert_eq!(got, step["result"], "{what}");
             }
-            "cli" => {
-                let (code, out, err) = cli(&mut rig, a, &world, &effects);
+            "deeplink" => {
+                let got = deeplink::step(&rig.db(), rig.dir.path(), a, &effects);
+                assert_eq!(got, step["result"], "{what}");
+            }
+            "radar_missing" => {
+                world.borrow_mut().radar_dir = radar::prepare(rig.dir.path(), a);
+                let hint = settings::read(&mut rig.config, &mut |_| {}).radar_hint;
+                let path = rig.dir.path().join("herdr-config/config.toml");
+                let mut herdr = FakeHerdr {
+                    world: Rc::clone(&world),
+                    effects: Rc::clone(&effects),
+                };
+                let got = herdr_inbox::radar::missing(&path, hint, &mut herdr, &mut |_| {});
+                assert_eq!(json!(got), step["result"], "{what}");
+            }
+            "radar" | "sync" | "cli" => {
+                if op == "radar" {
+                    world.borrow_mut().radar_dir = radar::prepare(rig.dir.path(), a);
+                }
+                let held = (a.get("popup_open") == Some(&json!(true)))
+                    .then(|| hold_popup_lock(rig.dir.path()).unwrap());
+                let (code, printed, err) = cli(&mut rig, a, &world, &effects);
+                let remote_cmd = ["export", "apply"].contains(&a["argv"][0].as_str().unwrap());
+                let out = if remote_cmd {
+                    remote::mask(&printed)
+                } else {
+                    printed.clone()
+                };
+                drop(held);
+                let left = deeplink::left_request(rig.dir.path());
+                assert_eq!(
+                    left,
+                    step.get("request").cloned().unwrap_or(Value::Null),
+                    "{what}: request"
+                );
                 assert_eq!(code, step["code"].as_i64().unwrap() as i32, "{what}: code");
                 assert_eq!(out, step["stdout"].as_str().unwrap(), "{what}: stdout");
                 assert_eq!(err, step["stderr"].as_str().unwrap(), "{what}: stderr");
+                if a["argv"] == json!(["export"]) && code == 0 {
+                    remote::cross_check(&printed, step["stdout"].as_str().unwrap(), &what);
+                }
+                if op == "radar" {
+                    let (text, backup) = radar::left(rig.dir.path());
+                    assert_eq!(text, step["herdr_config"], "{what}: herdr's config");
+                    assert_eq!(json!(backup), step["backup"], "{what}: backup");
+                }
             }
             other => panic!("unknown op {other}"),
         }
@@ -231,7 +288,12 @@ fn the_cli_does_what_pythons_did() {
             if step["tables"] != "unchanged" {
                 last = step["tables"].clone();
             }
-            assert_eq!(tables(&store, &TABLES), last, "{what}: tables");
+            let got = if fresh {
+                remote::tables(&store)
+            } else {
+                tables(&store, &TABLES)
+            };
+            assert_eq!(got, last, "{what}: tables");
         } else {
             assert_eq!(step["tables"], Value::Null, "{what}");
             assert!(!rig.db().exists(), "{what}: the CLI created the database");

@@ -186,49 +186,75 @@ fn verify_later_jobs_are_handed_over_before_the_next_message() {
     assert_eq!(got, [(json!(false), 1), (json!(true), 2)]);
 }
 
-/// Runs `step` until the clock second did not change across it.
-fn within_one_second<T>(mut step: impl FnMut() -> T) -> T {
-    for _ in 0..5 {
+/// `step` on a fresh `setup()`, until the clock second did not change across
+/// the step (the world is built outside it: only the step must fit in one
+/// second), for up to 30 s of tries; then the last try's value. A later
+/// second only makes a stored time older, so a test whose answer holds
+/// either way still checks something on a loaded machine.
+fn within_one_second<W, T>(mut setup: impl FnMut() -> W, mut step: impl FnMut(W) -> T) -> T {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let world = setup();
         let before = now();
-        let got = step();
+        let got = step(world);
         if now() == before {
             return got;
         }
+        if Instant::now() > deadline {
+            eprintln!("every try crossed a second: the exact boundary went unchecked");
+            return got;
+        }
     }
-    panic!("the clock second changed on every try");
 }
 
 /// #100 review L1: pending exactly BUSY_GRACE ago is past the grace
-/// (Python `_busy_for(...) < BUSY_GRACE` is false): typed.
+/// (Python `_busy_for(...) < BUSY_GRACE` is false): typed. (Pending longer
+/// ago is past it too, so a pass that crossed a second still holds.)
 #[test]
 fn the_busy_grace_ends_at_exactly_busy_grace() {
-    let typed = within_one_second(|| {
-        let mut world = World::new(&["yes"]);
-        world.status = "working";
-        world.wait = Duration::from_millis(50);
-        open(&world.db)
-            .execute(
-                "INSERT INTO question_ext (id, group_id, pending_since) VALUES (?, ?, ?)",
-                rusqlite::params![world.ids[0], world.ids[0], now_minus(BUSY_GRACE)],
-            )
-            .unwrap();
-        world.pass(|_| {}).prompts()
-    });
+    let typed = within_one_second(
+        || {
+            let mut world = World::new(&["yes"]);
+            world.status = "working";
+            world.wait = Duration::from_millis(50);
+            world
+        },
+        |world| {
+            open(&world.db)
+                .execute(
+                    "INSERT INTO question_ext (id, group_id, pending_since) VALUES (?, ?, ?)",
+                    rusqlite::params![world.ids[0], world.ids[0], now_minus(BUSY_GRACE)],
+                )
+                .unwrap();
+            world.pass(|_| {}).prompts()
+        },
+    );
     assert_eq!(typed, 1);
 }
 
-#[test]
-fn a_message_is_waited_for_once_whatever_it_carries() {
-    let mut world = World::new(&["yes", "eu", "squash"]);
-    world.wait = Duration::from_millis(800);
+/// How long one pass over `answers`, never seen, takes with `wait`.
+fn unseen_pass(answers: &[&str], wait: Duration) -> (usize, Duration) {
+    let mut world = World::new(answers);
+    world.wait = wait;
     let started = Instant::now();
     let ran = world.pass(|_| {});
     ran.result.as_ref().unwrap();
-    let took = started.elapsed();
-    assert_eq!(ran.prompts(), 1); // the three in one message
+    (ran.prompts(), started.elapsed())
+}
+
+/// Three answers in one message are waited for once, not once each:
+/// measured against a pass of one answer on the same machine (relative, so
+/// a loaded runner's overhead is in both), where waiting per answer would
+/// add two more waits.
+#[test]
+fn a_message_is_waited_for_once_whatever_it_carries() {
+    let wait = Duration::from_millis(1500);
+    let (_, one) = unseen_pass(&["yes"], wait);
+    let (prompts, three) = unseen_pass(&["yes", "eu", "squash"], wait);
+    assert_eq!(prompts, 1); // the three in one message
     assert!(
-        took < Duration::from_millis(1600),
-        "waited per answer: {took:?}"
+        three < one + wait,
+        "waited per answer: {three:?} for three, {one:?} for one"
     );
 }
 

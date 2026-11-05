@@ -9,8 +9,9 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use herdr_inbox::store::migrate::switch_to_wal;
 use herdr_inbox::store::revision::STAMP;
 use herdr_inbox::store::{OpenError, Store};
 use rusqlite::Connection;
@@ -225,8 +226,11 @@ fn a_due_migration_behind_a_held_lock_fails_and_leaves_the_database_alone() {
     let path = migrated(dir.path());
     older_head(&path, pre_bridge());
     let holder = locked(&path, "IMMEDIATE");
+    let started = Instant::now();
     assert!(Store::open_migrating(&path, Duration::from_millis(200)).is_err());
+    let elapsed = started.elapsed();
     holder.execute_batch("ROLLBACK").unwrap();
+    assert!(elapsed < Duration::from_millis(2500), "{elapsed:?}");
     assert_eq!(stamp_of(&path), pre_bridge());
     assert!(!has_column(&path, "remote_outbox", "sending_at"));
 }
@@ -299,4 +303,54 @@ fn a_failed_migration_rolls_back_and_releases_the_write_lock() {
     other.execute_batch("ROLLBACK").unwrap();
     assert_eq!(stamp_of(&path), 0); // nothing of the failed pass stayed
     drop(store);
+}
+
+/// The root cause of the concurrent-open flake: on a rollback-journal
+/// database, the switch to WAL asks for the write lock while it holds a read
+/// lock, and SQLite answers BUSY at once instead of waiting out the busy
+/// timeout (it would deadlock with the writer).
+#[test]
+fn the_switch_to_wal_meets_a_writer_with_an_immediate_busy() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = migrated(dir.path());
+    let holder = open(&path);
+    holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let db = open(&path);
+    db.busy_timeout(TIMEOUT).unwrap();
+    let started = std::time::Instant::now();
+    let err = switch_to_wal(&db, Duration::ZERO).unwrap_err();
+    assert!(herdr_inbox::store::busy::is_busy(&err), "{err}");
+    assert!(started.elapsed() < TIMEOUT / 2, "no busy handler ran");
+}
+
+#[test]
+fn a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = migrated(dir.path());
+    older_head(&path, 0);
+    let mode: String = open(&path)
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(mode, "delete", "a fresh file, never switched to WAL");
+    let holder = open(&path);
+    holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let release = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(300));
+        holder.execute_batch("COMMIT").unwrap();
+    });
+    drop(Store::open_migrating(&path, TIMEOUT).unwrap());
+    release.join().unwrap();
+    assert_eq!(stamp_of(&path), STAMP);
+}
+
+#[test]
+fn the_switch_to_wal_returns_any_other_error_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    std::fs::write(&path, vec![b'x'; 4096]).unwrap(); // not a database
+    let db = open(&path);
+    let started = std::time::Instant::now();
+    let err = switch_to_wal(&db, TIMEOUT).unwrap_err();
+    assert!(!herdr_inbox::store::busy::is_busy(&err), "{err}");
+    assert!(started.elapsed() < TIMEOUT / 2, "not retried");
 }

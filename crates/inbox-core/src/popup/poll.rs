@@ -52,14 +52,26 @@ impl Popup {
             (Mode::Alert, Some(Entry::Alert(id)), Some(reason)) if !placeholder => {
                 self.replace_with_placeholder(format!("A{id}"), reason)
             }
+            (Mode::Alert, Some(Entry::RemoteAlert(key)), Some(reason)) if !placeholder => {
+                let r#ref = self.remote_alert_ref(&key);
+                self.replace_with_placeholder(r#ref, reason)
+            }
+            (Mode::Remote, _, _) if !placeholder => self.poll_remote(),
             (Mode::Group, _, _) => self.poll_group(),
             _ => {}
         }
     }
 
-    fn replace_with_placeholder(&mut self, r#ref: String, reason: String) {
+    pub(super) fn replace_with_placeholder(&mut self, r#ref: String, reason: String) {
         self.timers.grace_until = Some(self.now + GRACE);
         self.mount(View::Gone(GoneView { r#ref, reason }));
+    }
+
+    /// A remote alert's name in its placeholder: `<machine>:A<id>`, the
+    /// machine's name read afresh.
+    fn remote_alert_ref(&self, key: &str) -> String {
+        let (mid, aid) = key.rsplit_once('|').unwrap_or(("", key));
+        format!("{}:A{aid}", self.data.remote.name(mid))
     }
 
     /// The open group under a poll (Python `_poll_group`): its closed tabs

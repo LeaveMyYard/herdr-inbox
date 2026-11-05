@@ -68,8 +68,10 @@ pub struct FailedView {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AlertView {
-    /// The alert.
+    /// The alert (a remote machine's: its id over there).
     pub alert: i64,
+    /// A remote machine's alert: the machine's name.
+    pub label: Option<String>,
     /// `d` counts from then on.
     pub armed_at: Millis,
 }

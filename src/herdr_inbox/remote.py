@@ -97,7 +97,7 @@ def probe(target: str) -> dict[str, str]:
 def _steps(bins: dict[str, str], upgrade: bool, ref: str | None) -> list[tuple[str, str, tuple[str, ...]]]:
     """(what, remote command, outputs that still count as success). Every part is a
     validated constant: absolute binaries, the repo, a validated ref. Claude Code exits 0
-    for "already on disk" / "already installed" (checked on moneylust 2026-10-15), so a
+    for "already on disk" / "already installed" (checked on project1 2026-10-15), so a
     non-zero exit is always a failure."""
     claude, herdr_bin = bins["claude"], bins["herdr"]
     source = f"{REPO}#{ref}" if ref else REPO
@@ -322,7 +322,7 @@ def remote_command(rec: dict, sub: str) -> str:
 def control_options() -> list[str]:
     """ssh connection sharing, with a socket path short enough for the 104/108-byte unix
     limit (``%C`` is a 40-char hash): under $XDG_RUNTIME_DIR, else ~/.ssh; off if even that
-    is too long (found on a deep checkout path in the moneylust e2e)."""
+    is too long (found on a deep checkout path in the project1 e2e)."""
     base = os.environ.get("XDG_RUNTIME_DIR") or os.path.join(os.path.expanduser("~"), ".ssh")
     path = os.path.join(base, "hinbox-%C")
     if len(path) - 2 + 40 > 100 or not os.path.isdir(base):

@@ -10,8 +10,9 @@ use inbox_core::rewake::Status;
 use crate::claude::{Transcripts, live_session};
 
 /// The agent in `pane`: its live session (`None` when herdr names none) and
-/// status; `None` when there is no agent, or herdr cannot be asked (the
-/// watch then ends, as in Python).
+/// status; `None` when there is no agent, it answers for another pane
+/// (herdr's target also matches agent names, #97), or herdr cannot be asked
+/// (the watch then ends, as in Python).
 pub fn pane_agent(
     herdr: &Herdr,
     files: &Transcripts,
@@ -19,6 +20,9 @@ pub fn pane_agent(
     pane: &str,
 ) -> Option<(Option<String>, Status)> {
     let agent = herdr.agent(&PaneId::new(pane)).ok()??;
+    if agent.pane_id.as_ref().is_some_and(|p| p.as_str() != pane) {
+        return None;
+    }
     let reported = agent
         .agent_session
         .and_then(|s| s.value)
