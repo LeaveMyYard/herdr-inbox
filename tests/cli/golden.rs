@@ -300,3 +300,36 @@ fn the_cli_does_what_pythons_did() {
         }
     }
 }
+
+/// Python test_l1_a_remote_apply_refreshes_the_tab_markers, named: the replay
+/// above holds the effects to the golden, and this holds the golden to having
+/// them, so a recapture cannot drop the refresh unnoticed.
+#[test]
+fn a_remote_apply_refreshes_the_tab_markers() {
+    let golden: Value = serde_json::from_str(GOLDEN).unwrap();
+    let applies: Vec<&Value> = golden["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|s| s["op"] == "cli" && s["args"]["argv"] == json!(["apply"]))
+        .filter(|s| s["stdout"] == "{\"outcome\": \"applied\"}\n")
+        .collect();
+    let refreshes = |action: &str| {
+        applies
+            .iter()
+            .filter(|s| s["args"]["stdin"].as_str().unwrap().contains(action))
+            .any(|s| {
+                let names: Vec<&str> = s["effects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|e| e[0].as_str().unwrap())
+                    .collect();
+                ["token", "pane_tabs", "tab_label", "rename_tab"]
+                    .iter()
+                    .all(|want| names.contains(want))
+            })
+    };
+    assert!(refreshes("\"action\": \"answer\""));
+    assert!(refreshes("\"action\": \"dismiss\""));
+}

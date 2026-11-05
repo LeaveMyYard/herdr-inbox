@@ -14,9 +14,9 @@
 # version: `herdr-inbox contract` prints the number of the hook payload handling, hook output,
 # exit codes and MCP tool schemas it implements, and this script carries the number it needs.
 # It runs the newest binary whose contract matches, looking in
-#   1. <plugin root>/target/release, only in a git checkout (a linked development checkout; a
-#      local-folder marketplace's cache copy of a clone holds no .git, but may hold target/,
-#      #74; a worktree's .git file, were it copied, still leaves the contract check),
+#   1. <plugin root>/target/release, only in a git checkout (a linked development checkout, or the
+#      folder a directory marketplace reads from; a plugin cache copy holds no .git, but may hold
+#      target/, #74; a worktree's .git file, were it copied, still leaves the contract check),
 #   2. <plugin root>/bin (herdr's build step put this install's binary there; the popup's root
 #      and the worker's install come from where the binary sits, so it goes first),
 #   3. ${CLAUDE_PLUGIN_DATA}/bin (fetched by the MCP launch, below),
@@ -53,8 +53,12 @@ fi
 # shellcheck source=scripts/release-lib.sh
 [ -r "$root/scripts/release-lib.sh" ] && . "$root/scripts/release-lib.sh"
 
+# Exactly `rust` as the first line, by bytes, as Rust's and Python's `runs_rust` read it
+# (tests/launch/engine.rs). A carriage return or a NUL in it is not rust.
 engine=python
-[ -r "$root/engine" ] && IFS= read -r engine <"$root/engine"
+if [ "$(LC_ALL=C sed -n '1{/^rust$/p;q;}' "$root/engine" 2>/dev/null)" = rust ]; then
+	engine=rust
+fi
 
 # Whether binary $1 can be run: it runs, and its contract is this launcher's.
 fits() {

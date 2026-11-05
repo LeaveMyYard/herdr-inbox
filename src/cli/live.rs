@@ -25,11 +25,14 @@ use crate::surface::live::Live;
 use crate::surface::popup::{focused_pane, own_checkout};
 use crate::tabs::lock::LOCK_TIMEOUT;
 use crate::tabs::settings::PLUGIN_ID;
-use crate::worker::spawn::start_sender;
+use crate::worker::spawn::{enter_own_session, start_sender};
 
 /// Runs `cmd` in this process: stdout, stderr and the environment are the
 /// process's own. The exit code.
 pub fn main(cmd: &str, argv: &[String]) -> i32 {
+    if cmd == "deliver" {
+        enter_own_session(); // the detached sender outlives the pane that started it
+    }
     let env = PluginEnv::from_env();
     let db_path = inbox::db_path(&env);
     let herdr_config = crate::radar::config_path(&env);

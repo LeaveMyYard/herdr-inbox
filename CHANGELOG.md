@@ -8,6 +8,8 @@
   `verify`). A missing or unfit binary means Python, never a dead inbox. The launcher's contract is
   2. `scripts/install-bin.sh --build` makes a checkout's binary without a release.
 - **`inbox apply` on a Rust remote delivers at once**: its detached sender was a stub.
+- **A Rust worker or detached sender outlives the pane that started it**: both now lead a session
+  of their own, as Python's do. Before, closing that pane ended them.
 - **Fix (Rust worker): a database error part way through a pass no longer loses notifications**
   (#132). The blocked-agent scan, the outbox flush and expiry sweep and a remote pull now hand
   back what they committed alongside the error, so an alert or a settled outbox row is still

@@ -117,9 +117,16 @@ def ensure(server: str | None = None) -> bool:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     binary = launcher_binary()
     with open(log_path, "a") as err:
-        subprocess.Popen([binary, "worker"] if binary else python_worker_argv(_package_src()),
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
-                         start_new_session=True, close_fds=True, env=_spawn_env(server))
+        def start(argv: list[str]) -> None:
+            subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err,
+                             start_new_session=True, close_fds=True, env=_spawn_env(server))
+
+        try:
+            start([binary, "worker"] if binary else python_worker_argv(_package_src()))
+        except OSError:
+            if not binary:
+                raise
+            start(python_worker_argv(_package_src()))  # gone since the launcher named it
     return True
 
 
@@ -377,9 +384,9 @@ def runs_rust(root: str) -> bool:
     """Whether ``root``'s ``engine`` file says rust (scripts/launch; anything else, or no file, is
     Python): a root that went back to Python must not be followed into a binary still on disk."""
     try:
-        with open(os.path.join(root, "engine"), encoding="utf-8") as f:
-            return f.readline().rstrip("\n") == "rust"
-    except (OSError, UnicodeDecodeError):
+        with open(os.path.join(root, "engine"), "rb") as f:  # bytes, as scripts/launch and Rust compare
+            return f.readline().rstrip(b"\n") == b"rust"
+    except OSError:
         return False
 
 

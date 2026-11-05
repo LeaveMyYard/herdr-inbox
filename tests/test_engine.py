@@ -79,6 +79,24 @@ def test_engine_python_starts_python_with_the_binary_on_disk(checkout, monkeypat
     assert spawned_by_ensure(monkeypatch) == [worker.python_worker_argv(worker._package_src())]
 
 
+def test_a_binary_gone_since_the_launcher_named_it_means_python(checkout, monkeypatch):
+    binary = stand_in(checkout / "bin" / "herdr-inbox")
+    real, argvs = subprocess.Popen, []
+
+    def popen(argv, *a, **k):
+        if not k.get("start_new_session"):
+            return real(argv, *a, **k)
+        argvs.append(argv)
+        if argv[0] == str(binary):
+            raise FileNotFoundError(argv[0])
+        return None
+
+    monkeypatch.delenv("HERDR_INBOX_NO_WORKER", raising=False)
+    monkeypatch.setattr(worker.subprocess, "Popen", popen)
+    assert worker.ensure() is True
+    assert argvs == [[str(binary), "worker"], worker.python_worker_argv(worker._package_src())]
+
+
 def test_no_checkout_or_no_launcher_means_python(checkout, monkeypatch):
     (checkout / "scripts" / "launch").unlink()
     assert worker.launcher_binary() is None

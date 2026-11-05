@@ -91,3 +91,17 @@ fn a_worker_that_cannot_start_is_logged_never_written_over_the_callers_screen() 
     let log = fs::read_to_string(env.state_dir().join("worker.log")).unwrap();
     assert!(log.starts_with("inbox: delivery worker: "), "{log}");
 }
+
+#[test]
+fn a_binary_of_an_install_that_went_back_to_python_starts_no_worker() {
+    let f = Fakes::new();
+    let root = f.root("install");
+    fs::write(root.join("herdr-plugin.toml"), "").unwrap();
+    let exe = f.rust(&root, "bin/herdr-inbox");
+    fs::write(root.join(ENGINE_FILE), "python\n").unwrap();
+    let env = f.env();
+    assert!(!ensure(&env, &exe), "against the engine file");
+    assert!(!stamp_path(&env.lock_path(), env.revision).exists());
+    fs::write(root.join(ENGINE_FILE), "rust\n").unwrap();
+    assert!(ensure(&env, &exe));
+}
