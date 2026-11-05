@@ -8,4 +8,6 @@
 {"dir": "herdr", "msg": ["notification", "show", "Q1 · my-tab", "--body", "Which session?", "--sound", "request"]}
 {"dir": "herdr", "msg": ["pane", "get", "w1:p1"]}
 {"dir": "herdr", "msg": ["pane", "get", "w1:p1"]}
+{"dir": "markers", "msg": {"tokens": {"w1:p1": "inbox_q=?1"}, "labels": {"w1:t1": "❓1 my-tab"}}}
 {"dir": "store", "msg": [[1, "w1:p1", "w1:t1", "my-tab", "claude-sess", "<cwd>", null, "Which session?", null, null, "which session", "open", null, 0, 0, null, null, 0, 1, null, "<server>", null]]}
+{"dir": "alerts", "msg": []}
