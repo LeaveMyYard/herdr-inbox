@@ -776,6 +776,10 @@ tests/test_schema_migrations.py::test_two_bridge_revisions_interleave_forward_on
 tests/test_schema_migrations.py::test_the_cli_never_migrates,tests/test_schema_migrations.py,,todo,,
 tests/test_schema_migrations.py::test_the_worker_migrates_before_its_remote_thread_starts,tests/test_schema_migrations.py,,todo,,
 tests/test_schema_migrations.py::test_the_popup_migrates,tests/test_schema_migrations.py,,todo,,
+tests/test_schema_migrations.py::test_the_switch_to_wal_waits_out_a_writer_on_a_rollback_journal_database,tests/test_schema_migrations.py,herdr-inbox --test store migrate::the_switch_to_wal_meets_a_writer_with_an_immediate_busy ; herdr-inbox --test store migrate::a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database,mapped,,P5
+tests/test_schema_migrations.py::test_a_migrating_store_waits_out_a_writer_on_a_rollback_journal_database,tests/test_schema_migrations.py,herdr-inbox --test store migrate::a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database,mapped,,P5
+tests/test_schema_migrations.py::test_a_migrating_store_gives_up_behind_a_held_lock_and_leaves_the_database_alone,tests/test_schema_migrations.py,herdr-inbox --test store migrate::a_due_migration_behind_a_held_lock_fails_and_leaves_the_database_alone,mapped,,P5
+tests/test_schema_migrations.py::test_the_switch_to_wal_raises_any_other_error_at_once,tests/test_schema_migrations.py,herdr-inbox --test store migrate::the_switch_to_wal_returns_any_other_error_at_once,mapped,,P5
 tests/test_session_continuation.py::test_follow_reads_the_captured_record,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_follow_chains_and_ignores_a_resumed_old_session,tests/test_session_continuation.py,,todo,,
 tests/test_session_continuation.py::test_live_agent_reports_the_live_conversation,tests/test_session_continuation.py,,todo,,
