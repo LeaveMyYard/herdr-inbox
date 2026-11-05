@@ -7,6 +7,11 @@
   lock, and SQLite answers busy at once there instead of waiting out the busy timeout. The
   worker's and the popup's migration (Python and Rust) now retry the switch until their busy
   timeout has passed.
+- **Recorded binaries are pruned** (#72). An install (herdr's build step) and the MCP launch's
+  fetch keep the newest three recorded `herdr-inbox-<version>` binaries of each contract, in
+  `$XDG_STATE_HOME/herdr-inbox/bin` and `$CLAUDE_PLUGIN_DATA/bin`, and remove older ones.
+- **Fix: a Claude plugin cache copy no longer runs a copied `target/` build** (#74). The launcher
+  runs `<root>/target/release/herdr-inbox` only in a git checkout.
 - **Hardening of the worker handover** (#50, review of #75). A revision-wanted marker write waits at
   most 200 ms for its lock (a hook never hangs). `ensure()` starts at most one worker per revision
   every 5 s, so a newer worker that crashes at start can no longer cost one process and one

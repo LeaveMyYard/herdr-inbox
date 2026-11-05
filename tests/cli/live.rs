@@ -241,10 +241,21 @@ fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
     // the operator is elsewhere: the worker's retry types it
     let out = rig.run(&["deliver", "2"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    let error2: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT delivery_error FROM questions WHERE id = 2",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let methods: Vec<String> = (rig.stub.requests.lock().unwrap().iter())
+        .map(|(m, _)| m.clone())
+        .collect();
     assert_eq!(
         rig.stub.params_of("agent.prompt").len(),
         1,
-        "typed in retry mode"
+        "typed in retry mode; Q2 delivery_error {error2:?}, herdr calls {methods:?}, stderr {}",
+        text(&out.stderr)
     );
     rig.focused.store(true, Ordering::SeqCst);
     let out = rig.run(&["deliver", "1"]);
