@@ -193,7 +193,7 @@ fn herdr_startup_ensures_the_worker_through_the_launcher() {
 fn copy_with_the_real_binary() -> Root {
     let r = Root::new();
     let bin = r.state_bin().join("herdr-inbox-1.0.0");
-    fs::copy(env!("CARGO_BIN_EXE_herdr-inbox"), &bin).unwrap();
+    crate::herdr_cli::exe::link_or_copy(env!("CARGO_BIN_EXE_herdr-inbox").as_ref(), &bin);
     r
 }
 

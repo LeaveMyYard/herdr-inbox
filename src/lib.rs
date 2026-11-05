@@ -31,3 +31,7 @@ pub mod token;
 pub mod trace;
 pub mod tui;
 pub mod worker;
+
+#[cfg(test)]
+#[path = "../tests/support/exe.rs"]
+mod test_exe;

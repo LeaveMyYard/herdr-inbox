@@ -23,10 +23,7 @@ impl World {
     fn exe(&self) -> PathBuf {
         let exe = self.dir.path().join("herdr-inbox");
         if !exe.exists() {
-            let built = env!("CARGO_BIN_EXE_herdr-inbox");
-            std::fs::hard_link(built, &exe)
-                .or_else(|_| std::fs::copy(built, &exe).map(drop))
-                .unwrap();
+            crate::exe::link_or_copy(env!("CARGO_BIN_EXE_herdr-inbox").as_ref(), &exe);
         }
         exe
     }

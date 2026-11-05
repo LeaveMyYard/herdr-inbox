@@ -1,11 +1,10 @@
 //! A scratch plugin root with the real scripts, and stand-in binaries.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use crate::herdr_cli::CliStub;
+use crate::herdr_cli::{CliStub, exe};
 
 /// The repository (the scripts under test).
 pub fn repo() -> PathBuf {
@@ -124,8 +123,7 @@ pub fn stand_in(path: &Path, name: &str, version: &str, contract: u32, code: i32
     let script = format!(
         "#!/bin/sh\ncase \"$1\" in\ncontract) cat >/dev/null; echo {contract} ;;\nhook) echo \"{name} $2\"; cat; exit {code} ;;\n'') echo 'herdr-inbox {version}' ;;\n*) echo \"{name} $*\"; exit {code} ;;\nesac\n"
     );
-    fs::write(path, script).unwrap();
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    exe::install(path, script);
 }
 
 pub fn stdout(o: &Output) -> String {
@@ -169,10 +167,8 @@ build)
 	;;
 esac
 "#;
-    // written once, here: rewriting a script between runs races a parallel test's fork (ETXTBSY)
     let uv = "#!/bin/sh\necho \"uv $*\"\n";
     for (name, body) in [("curl", curl), ("cargo", cargo), ("uv", uv)] {
-        fs::write(dir.join(name), body).unwrap();
-        fs::set_permissions(dir.join(name), fs::Permissions::from_mode(0o755)).unwrap();
+        exe::install(&dir.join(name), body);
     }
 }

@@ -1050,9 +1050,9 @@ group kill: they start from a worker, which has no terminal to leave, so they ha
 
 **Who brings a dead worker back.** Worker starts are unchanged from Python: an MCP server at start
 and on a not-ready schema, every answer (popup, CLI, remote `apply`) and herdr's startup. A tool call
-on a ready schema does not, and neither do hooks. That is deliberate: the answer path starts one
-exactly when there is something to deliver, and `check_answers` hands an agent its answer without
-any worker.
+on a ready schema does not, and neither do hooks. That is deliberate: every answer starts one, and
+`check_answers` hands an agent its answer without any worker. A worker that dies later with an
+answer pending (a crash, a `kill`) waits for the next of those starts, as in Python.
 
 **With no herdr server.** The worker needs a herdr server to deliver through: with none it exits
 after `SERVER_GONE_EXIT` (10 s), in both languages, so nothing is left running. An agent outside a
