@@ -69,7 +69,8 @@ impl Machines {
 }
 
 /// `remote_sync_seconds` from `config.toml` (Python `float(s.get(...) or 5)`).
-/// A value Python's `float()` or `time.sleep` would refuse is the default here.
+/// A value Python's `float()` refuses, or one too large to sleep for (Python's
+/// `time.sleep` raises and ends the thread), is the default here.
 pub fn sync_seconds(table: &Map<String, Value>) -> f64 {
     let v = match table.get("remote_sync_seconds") {
         Some(Value::Number(n)) => n.as_f64(),
@@ -78,7 +79,7 @@ pub fn sync_seconds(table: &Map<String, Value>) -> f64 {
         _ => None,
     };
     match v {
-        Some(s) if s.is_finite() && s > 0.0 => s,
+        Some(s) if s > 0.0 && Duration::try_from_secs_f64(s).is_ok() => s,
         _ => SYNC_SECONDS, // `or 5`: a zero is the default too
     }
 }
@@ -148,16 +149,19 @@ pub fn sync_all(env: &RemoteEnv, enabled: impl FnOnce() -> Vec<Machine>) {
         Ok(notices) => notify(&env.herdr, notices),
         Err(e) => warn("expiry sweep failed", &e),
     }
-    let found = enabled();
-    // a pool of at most MAX_PARALLEL threads, each taking the next machine
+    each_machine(&enabled(), &|m| sync_one(env, m));
+}
+
+/// `work` on every machine, by a pool of at most [`MAX_PARALLEL`] threads each
+/// taking the next one. Python catches everything per machine: a panic in
+/// one never ends the round.
+fn each_machine(found: &[Machine], work: &(dyn Fn(&Machine) + Sync)) {
     let next = AtomicUsize::new(0);
     std::thread::scope(|s| {
         for _ in 0..found.len().min(MAX_PARALLEL) {
             s.spawn(|| {
                 while let Some(m) = found.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    // Python catches everything per machine: a panic in one never
-                    // ends the round, nor the thread
-                    if std::panic::catch_unwind(AssertUnwindSafe(|| sync_one(env, m))).is_err() {
+                    if std::panic::catch_unwind(AssertUnwindSafe(|| work(m))).is_err() {
                         warn(m.id.as_deref().unwrap_or("?"), &"panicked");
                     }
                 }
@@ -166,12 +170,20 @@ pub fn sync_all(env: &RemoteEnv, enabled: impl FnOnce() -> Vec<Machine>) {
     });
 }
 
+/// [`sync_all`] for the loop: Python's `loop` wraps the round in `try`, so a
+/// panic anywhere in it ends the round, never the thread.
+fn guarded_round(env: &RemoteEnv, enabled: impl FnOnce() -> Vec<Machine>) {
+    if std::panic::catch_unwind(AssertUnwindSafe(|| sync_all(env, enabled))).is_err() {
+        warn("round", &"panicked");
+    }
+}
+
 /// The remote thread's loop: a round, then `remote_sync_seconds` (read
 /// again each time, so an edit applies at once). Never returns.
 pub fn sync_loop(env: RemoteEnv) {
     let mut machines = Machines::default();
     loop {
-        sync_all(&env, || machines.enabled(&env.herdr));
+        guarded_round(&env, || machines.enabled(&env.herdr));
         let mut config = env.config_dir.as_ref().map(ConfigFile::in_dir);
         let table: Map<String, Value> = config
             .as_mut()

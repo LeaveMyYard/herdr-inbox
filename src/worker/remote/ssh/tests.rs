@@ -145,3 +145,33 @@ fn a_call_still_running_at_its_time_is_killed_without_exec() {
     assert!(started.elapsed() < Duration::from_secs(5));
     assert_eq!((r.code, r.stdout.as_str()), (124, "partial\n"));
 }
+
+#[test]
+fn a_call_past_its_time_leaves_no_process_behind() {
+    let dir = tempfile::tempdir().unwrap();
+    let pid_file = dir.path().join("pid");
+    let p = script(
+        dir.path(),
+        &format!("echo $$ > '{}'; exec sleep 30", pid_file.display()),
+    );
+    let r = exec(&p, &[], None, Duration::from_millis(500), true);
+    assert_eq!(r.code, 124);
+    let pid = std::fs::read_to_string(&pid_file).unwrap();
+    // signal 0 only, on this test's own stand-in: a zombie would still answer it
+    let alive = std::process::Command::new("kill")
+        .args(["-0", pid.trim()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap()
+        .success();
+    assert!(!alive, "the timed-out client is still there");
+}
+
+#[test]
+fn only_the_probe_without_a_request_gets_the_probes_time() {
+    let probe = FixedCommand::probe();
+    assert_eq!(timeout_of(&probe, None), PROBE_TIMEOUT);
+    assert_eq!(timeout_of(&probe, Some("")), CALL_TIMEOUT);
+    let other = FixedCommand::plugin_list("/r/bin/herdr").unwrap();
+    assert_eq!(timeout_of(&other, None), CALL_TIMEOUT);
+}

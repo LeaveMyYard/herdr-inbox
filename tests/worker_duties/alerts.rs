@@ -83,3 +83,60 @@ fn an_agent_list_that_is_not_a_list_changes_nothing() {
     }
     assert_eq!(open(&w), 1); // the alert stays: nothing changed
 }
+
+impl World {
+    /// w1:p1's agent at a prompt, past BLOCKED_AFTER: one open alert.
+    fn blocked_alert(&mut self, scan: &mut BlockedScan) {
+        self.fake.set(|k| {
+            k.agents = json!([{"pane_id": "w1:p1", "tab_id": "w1:t1", "agent": "claude", "agent_status": "blocked"}]);
+        });
+        self.scan(scan, 0.0);
+        self.sql(
+            "UPDATE blocked_panes SET since = '2026-01-01T00:00:00+00:00'",
+            [],
+        );
+        self.scan(scan, 1.0);
+    }
+
+    fn open_alerts(&self) -> i64 {
+        self.store
+            .db()
+            .query_row(
+                "SELECT COUNT(*) FROM alerts WHERE status = 'open'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+    }
+}
+
+#[test]
+fn a_result_without_agents_is_no_agents() {
+    let mut w = World::new();
+    let mut scan = BlockedScan::default();
+    w.blocked_alert(&mut scan);
+    assert_eq!(w.open_alerts(), 1);
+    w.fake.set(|k| k.agent_list_result = Some(json!({})));
+    assert_eq!(w.scan(&mut scan, 2.0).0, 0);
+    assert_eq!(w.open_alerts(), 0); // herdr answered: nobody is at a prompt
+}
+
+#[test]
+fn a_result_that_is_no_object_changes_nothing() {
+    let mut w = World::new();
+    let mut scan = BlockedScan::default();
+    w.blocked_alert(&mut scan);
+    w.fake.set(|k| k.agent_list_result = Some(json!([1])));
+    w.scan(&mut scan, 2.0);
+    assert_eq!(w.open_alerts(), 1);
+}
+
+#[test]
+fn a_scan_that_fails_watches_no_one() {
+    let mut w = World::new();
+    w.fake.set(|k| {
+        k.agents = json!([{"pane_id": "w1:p2", "agent": "claude", "agent_status": "blocked"}]);
+    });
+    w.sql("DROP TABLE blocked_panes", []);
+    assert_eq!(w.scan(&mut BlockedScan::default(), 0.0).0, 0);
+}
