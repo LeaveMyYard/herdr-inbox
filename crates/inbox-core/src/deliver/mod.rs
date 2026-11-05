@@ -71,6 +71,28 @@ pub struct Agent {
     pub reported_session: Option<String>,
 }
 
+impl Agent {
+    /// herdr reports Claude Code in the pane (its kind `claude`): an input
+    /// box that cannot be read then holds the answer. Any other kind is
+    /// still held by a recognised Claude Code draft (#96).
+    pub fn is_claude(&self) -> bool {
+        self.kind.as_deref() == Some("claude")
+    }
+
+    /// The pending reason when its input box in `state` holds the answer
+    /// (a draft, for any kind; an unreadable box, for Claude only), or
+    /// `None` when it can be typed into. The one rule for the hold and for
+    /// Send now's "not sent" notice.
+    pub fn held_by(&self, state: Composer) -> Option<&'static str> {
+        match state {
+            Composer::Empty => None,
+            Composer::Draft => Some(COMPOSER_DRAFT),
+            Composer::Unknown if self.is_claude() => Some(COMPOSER_UNKNOWN),
+            Composer::Unknown => None,
+        }
+    }
+}
+
 /// Claude Code's input box.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Composer {
@@ -153,13 +175,15 @@ pub trait Look {
     fn messages(&mut self, ids: &[i64]) -> Vec<(Vec<i64>, bool)>;
     /// The agent looked up again just before typing.
     fn agent_again(&mut self, ids: &[i64]) -> Option<Agent>;
-    /// Claude Code's input box.
+    /// Claude Code's input box, read before every message for any agent
+    /// kind (#96).
     ///
     /// Two notifications are the caller's, not an [`Outcome`] (Python
-    /// `deliver_batch`): under "Send now", an input box that is not empty
-    /// notifies `"{refs} not sent"` with the pending reason minus
-    /// `waiting: `, once per message; and an input box that stays
-    /// unreadable notifies once per pane (`_note_unreadable`).
+    /// `deliver_batch`): under "Send now", an input box that holds the
+    /// answer (a draft; for a [`Agent::is_claude`] agent also an unreadable
+    /// box) notifies `"{refs} not sent"` with the pending reason minus
+    /// `waiting: `, once per message; and a Claude agent's input box that
+    /// stays unreadable notifies once per pane (`_note_unreadable`).
     fn composer(&mut self, ids: &[i64]) -> Composer;
     /// Types the message: herdr's error, if any (an empty one counts as
     /// none, as Python's `if err:`).

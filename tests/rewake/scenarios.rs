@@ -81,6 +81,16 @@ fn a_pane_holding_another_conversation_ends_the_watch() {
 }
 
 #[test]
+fn an_agent_of_another_pane_is_not_this_panes_and_ends_the_watch() {
+    // #97: herdr's target also matches agent names
+    let w = World::new();
+    let id = w.pending_answer();
+    w.agent_in("w1:p9", Some(A), "idle");
+    assert_eq!(w.watch(&FakeClock::new(|_, _| {})), None);
+    assert!(!w.delivered(id));
+}
+
+#[test]
 fn a_newer_watcher_supersedes_the_old_one() {
     let w = World::new();
     let clock = FakeClock::new(|n, _| {
