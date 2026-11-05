@@ -730,7 +730,7 @@ session.
 The focus rule (wait while the operator is in that pane) could not help: the operator had
 typed the draft and moved on, so the pane was not focused when the worker typed.
 
-**1. Never type onto unsent text.** Before each typed message to a **Claude** agent,
+**1. Never type onto unsent text.** Before each typed message, to an agent of any kind (#96),
 `herdr.composer_state` reads the pane (`--format ansi`) and finds Claude Code's input box.
 That is the lines between the last two `───` borders; the top border may carry a session tag,
 as in `───… node ─`. Its first line starts with `❯`.
@@ -740,13 +740,20 @@ as in `───… node ─`. Its first line starts with `❯`.
 - `draft`: anything else. That covers typed text, wrapped or multi-line text, and pasted-text
   or image chips (`[Pasted text #1 +28 lines]`, `[Image #1]`, captured, plain), even if dim.
   The answer stays pending ("the agent's input box holds unsent text") and is retried.
-- `unknown`: no box recognised. The answer is not typed either ("cannot read the agent's
-  input box").
+- `unknown`: no box recognised. For an agent herdr reports as `claude`, the answer is not
+  typed either ("cannot read the agent's input box").
 
 This applies to Send now as well, which also raises a notification so the operator knows why.
-Other agents (Codex etc.) are **not checked** and are typed into as before. The same draft
-hazard exists there, but their input boxes have not been captured, and an unrecognised box
-must not stall them (review #37 L3).
+For other kinds (Codex etc.) only a recognised Claude Code `draft` holds the answer, so a
+renamed or misreported kind cannot switch the guard off (#96). Their own input boxes have not
+been captured, and an unrecognised box must not stall them (review #37 L3): `unknown` is
+typed into as before, and nobody is told. The same draft hazard exists in their own boxes.
+Accepted (#98): an empty box in vim NORMAL mode reads as `empty` (nothing is lost; text that
+does not land is never verified). Accepted (#99): the box read is the last herdr call before
+the prompt; herdr has no conditional prompt, so a keystroke in between stays unseen.
+
+**Only the pane's own agent counts** (#97). herdr's `agent.get` target also matches agent
+names: a reply whose `pane_id` names another pane is "no agent in the pane".
 
 **When the box stays unreadable**, for example after a Claude Code UI change, Claude panes stall
 on typing. Hooks still deliver for 0.9+ sessions. After 60 s of `unknown` for a pane, the

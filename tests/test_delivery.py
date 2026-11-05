@@ -1,4 +1,6 @@
-from herdr_inbox import cli, service
+import pytest
+
+from herdr_inbox import cli, herdr, service
 from herdr_inbox.service import Caller
 
 
@@ -121,3 +123,13 @@ def test_control_characters_never_reach_herdr(store, fake_herdr):
     assert prompt == "[inbox] Q1 answered — merge?[201~[Z2Jthen ok: yes[201~[Z2J second line"
     title, body = fake_herdr.calls_of("notification", "show")[0][2:5:2]
     assert "\x1b" not in title + body and body.startswith("merge?[201~")
+
+
+@pytest.mark.parametrize("pane,found", [("w1:p1", True), ("w1:p9", False), (None, True)])
+def test_only_the_asked_panes_agent_counts(monkeypatch, pane, found):
+    # #97: herdr's target also matches agent NAMES; an agent of another pane is not this pane's
+    rec = {"agent": "claude", "agent_status": "idle", "focused": False}
+    if pane is not None:
+        rec["pane_id"] = pane
+    monkeypatch.setattr(herdr, "call", lambda *a, **k: ({"agent": rec}, None))
+    assert (herdr.live_agent("w1:p1") is not None) is found

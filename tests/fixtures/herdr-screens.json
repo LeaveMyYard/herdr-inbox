@@ -4196,6 +4196,81 @@
    }
   },
   {
+   "name": "another pane's agent (a name match)",
+   "result": {
+    "agent": {
+     "pane_id": "w1:p9",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": null
+  },
+  {
+   "name": "no pane id",
+   "result": {
+    "agent": {
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "a null pane id",
+   "result": {
+    "agent": {
+     "pane_id": null,
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": {
+    "agent": "claude",
+    "session_id": "live-of-aaaaaaaa-0000-4000-8000-00000000000a",
+    "reported_session_id": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "status": "idle",
+    "focused": true
+   }
+  },
+  {
+   "name": "a numeric pane id",
+   "result": {
+    "agent": {
+     "pane_id": 1,
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": true,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    }
+   },
+   "agent": null
+  },
+  {
    "name": "an empty agent",
    "result": {
     "agent": {}

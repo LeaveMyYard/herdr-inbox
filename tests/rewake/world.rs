@@ -70,7 +70,13 @@ impl World {
 
     /// herdr's `agent.get` reply for the pane from now on.
     pub fn agent(&self, session: Option<&str>, status: &str) {
-        let mut agent = json!({"agent": "claude", "agent_status": status, "pane_id": "w1:p1", "tab_id": "w1:t1"});
+        self.agent_in("w1:p1", session, status);
+    }
+
+    /// herdr's `agent.get` reply naming `pane` as the agent's pane.
+    pub fn agent_in(&self, pane: &str, session: Option<&str>, status: &str) {
+        let mut agent =
+            json!({"agent": "claude", "agent_status": status, "pane_id": pane, "tab_id": "w1:t1"});
         if let Some(s) = session {
             agent["agent_session"] = json!({"kind": "id", "value": s});
         }
