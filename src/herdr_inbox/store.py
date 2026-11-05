@@ -472,6 +472,32 @@ class Question:
 # schema or the migration changes; the Rust port shares the number.
 MIGRATION_REVISION = 1
 
+
+def _switch_to_wal(db: sqlite3.Connection, wait: float) -> None:
+    """``PRAGMA journal_mode=WAL``, retried while the database is busy until ``wait`` seconds
+    have passed. On a rollback-journal database (a fresh file) the switch asks for the write
+    lock while it holds its read lock; when another connection holds or waits for the write
+    lock, SQLite answers "database is locked" at once instead of calling the busy handler (it
+    would deadlock), so the busy timeout never applies. Retrying drops the read lock; _migrate
+    retries for the connection's busy timeout (its BEGIN IMMEDIATE then waits its own)."""
+    import time
+
+    from .hook import BUSY_STEP
+
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            db.execute("PRAGMA journal_mode=WAL")
+            return
+        except sqlite3.OperationalError as exc:
+            code = getattr(exc, "sqlite_errorcode", None)
+            busy = (code & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) if code is not None else (
+                "locked" in str(exc) or "busy" in str(exc))
+            if not busy or time.monotonic() >= deadline:
+                raise
+            time.sleep(BUSY_STEP)
+
+
 # Revision space. Releases up to 0.10.5 stamped ``crc32(schema + Store._migrate source) &
 # 0x7FFFFFFF``: always 0..2**31-1, never negative. A revision is stored with the sign bit set
 # (REVISION_BASE + revision, a negative int32), so a legacy crc32 -- however large -- can never
@@ -652,7 +678,8 @@ class Store:
         first finds the revision already stamped and does nothing. Idempotent (CREATE IF NOT
         EXISTS, ADD COLUMN only when missing), so a pre-bridge process re-stamping its crc32
         costs one more no-op pass, never data. A higher revision is left alone."""
-        self.db.execute("PRAGMA journal_mode=WAL")  # cannot change inside a transaction
+        # cannot change inside a transaction
+        _switch_to_wal(self.db, self.db.execute("PRAGMA busy_timeout").fetchone()[0] / 1000)
         self.db.execute("BEGIN IMMEDIATE")
         try:
             revision = stamped_revision(self.db.execute("PRAGMA user_version").fetchone()[0])
