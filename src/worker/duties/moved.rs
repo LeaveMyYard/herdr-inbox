@@ -37,7 +37,7 @@ pub fn revive_moved(round: &mut Round<'_, '_>, memory: &mut Memory) -> rusqlite:
     for q in &rows {
         memory.revive_checked.insert(q.id, t);
     }
-    let agents = crate::trace::herdr("agent.list", || round.ctx.herdr.agents()).unwrap_or_default();
+    let agents = round.ctx.herdr.agents().unwrap_or_default();
     for q in rows {
         let Some((pane, tab)) = session_pane(round.ctx, q.session_id.as_deref(), &agents)? else {
             continue;

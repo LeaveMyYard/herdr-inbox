@@ -379,9 +379,18 @@ fn inbox_trace_logs_steps_only_when_set() {
         "caller.pane_identity",
         "ask.markers",
         "background.job",
-        "store.schema_check",
         "tabs.marker_lock_wait",
     ] {
         assert!(named(step) > 0, "{step}: {text}");
     }
+    assert_eq!(
+        named("store.schema_check"),
+        0,
+        "a current stamp is not checked"
+    );
+    let db = rusqlite::Connection::open(on.path().join("inbox.db")).unwrap();
+    let asked: String = db
+        .query_row("SELECT question FROM questions LIMIT 1", [], |r| r.get(0))
+        .unwrap();
+    assert!(!text.contains(&asked), "no question text in a trace");
 }

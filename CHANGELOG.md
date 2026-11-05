@@ -8,7 +8,8 @@
   worker's and the popup's migration (Python and Rust) now retry the switch until their busy
   timeout has passed.
 - **`INBOX_TRACE=<file>` in the Rust binary**. The worker, the MCP server, the CLI and the popup
-  append the step timings Python's `trace.py` writes, with the same step names and fields.
+  append the step timings Python's `trace.py` writes, every herdr call included. A few popup
+  steps and the `key` and `thread` values differ (docs/DESIGN.md, Responsiveness).
 - **Fix: a Claude draft holds an answer whatever agent kind herdr reports** (#96). The input box
   was read only for herdr's kind `claude`, so a renamed or misreported kind typed onto the
   operator's unsent text. It is now read for every kind; a recognised Claude Code draft holds

@@ -108,7 +108,9 @@ pub fn pane_running(world: &dyn World, session: Option<&str>) -> Option<String> 
 /// Who is asking now.
 pub fn resolve(world: &dyn World, env: &Env) -> Result<Caller, Failure> {
     let mut pane_id = some(env.pane_id.as_deref());
-    if pane_id.is_some() && trace::timed("caller.nested_claude", || world.nested()) {
+    if trace::timed("caller.nested_claude", || {
+        pane_id.is_some() && world.nested()
+    }) {
         pane_id = None; // a claude run by the pane's agent is not the pane's agent
     }
     let mut ident = trace::timed("caller.pane_identity", || {

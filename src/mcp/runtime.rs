@@ -67,7 +67,10 @@ impl Runtime {
             title: a.title.as_deref(),
         };
         let filed = file::ask_group(&store, &caller, &call, &self.server, &self.files);
-        let receipt = trace::timed("ask.markers", || self.with_effects(filed))?;
+        // Python's step is under `if new`: only a new question has effects
+        let new = matches!(&filed, Ok((_, effects)) if !effects.is_empty());
+        let _markers = new.then(|| trace::step("ask.markers"));
+        let receipt = self.with_effects(filed)?;
         // `question` gets its one receipt; `questions` the group's
         Ok(if a.questions.as_ref().is_some_and(|q| !q.is_empty()) {
             receipt

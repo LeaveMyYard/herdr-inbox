@@ -88,13 +88,11 @@ pub fn sync_seconds(table: &Map<String, Value>) -> f64 {
 fn notify(herdr: &Herdr, notices: Vec<Notice>) {
     for n in notices {
         let (title, body) = (clean(&n.title, 200), clean(&n.body, 300));
-        let _ = crate::trace::herdr("notification.show", || {
-            herdr.notify(
-                &Sanitized::new(&title),
-                &Sanitized::new(&body),
-                Some("request"),
-            )
-        });
+        let _ = herdr.notify(
+            &Sanitized::new(&title),
+            &Sanitized::new(&body),
+            Some("request"),
+        );
     }
 }
 

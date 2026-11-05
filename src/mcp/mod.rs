@@ -67,7 +67,7 @@ pub trait Tools: Send + Sync + 'static {
 pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
     use herdr_agent_kit::internal::plugin_paths::inbox;
 
-    let herdr = || Herdr::from_env();
+    let herdr = || crate::trace::observed(Herdr::from_env());
     // the plugin's settings are found on the effects' thread, on the first marker refresh
     let herald = herald::Live::new(herdr(), env.clone(), inbox::db_path(env));
     let effects = effects::Effects::start(Arc::new(herald));

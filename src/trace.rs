@@ -11,6 +11,8 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use herdr_agent_kit::herdr_api::CallTrace;
+use herdr_agent_kit::herdr_api::blocking::Herdr;
 use serde_json::{Map, Value, json};
 
 use crate::pyjson::dumps;
@@ -101,15 +103,21 @@ pub fn timed<T>(name: &str, work: impl FnOnce() -> T) -> T {
     work()
 }
 
-/// `work`, a call to herdr's socket method `method`, as the step of the CLI
-/// call it stands for in Python (`pane.report_metadata`: `herdr pane
-/// report-metadata`).
-pub fn herdr<T>(method: &str, work: impl FnOnce() -> T) -> T {
-    timed(&step_name(method), work)
+/// `herdr` with every call it makes, and its clones make, traced as the
+/// `herdr <cmd>` step of the CLI call Python makes for it. Every client a
+/// process builds goes through this, so no call site has to.
+pub fn observed(herdr: Herdr) -> Herdr {
+    herdr.with_observer(|call: &CallTrace| {
+        record(&step_name(&call.op), call.took.as_secs_f64() * 1000.0, &[]);
+    })
 }
 
-fn step_name(method: &str) -> String {
-    format!("herdr {}", method.replace('.', " ").replace('_', "-"))
+/// The step of a call the kit names `op`, a socket method (`pane.report_metadata`) or a
+/// CLI run's first two arguments (`plugin config-dir`): its first two words, Python's
+/// `args[:2]`.
+fn step_name(op: &str) -> String {
+    let words: Vec<&str> = op.split(['.', ' ']).take(2).collect();
+    format!("herdr {}", words.join(" ").replace('_', "-"))
 }
 
 impl Drop for Step {

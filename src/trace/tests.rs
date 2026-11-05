@@ -52,10 +52,15 @@ fn a_file_that_cannot_be_written_is_ignored() {
 }
 
 #[test]
-fn a_socket_method_is_named_as_the_cli_call_it_stands_for() {
-    assert_eq!(step_name("notification.show"), "herdr notification show");
-    assert_eq!(
-        step_name("pane.report_metadata"),
-        "herdr pane report-metadata"
-    );
+fn a_call_is_named_as_python_names_its_cli_call() {
+    for (op, step) in [
+        ("notification.show", "herdr notification show"),
+        ("pane.report_metadata", "herdr pane report-metadata"),
+        ("server.reload_config", "herdr server reload-config"),
+        ("agent.prompt", "herdr agent prompt"),
+        ("plugin config-dir", "herdr plugin config-dir"),
+        ("plugin.pane.open", "herdr plugin pane"),
+    ] {
+        assert_eq!(step_name(op), step);
+    }
 }

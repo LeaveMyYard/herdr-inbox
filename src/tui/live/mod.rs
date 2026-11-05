@@ -62,7 +62,7 @@ pub fn main() -> i32 {
     let db_path = inbox::db_path(&env);
     let state_dir = inbox::state_dir(&env);
     let _ = LOG.set(state_dir.join("worker.log"));
-    let herdr = Herdr::from_env();
+    let herdr = crate::trace::observed(Herdr::from_env());
     // the popup migrates (Python `Store(migrate=True)`): only it and the worker do
     let store = match Store::open_migrating(&db_path, BUSY_TIMEOUT) {
         Ok(store) => store,

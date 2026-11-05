@@ -12,7 +12,6 @@ use crate::claude::{Transcripts, live_session};
 use crate::mcp::open::{failure, open};
 use crate::mcp::retry::{Failure, TOOL_BUSY_TIMEOUT};
 use crate::tabs::label::marks_for;
-use crate::trace;
 
 /// herdr, transcripts and the store as this process finds them.
 pub struct Live {
@@ -30,7 +29,7 @@ impl World for Live {
     }
 
     fn pane(&self, pane: &str) -> Option<Pane> {
-        let info = trace::herdr("pane.get", || self.herdr.pane(&PaneId::new(pane))).ok()?;
+        let info = self.herdr.pane(&PaneId::new(pane)).ok()?;
         Some(Pane {
             tab_id: info.tab_id.map(|t| t.as_str().to_owned()),
             session: info
@@ -42,13 +41,12 @@ impl World for Live {
     }
 
     fn tab_label(&self, tab: &str) -> Option<String> {
-        trace::herdr("tab.get", || self.herdr.tab(&TabId::new(tab)))
-            .ok()?
-            .label
+        self.herdr.tab(&TabId::new(tab)).ok()?.label
     }
 
     fn agents(&self) -> Vec<(String, Option<String>)> {
-        trace::herdr("agent.list", || self.herdr.agents())
+        self.herdr
+            .agents()
             .unwrap_or_default()
             .into_iter()
             .filter_map(|a| {

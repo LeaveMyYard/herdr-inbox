@@ -151,8 +151,7 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
             return false;
         }
         if self.agents.is_none() {
-            let agents = crate::trace::herdr("agent.list", || self.ctx.herdr.agents());
-            self.agents = Some(agents.unwrap_or_default());
+            self.agents = Some(self.ctx.herdr.agents().unwrap_or_default());
         }
         let q = self.q(id);
         let agents = self.agents.clone().unwrap_or_default();

@@ -48,7 +48,7 @@ pub fn missing(db: &Connection) -> rusqlite::Result<Vec<String>> {
     if stamped_revision(user_version).is_some_and(|r| r >= MIGRATION_REVISION) {
         return Ok(Vec::new());
     }
-    missing_from(db, expected())
+    crate::trace::timed("store.schema_check", || missing_from(db, expected()))
 }
 
 /// What of `want` the database lacks (Python `schema_missing`): two

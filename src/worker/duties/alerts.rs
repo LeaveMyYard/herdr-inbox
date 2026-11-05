@@ -39,7 +39,8 @@ pub fn scan_blocked(
 ) -> usize {
     let herdr = round.ctx.herdr;
     // Python `herdr.call("agent", "list")`: None on a failure, else `.result`
-    let agents = crate::trace::herdr("agent.list", || herdr.raw("agent.list", json!({})))
+    let agents = herdr
+        .raw("agent.list", json!({}))
         .ok()
         .and_then(|r| seen(&r));
     let label = |tab: &str| {

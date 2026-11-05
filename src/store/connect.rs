@@ -85,7 +85,7 @@ impl Store {
     /// Opens `path` with SQLite's busy timeout at `timeout`.
     pub fn open(path: &Path, timeout: Duration) -> Result<Store, OpenError> {
         let db = with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE, timeout)?;
-        let missing = crate::trace::timed("store.schema_check", || readiness::missing(&db))?;
+        let missing = readiness::missing(&db)?;
         if !missing.is_empty() {
             // the worker holding the lock must hear about it: it starts the newer worker (#50)
             super::revision_wanted::want(

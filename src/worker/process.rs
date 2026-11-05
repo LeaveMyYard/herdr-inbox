@@ -88,7 +88,7 @@ fn serve() -> i32 {
     let env = PluginEnv::from_env();
     let exe = own_exe();
     let wenv = worker_env(&env, std::env::vars_os(), None, &exe);
-    let herdr = Herdr::from_env();
+    let herdr = crate::trace::observed(Herdr::from_env());
     let config = ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());
     let remote = RemoteEnv {
         db: wenv.db.clone(),

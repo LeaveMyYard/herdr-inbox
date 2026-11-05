@@ -37,7 +37,7 @@ impl Effects {
     pub fn start(herald: Arc<dyn Herald>) -> Effects {
         let (tx, rx) = channel::<Effect>();
         let (done_tx, done_rx) = channel();
-        thread::spawn(move || {
+        let job = move || {
             for e in rx {
                 // one bad job never stops the queue (Python's loop catches every exception)
                 let run = AssertUnwindSafe(|| {
@@ -53,7 +53,11 @@ impl Effects {
                 }
             }
             let _ = done_tx.send(());
-        });
+        };
+        thread::Builder::new()
+            .name("inbox-background".into())
+            .spawn(job)
+            .expect("the effects' thread starts");
         Effects {
             tx: Mutex::new(Some(tx)),
             done: Mutex::new(Some(done_rx)),
