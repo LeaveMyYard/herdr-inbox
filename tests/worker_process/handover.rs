@@ -19,7 +19,7 @@ pub fn python_hands_over_to_rust_on_an_update() {
     let old = python_root(rig.dir.path(), "a", "0.10.6", 1);
     rig.list(&old);
     let python = rig.start_python("python", &old);
-    let ready = || rig.held_by(1, python) && rig.python_asked_for_its_root();
+    let ready = || rig.held_by(1, python) && rig.python_has_its_listing();
     assert!(wait_for(ready), "{}", rig.logs());
     let new = python_root(rig.dir.path(), "b", "0.10.7", 1);
     with_rust_worker(&new);
@@ -255,7 +255,7 @@ pub fn a_marker_gets_an_r1_python_holder_an_r2_rust_standby() {
     rig.list(&r1);
     // the Rust worker the Python holder starts inherits its environment
     let python = rig.start_python_with("python", &r1, &[("E1_REVISION", "2")]);
-    let ready = || rig.held_by(1, python) && rig.python_asked_for_its_root();
+    let ready = || rig.held_by(1, python) && rig.python_has_its_listing();
     assert!(wait_for(ready), "{}", rig.logs());
     rig.list(&r2);
     want(&rig.db, 2, unix_now());
