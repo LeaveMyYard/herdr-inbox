@@ -52,6 +52,7 @@ async def remote_screens(shots, work, h) -> None:
     h.hold(store)
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test(size=size) as pilot:
+        app._poll_timer.stop()  # the shots poll by hand: a timed poll lists the new outbox row at random
         await shots.add(file, src, size, "remote rows", app, pilot)
         await pilot.press("down")
         await shots.add(file, src, size, "cursor on a remote group", app, pilot)
@@ -87,6 +88,7 @@ async def remote_screens(shots, work, h) -> None:
     h.hold(store)
     app = InboxApp(store, focus_pane="w1:p1")
     async with app.run_test(size=size) as pilot:
+        app._poll_timer.stop()  # the shots poll by hand: a timed poll lists the new outbox row at random
         await pilot.press("down", "enter")
         await shots.add(file, src, size, "an unlabelled machine's question", app, pilot)
         await pilot.press("enter")
