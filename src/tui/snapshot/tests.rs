@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 
 use inbox_core::popup::Detail;
 use serde_json::json;
@@ -52,7 +52,7 @@ fn a_read_takes_the_open_rows_and_whatever_the_popup_shows_whole() {
     let a1 = alert(&s, "open");
     let a2 = alert(&s, "acked");
 
-    let fresh = read(&s, &Shown::default()).unwrap();
+    let fresh = read(&s, &Shown::default(), UNIX_EPOCH).unwrap();
     let ids: Vec<i64> = fresh.questions.iter().map(|q| q.id).collect();
     assert_eq!((ids, fresh.open.clone()), (vec![q1], vec![q1]));
     assert_eq!(
@@ -64,7 +64,7 @@ fn a_read_takes_the_open_rows_and_whatever_the_popup_shows_whole() {
     shown.groups.insert(q1);
     shown.groups.insert(q3);
     shown.alerts.insert(a2);
-    let snap = read(&s, &shown).unwrap();
+    let snap = read(&s, &shown, UNIX_EPOCH).unwrap();
     let ids: Vec<(i64, &str)> = snap
         .questions
         .iter()

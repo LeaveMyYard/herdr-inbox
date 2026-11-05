@@ -3,7 +3,7 @@
 //! ([`crate::tui::term`]) and against the tests' scripted one.
 
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use inbox_core::popup::{Key, Millis};
 use ratatui_core::buffer::Buffer;
@@ -40,6 +40,10 @@ pub trait Clock {
     fn now(&self) -> Millis;
     /// Wall-clock time, Unix seconds (ages, busy times).
     fn wall(&self) -> f64;
+    /// [`Clock::wall`] as a time.
+    fn wall_time(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_secs_f64(self.wall().max(0.0))
+    }
 }
 
 /// The real clocks.
