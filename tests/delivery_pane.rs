@@ -28,7 +28,13 @@ fn the_live_agent_is_asked_of_its_pane_and_a_failing_herdr_is_no_agent() {
                                        "agent_session": {"kind": "id", "value": S}}}),
         ),
     );
-    let agent = live_agent(&herdr.blocking_client(), &files, dir.path(), "w1:p1").unwrap();
+    let agent = live_agent(
+        &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+        &files,
+        dir.path(),
+        "w1:p1",
+    )
+    .unwrap();
     assert_eq!(
         (agent.kind.as_deref(), agent.status.as_str(), agent.focused),
         (Some("claude"), "working", true)
@@ -43,7 +49,12 @@ fn the_live_agent_is_asked_of_its_pane_and_a_failing_herdr_is_no_agent() {
     );
     herdr.on("agent.get", Reply::error("pane_not_found", "no such pane"));
     assert_eq!(
-        live_agent(&herdr.blocking_client(), &files, dir.path(), "w1:p1"),
+        live_agent(
+            &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+            &files,
+            dir.path(),
+            "w1:p1"
+        ),
         None
     );
 }
@@ -52,7 +63,13 @@ fn the_live_agent_is_asked_of_its_pane_and_a_failing_herdr_is_no_agent() {
 fn the_input_box_is_read_with_its_colours_and_an_unreadable_one_is_unknown() {
     let herdr = FakeHerdr::start();
     herdr.on("pane.read", screen(DRAFT));
-    assert_eq!(composer(&herdr.blocking_client(), "w1:p1"), Composer::Draft);
+    assert_eq!(
+        composer(
+            &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+            "w1:p1"
+        ),
+        Composer::Draft
+    );
     let params = herdr.params_of("pane.read");
     assert_eq!(
         (params[0]["lines"].clone(), params[0]["format"].clone()),
@@ -61,7 +78,10 @@ fn the_input_box_is_read_with_its_colours_and_an_unreadable_one_is_unknown() {
     assert_eq!(params[0]["source"], "visible");
     herdr.on("pane.read", Reply::error("pane_not_found", "gone"));
     assert_eq!(
-        composer(&herdr.blocking_client(), "w1:p1"),
+        composer(
+            &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+            "w1:p1"
+        ),
         Composer::Unknown
     );
 }
@@ -71,14 +91,20 @@ fn the_panel_is_read_from_the_last_twenty_plain_lines_and_unreadable_is_no_panel
     let herdr = FakeHerdr::start();
     let focused = "──────\n❯\n──────\n  ↑/↓ to select · esc";
     herdr.on("pane.read", screen(focused));
-    assert!(panel(&herdr.blocking_client(), "w1:p1"));
+    assert!(panel(
+        &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+        "w1:p1"
+    ));
     let params = herdr.params_of("pane.read");
     assert_eq!(
         (params[0]["lines"].clone(), params[0]["format"].clone()),
         (json!(20), json!("text"))
     );
     herdr.on("pane.read", Reply::error("pane_not_found", "gone"));
-    assert!(!panel(&herdr.blocking_client(), "w1:p1"));
+    assert!(!panel(
+        &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+        "w1:p1"
+    ));
 }
 
 #[test]
@@ -87,7 +113,7 @@ fn a_prompt_is_typed_cleaned_and_its_failure_is_its_error() {
     herdr.on("agent.prompt", Reply::Result(json!({})));
     assert_eq!(
         prompt(
-            &herdr.blocking_client(),
+            &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
             "w1:p1",
             "[inbox] Q1 answered\n— yes\x1b[2J"
         ),
@@ -98,6 +124,11 @@ fn a_prompt_is_typed_cleaned_and_its_failure_is_its_error() {
         vec![json!({"target": "w1:p1", "text": "[inbox] Q1 answered — yes[2J"})]
     );
     herdr.on("agent.prompt", Reply::error("agent_busy", "fake failure"));
-    let error = prompt(&herdr.blocking_client(), "w1:p1", "x").expect("an error");
+    let error = prompt(
+        &herdr.blocking_client().with_bin("/nonexistent/herdr-cli"),
+        "w1:p1",
+        "x",
+    )
+    .expect("an error");
     assert!(error.contains("fake failure"), "{error}");
 }

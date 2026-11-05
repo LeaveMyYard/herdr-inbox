@@ -39,6 +39,7 @@ fn short() -> Backoff {
     Backoff {
         busy: vec![ms(1), ms(2), ms(3)],
         not_ready: vec![ms(10), ms(20)],
+        attempt: ms(0),
     }
 }
 
@@ -120,4 +121,5 @@ fn the_default_waits_are_pythons() {
     let secs: Vec<f64> = b.not_ready.iter().map(Duration::as_secs_f64).collect();
     assert_eq!(secs, [0.3, 1.0, 2.0, 3.0, 3.0]);
     assert_eq!(TOOL_BUSY_TIMEOUT, Duration::from_secs(3));
+    assert_eq!(b.attempt, TOOL_BUSY_TIMEOUT); // each attempt's SQLite busy timeout
 }

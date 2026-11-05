@@ -69,6 +69,7 @@ def isolate(work: Path) -> None:
         "TZ": "UTC",
         "HERDR_INBOX_DB": str(work / "inbox.db"),
         "HERDR_PANE_ID": "w1:p1",
+        "HERDR_BIN_PATH": "/nonexistent/herdr-not-allowed-in-captures",  # capture_screens installs its fake over this
         "CLAUDE_CONFIG_DIR": str(work / "claude"),
         "HERDR_INBOX_NO_WORKER": "1",
         "HERDR_INBOX_HERDR_CONFIG": str(work / "herdr-config" / "config.toml"),
@@ -468,6 +469,9 @@ def capture_screens(out: Path, work: Path) -> list[Path]:
     shots = Shots()
     asyncio.run(popup_screens(shots, work))
     asyncio.run(extra_screens(shots, work))
+    from popup_remote_screens import remote_screens  # tools/ (P6-D2): a remote machine's rows
+
+    asyncio.run(remote_screens(shots, work, sys.modules[__name__]))
     written = []
     for name, doc in shots.files.items():
         doc["source"] += "; TZ=UTC; tools/capture_goldens.py"

@@ -22,11 +22,13 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::OnceLock;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use rusqlite::{Connection, OpenFlags};
 use serde::Deserialize;
 
+use super::busy::{BUSY_STEP, is_busy};
 use super::connect::{Store, with_flags};
 use super::revision::{MIGRATION_REVISION, STAMP, stamped_revision};
 
@@ -172,7 +174,8 @@ impl Store {
     pub fn migrate(&self) -> rusqlite::Result<()> {
         let db = self.db();
         // cannot change inside a transaction
-        db.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))?;
+        let wait: i64 = db.query_row("PRAGMA busy_timeout", [], |r| r.get(0))?;
+        switch_to_wal(db, Duration::from_millis(wait.max(0).unsigned_abs()))?;
         db.execute_batch("BEGIN IMMEDIATE")?;
         let work = || -> rusqlite::Result<()> {
             if !due(db)? {
@@ -187,6 +190,25 @@ impl Store {
                 let _ = db.execute_batch("ROLLBACK");
                 Err(err)
             }
+        }
+    }
+}
+
+/// `PRAGMA journal_mode=WAL`, retried while the database is busy until
+/// `wait` of wall clock has passed. On a rollback-journal database (a fresh
+/// file) the switch reads, then asks for the write lock while still holding
+/// its read lock; when another connection holds or waits for the write lock,
+/// SQLite answers BUSY at once instead of calling the busy handler (it
+/// would deadlock), so the busy timeout never applies there. Retrying from
+/// scratch drops the read lock and lets the other one finish; the migrating
+/// open retries for its connection's busy timeout (its `BEGIN IMMEDIATE`
+/// then waits its own). Any other error is returned at once.
+pub fn switch_to_wal(db: &Connection, wait: Duration) -> rusqlite::Result<()> {
+    let deadline = Instant::now() + wait;
+    loop {
+        match db.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(())) {
+            Err(err) if is_busy(&err) && Instant::now() < deadline => thread::sleep(BUSY_STEP),
+            done => return done,
         }
     }
 }
