@@ -773,7 +773,7 @@ tests/test_schema_migrations.py::test_every_schema_object_is_checked,tests/test_
 tests/test_schema_migrations.py::test_pre_bridge_and_bridge_processes_interleave_without_a_fight_or_data_loss,tests/test_schema_migrations.py,herdr-inbox --test hook delivery::a_hook_on_a_pre_bridge_stamp_delivers_and_leaves_the_stamp ; herdr-inbox --test store migrate::a_forward_migration_keeps_every_row,mapped,,P5
 tests/test_schema_migrations.py::test_concurrent_pre_bridge_restamps_bridge_workers_and_hooks,tests/test_schema_migrations.py,,todo,,P5
 tests/test_schema_migrations.py::test_two_bridge_revisions_interleave_forward_only,tests/test_schema_migrations.py,herdr-inbox --test store migrate::the_migration_rechecks_under_the_lock_and_never_lowers_a_higher_revision ; herdr-inbox --test store migrate::a_hook_open_never_migrates_and_works_once_the_worker_did,mapped,,P5
-tests/test_schema_migrations.py::test_the_cli_never_migrates,tests/test_schema_migrations.py,,todo,,P5
+tests/test_schema_migrations.py::test_the_cli_never_migrates,tests/test_schema_migrations.py,,todo,,P6
 tests/test_schema_migrations.py::test_the_worker_migrates_before_its_remote_thread_starts,tests/test_schema_migrations.py,,todo,,P5
 tests/test_schema_migrations.py::test_the_popup_migrates,tests/test_schema_migrations.py,,todo,,P6
 tests/test_schema_migrations.py::test_the_switch_to_wal_waits_out_a_writer_on_a_rollback_journal_database,tests/test_schema_migrations.py,herdr-inbox --test store migrate::the_switch_to_wal_meets_a_writer_with_an_immediate_busy ; herdr-inbox --test store migrate::a_migrating_open_waits_for_a_writer_on_a_rollback_journal_database,mapped,,P5

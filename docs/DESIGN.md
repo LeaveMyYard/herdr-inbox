@@ -1491,13 +1491,16 @@ manual route (`claude mcp add` without the plugin).
 
 - **`check_answers` keeps Python's behaviour.** It returns an answer whose delivery is in flight
   and leaves that claim in place, and a claim refuses an answer the agent already fetched. A
-  claimed answer is not refused here, whatever an earlier plan said. The typing that holds the
-  claim may still land the answer, so the agent can see it twice; it is never lost.
-- **`verify <job>` is ported before the popup switch (P6-E), not before.** Until then the Rust
+  claimed answer is not refused here. The typing that holds the claim may still land the
+  answer, so an in-flight answer can reach the agent twice, rather than not at all.
+- **`verify <job>` is ported before the popup switch (P6-E), not as part of P5-I.** Until then the Rust
   popup's own-pane sends use Python's fallback for a check that cannot start: the claim goes
   stale and the worker looks at the transcript before it types anything again. The switch of
   the worker, MCP and CLI (P5-I) does not need it: the Python popup starts its check as
-  `python -m herdr_inbox.cli verify`, not through the manifest.
+  `python -m herdr_inbox.cli verify`, not through the manifest. Three ledger rows wait for it, in
+  phase P6: `test_m1_inbox_verify_records_the_outcome_with_the_claim`,
+  `test_a_failing_verify_spawn_does_not_break_the_send`, and `test_the_cli_never_migrates`, whose
+  loop over the CLI's commands includes `verify`.
 
 ## Out of scope for the PoC
 
