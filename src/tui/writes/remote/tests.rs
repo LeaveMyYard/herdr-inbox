@@ -105,9 +105,66 @@ fn a_dismissal_is_queued_with_no_detail() {
 #[test]
 fn two_actions_never_share_a_request_id() {
     let (_d, _p, s) = store();
-    assert_eq!(write(&s, &answer(), env()), Outcome::Done);
-    assert_eq!(write(&s, &answer(), env()), Outcome::Done);
+    question(&s, "m1", 2, 2);
+    let dismiss = |id| Effect::RemoteDismiss {
+        question: shown_as(id),
+    };
+    assert_eq!(write(&s, &dismiss(1), env()), Outcome::Done);
+    assert_eq!(write(&s, &dismiss(2), env()), Outcome::Done);
     assert_eq!(queued(&s).len(), 2);
+}
+
+#[test]
+fn a_question_takes_one_action_however_stale_the_models_copy() {
+    let refused = Outcome::Refused(Some(
+        "not queued: that question already has an action queued".into(),
+    ));
+    let dismiss = Effect::RemoteDismiss {
+        question: shown_as(1),
+    };
+    for state in ["queued", "done"] {
+        let (_d, _p, s) = store();
+        outbox(&s, "r1", "m1", state, FUTURE);
+        assert_eq!(write(&s, &answer(), env()), refused, "{state}");
+        assert_eq!(write(&s, &dismiss, env()), refused, "{state}");
+        assert_eq!(queued(&s).len(), 1);
+    }
+}
+
+#[test]
+fn an_action_that_ended_or_another_question_does_not_count() {
+    for state in ["failed", "rejected", "seen"] {
+        let (_d, _p, s) = store();
+        outbox(&s, "r1", "m1", state, FUTURE);
+        assert_eq!(write(&s, &answer(), env()), Outcome::Done, "{state}");
+    }
+    // an acknowledgement, and a question that had this number before a remote reset
+    let (_d, _p, s) = store();
+    outbox(&s, "r1", "m1", "queued", FUTURE);
+    s.db()
+        .execute("UPDATE remote_outbox SET action = 'ack_alert'", [])
+        .unwrap();
+    assert_eq!(write(&s, &answer(), env()), Outcome::Done);
+    let (_d, _p, s) = store();
+    outbox(&s, "r1", "m1", "queued", FUTURE);
+    s.db()
+        .execute("UPDATE remote_outbox SET qkey = 'old'", [])
+        .unwrap();
+    assert_eq!(write(&s, &answer(), env()), Outcome::Done);
+}
+
+#[test]
+fn looking_and_queueing_happen_under_the_write_lock() {
+    // the row already queued would refuse without a word from the database: the lock comes first
+    let (_d, path, s) = store();
+    outbox(&s, "r1", "m1", "queued", FUTURE);
+    let holder = rusqlite::Connection::open(&path).unwrap();
+    holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+    assert_eq!(
+        write(&s, &answer(), env()),
+        Outcome::Refused(Some(BUSY.to_string()))
+    );
+    holder.execute_batch("ROLLBACK").unwrap();
 }
 
 #[test]
@@ -182,6 +239,23 @@ fn an_ack_queues_and_shows_the_alert_acknowledged() {
 }
 
 #[test]
+fn an_ack_lands_whole_or_not_at_all() {
+    let (_d, _p, s) = store();
+    s.db()
+        .execute_batch(
+            "CREATE TRIGGER no_ack BEFORE UPDATE ON remote_alerts \
+             BEGIN SELECT RAISE(ABORT, 'no'); END;",
+        )
+        .unwrap();
+    assert!(matches!(
+        write(&s, &ack(), env()),
+        Outcome::Refused(Some(_))
+    ));
+    assert_eq!(queued(&s), [], "no outbox row without the mirror's acked");
+    assert_eq!(alert_status(&s), "open");
+}
+
+#[test]
 fn an_ack_of_an_alert_the_mirror_replaced_changes_nothing() {
     let (_d, _p, s) = store();
     s.db()
@@ -249,6 +323,36 @@ fn a_row_not_clearable_any_more_is_refused_without_a_word() {
         write(&s, &clear("gone", false), env()),
         Outcome::Refused(None)
     );
+}
+
+#[test]
+fn the_look_at_a_row_happens_under_the_write_lock() {
+    // not clearable: without the lock this would answer at once, and a row could start
+    // sending between the look and the write
+    let (_d, path, s) = store();
+    outbox(&s, "r1", "m1", "queued", FUTURE);
+    let holder = rusqlite::Connection::open(&path).unwrap();
+    holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+    assert_eq!(
+        write(&s, &clear("r1", true), env()),
+        Outcome::Refused(Some(BUSY.to_string()))
+    );
+    holder.execute_batch("ROLLBACK").unwrap();
+}
+
+#[test]
+fn whether_a_row_expired_is_asked_of_the_time_given() {
+    let (_d, _p, s) = store();
+    outbox(&s, "r1", "m1", "queued", PAST);
+    let before = RemoteEnv {
+        wall: UNIX_EPOCH + Duration::from_secs(1_500_000_000), // 2017, before PAST
+        ..env()
+    };
+    assert_eq!(
+        write(&s, &clear("r1", true), before),
+        Outcome::Refused(None)
+    );
+    assert_eq!(state(&s, "r1").0, "queued");
 }
 
 #[test]

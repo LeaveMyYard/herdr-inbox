@@ -430,9 +430,14 @@ say why in the PR:
   read, the outbox row started sending, the database failed), the IO layer stops the batch there,
   ahead of the announcement, and sends `RemoteRefused`. The model returns to the state it had when
   the action started, as if it had refused by itself: an answer's view with what was typed, the
-  row open, the popup running. Dismissals queued before the refused one stay queued, and the
-  fresh read leaves the row with the questions that are left. `crates/inbox-core/tests/popup_refused.rs`
-  and `src/tui/run/tests/remote.rs` pin it.
+  row open, the popup running. The one exception is an alert's view, which ends on the list, as
+  Python's `on_alert_view_ack` does after a `LookupError`; a database error ends there too, where
+  Python's `guarded` stays in the view (an alert has no typed text to lose). Dismissals queued
+  before the refused one stay queued, and the fresh read leaves the row with the questions that
+  are left. If that read fails too, the model's copy still shows them as open, so the IO layer
+  refuses a second answer or dismissal of a question that has one queued or done (`not queued:
+  that question already has an action queued`). Python's `enqueue` has no such check; its popup
+  reads live. `crates/inbox-core/tests/popup_refused.rs` and `src/tui/run/tests/remote.rs` pin it.
 
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 

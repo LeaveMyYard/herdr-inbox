@@ -2,9 +2,11 @@
 //! only (Python `remote.enqueue`, `enqueue_alert_ack`, `_settle`, `mark_seen`,
 //! `clear_problem`): the delivery worker talks to the machine.
 //!
-//! An answer or a dismissal goes under the identity the operator saw, an
-//! action the mirror cannot take under it is refused, and so is any write the
-//! database fails: the model has moved on by then, so every way this does not
+//! An answer or a dismissal goes under the identity the operator saw, once.
+//! An action the mirror cannot take under it is refused, and so is a second
+//! action on a question that has one (the model's copy can be behind: only a
+//! read tells it what is queued, and a read can fail). So is any write the
+//! database fails. The model has moved on by then, so every way this does not
 //! write ends in [`Outcome::Refused`].
 
 use std::time::{Duration, SystemTime};
@@ -18,6 +20,9 @@ use crate::store::mirror::Gone;
 use crate::token::request_id;
 use crate::tui::send::failure;
 use crate::tui::snapshot::convert::detail_json;
+
+/// Why a second action on a question is refused.
+const ALREADY_QUEUED: &str = "that question already has an action queued";
 
 /// What a remote write needs besides the database.
 #[derive(Clone, Copy, Debug)]
@@ -81,15 +86,26 @@ fn queue(
     env: RemoteEnv,
 ) -> rusqlite::Result<Outcome> {
     let data = shown(question.remote_id, "qkey", &question.qkey, &question.db_id);
-    let queued = store.enqueue(
-        &question.machine_id,
-        &data,
-        action,
-        detail,
-        &request_id(),
-        &mut || env.wall,
-        env.expiry,
-    )?;
+    let queued = store.immediate(|_| {
+        let RemoteRef {
+            machine_id,
+            remote_id,
+            db_id,
+            qkey,
+        } = question;
+        if store.action_queued(machine_id, *remote_id, db_id, qkey)? {
+            return Ok(Err(Gone(ALREADY_QUEUED.to_string())));
+        }
+        store.enqueue(
+            machine_id,
+            &data,
+            action,
+            detail,
+            &request_id(),
+            &mut || env.wall,
+            env.expiry,
+        )
+    })?;
     Ok(match queued {
         Ok(_) => Outcome::Done,
         Err(Gone(why)) => Outcome::Refused(Some(format!("not queued: {why}"))),

@@ -118,6 +118,24 @@ impl Store {
         stmt.query_map([machine_id], |r| r.get(0))?.collect()
     }
 
+    /// This very question (`db_id`, `qkey`) has an answer or a dismissal queued
+    /// or done: [`Store::busy_ids`]' rule, for a write. A later question under
+    /// the same number does not count.
+    pub fn action_queued(
+        &self,
+        machine_id: &str,
+        remote_id: i64,
+        db_id: &str,
+        qkey: &str,
+    ) -> rusqlite::Result<bool> {
+        self.db().query_row(
+            "SELECT EXISTS (SELECT 1 FROM remote_outbox WHERE machine_id = ? AND remote_id = ? AND db_id = ? \
+             AND qkey = ? AND action IN ('answer', 'dismiss') AND state IN ('queued', 'done'))",
+            rusqlite::params![machine_id, remote_id, db_id, qkey],
+            |r| r.get(0),
+        )
+    }
+
     /// (group key, machine, open questions' data with `_db_id`) per open
     /// mirrored group, questions already answered here left out.
     #[allow(clippy::type_complexity)]

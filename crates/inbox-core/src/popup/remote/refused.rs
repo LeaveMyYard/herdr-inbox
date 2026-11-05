@@ -7,7 +7,8 @@
 //! take anything back. When the write is refused, the model returns to the
 //! state it had when the action started, so the operator ends up as if the
 //! model itself had refused: an answer's view still open with what was typed,
-//! the row still open.
+//! the row still open. An alert's view is the one exception: Python goes back
+//! to the list after a refused acknowledgement, so the row is seen as it is now.
 
 use crate::popup::data::Snapshot;
 use crate::popup::event::Severity;
@@ -42,6 +43,9 @@ impl Popup {
         }
         if let Some(text) = notice {
             self.notify(&text, Severity::Warning);
+        }
+        if self.remote_alert().is_some() {
+            self.back_to_list(true);
         }
     }
 }

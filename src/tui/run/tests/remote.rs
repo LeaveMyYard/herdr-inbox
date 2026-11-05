@@ -196,6 +196,65 @@ fn a_dismissal_refused_midway_stops_and_leaves_the_rest_open() {
 }
 
 #[test]
+fn a_dismissal_refused_midway_never_queues_a_question_twice() {
+    // the read fails at the refusal, so the model is back on a copy from before Q1 was queued
+    let rig = rig();
+    for id in [1, 2, 3] {
+        question(&rig.store, "m1", id, 1);
+    }
+    let dismissed = |rig: &Rig| -> Vec<i64> { queued(&rig.store).iter().map(|r| r.1).collect() };
+    let steps = vec![
+        key("d"),
+        sql(&rig, BREAK_READS),
+        sql(
+            &rig,
+            "UPDATE remote_questions SET qkey = 'other' WHERE remote_id = 2;",
+        ),
+        key("y"),
+        saw("that question changed"),
+        sql(
+            &rig,
+            "UPDATE remote_questions SET qkey = 'k2' WHERE remote_id = 2;",
+        ),
+        key("d"), // still Q1, Q2 and Q3 as the model sees it
+        key("y"),
+        saw("that question already has an action queued"),
+    ];
+    rig.run(None, None, steps);
+    assert_eq!(dismissed(&rig), [1]);
+
+    // the reads work again: the row holds what is left, and that goes once each
+    rig.store.db().execute_batch(MEND_READS).unwrap();
+    rig.run(None, None, vec![key("d"), key("y")]);
+    assert_eq!(dismissed(&rig), [1, 2, 3]);
+}
+
+#[test]
+fn a_refusal_shows_the_database_as_it_is_now() {
+    // reads work here: Q1 went out, Q2 failed, and the row says two questions are left
+    let rig = rig();
+    for id in [1, 2, 3] {
+        question(&rig.store, "m1", id, 1);
+    }
+    rig.store
+        .db()
+        .execute_batch(
+            "CREATE TRIGGER no_q2 BEFORE INSERT ON remote_outbox WHEN NEW.remote_id = 2 \
+             BEGIN SELECT RAISE(ABORT, 'no'); END;",
+        )
+        .unwrap();
+    let steps = vec![
+        saw("3 questions"),
+        key("d"),
+        key("y"),
+        saw("The inbox database failed"),
+        saw("box:Q2"),
+        saw("2 questions"),
+    ];
+    rig.run(None, None, steps);
+}
+
+#[test]
 fn an_ack_is_written_and_a_refused_one_leaves_the_alert_open() {
     let rig = rig();
     alert(&rig.store, "m1", 4);

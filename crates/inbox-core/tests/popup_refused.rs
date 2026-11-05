@@ -242,7 +242,7 @@ fn a_refused_ack_in_the_list_keeps_the_alert_open() {
 }
 
 #[test]
-fn a_refused_ack_in_its_view_goes_back_to_the_view() {
+fn a_refused_ack_in_its_view_ends_on_the_list_with_the_alert_open() {
     let mut r = Run::open(with_alert());
     r.key("up");
     r.key("enter");
@@ -250,10 +250,12 @@ fn a_refused_ack_in_its_view_goes_back_to_the_view() {
     assert!(matches!(r.key("d")[0], Effect::RemoteAck { .. }));
     assert_eq!(r.popup.mode(), Mode::List);
 
-    r.refused(Some("why"), None);
+    assert_eq!(r.refused(Some("why"), None), [warning("why")]);
 
-    assert_eq!(r.popup.mode(), Mode::Alert);
-    assert_eq!(r.popup.remote_alert().unwrap().alert.id, 4);
+    assert_eq!(r.popup.mode(), Mode::List, "Python's back_to_list");
+    let entry = Entry::RemoteAlert("m1|4".into());
+    assert_eq!(r.closed(&entry), None);
+    assert!(r.popup.data().remote.alert("m1|4").is_some());
 }
 
 fn outbox_row() -> OutboxRow {
