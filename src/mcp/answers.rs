@@ -6,7 +6,8 @@
 //! delivery claims only answers its agent has not fetched
 //! (`Store::claim_delivery`). An answer whose delivery is in flight (claimed
 //! before this call) is returned all the same and its claim kept, as in
-//! Python: the typing that holds it may still land it.
+//! Python: the typing that holds it may still land it. The operator kept
+//! this on 2026-11-05 (docs/DESIGN.md, "Rust port decisions").
 //!
 //! A stated deviation: Python runs the three steps in autocommit, so a
 //! failure after the answers were marked seen (the alerts' write, busy) lost

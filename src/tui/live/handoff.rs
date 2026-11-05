@@ -9,8 +9,9 @@
 //! rows keep their claim, the claim goes stale after
 //! [`CLAIM_STALE`](crate::store::claims::CLAIM_STALE), and the worker takes
 //! them over, looking at the transcript before it types anything again. The
-//! popup closes as soon as the answer is typed. TODO(before P6-E): spawn
-//! `<exe> verify <job>` here.
+//! popup closes as soon as the answer is typed. TODO(before P6-E, operator
+//! 2026-11-05; docs/DESIGN.md, "Rust port decisions"): spawn `<exe> verify
+//! <job>` here.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
