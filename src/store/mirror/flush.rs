@@ -1,7 +1,6 @@
-//! Sending the outbox (Python `remote.flush`, `_sending`,
-//! `_resolve_expired`, `expire_sweep`): FIFO per question, re-validated
-//! against the mirror first, expired ones failed or asked about, each send
-//! idempotent by its request id on the remote.
+//! Sending the outbox (Python `remote.flush`, `_sending`): the queue's heads
+//! in order, FIFO per question, expired ones failed or asked about
+//! ([`super::expiry`]), the rest sent one by one ([`super::send`]).
 
 use std::time::SystemTime;
 

@@ -371,14 +371,15 @@ fn backoff(store: &Store) -> Option<String> {
         .unwrap()
 }
 
-#[test]
-fn a_failed_pulls_backoff_counts_from_the_failure_not_from_the_call_that_failed() {
-    // the machine times out 10 s into the call: Python's `_fail` reads the clock after it
-    let dir = tempfile::tempdir().unwrap();
-    let store = store(&dir);
-    let time = Cell::new(0);
-    let timed_out = answer(String::new(), 124, "timed out");
+/// How the remote answers a call.
+type Reply = Box<dyn Fn(&FixedCommand, Option<&str>) -> CallResult>;
 
+/// A pull whose remote takes 10 s over each call, answering with `reply`.
+fn pull_taking_10s(
+    store: &Store,
+    reply: &dyn Fn(&FixedCommand, Option<&str>) -> CallResult,
+) -> (bool, Vec<Notice>) {
+    let time = Cell::new(0);
     let got = store.pull(
         "m1",
         Some("box"),
@@ -386,13 +387,66 @@ fn a_failed_pulls_backoff_counts_from_the_failure_not_from_the_call_that_failed(
         &mut || at(time.get()),
         &mut |_: &SafeTarget, c: &FixedCommand, i: Option<&str>| {
             time.set(10);
-            remote(c, i, &timed_out)
+            reply(c, i)
         },
     );
-
-    assert!(!got.value.0);
     assert!(got.error.is_none());
-    assert_eq!(backoff(&store), Some(iso_seconds(at(15))));
+    got.value
+}
+
+#[test]
+fn a_failed_pulls_backoff_counts_from_the_failure_whatever_failed() {
+    // Python's `_fail` reads the clock after the call: a machine that times out 10 s in
+    // must not have its first backoff already over
+    let bad_format = dumps(&json!({"version": "0.10.6", "format": 99, "db_id": DB_ID, "seq": 5}));
+    let failing_at_export =
+        |export: CallResult| move |c: &FixedCommand, i: Option<&str>| remote(c, i, &export);
+    let cases: Vec<(&str, Reply)> = vec![
+        (
+            "the paths probe",
+            Box::new(|_, _| answer(String::new(), 255, "no route")),
+        ),
+        (
+            "the export's exit",
+            Box::new(failing_at_export(answer(String::new(), 124, "timed out"))),
+        ),
+        (
+            "no export here",
+            Box::new(failing_at_export(answer(String::new(), 2, ""))),
+        ),
+        (
+            "a garbled export",
+            Box::new(failing_at_export(answer("Question Text 345".into(), 0, ""))),
+        ),
+        (
+            "another format",
+            Box::new(failing_at_export(answer(bad_format, 0, ""))),
+        ),
+    ];
+    for (what, reply) in cases {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(&dir);
+        assert!(!pull_taking_10s(&store, &*reply).0, "{what}");
+        assert_eq!(backoff(&store), Some(iso_seconds(at(15))), "{what}");
+    }
+}
+
+#[test]
+fn a_pull_that_worked_is_stamped_after_its_call() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store(&dir);
+    let exported = answer(export(1), 0, "");
+    let (ok, _) = pull_taking_10s(&store, &|c, i| remote(c, i, &exported));
+    assert!(ok);
+    let ok_at: String = store
+        .db()
+        .query_row(
+            "SELECT last_ok_at FROM remote_machines WHERE machine_id = 'm1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(ok_at, iso_seconds(at(10)));
 }
 
 #[test]

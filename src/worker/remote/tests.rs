@@ -258,15 +258,20 @@ fn recording_herdr(dir: &Path) -> (Herdr, Arc<Mutex<Vec<Value>>>) {
     )
 }
 
-/// A queued action past its time that was never sent.
+/// A queued action on question 1, past its time and never sent.
 fn expired_row(env: &RemoteEnv, id: &str) {
+    expired_row_of(env, id, 1);
+}
+
+/// A queued action on question `remote_id`: a flush takes one head per question.
+fn expired_row_of(env: &RemoteEnv, id: &str, remote_id: i64) {
     let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
     store
         .db()
         .execute(
             "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at, \
-             expires_at, state) VALUES (?, 'm1', 'dd', 1, 'k', 'answer', 'c', '2020-01-01T00:00:00+00:00', 'queued')",
-            [id],
+             expires_at, state) VALUES (?, 'm1', 'dd', ?, 'k', 'answer', 'c', '2020-01-01T00:00:00+00:00', 'queued')",
+            rusqlite::params![id, remote_id],
         )
         .unwrap();
 }
@@ -360,13 +365,20 @@ fn a_flush_stopped_by_an_error_still_reports_the_row_it_settled() {
     let (herdr, notes) = recording_herdr(dir.path());
     env.herdr = herdr;
     sync_all(&env, || {
-        expired_row(&env, "first"); // after the sweep: only the flush can report them
-        expired_row(&env, "second");
+        // after the sweep: only the flush can report them, each the head of its question
+        expired_row_of(&env, "first", 1);
+        expired_row_of(&env, "second", 2);
+        expired_row_of(&env, "third", 3);
         fault(&env, "UPDATE", "remote_outbox", "NEW.request_id = 'second'");
         vec![machine("m1", "box.lan")]
     });
     assert_ne!(state_of(&env, "first"), "queued");
     assert_eq!(state_of(&env, "second"), "queued");
+    assert_eq!(
+        state_of(&env, "third"),
+        "queued",
+        "the fault stopped the flush"
+    );
     assert_eq!(notes.lock().unwrap().len(), 2, "the pull's and the flush's");
 }
 

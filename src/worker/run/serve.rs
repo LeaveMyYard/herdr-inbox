@@ -32,10 +32,14 @@ pub(super) fn newer_wanted(env: &WorkerEnv, world: &mut impl World) -> bool {
     live_standby(&env.lock_path(), unix_now()).is_none()
 }
 
-/// One tick. A panic ends the tick, never the worker: Python's `except
-/// Exception` keeps it serving, and it counts as a failed tick does, one
-/// answer pending. An unwinding tick drops its store, which rolls back what
-/// it had open, and the next tick opens a new one.
+/// One tick. A panic ends the tick, never the worker, and counts as a failed
+/// tick does, one answer pending. An unwinding tick drops its store, which
+/// rolls back what it had open, and the next tick opens a new one.
+///
+/// This matches Python's `except Exception` around the tick only. Python also
+/// catches around most steps, so an exception there skips that step and
+/// delivery still runs. Here a panic ends the whole tick: one that repeats in
+/// an early step stops delivery until the server goes, a handover or an update.
 fn guarded_tick(world: &mut impl World) -> Ticked {
     catch_unwind(AssertUnwindSafe(|| world.tick())).unwrap_or_else(|_| {
         warn("worker tick failed", &"panicked");

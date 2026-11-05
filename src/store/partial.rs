@@ -4,6 +4,10 @@
 //! instead, and what a pass already committed must still reach the caller:
 //! the alert, outbox row or `issue_notified_at` it changed is never picked up
 //! again, so an effect dropped with the error would be lost for good.
+//!
+//! This covers database errors, not panics: effects wait in a local `Vec`
+//! until the pass ends, so a panic after a commit still loses them, where
+//! Python would already have notified.
 
 /// What a pass collected before it ended, and the error that ended it early.
 /// Carry out `value`, then look at `error`.
@@ -25,8 +29,10 @@ impl<T> Partial<T> {
         }
     }
 
-    /// The value of a pass that ran to its end, else its error. Drops what
-    /// was collected on an error: for a caller with nothing to carry out.
+    /// The value of a pass that ran to its end, else its error. On an error
+    /// this DROPS what was collected, the effects of committed changes, so
+    /// never call it where they must be carried out: it is for tests, and
+    /// for a caller with nothing to carry out.
     pub fn into_result(self) -> rusqlite::Result<T> {
         match self.error {
             Some(e) => Err(e),
