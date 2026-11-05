@@ -10,7 +10,7 @@ use super::pull::value_str;
 use super::{Notice, first_line, iso};
 use crate::pyjson;
 use crate::remote::validate::py_int;
-use crate::store::Store;
+use crate::store::{Partial, Store};
 
 /// The `delivery_error` of a typed answer never seen in the conversation
 /// (Python `service.NOT_VERIFIED`).
@@ -102,14 +102,26 @@ impl Store {
     }
 
     /// One notice per stuck answer of `machine_id`, once (a compare-and-set on
-    /// `issue_notified_at`).
+    /// `issue_notified_at`). A notice won before a database error stays in
+    /// the result: that answer is never notified again.
     pub fn notify_problems(
         &self,
         machine_id: &str,
         label: &str,
         now: SystemTime,
-    ) -> rusqlite::Result<Vec<Notice>> {
+    ) -> Partial<Vec<Notice>> {
         let mut out = Vec::new();
+        let ended = self.problems_into(machine_id, label, now, &mut out);
+        Partial::of(out, ended)
+    }
+
+    fn problems_into(
+        &self,
+        machine_id: &str,
+        label: &str,
+        now: SystemTime,
+        out: &mut Vec<Notice>,
+    ) -> rusqlite::Result<()> {
         for p in self
             .problem_rows()?
             .into_iter()
@@ -143,7 +155,7 @@ impl Store {
                 });
             }
         }
-        Ok(out)
+        Ok(())
     }
 
     /// The operator dealt with a stuck mirrored answer.

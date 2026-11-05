@@ -141,6 +141,7 @@ fn run(store: &Store, scan: &mut BlockedScan, op: &str, a: &Value) -> (Value, Va
                 .scan(store, server, seen.as_deref(), t, |tab| {
                     labels.get(tab).and_then(Value::as_str).map(String::from)
                 })
+                .into_result()
                 .unwrap();
             (json!(n), effects(&eff))
         }
@@ -228,6 +229,7 @@ fn a_prompt_alerts_at_exactly_fifteen_seconds() {
         };
         let (_, eff) = BlockedScan::default()
             .scan(&store, "/srv/a", Some(&[agent]), 0.0, |_| None)
+            .into_result()
             .unwrap();
         if herdr_inbox::clock::now() == before {
             assert!(

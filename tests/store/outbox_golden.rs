@@ -159,7 +159,7 @@ impl Replay {
                         if r.get("sweep").is_some_and(|v| v == true) {
                             // another worker's expiry sweep, on a clock of its own: the time now
                             let mut theirs = || UNIX_EPOCH + Duration::from_secs(ticking.get());
-                            let got = store.expire_sweep(&mut theirs).unwrap();
+                            let got = store.expire_sweep(&mut theirs).into_result().unwrap();
                             fx.extend(
                                 got.into_iter()
                                     .map(|n| json!(["notify-other", n.title, n.body])),
@@ -193,9 +193,10 @@ impl Replay {
                             m["id"].as_str().unwrap(),
                             m["label"].as_str(),
                             m["target"].as_str(),
-                            now,
+                            &mut || now,
                             &mut ssh,
                         )
+                        .into_result()
                         .unwrap();
                     notices(&mut effects_cell.borrow_mut(), got);
                     json!(ok)
@@ -239,6 +240,7 @@ impl Replay {
                 "flush" => {
                     let got = store
                         .flush(s(a, "machine_id").unwrap(), &mut clock, &mut ssh)
+                        .into_result()
                         .unwrap();
                     notices(&mut effects_cell.borrow_mut(), got.notices);
                     match got.aborted {
@@ -256,7 +258,7 @@ impl Replay {
                 "expire_sweep" => {
                     notices(
                         &mut effects_cell.borrow_mut(),
-                        store.expire_sweep(&mut clock).unwrap(),
+                        store.expire_sweep(&mut clock).into_result().unwrap(),
                     );
                     Value::Null
                 }
@@ -347,7 +349,11 @@ fn flush_replying(replay: &Replay, at: u64, stdout: &str) -> Vec<String> {
         }
     };
     let mut clock = || UNIX_EPOCH + Duration::from_secs(at);
-    let got = replay.store.flush("m2", &mut clock, &mut ssh).unwrap();
+    let got = replay
+        .store
+        .flush("m2", &mut clock, &mut ssh)
+        .into_result()
+        .unwrap();
     assert_eq!(got, Default::default());
     sent
 }

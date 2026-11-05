@@ -168,7 +168,14 @@ fn an_answer_queued_on_the_operators_machine_lands_on_the_remote_once() {
     let lose = RefCell::new(0);
     let mut call = ssh(&remote, &lose);
     let (ok, notices) = mirror
-        .pull("m1", Some("box"), Some("box"), SystemTime::now(), &mut call)
+        .pull(
+            "m1",
+            Some("box"),
+            Some("box"),
+            &mut SystemTime::now,
+            &mut call,
+        )
+        .into_result()
         .unwrap();
     assert!(
         ok,
@@ -195,7 +202,10 @@ fn an_answer_queued_on_the_operators_machine_lands_on_the_remote_once() {
     assert_eq!(queued, Ok("req-1".to_string()));
     // the first reply is lost after the remote applied it: the retry is answered from the record
     *lose.borrow_mut() = 1;
-    mirror.flush("m1", &mut clock, &mut call).unwrap();
+    mirror
+        .flush("m1", &mut clock, &mut call)
+        .into_result()
+        .unwrap();
     let q = remote.store().get(1).unwrap().unwrap();
     assert_eq!(
         (q.status.as_str(), q.answer.as_deref()),
@@ -219,7 +229,10 @@ fn an_answer_queued_on_the_operators_machine_lands_on_the_remote_once() {
         .db()
         .execute("UPDATE remote_outbox SET next_try_at = NULL", [])
         .unwrap();
-    mirror.flush("m1", &mut clock, &mut call).unwrap();
+    mirror
+        .flush("m1", &mut clock, &mut call)
+        .into_result()
+        .unwrap();
     assert_ne!(state(&mirror), "queued");
     let applied: Vec<(String, String)> = {
         let r = remote.store();
@@ -248,7 +261,14 @@ fn an_answer_queued_on_the_operators_machine_lands_on_the_remote_once() {
     // the next pull mirrors it answered
     assert!(
         mirror
-            .pull("m1", Some("box"), Some("box"), SystemTime::now(), &mut call)
+            .pull(
+                "m1",
+                Some("box"),
+                Some("box"),
+                &mut SystemTime::now,
+                &mut call
+            )
+            .into_result()
             .unwrap()
             .0
     );

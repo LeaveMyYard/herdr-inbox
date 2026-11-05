@@ -10,7 +10,7 @@ use super::outbox::{OUTBOX_COLUMNS, OutboxRow};
 use super::{Clock, Machine, Notice, iso};
 use crate::pyjson::dumps;
 use crate::remote::command::{FixedCommand, InboxSub, SafeTarget, Ssh};
-use crate::store::Store;
+use crate::store::{Partial, Store};
 
 impl Store {
     /// After expiry only a read-only status query (Python `_resolve_expired`):
@@ -95,8 +95,15 @@ impl Store {
 
     /// Expires queued actions past their time for every machine (Python
     /// `expire_sweep`); one sent at least once to a reachable machine waits
-    /// for flush's status query instead.
-    pub fn expire_sweep(&self, clock: Clock<'_>) -> rusqlite::Result<Vec<Notice>> {
+    /// for flush's status query instead. The notices of rows it settled stay
+    /// in the result after a database error: those rows are final.
+    pub fn expire_sweep(&self, clock: Clock<'_>) -> Partial<Vec<Notice>> {
+        let mut notices = Vec::new();
+        let ended = self.sweep_into(clock, &mut notices);
+        Partial::of(notices, ended)
+    }
+
+    fn sweep_into(&self, clock: Clock<'_>, notices: &mut Vec<Notice>) -> rusqlite::Result<()> {
         let rows: Vec<OutboxRow> = {
             let mut stmt = self.db().prepare(&format!(
                 "SELECT {OUTBOX_COLUMNS}, m.label FROM remote_outbox o LEFT JOIN remote_machines m USING (machine_id) \
@@ -105,7 +112,6 @@ impl Store {
             stmt.query_map([iso(clock())], OutboxRow::from_row)?
                 .collect::<rusqlite::Result<_>>()?
         };
-        let mut notices = Vec::new();
         for row in rows {
             if row.in_flight(clock) {
                 continue;
@@ -130,6 +136,6 @@ impl Store {
                 .unwrap_or_else(|| row.machine_id.clone());
             notices.extend(self.expire(&row, &label, clock())?);
         }
-        Ok(notices)
+        Ok(())
     }
 }

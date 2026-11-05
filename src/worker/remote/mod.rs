@@ -109,24 +109,26 @@ pub fn sync_one(env: &RemoteEnv, m: &Machine) {
     let run = || -> Result<(), String> {
         let store = Store::open(&env.db, Duration::from_secs(5)).map_err(|e| e.to_string())?;
         let mut ssh = |t: &_, c: &_, i: Option<&str>| ssh::run(&env.ssh, t, c, i);
-        let (ok, notices) = store
-            .pull(
-                id,
-                m.label.as_deref(),
-                m.target.as_deref(),
-                SystemTime::now(),
-                &mut ssh,
-            )
-            .map_err(|e| e.to_string())?;
+        let pulled = store.pull(
+            id,
+            m.label.as_deref(),
+            m.target.as_deref(),
+            &mut SystemTime::now,
+            &mut ssh,
+        );
+        let (ok, notices) = pulled.value;
         notify(&env.herdr, notices);
+        if let Some(e) = pulled.error {
+            return Err(e.to_string());
+        }
         if ok {
-            let mut clock = SystemTime::now;
-            let flushed = store
-                .flush(id, &mut clock, &mut ssh)
-                .map_err(|e| e.to_string())?;
-            notify(&env.herdr, flushed.notices);
-            if let Some(why) = flushed.aborted {
+            let flushed = store.flush(id, &mut SystemTime::now, &mut ssh);
+            notify(&env.herdr, flushed.value.notices);
+            if let Some(why) = flushed.value.aborted {
                 warn(id, &why);
+            }
+            if let Some(e) = flushed.error {
+                return Err(e.to_string());
             }
         }
         Ok(())
@@ -140,14 +142,14 @@ pub fn sync_one(env: &RemoteEnv, m: &Machine) {
 /// machine, then the machines `enabled` lists (asked after the sweep, as
 /// Python) at once.
 pub fn sync_all(env: &RemoteEnv, enabled: impl FnOnce() -> Vec<Machine>) {
-    let sweep = || -> Result<Vec<Notice>, String> {
-        let store = Store::open(&env.db, Duration::from_secs(5)).map_err(|e| e.to_string())?;
-        store
-            .expire_sweep(&mut SystemTime::now)
-            .map_err(|e| e.to_string())
-    };
-    match sweep() {
-        Ok(notices) => notify(&env.herdr, notices),
+    match Store::open(&env.db, Duration::from_secs(5)) {
+        Ok(store) => {
+            let swept = store.expire_sweep(&mut SystemTime::now);
+            notify(&env.herdr, swept.value);
+            if let Some(e) = swept.error {
+                warn("expiry sweep failed", &e);
+            }
+        }
         Err(e) => warn("expiry sweep failed", &e),
     }
     each_machine(&enabled(), &|m| sync_one(env, m));

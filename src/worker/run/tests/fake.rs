@@ -25,6 +25,8 @@ pub struct Fake {
     pub stamp: Option<i64>,
     pub ticked: Ticked,
     pub ticks: usize,
+    /// The first this many ticks panic.
+    pub panics: usize,
     pub pending_now: usize,
     pub successor_starts: bool,
     pub calls: Vec<String>,
@@ -82,6 +84,7 @@ impl World for Fake {
     }
     fn tick(&mut self) -> Ticked {
         self.ticks += 1;
+        assert!(self.ticks > self.panics, "Question Text 345");
         self.ticked
     }
     fn pending_now(&mut self) -> usize {

@@ -30,7 +30,8 @@ fn seen(result: &Value) -> Option<Vec<SeenAgent>> {
 }
 
 /// One scan: the agents herdr reports (0 when it does not answer, or when
-/// the scan fails, which is logged). `marks` refreshes a pane's marks.
+/// the scan fails, which is logged after the effects of what it had already
+/// committed are carried out). `marks` refreshes a pane's marks.
 pub fn scan_blocked(
     round: &mut Round<'_, '_>,
     scan: &mut BlockedScan,
@@ -50,19 +51,16 @@ pub fn scan_blocked(
             .and_then(|t| t.label)
             .filter(|l| !l.is_empty())
     };
-    match scan.scan(round.ctx.store, round.server, agents.as_deref(), t, label) {
-        Ok((n, effects)) => {
-            for e in effects {
-                match e {
-                    Effect::Notify { title, body } => (round.ctx.notify)(&title, &body),
-                    Effect::Markers(pane) => marks(pane.as_deref()),
-                }
-            }
-            n
-        }
-        Err(e) => {
-            warn("blocked-agent scan failed", &e);
-            0
+    let scanned = scan.scan(round.ctx.store, round.server, agents.as_deref(), t, label);
+    let (n, effects) = scanned.value;
+    for e in effects {
+        match e {
+            Effect::Notify { title, body } => (round.ctx.notify)(&title, &body),
+            Effect::Markers(pane) => marks(pane.as_deref()),
         }
     }
+    if let Some(e) = scanned.error {
+        warn("blocked-agent scan failed", &e);
+    }
+    n
 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fix (Rust worker): a database error part way through a pass no longer loses notifications**
+  (#132). The blocked-agent scan, the outbox flush and expiry sweep and a remote pull now hand
+  back what they committed alongside the error, so an alert or a settled outbox row is still
+  notified. A failed pull's backoff counts from the failure, as in Python.
+- **Fix (Rust worker): a panic in a tick no longer ends the worker** (#132). It ends that tick,
+  which counts as failed. A worker that cannot start logs to `worker.log`, not over the popup.
 - **Fix: concurrent migrating opens of a fresh database could fail with "database is locked"**.
   On a rollback-journal file the switch to WAL asks for the write lock while holding a read
   lock, and SQLite answers busy at once there instead of waiting out the busy timeout. The

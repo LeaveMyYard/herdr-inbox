@@ -13,14 +13,12 @@
 use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
+use super::{Effect, SeenAgent};
+use crate::clock::{now, now_minus};
+use crate::store::{Partial, Store};
+use crate::tabs::{DEFAULT_PREFIX, base_label};
 use rusqlite::types::Value;
 use rusqlite::{params, params_from_iter};
-use serde_json::Value as Json;
-
-use super::Effect;
-use crate::clock::{now, now_minus};
-use crate::store::Store;
-use crate::tabs::{DEFAULT_PREFIX, base_label};
 
 /// A prompt answered within this never raises an alert (Python `BLOCKED_AFTER`).
 pub const BLOCKED_AFTER: Duration = Duration::from_secs(15);
@@ -28,40 +26,6 @@ pub const BLOCKED_AFTER: Duration = Duration::from_secs(15);
 pub const CLEAR_AFTER: f64 = 10.0;
 const BLOCKED_MESSAGE: &str =
     "The agent is at an approval or question prompt and cannot continue until you answer it there.";
-
-/// One agent of `herdr agent list`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SeenAgent {
-    /// Its pane.
-    pub pane_id: String,
-    /// `agent_status` (`blocked`, `working`, ...).
-    pub status: Option<String>,
-    /// Its tab, as herdr gave it (stored so; an empty one is not looked up).
-    pub tab_id: Option<String>,
-    /// `agent_session.value`.
-    pub session: Option<String>,
-    /// `agent` (its kind).
-    pub agent: Option<String>,
-}
-
-impl SeenAgent {
-    /// One entry of the list; `None` for one Python skips (not an object, no pane).
-    pub fn from_json(v: &Json) -> Option<SeenAgent> {
-        let text = |k: &str| v.get(k).and_then(Json::as_str).map(String::from);
-        let pane_id = text("pane_id").filter(|p| !p.is_empty())?;
-        Some(SeenAgent {
-            pane_id,
-            status: text("agent_status"),
-            tab_id: text("tab_id"),
-            session: v
-                .get("agent_session")
-                .and_then(|s| s.get("value"))
-                .and_then(Json::as_str)
-                .map(String::from),
-            agent: text("agent"),
-        })
-    }
-}
 
 /// The scan's memory between runs (Python's module-level `_unblocked`).
 #[derive(Debug, Default)]
@@ -72,8 +36,10 @@ pub struct BlockedScan {
 impl BlockedScan {
     /// One scan of herdr server `server`: `agents` is what `agent list`
     /// returned (`None`: herdr did not answer, nothing changes), `t` a
-    /// monotonic clock in seconds. Returns how many agents herdr reports and
-    /// the effects to carry out.
+    /// monotonic clock in seconds. Returns how many agents herdr reports (0
+    /// when the scan failed) and the effects to carry out, those of what it
+    /// committed before an error too: an alert already open is never
+    /// notified again.
     pub fn scan(
         &mut self,
         store: &Store,
@@ -81,9 +47,25 @@ impl BlockedScan {
         agents: Option<&[SeenAgent]>,
         t: f64,
         tab_label: impl Fn(&str) -> Option<String>,
-    ) -> rusqlite::Result<(usize, Vec<Effect>)> {
+    ) -> Partial<(usize, Vec<Effect>)> {
+        let mut effects = Vec::new();
+        match self.scan_into(store, server, agents, t, tab_label, &mut effects) {
+            Ok(n) => Partial::of((n, effects), Ok(())),
+            Err(e) => Partial::of((0, effects), Err(e)),
+        }
+    }
+
+    fn scan_into(
+        &mut self,
+        store: &Store,
+        server: &str,
+        agents: Option<&[SeenAgent]>,
+        t: f64,
+        tab_label: impl Fn(&str) -> Option<String>,
+        effects: &mut Vec<Effect>,
+    ) -> rusqlite::Result<usize> {
         let Some(agents) = agents else {
-            return Ok((0, Vec::new()));
+            return Ok(0);
         };
         let present: BTreeSet<&str> = agents.iter().map(|a| a.pane_id.as_str()).collect();
         let mut blocked: Vec<(&str, &SeenAgent)> = Vec::new(); // insertion order, last entry wins
@@ -133,7 +115,6 @@ impl BlockedScan {
         }
         let waiting: BTreeSet<String> = since.iter().map(|(p, _)| p.clone()).collect();
         let scope = " AND COALESCE(herdr_server, ?) = ?";
-        let mut effects = Vec::new();
         let open_auto = open_blocked(store, server, scope)?;
         for (pane, aid) in &open_auto {
             if !pane.as_ref().is_some_and(|p| waiting.contains(p))
@@ -178,7 +159,7 @@ impl BlockedScan {
                 effects.push(Effect::Markers(Some(pane.to_string())));
             }
         }
-        Ok((agents.len(), effects))
+        Ok(agents.len())
     }
 }
 

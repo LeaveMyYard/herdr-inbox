@@ -2,10 +2,13 @@
 //! tick until idle, until the herdr server is gone, until a newer worker
 //! stands by, or until an update hands over to the new install's worker.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
 use herdr_agent_kit::plugin_env::HeldLock;
 
-use super::World;
+use super::{Ticked, World};
 use crate::worker::WorkerEnv;
+use crate::worker::duties::warn;
 use crate::worker::handover::{SPAWN_EVERY, live_standby, write_holder};
 use crate::worker::lock::hold;
 use crate::worker::spawn::unix_now;
@@ -27,6 +30,24 @@ pub(super) fn newer_wanted(env: &WorkerEnv, world: &mut impl World) -> bool {
         return false;
     }
     live_standby(&env.lock_path(), unix_now()).is_none()
+}
+
+/// One tick. A panic ends the tick, never the worker, and counts as a failed
+/// tick does, one answer pending. An unwinding tick drops its store, which
+/// rolls back what it had open, and the next tick opens a new one.
+///
+/// This matches Python's `except Exception` around the tick only. Python also
+/// catches around most steps, so an exception there skips that step and
+/// delivery still runs. Here a panic ends the whole tick: one that repeats in
+/// an early step stops delivery until the server goes, a handover or an update.
+fn guarded_tick(world: &mut impl World) -> Ticked {
+    catch_unwind(AssertUnwindSafe(|| world.tick())).unwrap_or_else(|_| {
+        warn("worker tick failed", &"panicked");
+        Ticked {
+            pending: 1,
+            keep_alive: false,
+        }
+    })
 }
 
 /// Serves while `held` is the lock; returns the exit code. `held` is `None`
@@ -59,7 +80,7 @@ pub(super) fn serve(env: &WorkerEnv, world: &mut impl World, held: &mut Option<H
             let root = world.listed_root().or_else(|| world.current_root());
             world.spawn_newer(root); // if newer, it stands by and the next round hands over
         }
-        let ticked = world.tick();
+        let ticked = guarded_tick(world);
         let disk = world.installed_version();
         if disk.is_some_and(|d| d != env.version) && !handover_failed {
             *held = None; // updated: hand over

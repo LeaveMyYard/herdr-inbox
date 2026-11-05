@@ -6,6 +6,7 @@
 //! notifies comes back as [`Notice`]s (before `herdr.clean`, which the caller
 //! applies).
 
+mod apply;
 mod expiry;
 mod flush;
 mod outbox;
@@ -13,17 +14,19 @@ mod paths;
 mod problems;
 mod pull;
 mod reads;
+mod send;
 
 use std::time::SystemTime;
 
 use rusqlite::Row;
 
-pub use flush::{CORRUPT_DETAIL, Flushed};
+pub use flush::Flushed;
 pub use outbox::{Gone, OutboxRow, SENDING_STALE};
 pub use paths::{PLUGIN_ID, TOO_LARGE, probed, safe_path};
 pub use problems::{NOT_VERIFIED, Problem};
 pub use pull::{CallResult, FULL_EVERY};
 pub use reads::group_key;
+pub use send::CORRUPT_DETAIL;
 
 /// The time, read wherever Python calls `remote._now()` (once per call:
 /// a flush that runs for a while reads a later time for its later rows).

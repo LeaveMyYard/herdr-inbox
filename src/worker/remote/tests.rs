@@ -258,15 +258,20 @@ fn recording_herdr(dir: &Path) -> (Herdr, Arc<Mutex<Vec<Value>>>) {
     )
 }
 
-/// A queued action past its time that was never sent.
+/// A queued action on question 1, past its time and never sent.
 fn expired_row(env: &RemoteEnv, id: &str) {
+    expired_row_of(env, id, 1);
+}
+
+/// A queued action on question `remote_id`: a flush takes one head per question.
+fn expired_row_of(env: &RemoteEnv, id: &str, remote_id: i64) {
     let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
     store
         .db()
         .execute(
             "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at, \
-             expires_at, state) VALUES (?, 'm1', 'dd', 1, 'k', 'answer', 'c', '2020-01-01T00:00:00+00:00', 'queued')",
-            [id],
+             expires_at, state) VALUES (?, 'm1', 'dd', ?, 'k', 'answer', 'c', '2020-01-01T00:00:00+00:00', 'queued')",
+            rusqlite::params![id, remote_id],
         )
         .unwrap();
 }
@@ -324,6 +329,109 @@ fn what_a_flush_reports_reaches_the_operator() {
     });
     assert_ne!(state_of(&env, "late"), "queued");
     assert_eq!(notes.lock().unwrap().len(), 2, "the pull's and the flush's");
+}
+
+/// Fails `event` on `table` for the rows `when` selects (#132).
+fn fault(env: &RemoteEnv, event: &str, table: &str, when: &str) {
+    Store::open(&env.db, Duration::from_secs(5))
+        .unwrap()
+        .db()
+        .execute_batch(&format!(
+            "CREATE TRIGGER fault BEFORE {event} ON {table} WHEN {when} \
+             BEGIN SELECT RAISE(ABORT, 'injected fault'); END"
+        ))
+        .unwrap();
+}
+
+#[test]
+fn a_sweep_stopped_by_an_error_still_reports_the_row_it_settled() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = remote_env(dir.path());
+    let (herdr, notes) = recording_herdr(dir.path());
+    env.herdr = herdr;
+    expired_row(&env, "first");
+    expired_row(&env, "second");
+    fault(&env, "UPDATE", "remote_outbox", "NEW.request_id = 'second'");
+    sync_all(&env, Vec::new);
+    assert_ne!(state_of(&env, "first"), "queued");
+    assert_eq!(state_of(&env, "second"), "queued");
+    assert_eq!(notes.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn a_flush_stopped_by_an_error_still_reports_the_row_it_settled() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = remote_env(dir.path());
+    let (herdr, notes) = recording_herdr(dir.path());
+    env.herdr = herdr;
+    sync_all(&env, || {
+        // after the sweep: only the flush can report them, each the head of its question
+        expired_row_of(&env, "first", 1);
+        expired_row_of(&env, "second", 2);
+        expired_row_of(&env, "third", 3);
+        fault(&env, "UPDATE", "remote_outbox", "NEW.request_id = 'second'");
+        vec![machine("m1", "box.lan")]
+    });
+    assert_ne!(state_of(&env, "first"), "queued");
+    assert_eq!(state_of(&env, "second"), "queued");
+    assert_eq!(
+        state_of(&env, "third"),
+        "queued",
+        "the fault stopped the flush"
+    );
+    assert_eq!(notes.lock().unwrap().len(), 2, "the pull's and the flush's");
+}
+
+#[test]
+fn a_pull_stopped_by_an_error_reports_what_it_mirrored_and_flushes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = remote_env(dir.path());
+    let (herdr, notes) = recording_herdr(dir.path());
+    env.herdr = herdr;
+    sync_all(&env, || {
+        expired_row(&env, "waiting"); // after the sweep: a flush would settle it
+        let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
+        // the stuck-answer scan after the mirror write fails on this corrupt row
+        store
+            .db()
+            .execute(
+                "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json, first_seen_at) \
+                 VALUES ('m9', 'dd', 1, 'k', 'answered', '{', 't')",
+                [],
+            )
+            .unwrap();
+        vec![machine("m1", "box.lan")]
+    });
+    assert_eq!(notes.lock().unwrap().len(), 1, "the new question's");
+    assert_eq!(
+        state_of(&env, "waiting"),
+        "queued",
+        "no flush after an error"
+    );
+}
+
+#[test]
+fn a_notification_is_capped_at_200_and_300_characters() {
+    let dir = tempfile::tempdir().unwrap();
+    let (herdr, notes) = recording_herdr(dir.path());
+    let long = Notice {
+        title: "Question Title 123 ".repeat(40),
+        body: "Question Text 345 ".repeat(40),
+    };
+    let short = Notice {
+        title: "Question Title 1".into(),
+        body: "Question Text 1".into(),
+    };
+    notify(&herdr, vec![long, short]);
+    let notes = notes.lock().unwrap();
+    let chars = |n: usize, key: &str| notes[n][key].as_str().unwrap().chars().count();
+    assert_eq!(
+        (chars(0, "title"), chars(0, "body")),
+        (200, 300),
+        "{notes:?}"
+    );
+    assert_eq!(notes[1]["title"], "Question Title 1");
+    assert_eq!(notes[1]["body"], "Question Text 1");
 }
 
 #[test]
