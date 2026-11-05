@@ -33,10 +33,8 @@ pub(crate) fn row(
         Entry::Remote(key) => {
             let Some(g) = r.group(key).filter(|_| closed.is_none()) else {
                 let mid = key.split('|').next().unwrap_or_default();
-                let label = r.machine(mid).and_then(|m| m.label.clone());
-                let label = label.filter(|l| !l.is_empty()).unwrap_or(mid.to_string());
                 let why = closed.map_or("closed", String::as_str);
-                return done(head, &format!("{label} · {why}"));
+                return done(head, &format!("{} · {why}", r.name(mid)));
             };
             let first = &g.questions[0].question;
             let label = r.name(&g.machine_id);

@@ -17,7 +17,7 @@ import json
 def REMOTE_SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
     import popup_remote as r
 
-    from herdr_inbox import service
+    from herdr_inbox import alerts, service
 
     A, B, C = h.callers()
     key, keys, typed, poll, sent, focused, unseen = h.key, h.keys, h.typed, h.poll, h.sent, h.focused, h.unseen
@@ -157,4 +157,33 @@ def REMOTE_SCENARIOS(h):  # noqa: N802, C901 - the list the capture runs
     add("remote_edge.remote_question_ends_after_answer_elsewhere", "a remote question answered there: placeholder",
         setup(machine(), rq(1, "Q?", "yes"), local()),
         seq(keys("down", "enter"), poll(closed_there(1, "answered")), keys("1", "right", "escape", "escape")))
+
+    # -- the review's probes (#130): what guards the wrong question, machine or pane -------------
+    pv = [{"label": "a", "preview": "PA"}, {"label": "b", "preview": "PB"}]
+    two = setup(machine(), rq(1, "First?", "a", group=1), rq(2, "Second?", "b", group=1), local())
+    ab = setup(machine(), rq(1, "Which?", "a", "b"), local())
+    ap = setup(machine(), rq(1, "Which?", options=pv), local())
+    T, S = "tab", "shift+tab"
+    add("remote_edge.closed_but_group_lives", "the question on screen closes, its group lives: still a placeholder",
+        two, seq(keys("down", "enter"), poll(closed_there(1)), keys("enter", "escape", "down", "enter")))
+    add("remote_edge.two_machines_same_id", "an answer on one machine leaves the other's question of that number",
+        setup(machine(), machine(mid="m2", label="project2"), rq(1, "Mine?", "a"), rq(1, "Theirs?", "b", mid="m2"),
+              local()),
+        seq(keys("down", "enter", "enter", "down", "enter", "enter"), poll()))
+    add("remote_edge.tab_chain_box", "Tab and Shift+Tab with a box open: view, options, box",
+        ab, seq(keys("down", "enter", "n"), typed("hi"), keys(T, T, T, T, S, S, S, S, "escape")))
+    add("remote_edge.tab_chain_preview", "the chain takes in the preview pane", ap, keys("down", "enter", T, T, T, S, S, S))
+    add("remote_edge.tab_chain_preview_box", "the whole chain: view, options, box, preview",
+        ap, seq(keys("down", "enter", "n"), typed("hi"), keys(T, T, T, T, T, S, S, S, S, S, "escape")))
+    add("remote_edge.tab_chain_shared_id", "a local question of that number has a preview, the remote one none",
+        setup(machine(), rq(1, "Which?", "a"), lambda s: service.ask(s, B, "Local?", options=pv)),
+        keys("down", "enter", T, T, T))
+    add("remote_edge.tab_choices_then_pick", "keys reach the view from the option list",
+        ab, keys("down", "enter", T, "down", "enter"))
+    add("remote_edge.two_alerts_only", "only remote alerts: an ack goes back to the list, the last one closes",
+        setup(machine(), ralert(1, "One"), ralert(2, "Two")), seq(keys("down", "enter", "d", "down", "enter"), poll()))
+    add("remote_edge.g_in_a_remote_alert_shares_a_local_id", "g on a remote alert never goes to the local alert of that number",
+        setup(machine(), ralert(1, "Theirs"), lambda s: alerts.raise_alert(s, B, "Ours", "body", "urgent"), local(),
+              local(text="Two?")),
+        keys("up", "enter", "g", "g"))
     return out

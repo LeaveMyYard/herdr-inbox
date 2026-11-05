@@ -200,7 +200,9 @@ impl Popup {
             Entry::Alert(id) => p.data.alert(*id).map(|a| a.pane_id.clone()),
             Entry::Failed(id) => p.data.question(*id).map(|q| q.pane_id.clone()),
             Entry::Group(g) => p.data.open_group(*g).first().map(|q| q.pane_id.clone()),
-            _ => None, // the gone summary; an undeliverable remote answer
+            // the gone summary; every remote row: its pane is on another machine,
+            // and its number can be a local alert's or question's
+            _ => None,
         };
         match (self.mode, self.entry.clone()) {
             (Mode::List, _) => {
