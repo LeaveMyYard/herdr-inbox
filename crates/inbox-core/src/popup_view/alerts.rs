@@ -65,11 +65,10 @@ pub(crate) fn row(
     let (a, r#ref, remote) = match entry {
         Entry::Alert(id) => (data.alert(*id), format!("A{id}"), false),
         Entry::RemoteAlert(key) => {
-            // Python `_alert`: the open ones only; none found, no label ("None")
-            let found = data.remote.alert(key);
-            let label = found.map_or("None".to_string(), |a| data.remote.name(&a.machine_id));
-            let aid = key.rsplit('|').next().unwrap_or_default();
-            (found.map(|a| &a.alert), format!("{label}:A{aid}"), true)
+            // the name comes from the key: an ended alert keeps its machine's
+            let (mid, aid) = key.rsplit_once('|').unwrap_or(("", key));
+            let found = data.remote.alert(key).map(|a| &a.alert);
+            (found, format!("{}:A{aid}", data.remote.name(mid)), true)
         }
         _ => return vec![head.done()],
     };

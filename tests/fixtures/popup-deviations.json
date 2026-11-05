@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "source": "written by hand, not captured: where the Rust popup deliberately differs from Python (tests/fixtures/README.md, \"Deliberate deviations from Python\")",
+  "transitions": [
+    {"scenario":"remote_edge.chat_about_this","quirk":1,
+     "why":"Chat about this on a remote question focuses nothing: the pane id is the remote machine's, and here it can name an unrelated local agent. The operator is told which machine it runs on; no go_to, so no focused event and no exit.",
+     "from_step":4,"steps":[
+        {"at":12400,"event":{"key":"enter"},"effects":[{"notify":{"text":"That agent runs on project1: open it from herdr's machine view","severity":"information"}}],"state":{"running":true,"focus":"view","mode":"remote","entries":["group:1","remote:m1|dddddddddddddddddddddddddddddddd|1"],"closed":{},"fresh_until":{},"list_cursor":"remote:m1|dddddddddddddddddddddddddddddddd|1","direct":false,"held":false,"entry":"remote:m1|dddddddddddddddddddddddddddddddd|1","tabs":[],"current":null,"gone":{},"single":false,"grace_until":null,"view_at":11200,"last_key_at":12400,"prev_key_at":11800,"view":{"kind":"question","qid":1,"in_group":false,"last":true,"cursor":"chat","picked":[],"notes":{},"text":null,"editing":null,"input":null,"armed_at":11600},"confirm":null}}
+     ]},
+    {"scenario":"remote_edge.unlabelled_machine","quirk":3,
+     "why":"The placeholder of an unlabelled machine's alert names the machine by its id (Python: no machine at all).",
+     "from_step":7,"steps":[
+        {"at":13700,"event":{"poll":{"questions":[{"id":1,"group":1,"status":"open","pane_id":"w1:p2","options":[],"multi_select":false,"has_preview":false,"draft":null,"delivery_error":null,"delivered":false}],"open":[1],"failed":[],"alerts":[],"open_alerts":[],"remote":{"machines":[{"machine_id":"m1","label":null}],"groups":[],"mirror":[{"machine_id":"m1","remote_id":1,"db_id":"dddddddddddddddddddddddddddddddd","qkey":"0101010101010101"}],"alerts":[],"outbox":[{"request_id":"00000000000000000000000000000001","machine_id":"m1","action":"answer","remote_id":1,"state":"queued","clearable":false}],"problems":[]}}},"effects":[],"state":{"running":true,"focus":"view","mode":"alert","entries":["ralert:m1|1","group:1","routbox:00000000000000000000000000000001"],"closed":{"ralert:m1|1":"closed"},"fresh_until":{"routbox:00000000000000000000000000000001":14700},"list_cursor":"ralert:m1|1","direct":false,"held":false,"entry":"ralert:m1|1","tabs":[],"current":null,"gone":{},"single":false,"grace_until":14200,"view_at":13700,"last_key_at":13600,"prev_key_at":13000,"view":{"kind":"gone","ref":"m1:A1","reason":"closed"},"confirm":null}}
+     ]},
+    {"scenario":"remote_sync.deep_link_to_a_remote_question.held","quirk":4,
+     "why":"Tab releases a held deep link into a remote question, as it does in a group, and does nothing more (the focus stays). The Enter after it answers; that was the last row, so the popup quits.",
+     "from_step":2,"steps":[
+        {"at":11200,"event":{"key":"tab"},"effects":[],"state":{"running":true,"focus":"view","mode":"remote","entries":["remote:m1|dddddddddddddddddddddddddddddddd|1"],"closed":{},"fresh_until":{},"list_cursor":"remote:m1|dddddddddddddddddddddddddddddddd|1","direct":false,"held":false,"entry":"remote:m1|dddddddddddddddddddddddddddddddd|1","tabs":[],"current":null,"gone":{},"single":false,"grace_until":null,"view_at":10000,"last_key_at":11200,"prev_key_at":10600,"view":{"kind":"question","qid":1,"in_group":false,"last":true,"cursor":"opt:0","picked":[],"notes":{},"text":null,"editing":null,"input":null,"armed_at":10400},"confirm":null}},
+        {"at":11800,"event":{"key":"right"},"effects":[],"state":{"running":true,"focus":"view","mode":"remote","entries":["remote:m1|dddddddddddddddddddddddddddddddd|1"],"closed":{},"fresh_until":{},"list_cursor":"remote:m1|dddddddddddddddddddddddddddddddd|1","direct":false,"held":false,"entry":"remote:m1|dddddddddddddddddddddddddddddddd|1","tabs":[],"current":null,"gone":{},"single":false,"grace_until":null,"view_at":10000,"last_key_at":11800,"prev_key_at":11200,"view":{"kind":"question","qid":1,"in_group":false,"last":true,"cursor":"opt:0","picked":[],"notes":{},"text":null,"editing":null,"input":null,"armed_at":10400},"confirm":null}},
+        {"at":12400,"event":{"key":"enter"},"effects":[{"remote_answer":{"machine_id":"m1","remote_id":1,"db_id":"dddddddddddddddddddddddddddddddd","qkey":"0101010101010101","detail":{"choices":["yes"],"notes":{},"text":null}}},{"notify":{"text":"project1:Q1 answered · sending to project1","severity":"information"}},{"quit":{}}],"state":{"running":false}}
+     ]}
+  ],
+  "screens": [
+    {"file":"popup-remote","screen":"remote alert acknowledged in the list","quirk":2,
+     "why":"An acknowledged remote alert keeps its machine's label.",
+     "row":4,"runs":[["  ",null,"#121212",false],["❯","#b1b9f9","#121212",false],["    ","#e0e0e0","#121212",false],["✓ project1:A1 · acknowledged","#999999","#121212",false],["                                                                           ",null,"#121212",false]]},
+    {"file":"popup-remote","screen":"an unlabelled machine's question","quirk":3,
+     "why":"An unlabelled machine's question is titled with the machine id.",
+     "row":1,"runs":[["  ",null,"#121212",false],["m2:Q1 · Release train","#e0e0e0","#121212",true],["                                                                                       ",null,"#121212",false]]}
+  ]
+}

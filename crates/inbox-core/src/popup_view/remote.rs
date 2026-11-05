@@ -124,8 +124,7 @@ pub(crate) fn row(
     }
 }
 
-/// The open remote question's title row: `project1:Q3 · its title` (Python
-/// formats `m.get('label')`: "None" for a machine without one).
+/// The open remote question's title row: `project1:Q3 · its title`.
 pub(crate) fn title(popup: &Popup) -> Option<Line> {
     let (q, label) = popup.remote_question()?;
     let q = &q.question;
@@ -134,6 +133,6 @@ pub(crate) fn title(popup: &Popup) -> Option<Line> {
         .clone()
         .filter(|t| !t.is_empty())
         .unwrap_or_else(|| first_line(&q.question, 80));
-    let text = format!("{}:Q{} · {name}", label.unwrap_or("None"), q.id);
+    let text = format!("{label}:Q{} · {name}", q.id);
     Some(Ln::new().plain(&text).done())
 }

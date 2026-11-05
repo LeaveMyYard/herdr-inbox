@@ -112,10 +112,16 @@ impl Popup {
         self.focus() == Focus::Box
     }
 
-    /// Python `check_action("switch")`.
+    /// Python `check_action("switch")`, and a held remote question: it has
+    /// no tabs, but the switch keys must still release its deep link.
     fn can_switch(&self) -> bool {
-        !self.editing()
-            && (self.mode == Mode::Group || (self.mode == Mode::Empty && !self.entries.is_empty()))
+        let tabs = match self.mode {
+            Mode::Group => true,
+            Mode::Empty => !self.entries.is_empty(),
+            Mode::Remote => self.held,
+            _ => false,
+        };
+        tabs && !self.editing()
     }
 
     /// Python `check_action("dismiss" | "goto")`.

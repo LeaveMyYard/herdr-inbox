@@ -6,7 +6,9 @@
 //!
 //! One remote question at a time: [`Mode::Remote`] has no tabs and no Submit
 //! tab, `d` and `g` do nothing in it, and Enter queues the answer under the
-//! identity the question was shown with ([`RemoteRef`]).
+//! identity the question was shown with ([`RemoteRef`]). Where this differs
+//! from Python on purpose, tests/fixtures/README.md lists it ("Deliberate
+//! deviations from Python").
 
 mod data;
 mod rows;
@@ -50,11 +52,7 @@ impl Popup {
                     return self.show_list(Some(entry.clone()));
                 };
                 let question = group.questions[0].clone();
-                let label = self
-                    .data
-                    .remote
-                    .machine(&group.machine_id)
-                    .and_then(|m| m.label.clone());
+                let label = self.data.remote.name(&group.machine_id);
                 (self.mode, self.entry) = (Mode::Remote, Some(entry.clone()));
                 (self.tabs, self.current) = (Vec::new(), None);
                 let armed_at = self.armed_at();
@@ -81,10 +79,7 @@ impl Popup {
         if let Some(why) = self.data.remote.refusal(&question) {
             return self.notify(&format!("not queued: {why}"), Severity::Warning);
         }
-        let label = shown
-            .label
-            .filter(|l| !l.is_empty())
-            .unwrap_or_else(|| question.machine_id.clone());
+        let label = shown.label;
         let text = format!("{label}:Q{qid} answered · sending to {label}");
         self.data.remote.mark_busy(&question);
         self.fx.push(Effect::RemoteAnswer { question, detail });
@@ -98,6 +93,20 @@ impl Popup {
             }
         }
         self.back_to_list(false);
+    }
+
+    /// "Chat about this" on a remote question: its pane id means nothing on
+    /// this machine, so nothing is focused and the view stays. (Deviation:
+    /// Python goes to that pane id here, which can be an unrelated local
+    /// agent.)
+    pub(in crate::popup) fn chat_remote(&mut self) {
+        if let Some(shown) = &self.remote_open {
+            let text = format!(
+                "That agent runs on {}: open it from herdr's machine view",
+                shown.label
+            );
+            self.notify(&text, Severity::Information);
+        }
     }
 
     /// A poll in [`Mode::Remote`]: the question on screen closed over there
@@ -114,12 +123,8 @@ impl Popup {
             .group(key)
             .is_some_and(|g| g.questions.iter().any(|q| q.question.id == id));
         if !open {
-            // Python formats `m.get('label')`: an unlabelled machine reads "None"
-            let label = shown.label.clone().unwrap_or_else(|| "None".to_string());
-            self.replace_with_placeholder(
-                format!("{label}:Q{id}"),
-                "closed on the remote machine".to_string(),
-            );
+            let r#ref = format!("{}:Q{id}", shown.label);
+            self.replace_with_placeholder(r#ref, "closed on the remote machine".to_string());
         }
     }
 
@@ -134,10 +139,10 @@ impl Popup {
     }
 
     /// The remote question shown in [`Mode::Remote`], and its machine's
-    /// label as it was when it opened.
-    pub fn remote_question(&self) -> Option<(&RemoteQuestion, Option<&str>)> {
+    /// name as it was when it opened.
+    pub fn remote_question(&self) -> Option<(&RemoteQuestion, &str)> {
         match (self.mode, &self.remote_open) {
-            (Mode::Remote, Some(s)) => Some((&s.question, s.label.as_deref())),
+            (Mode::Remote, Some(s)) => Some((&s.question, &s.label)),
             _ => None,
         }
     }

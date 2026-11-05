@@ -18,6 +18,46 @@ const POPUP: &str = include_str!("../../../tests/fixtures/screens/popup.json");
 const NARROW: &str = include_str!("../../../tests/fixtures/screens/popup-narrow.json");
 const EXTRA: &str = include_str!("../../../tests/fixtures/screens/popup-extra.json");
 const REMOTE: &str = include_str!("../../../tests/fixtures/screens/popup-remote.json");
+const DEVIATIONS: &str = include_str!("../../../tests/fixtures/popup-deviations.json");
+
+/// The rows where the Rust popup deliberately differs from Python (the
+/// README lists why): `(file, screen, row, runs)`.
+fn deviations() -> Vec<(String, String, usize, Value)> {
+    let doc: Value = serde_json::from_str(DEVIATIONS).unwrap();
+    let list = doc["screens"].as_array().unwrap().iter().map(|d| {
+        let text = |k: &str| d[k].as_str().unwrap().to_string();
+        let row = usize::try_from(d["row"].as_u64().unwrap()).unwrap();
+        (text("file"), text("screen"), row, d["runs"].clone())
+    });
+    list.collect()
+}
+
+/// A golden screen as Rust must draw it.
+fn with_deviations(file: &str, name: &str, rows: &Value) -> Value {
+    let mut rows = rows.clone();
+    for (_, _, y, runs) in deviations()
+        .into_iter()
+        .filter(|d| d.0 == file && d.1 == name)
+    {
+        rows[y] = runs;
+    }
+    rows
+}
+
+/// When Python is fixed and the golden recaptured, this asks to drop the
+/// deviation.
+#[test]
+fn every_screen_deviation_still_differs_from_python() {
+    let doc: Value = serde_json::from_str(REMOTE).unwrap();
+    let list = deviations();
+    assert!(!list.is_empty());
+    for (file, name, y, runs) in list {
+        assert_eq!(file, "popup-remote", "only the remote screens deviate");
+        let python = &doc["screens"][&name][y];
+        assert!(python.is_array(), "no row {y} in {name}");
+        assert_ne!(*python, runs, "{name}: Python draws this now");
+    }
+}
 
 /// Every scenario's screens.
 fn screens() -> Shots {
@@ -56,7 +96,7 @@ fn every_golden_screen_is_drawn_cell_for_cell() {
             compared += 1;
             if let Some(d) = golden::diff(
                 &format!("{file}/{name}"),
-                &golden::want(rows),
+                &golden::want(&with_deviations(file, name, rows)),
                 &golden::got(buf),
             ) {
                 failures.push(d);

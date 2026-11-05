@@ -17,8 +17,8 @@ impl Popup {
             Msg::Quit => self.quit(),
             Msg::Open(entry) => self.open_entry(&entry, None),
             Msg::Answered(qid, detail) => self.answered(qid, detail),
+            Msg::Chat(_) if self.mode == Mode::Remote => self.chat_remote(),
             Msg::Chat(qid) => {
-                // a remote question's pane too: Python goes to that pane id here
                 let pane = self.view_question(qid).map(|q| q.pane_id.clone());
                 self.focus_pane(pane, false);
             }
