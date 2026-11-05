@@ -1,6 +1,7 @@
 # Test fixtures
 
-Every fixture here is captured, never written by hand.
+Every fixture here is captured, never written by hand, except `popup-deviations.json`: where the
+Rust popup deliberately differs from Python, no capture can produce it.
 
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
@@ -27,7 +28,12 @@ say why in the PR:
   `tests/test_tui.py`): `popup.json` (110x30), `popup-narrow.json` (40x20), and
   `popup-extra.json` (110x30, `extra_screens`: the views the others do not reach, such as
   pending and gone-agent answers, a note, an empty note box, a tab closed under the operator,
-  a long list that scrolls and a blocked alert):
+  a long list that scrolls and a blocked alert), and `popup-remote.json` (110x30,
+  `tools/popup_remote_screens.py`, P6-D2: a remote machine's rows from the local mirror — its
+  groups, queued, sending, expired and refused actions, an answer it cannot deliver, its
+  alerts — its question and alerts opened, the remote dismiss confirmation and the
+  placeholders; the mirror's clock is held at `HELD` too, and an action's expiry is past the
+  real clock the popup compares it with):
 
   ```
   {"source": "...", "size": [width, height], "screens": {
@@ -296,10 +302,61 @@ say why in the PR:
       "armed_at"}`.
     - `{"kind": "gone", "ref", "reason"}`.
     - `{"kind": "failed", "qid", "cursor": 0|1, "armed_at"}`.
-    - `{"kind": "alert", "alert", "label": null, "armed_at"}`.
+    - `{"kind": "alert", "alert", "label": null|str, "armed_at"}`: `label` is a remote
+      machine's name for its alert (`<label>:A<id>`).
 
-  The comparison is by JSON value: object key order does not count. Remote-machine rows are
-  not in this golden yet.
+  The comparison is by JSON value: object key order does not count.
+
+  Remote machines (P6-D2; scenarios `remote_sync.*`, from `tests/test_remote_sync.py`, and
+  `remote_edge.*`, captured by `tools/popup_remote.py` and `tools/scenarios_popup_remote.py`).
+  The popup reads a remote machine from the local mirror only; the delivery worker talks to it.
+  A snapshot has a `remote` part only when the mirror has rows (so the other scenarios carry
+  none):
+  `"remote": {"machines": [{"machine_id", "label": str|null}], "groups": [{"key",
+  "machine_id", "questions": [<rq>]}] (remote.open_groups: a question with an answer or a
+  dismissal already queued is left out), "mirror": [<ref>] (every mirrored question, open or
+  not), "alerts": [{"machine_id", "id", "kind", "status", "pane_id", "db_id", "akey"}]
+  (remote.open_alerts), "outbox": [{"request_id", "machine_id", "action", "remote_id",
+  "state", "clearable": bool}] (remote.outbox_rows, oldest first; `clearable` is
+  remote.clearable at the time of the read), "problems": [{"machine_id", "remote_id"}]
+  (remote.problem_rows)}`. `<rq>` is a `<snapshot>` question's fields (`id` the remote id,
+  `group` the remote group; no draft) and its identity's `db_id` and `qkey`. `<ref>` is
+  `{"machine_id", "remote_id", "db_id", "qkey"}`: which question on which machine, as shown.
+
+  Their entries: `remote:<machine>|<db id>|<group>` (an open group, numbered),
+  `routbox:<request id>` (a queued, sending, expired, failed or refused action),
+  `rproblem:<machine>|<remote id>` (an answer the machine cannot deliver),
+  `ralert:<machine>|<alert id>` (an alert: unnumbered, with the local alerts). Alerts come
+  first (the local ones, then the remote ones), the remote groups, outbox rows and problems
+  last. Mode `remote`: one remote question in a question view, opened from its row (its
+  group's first open question). It has no tabs (Tab, Shift+Tab, ←/→ never switch or release a
+  held deep link, in Python; Tab moves Textual's focus: view, option list, the open box, the
+  preview pane), and `d` and `g` do nothing. Enter on a `routbox` or `rproblem` row only says "This is on
+  a remote machine; d clears it here". `g` on a remote row in the list says "That agent runs on
+  a remote machine: open it from herdr's machine view", except an `rproblem` row: nothing.
+
+  Their effects:
+  - `remote_answer {<ref>…, detail}`: the shown question's answer, queued under its
+    identity as shown. If the mirror holds another question there now (`db_id` or `qkey`
+    differ) or none, nothing is queued: `notify "not queued: that question changed — reopen
+    it"` (or `that remote question is gone`), and the view stays;
+  - `remote_dismiss {<ref>…}`: one per question of the row, as they were when `d` was pressed;
+  - `remote_ack {machine_id, alert_id, db_id, akey}`;
+  - `clear_outbox {request_id, expire}`: `d` on a `clearable` row; `expire` when it was
+    still queued (past its expiry), settled as failed first;
+  - `clear_problem {machine_id, remote_id}`.
+
+  The model's copy: `remote_answer` and `remote_dismiss` take the question out of its group
+  (the group goes with its last question); `remote_ack` takes the alert out of `alerts`;
+  `clear_outbox` and `clear_problem` take their row out. A remote answer that leaves its
+  group empty closes the row (`answered · sending to <label>`); a confirmed dismissal closes it
+  (`dismissing on <label>`); `d` on outbox, problem and alert rows closes them (`cleared`,
+  `acknowledged`). Reasons at a poll: `answered or closed`, `sent`, `delivered or cleared`,
+  `closed` (a remote alert). A poll in mode `remote` whose question left its group puts an
+  inert `{"kind": "gone", "ref": "<label>:Q<id>", "reason": "closed on the remote machine"}` on
+  screen with the grace window (the label as shown when it opened); an open remote alert that
+  ends shows `<label>:A<id>` (the label read afresh). For a machine without a label, see
+  deviation 3 below.
 
   What a model does not reproduce, because the golden cannot hold it:
   - Shift selections and the clipboard in a text box (`shift+←`, `ctrl+x`/`c`/`v`). The box
@@ -310,6 +367,57 @@ say why in the PR:
   - A second box opened while a box is open but does not have the focus. This happens with
     `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
     Python crashes there (Textual `DuplicateIds`); the model replaces the box.
+
+  Deliberate deviations from Python (main's decision, P6-D2). These five remote-row behaviours
+  are Python bugs, and the Rust popup fixes them instead of copying them. The captured goldens
+  above stay Python's own, byte for byte: `tools/capture_popup_transitions.py` and
+  `tools/capture_goldens.py` cannot produce the fixed behaviour, and
+  `tests/test_goldens.py` keeps checking them against the Python code.
+
+  What Rust must do instead is written by hand in `popup-deviations.json`. A model replays a
+  golden through it:
+
+  ```
+  {"schema": 1, "source": "...",
+   "transitions": [{"scenario": <name>, "quirk": <n>, "why": "...", "from_step": <i>,
+                    "steps": [<step>...]}],
+   "screens": [{"file": "popup-remote", "screen": <name>, "quirk": <n>, "why": "...",
+                "row": <y>, "runs": [<run>...]}]}
+  ```
+
+  A `transitions` entry replaces the scenario's steps from `from_step` to its end (the tail can
+  be shorter than Python's: the scenario ends differently). A `screens` entry replaces one row
+  of a screen. `crates/inbox-core/tests/popup_transitions.rs` and `popup_screens.rs` apply them,
+  and fail when an entry no longer differs from the golden, so a Python fix followed by a new
+  capture asks for the entry to go. What no capture reaches is in
+  `crates/inbox-core/tests/popup_deviations.rs`.
+
+  1. **"Chat about this" on a remote question** (scenario `remote_edge.chat_about_this`). Python
+     goes to the remote question's pane id on this machine, which can be an unrelated local
+     agent. Rust focuses nothing, stays in the view and says `That agent runs on <machine>: open
+     it from herdr's machine view`. A safety fix: no `go_to`, so no `focused` and no quit.
+  2. **The label of an acknowledged remote alert** (screen `remote alert acknowledged in the
+     list`). Python draws `✓ None:A1 · acknowledged`, because it looks the label up among the open
+     alerts. Rust takes the machine from the row's key: `✓ project1:A1 · acknowledged`.
+  3. **A machine without a label** (screen `an unlabelled machine's question`, scenario
+     `remote_edge.unlabelled_machine`). Python writes `None:Q1` in the question's title and
+     placeholder, and `A1` in an alert's placeholder. Rust goes by the machine id everywhere
+     (`m2:Q1`, `m1:A1`), as the other remote text already does; an empty label counts as none.
+  4. **A held deep link into a remote question** (scenario
+     `remote_sync.deep_link_to_a_remote_question.held`). Python never releases it, although the
+     hint says "press Tab or →". Rust releases it as in a group: Tab or → after the release
+     delay, and that key does nothing more. While held, Shift+Tab and ← do nothing either (no
+     focus move). Once released, Tab moves the focus again.
+  5. **`y` on a remote group whose mirror changed after `d`** (a question replaced or gone; no
+     capture: it ends the popup). Python's `LookupError` escapes the confirmation and crashes
+     it. Rust queues the dismissals up to that question, then says `not queued: …` and leaves the
+     row open.
+
+  Known gap, kept as parity (main's decision, not a deviation): a remote alert's acknowledgement
+  goes under the alert the mirror holds now, not the one on screen. Its row's key is
+  `<machine>|<id>`, with no `db_id`, so after a remote reset that reuses the number, `d` acknowledges
+  an alert the operator never saw (Python `_ack_entry` re-reads `alert_by_key`; the model does the
+  same). No question or dismissal is affected: those go under the identity shown.
 
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 

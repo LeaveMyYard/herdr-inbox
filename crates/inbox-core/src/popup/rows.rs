@@ -6,8 +6,10 @@ use super::state::Popup;
 
 impl Popup {
     /// The entries the database holds now (Python `_alert_entries() +
-    /// _collapse_gone(entry_order(...))`): alerts first, then groups (the
-    /// focused pane's first, then oldest first), then ⚠ answers.
+    /// _collapse_gone(entry_order(...)) + _remote_entries()`): alerts first
+    /// (a remote machine's after the local ones), then groups (the focused
+    /// pane's first, then oldest first), then ⚠ answers, then the remote
+    /// machines' rows.
     pub(super) fn current_entries(&mut self, focus: Option<&str>) -> Vec<Entry> {
         let mut out: Vec<Entry> = self
             .data
@@ -15,8 +17,10 @@ impl Popup {
             .iter()
             .map(|&a| Entry::Alert(a))
             .collect();
+        out.extend(self.remote_alert_entries());
         let ordered = self.entry_order(focus);
         out.extend(self.collapse_gone(ordered));
+        out.extend(self.remote_entries());
         out
     }
 
@@ -105,6 +109,9 @@ impl Popup {
 
     /// Why a list row ended (Python `_entry_reason`).
     pub(super) fn entry_reason(&self, entry: &Entry) -> String {
+        if let Some(reason) = Popup::remote_reason(entry) {
+            return reason.to_string();
+        }
         match entry {
             Entry::Alert(id) => match self.data.alert(*id).map(|a| a.status.as_str()) {
                 Some("acked") => "acknowledged",
@@ -129,6 +136,7 @@ impl Popup {
                     _ => "closed".to_string(),
                 }
             }
+            _ => "closed".to_string(), // the remote rows' reasons are above
         }
     }
 
