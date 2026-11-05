@@ -5,6 +5,7 @@
 pub mod chain;
 pub mod continued;
 pub mod edges;
+pub mod evidence;
 pub mod find;
 pub mod landed;
 pub mod live;

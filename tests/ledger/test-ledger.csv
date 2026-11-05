@@ -399,8 +399,8 @@ tests/test_delivery.py::test_only_the_asked_panes_agent_counts[None-True],tests/
 tests/test_delivery_worker.py::test_one_tick_delivers_pending_answers_for_every_pane,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::one_tick_delivers_pending_answers_for_every_pane,mapped,,P5
 tests/test_delivery_worker.py::test_a_busy_miss_waits_for_idle_and_shows_as_not_delivered,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_busy_miss_waits_for_idle_and_shows_as_not_delivered,mapped,,P5
 tests/test_delivery_worker.py::test_a_focused_task_panel_is_not_typed_into,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::a_focused_task_panel_is_not_typed_into,mapped,,P5
-tests/test_delivery_worker.py::test_an_old_servers_unverified_ack_is_requeued_and_delivered,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_old_requeue_window_does_not_retype_old_answers,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_an_old_servers_unverified_ack_is_requeued_and_delivered,tests/test_delivery_worker.py,herdr-inbox --test worker_duties reconcile::an_old_servers_unverified_ack_is_requeued_and_delivered,mapped,,P5
+tests/test_delivery_worker.py::test_old_requeue_window_does_not_retype_old_answers,tests/test_delivery_worker.py,herdr-inbox --test worker_duties reconcile::old_requeue_window_does_not_retype_old_answers,mapped,,P5
 tests/test_delivery_worker.py::test_stuck_answers_raise_one_notification,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::stuck_answers_raise_one_notification,mapped,,P5
 tests/test_delivery_worker.py::test_the_worker_is_a_singleton,tests/test_delivery_worker.py,herdr-inbox --lib worker::lock::tests::the_worker_is_a_singleton,mapped,,P5
 tests/test_delivery_worker.py::test_ensure_spawns_only_when_not_running,tests/test_delivery_worker.py,herdr-inbox --lib worker::spawn::tests::ensure::ensure_spawns_only_when_not_running,mapped,,P5
@@ -415,8 +415,8 @@ tests/test_delivery_worker.py::test_unverifiable_sends_are_not_reported_as_not_d
 tests/test_delivery_worker.py::test_an_agent_at_a_prompt_gets_a_waiting_notification,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::an_agent_at_a_prompt_gets_a_waiting_notification,mapped,,P5
 tests/test_delivery_worker.py::test_the_worker_hands_over_when_the_disk_version_differs_from_its_own,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::the_worker_hands_over_when_the_disk_version_differs_from_its_own,mapped,,P5
 tests/test_delivery_worker.py::test_no_handover_loop_when_no_successor_can_start,tests/test_delivery_worker.py,herdr-inbox --lib worker::run::tests::no_handover_loop_when_no_successor_can_start,mapped,,P5
-tests/test_delivery_worker.py::test_h1_a_just_typed_old_server_delivery_is_not_requeued_before_it_settles,tests/test_delivery_worker.py,,todo,,
-tests/test_delivery_worker.py::test_h1_no_transcript_means_un_see_only_never_retype,tests/test_delivery_worker.py,,todo,,
+tests/test_delivery_worker.py::test_h1_a_just_typed_old_server_delivery_is_not_requeued_before_it_settles,tests/test_delivery_worker.py,herdr-inbox --test worker_duties reconcile::h1_a_just_typed_old_server_delivery_is_not_requeued_before_it_settles,mapped,,P5
+tests/test_delivery_worker.py::test_h1_no_transcript_means_un_see_only_never_retype,tests/test_delivery_worker.py,herdr-inbox --test worker_duties reconcile::h1_no_transcript_means_un_see_only_never_retype,mapped,,P5
 tests/test_delivery_worker.py::test_h1_a_retry_checks_the_transcript_before_typing_again,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::h1_a_retry_checks_the_transcript_before_typing_again,mapped,,P5
 tests/test_delivery_worker.py::test_m1_the_lock_is_per_herdr_server,tests/test_delivery_worker.py,herdr-inbox --lib worker::env::tests::the_lock_is_per_herdr_server_beside_the_database,mapped,,P5
 tests/test_delivery_worker.py::test_m1_questions_record_their_herdr_server,tests/test_delivery_worker.py,herdr-inbox --lib mcp::ask::tests::a_new_question_is_filed_for_its_caller_on_this_server,mapped,,P5
@@ -428,42 +428,42 @@ tests/test_delivery_worker.py::test_other_servers_rows_do_not_keep_a_worker_aliv
 tests/test_delivery_worker.py::test_unmatched_legacy_rows_do_not_keep_a_worker_alive,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::unmatched_legacy_rows_do_not_keep_a_worker_alive,mapped,,P5
 tests/test_delivery_worker.py::test_own_pending_rows_still_count,tests/test_delivery_worker.py,herdr-inbox --test worker_duties retry::own_pending_rows_still_count,mapped,,P5
 tests/test_failed_pile.py::test_typed_into_a_resumed_old_session_is_an_older_conversation_not_a_delivery,tests/test_failed_pile.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_failed_pile.py::test_reconcile_never_verifies_answers_that_landed_only_in_an_older_session,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_an_acknowledged_answer_never_keeps_a_failure,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_a_truly_gone_answer_that_never_landed_stays_visible,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_reconcile_never_verifies_answers_that_landed_only_in_an_older_session,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::reconcile_never_verifies_answers_that_landed_only_in_an_older_session,mapped,,P5
+tests/test_failed_pile.py::test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session,mapped,,P5
+tests/test_failed_pile.py::test_an_acknowledged_answer_never_keeps_a_failure,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::an_acknowledged_answer_never_keeps_a_failure,mapped,,P5
+tests/test_failed_pile.py::test_a_truly_gone_answer_that_never_landed_stays_visible,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::a_truly_gone_answer_that_never_landed_stays_visible,mapped,,P5
 tests/test_failed_pile.py::test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in,tests/test_failed_pile.py,herdr-inbox --test mcp_herdr a_moved_pane_files_under_the_pane_that_runs_the_conversation,mapped,,P5
-tests/test_failed_pile.py::test_reconcile_backs_off_per_answer,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_reconcile_backs_off_per_answer,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::reconcile_backs_off_per_answer,mapped,,P5
 tests/test_failed_pile.py::test_q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_gone_answers_collapse_into_one_row_and_d_hides_them_all,mapped,,P6
 tests/test_failed_pile.py::test_q167_a_single_gone_answer_keeps_its_own_row,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_a_single_gone_answer_keeps_its_own_row,mapped,,P6
 tests/test_failed_pile.py::test_q167_a_gone_answer_arriving_later_never_joins_the_open_summary,tests/test_failed_pile.py,inbox-core --test popup_transitions failed_pile::q167_a_gone_answer_arriving_later_never_joins_the_open_summary,mapped,,P6
-tests/test_failed_pile.py::test_q167_gone_answers_leave_the_popup_after_a_day,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_reconcile_never_counts_an_answer_an_older_session_gave_itself,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_a_mere_id_mention_with_a_short_answer_is_not_evidence,tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_q167_gone_answers_leave_the_popup_after_a_day,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::q167_gone_answers_leave_the_popup_after_a_day,mapped,,P5
+tests/test_failed_pile.py::test_reconcile_never_counts_an_answer_an_older_session_gave_itself,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::reconcile_never_counts_an_answer_an_older_session_gave_itself,mapped,,P5
+tests/test_failed_pile.py::test_a_mere_id_mention_with_a_short_answer_is_not_evidence,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::a_mere_id_mention_with_a_short_answer_is_not_evidence,mapped,,P5
 tests/test_failed_pile.py::test_the_cli_answer_from_the_asking_conversation_is_seen_at_once,tests/test_failed_pile.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_failed_pile.py::test_the_cli_answer_from_another_agent_still_delivers,tests/test_failed_pile.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_failed_pile.py::test_a_retry_delivers_to_the_asker_what_only_landed_in_a_resumed_old_session,tests/test_failed_pile.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_failed_pile.py::test_r1_b1_the_agent_echoing_the_options_is_not_evidence,tests/test_failed_pile.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_failed_pile.py::test_r1_b2_a_short_answer_never_matches_inside_a_word,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r1_b3_reconcile_never_reads_an_unrelated_conversation_in_a_reused_pane,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r1_check_answers_output_in_a_related_session_is_evidence,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r1_the_evidence_scan_reads_each_transcript_once,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r2_json_the_agent_printed_itself_is_not_evidence,tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r2_a_same_size_rewrite_is_re_indexed,tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[grep -n ""answer {n}"" ~/Code/herdr-inbox/worker.log-1234: Q{n} answered, not delivered: no live agent in pane w9:p1]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[gh pr comment 44 -R LeaveMyYard/herdr-inbox --body ""run inbox answer {n} x to reproduce""-https://github.com/x/1\nQ{n} answered, pending: busy]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[inbox answer {n} x; grep 'Q{n}' ~/.local/state/herdr-inbox/worker.log-Q{n} is not open\nQ{n} answered, delivered to w1:p1]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n$B answer {n} ""x""]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[cd ~/Code/herdr-inbox && uv run inbox answer Q{n} ""x""]",tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[/home/u/.venv/bin/inbox answer {n} 'x'],tests/test_failed_pile.py,,todo,,
-tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[python3 -m herdr_inbox.cli answer {n} x],tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_r1_b2_a_short_answer_never_matches_inside_a_word,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r1_b2_a_short_answer_never_matches_inside_a_word,mapped,,P5
+tests/test_failed_pile.py::test_r1_b3_reconcile_never_reads_an_unrelated_conversation_in_a_reused_pane,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r1_b3_reconcile_never_reads_an_unrelated_conversation_in_a_reused_pane,mapped,,P5
+tests/test_failed_pile.py::test_r1_check_answers_output_in_a_related_session_is_evidence,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r1_check_answers_output_in_a_related_session_is_evidence,mapped,,P5
+tests/test_failed_pile.py::test_r1_the_evidence_scan_reads_each_transcript_once,tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::tests::r1_the_evidence_scan_reads_each_transcript_once,mapped,,P5
+tests/test_failed_pile.py::test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r2_a_quoted_cli_line_without_the_own_command_is_not_evidence,mapped,,P5
+tests/test_failed_pile.py::test_r2_json_the_agent_printed_itself_is_not_evidence,tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r2_json_the_agent_printed_itself_is_not_evidence,mapped,,P5
+tests/test_failed_pile.py::test_r2_a_same_size_rewrite_is_re_indexed,tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::tests::r2_a_same_size_rewrite_is_re_indexed,mapped,,P5
+"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[grep -n ""answer {n}"" ~/Code/herdr-inbox/worker.log-1234: Q{n} answered, not delivered: no live agent in pane w9:p1]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
+"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[gh pr comment 44 -R LeaveMyYard/herdr-inbox --body ""run inbox answer {n} x to reproduce""-https://github.com/x/1\nQ{n} answered, pending: busy]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
+"tests/test_failed_pile.py::test_r3_only_a_real_successful_inbox_answer_invocation_counts[inbox answer {n} x; grep 'Q{n}' ~/.local/state/herdr-inbox/worker.log-Q{n} is not open\nQ{n} answered, delivered to w1:p1]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_only_a_real_successful_inbox_answer_invocation_counts,mapped,,P5
+"tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n$B answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_the_real_invocation_forms_count,mapped,,P5
+"tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[cd ~/Code/herdr-inbox && uv run inbox answer Q{n} ""x""]",tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_the_real_invocation_forms_count,mapped,,P5
+tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[/home/u/.venv/bin/inbox answer {n} 'x'],tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_the_real_invocation_forms_count,mapped,,P5
+tests/test_failed_pile.py::test_r3_the_real_invocation_forms_count[python3 -m herdr_inbox.cli answer {n} x],tests/test_failed_pile.py,herdr-inbox --test worker_duties failed::r3_the_real_invocation_forms_count,mapped,,P5
 tests/test_failed_pile.py::test_r3_the_live_pre_type_guard_never_uses_self_answer_evidence,tests/test_failed_pile.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_failed_pile.py::test_r3_the_captured_multi_answer_command_counts_every_question,tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[HERDR_INBOX_DB=~/copy.db inbox answer {n} ""x""]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[XDG_STATE_HOME=/tmp/s ~/.venv/bin/inbox answer {n} ""x""]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[export HERDR_INBOX_DB=~/copy.db\ninbox answer {n} ""x""]",tests/test_failed_pile.py,,todo,,
-"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[HERDR_INBOX_DB=~/copy.db && inbox answer {n} ""x""]",tests/test_failed_pile.py,,todo,,
+tests/test_failed_pile.py::test_r3_the_captured_multi_answer_command_counts_every_question,tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
+"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[HERDR_INBOX_DB=~/copy.db inbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
+"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[XDG_STATE_HOME=/tmp/s ~/.venv/bin/inbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
+"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[export HERDR_INBOX_DB=~/copy.db\ninbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
+"tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[HERDR_INBOX_DB=~/copy.db && inbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
 tests/test_final_review.py::test_cursor_row_stays_visible_in_a_short_popup,tests/test_final_review.py,,todo,,P6
 tests/test_final_review.py::test_cursor_row_stays_visible_without_previews,tests/test_final_review.py,,todo,,P6
 tests/test_final_review.py::test_send_runs_in_the_background,tests/test_final_review.py,herdr-inbox --lib tui::run::tests::sends::the_popup_keeps_taking_keys_while_a_send_is_in_flight,mapped,,P6
@@ -521,14 +521,14 @@ tests/test_hook_delivery.py::test_nothing_for_a_subagent_another_session_or_outs
 tests/test_hook_delivery.py::test_a_row_held_by_another_sender_or_already_seen_is_left_alone,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::a_row_held_by_another_sender_or_already_seen_is_left_alone,mapped,,P2
 tests/test_hook_delivery.py::test_an_answer_already_in_the_transcript_is_recorded_not_resent,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::an_answer_already_in_the_transcript_is_recorded_not_resent,mapped,,P2
 tests/test_hook_delivery.py::test_the_matcher_reads_hook_context_records,tests/test_hook_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P2
-tests/test_hook_delivery.py::test_the_worker_verifies_a_hook_delivery,tests/test_hook_delivery.py,,todo,,
+tests/test_hook_delivery.py::test_the_worker_verifies_a_hook_delivery,tests/test_hook_delivery.py,herdr-inbox --test worker_duties moved::the_worker_verifies_a_hook_delivery,mapped,,P5
 tests/test_hook_delivery.py::test_an_unseen_hook_delivery_goes_back_to_pending_then_to_typing,tests/test_hook_delivery.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
 tests/test_hook_delivery.py::test_only_the_delivery_hook_firing_marks_the_session_live_throttled,tests/test_hook_delivery.py,herdr-inbox --test hook delivery::only_the_delivery_hook_firing_marks_the_session_live_throttled,mapped,,P2
 tests/test_hook_delivery.py::test_the_worker_never_types_into_a_working_session_whose_hook_is_live,tests/test_hook_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_hook_delivery.py::test_a_session_whose_hook_never_fires_or_went_quiet_gets_0_8_busy_typing[False],tests/test_hook_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_hook_delivery.py::test_a_session_whose_hook_never_fires_or_went_quiet_gets_0_8_busy_typing[True],tests/test_hook_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_hook_delivery.py::test_a_stale_verifier_read_never_wipes_a_newer_send,tests/test_hook_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_hook_delivery.py::test_verification_is_scoped_to_the_workers_herdr_server,tests/test_hook_delivery.py,,todo,,
+tests/test_hook_delivery.py::test_verification_is_scoped_to_the_workers_herdr_server,tests/test_hook_delivery.py,herdr-inbox --test worker_duties moved::hook_verification_is_scoped_to_the_workers_herdr_server,mapped,,P5
 tests/test_hook_delivery.py::test_rows_at_the_miss_cap_never_open_the_writable_store,tests/test_hook_delivery.py,herdr-inbox --test store candidates::an_answered_undelivered_unseen_answer_is_a_candidate,mapped,,P2
 tests/test_hook_delivery.py::test_a_session_without_the_hook_keeps_the_busy_grace_typing,tests/test_hook_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_hook_delivery.py::test_the_registered_hook_delivers_through_the_stdlib_launcher[PostToolBatch-PostToolBatch],tests/test_hook_delivery.py,herdr-inbox --test launch manifest::every_hook_reaches_the_binary_with_its_own_event ; herdr-inbox --test hook delivery::a_busy_sessions_answer_goes_out_as_hook_context_once,mapped,,P2
@@ -578,13 +578,13 @@ tests/test_pane_moved.py::test_an_answer_follows_its_agent_to_the_pane_it_moved_
 tests/test_pane_moved.py::test_no_agent_with_that_session_anywhere_is_still_no_agent,tests/test_pane_moved.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_pane_moved.py::test_two_panes_with_the_session_are_ambiguous_and_never_chosen,tests/test_pane_moved.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_pane_moved.py::test_a_moved_and_continued_conversation_is_found,tests/test_pane_moved.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_pane_moved.py::test_an_answer_already_marked_gone_is_revived_when_its_agent_turns_up,tests/test_pane_moved.py,,todo,,
+tests/test_pane_moved.py::test_an_answer_already_marked_gone_is_revived_when_its_agent_turns_up,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::an_answer_already_marked_gone_is_revived_when_its_agent_turns_up,mapped,,P5
 tests/test_pane_moved.py::test_a_pane_now_holding_another_conversation_sends_the_answer_after_its_own,tests/test_pane_moved.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_pane_moved.py::test_another_herdr_servers_gone_rows_are_left_alone,tests/test_pane_moved.py,,todo,,
-tests/test_pane_moved.py::test_42_a_hidden_answer_is_never_revived,tests/test_pane_moved.py,,todo,,
-tests/test_pane_moved.py::test_42_a_dismissed_question_is_never_revived,tests/test_pane_moved.py,,todo,,
-tests/test_pane_moved.py::test_42_a_send_in_flight_is_not_revived_under_it,tests/test_pane_moved.py,,todo,,
-tests/test_pane_moved.py::test_42_revival_backs_off_per_answer,tests/test_pane_moved.py,,todo,,
+tests/test_pane_moved.py::test_another_herdr_servers_gone_rows_are_left_alone,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::another_herdr_servers_gone_rows_are_left_alone,mapped,,P5
+tests/test_pane_moved.py::test_42_a_hidden_answer_is_never_revived,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_hidden_answer_is_never_revived,mapped,,P5
+tests/test_pane_moved.py::test_42_a_dismissed_question_is_never_revived,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_dismissed_question_is_never_revived,mapped,,P5
+tests/test_pane_moved.py::test_42_a_send_in_flight_is_not_revived_under_it,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_send_in_flight_is_not_revived_under_it,mapped,,P5
+tests/test_pane_moved.py::test_42_revival_backs_off_per_answer,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::revival_backs_off_per_answer,mapped,,P5
 tests/test_plugin_copy.py::test_session_start_hook_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,P5
 tests/test_plugin_copy.py::test_mcp_server_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,P5
 tests/test_plugin_copy.py::test_plugin_and_marketplace_versions_agree,tests/test_plugin_copy.py,,todo,,P8
@@ -786,7 +786,7 @@ tests/test_session_continuation.py::test_live_agent_reports_the_live_conversatio
 tests/test_session_continuation.py::test_a_new_question_is_filed_under_the_live_conversation,tests/test_session_continuation.py,herdr-inbox --lib mcp::caller::tests::live_sessions_are_judged_from_the_pane_that_runs_them,mapped,,P5
 tests/test_session_continuation.py::test_an_answer_to_a_question_asked_before_the_switch_is_typed_and_verified,tests/test_session_continuation.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_session_continuation.py::test_a_question_filed_under_new_is_not_refused_as_changed,tests/test_session_continuation.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
-tests/test_session_continuation.py::test_the_worker_records_the_continuation_and_new_owns_old_rows,tests/test_session_continuation.py,,todo,,
+tests/test_session_continuation.py::test_the_worker_records_the_continuation_and_new_owns_old_rows,tests/test_session_continuation.py,herdr-inbox --test worker_duties moved::the_worker_records_the_continuation_of_a_session_in_play,mapped,,P5
 tests/test_session_continuation.py::test_the_old_sessions_watcher_ends_and_the_new_one_wakes,tests/test_session_continuation.py,herdr-inbox --test rewake scenarios::the_old_sessions_watcher_ends_and_the_new_one_wakes,mapped,,P2
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[../../etc/passwd],tests/test_session_continuation.py,herdr-agent-kit@v0.1.3 --test agent_session_claude_bridge_rules a_continuation_that_is_not_another_session_id_is_ignored,mapped,,P5
 tests/test_session_continuation.py::test_a_continuation_id_that_is_not_a_uuid_is_never_followed[*],tests/test_session_continuation.py,herdr-agent-kit@v0.1.3 --test agent_session_claude_bridge_rules a_continuation_that_is_not_another_session_id_is_ignored,mapped,,P5
@@ -895,14 +895,14 @@ tests/test_verified_delivery.py::test_transcript_parsing_is_lenient_and_exact,te
 tests/test_verified_delivery.py::test_receipt_and_hook_mention_check_answers,tests/test_verified_delivery.py,herdr-inbox --lib hook::rules::tests::the_rules_are_pythons_word_for_word ; herdr-inbox --lib hook::rules::tests::the_rules_are_short,mapped,,P2
 tests/test_verified_delivery.py::test_receipt_mentions_check_answers,tests/test_verified_delivery.py,herdr-inbox --test mcp_goldens claude_codes_tool_calls_get_the_python_servers_results,mapped,,P5
 tests/test_verified_delivery.py::test_popup_shows_pending_delivery,tests/test_verified_delivery.py,,todo,,P6
-tests/test_verified_delivery.py::test_migration_uses_the_verifier,tests/test_verified_delivery.py,,todo,,
-tests/test_verified_delivery.py::test_old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop,tests/test_verified_delivery.py,,todo,,
-tests/test_verified_delivery.py::test_check_answers_acknowledgement_is_not_the_old_server_signature,tests/test_verified_delivery.py,,todo,,
+tests/test_verified_delivery.py::test_migration_uses_the_verifier,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::migration_uses_the_verifier,mapped,,P5
+tests/test_verified_delivery.py::test_old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop,mapped,,P5
+tests/test_verified_delivery.py::test_check_answers_acknowledgement_is_not_the_old_server_signature,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::check_answers_acknowledgement_is_not_the_old_server_signature,mapped,,P5
 tests/test_verified_delivery.py::test_never_landing_prompt_is_typed_at_most_twice,tests/test_verified_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_verified_delivery.py::test_list_content_and_collapsed_paste_records_count_as_landed,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P5
 tests/test_verified_delivery.py::test_cli_redeliver,tests/test_verified_delivery.py,,todo,,P5
 tests/test_verified_delivery.py::test_a_mention_of_a_q_id_is_not_a_delivery_of_it,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P5
-tests/test_verified_delivery.py::test_seven_day_sweep_continues_past_one_batch,tests/test_verified_delivery.py,,todo,,
+tests/test_verified_delivery.py::test_seven_day_sweep_continues_past_one_batch,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::seven_day_sweep_continues_past_one_batch,mapped,,P5
 tests/test_verified_delivery.py::test_verified_delivery_is_written_in_one_transaction,tests/test_verified_delivery.py,,todo,,P5
 tests/test_verify_edges.py::test_a_fresh_hook_send_not_yet_seen_is_left_for_the_next_tick,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
 tests/test_verify_edges.py::test_a_hook_send_without_a_transcript_stays_sent_and_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5

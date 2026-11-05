@@ -82,7 +82,7 @@ pub fn landed_kinds(
 /// or unreadable time on either side counts as newer. Both are read with the
 /// kit's timestamp reader (Python used `datetime.fromisoformat`; they agree on
 /// every ISO-8601 time Claude Code and the inbox write).
-fn after(ts_text: Option<&str>, since: Option<&str>) -> bool {
+pub(crate) fn after(ts_text: Option<&str>, since: Option<&str>) -> bool {
     let (Some(at), Some(since)) = (
         ts_text.filter(|s| !s.is_empty()),
         since.filter(|s| !s.is_empty()),
