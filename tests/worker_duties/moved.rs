@@ -160,7 +160,7 @@ fn the_worker_records_the_continuation_of_a_session_in_play() {
 
 impl World {
     /// The hook sent `qid`'s answer at `sent_at` (as `record_hook_delivery` leaves it).
-    fn hook_sent(&mut self, sent_at: &str) -> i64 {
+    pub fn hook_sent(&mut self, sent_at: &str) -> i64 {
         let qid = self.ask();
         self.store.set_answer(qid, "squash", None).unwrap();
         self.sql(
@@ -275,4 +275,16 @@ fn an_open_alert_alone_keeps_its_sessions_continuation_recorded() {
         )
         .unwrap();
     assert_eq!(next.as_deref(), Some(NEW));
+}
+
+#[test]
+fn an_agent_in_the_rows_own_pane_is_no_move() {
+    let mut w = World::new();
+    let qid = w.gone_in_p1();
+    let error = w.store.get(qid).unwrap().unwrap().delivery_error;
+    w.fake.set(|k| k.agents = agents(&[("w1:p1", crate::A)]));
+    w.fake.reset();
+    w.full_tick();
+    assert!(w.store.agent_gone(qid).unwrap());
+    assert_eq!(w.store.get(qid).unwrap().unwrap().delivery_error, error);
 }

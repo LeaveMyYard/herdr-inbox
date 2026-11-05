@@ -2,7 +2,9 @@
 //! worker's half): only the asker's FORWARD family is evidence, and only
 //! its own inbox calls. Synthetic data, in the shapes the Python tests have.
 
-use herdr_inbox::clock::now;
+use std::time::Duration;
+
+use herdr_inbox::clock::{now, now_minus};
 use herdr_inbox::store::question::normalize_options;
 use herdr_inbox::store::questions::NewQuestion;
 use inbox_core::deliver::NOT_VERIFIED;
@@ -401,4 +403,54 @@ fn r3_the_real_invocation_forms_count() {
             "{form}"
         );
     }
+}
+
+#[test]
+fn a_reference_that_landed_alone_is_delivered_but_never_seen() {
+    let mut w = World::new();
+    let q = w.filed("w1:p4", NEW, "Question Text 107", "Answer Text 107");
+    w.as_stored(q, NOT_VERIFIED, false);
+    let reference = w.reference_text(q);
+    w.write(NEW, &[user(&reference)]);
+    w.record_session(NEW);
+    w.full_tick();
+    let r = w.store.get(q).unwrap().unwrap();
+    assert!(r.delivered_at.is_some() && r.verified_at.is_some(), "{r:?}");
+    assert!(r.acknowledged_at.is_none(), "{r:?}"); // check_answers must still return it
+}
+
+#[test]
+fn a_landing_older_than_the_answer_is_not_this_answer() {
+    let mut w = World::new();
+    let q = w.filed("w1:p4", NEW, "Question Text 108", "Answer Text 108");
+    w.as_stored(q, NOT_VERIFIED, false);
+    let text = w.batch_text(&[q]);
+    let mut earlier = user(&text); // ids restart in a recreated database
+    earlier["timestamp"] = json!(now_minus(Duration::from_secs(3600)));
+    w.write(NEW, &[earlier]);
+    w.record_session(NEW);
+    w.full_tick();
+    untouched(&w, q);
+    assert_eq!(w.failed(), [q]);
+}
+
+#[test]
+fn the_failed_pile_is_reconciled_for_this_server_and_for_none_only() {
+    let mut w = World::new();
+    let other = w.filed("w1:p4", NEW, "Question Text 109", "Answer Text 109");
+    let none = w.filed("w1:p4", NEW, "Question Text 110", "Answer Text 110");
+    w.store.set_server(other, Some("/other.sock")).unwrap();
+    w.store.set_server(none, None).unwrap();
+    let lines: Vec<Value> = [other, none]
+        .iter()
+        .map(|q| user(&w.batch_text(&[*q])))
+        .collect();
+    for q in [other, none] {
+        w.as_stored(q, NOT_VERIFIED, false);
+    }
+    w.write(NEW, &lines);
+    w.record_session(NEW);
+    w.full_tick();
+    untouched(&w, other);
+    assert!(w.store.get(none).unwrap().unwrap().verified_at.is_some());
 }

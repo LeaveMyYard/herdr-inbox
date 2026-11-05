@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use herdr_inbox::clock::now_minus;
 use herdr_inbox::store::outcomes::unverified::{RECONCILE_BATCH, RESET_KEY};
+use herdr_inbox::worker::duties::failed::STARTS_KEEP;
 use herdr_inbox::worker::duties::unverified::reconcile_unverified;
 use rusqlite::params;
 use serde_json::json;
@@ -207,4 +208,81 @@ fn an_old_servers_ack_that_landed_only_in_an_older_session_is_never_verified() {
     reconcile_unverified(&w.store, &w.files).unwrap();
     let q = w.q(qid);
     assert!(q.verified_at.is_none() && q.acknowledged_at.is_none()); // re-queued, never verified
+}
+
+#[test]
+fn a_tick_alone_re_checks_the_unverified() {
+    let mut w = World::new();
+    let qid = w.answered();
+    w.signature(qid, &ago(60));
+    w.landed(qid);
+    w.tick_alone();
+    assert!(w.q(qid).verified_at.is_some());
+}
+
+#[test]
+fn a_landing_older_than_the_answer_never_verifies_a_signature() {
+    let mut w = World::new();
+    let qid = w.answered();
+    w.sql(
+        "UPDATE questions SET answered_at = ? WHERE id = ?",
+        params![ago(120), qid],
+    );
+    w.signature(qid, &ago(60));
+    let text = w.batch_text(&[qid]);
+    w.write(
+        crate::A,
+        &[json!({"type": "user", "timestamp": ago(3600), "message": {"content": text}})],
+    );
+    w.fake.set(|k| k.status = "working".into()); // nobody types it meanwhile
+    w.full_tick();
+    let q = w.q(qid);
+    assert!(
+        q.verified_at.is_none() && q.acknowledged_at.is_none(),
+        "{q:?}"
+    );
+}
+
+#[test]
+fn the_change_log_keeps_its_newest_rows_only() {
+    let mut w = World::new();
+    let insert = "INSERT INTO changes (seq, qid) VALUES (?, 1)";
+    let newest = 10_005; // Python keeps 10 000 rows
+    w.sql(insert, params![1]);
+    w.sql(insert, params![6]);
+    w.sql(insert, params![newest]);
+    w.tick_alone();
+    let seqs = |w: &World, seq: i64| -> i64 {
+        w.store
+            .db()
+            .query_row("SELECT COUNT(*) FROM changes WHERE seq = ?", [seq], |r| {
+                r.get(0)
+            })
+            .unwrap()
+    };
+    assert_eq!(seqs(&w, 1), 0); // past the kept window
+    assert_eq!(seqs(&w, 6), 1);
+    assert_eq!(seqs(&w, newest), 1);
+}
+
+#[test]
+fn the_tick_prunes_old_start_markers_at_most_hourly() {
+    let mut w = World::new();
+    let starts = w.dir.path().join("starts");
+    std::fs::create_dir_all(&starts).unwrap();
+    let marker = starts.join(crate::A);
+    let old = || {
+        let f = std::fs::File::create(&marker).unwrap();
+        let at = std::time::SystemTime::now() - STARTS_KEEP - Duration::from_secs(60);
+        f.set_modified(at).unwrap();
+    };
+    old();
+    w.tick_alone();
+    assert!(!marker.exists());
+    old();
+    w.tick_alone();
+    assert!(marker.exists(), "pruned again within the hour");
+    w.memory.starts_pruned_at = None;
+    w.tick_alone();
+    assert!(!marker.exists());
 }

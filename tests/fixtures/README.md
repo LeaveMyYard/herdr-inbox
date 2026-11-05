@@ -1,7 +1,8 @@
 # Test fixtures
 
-Every fixture here is captured, never written by hand, except `popup-deviations.json`: where the
-Rust popup deliberately differs from Python, no capture can produce it.
+Every fixture here is captured, never written by hand, except `popup-deviations.json` (where the
+Rust popup deliberately differs from Python, no capture can produce it) and `ancestor-replay.json`
+(synthetic, see below).
 
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
