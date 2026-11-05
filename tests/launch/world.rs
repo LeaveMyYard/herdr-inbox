@@ -132,7 +132,7 @@ pub fn stdout(o: &Output) -> String {
     String::from_utf8(o.stdout.clone()).unwrap()
 }
 
-/// Stand-ins first on PATH for every script run: `curl` serves only the fixed HTTPS release URL
+/// Stand-ins first on PATH for every script run: `uv` says what it was asked to run; `curl` serves only the fixed HTTPS release URL
 /// from $FAKE_RELEASES (after $FAKE_CURL_SLEEP seconds, if set) and logs its arguments; `cargo`
 /// logs and fails unless $FAKE_CARGO_OK (then `metadata` names $FAKE_TARGET_DIR and `build`
 /// puts a stand-in binary there).
@@ -169,7 +169,9 @@ build)
 	;;
 esac
 "#;
-    for (name, body) in [("curl", curl), ("cargo", cargo)] {
+    // written once, here: rewriting a script between runs races a parallel test's fork (ETXTBSY)
+    let uv = "#!/bin/sh\necho \"uv $*\"\n";
+    for (name, body) in [("curl", curl), ("cargo", cargo), ("uv", uv)] {
         fs::write(dir.join(name), body).unwrap();
         fs::set_permissions(dir.join(name), fs::Permissions::from_mode(0o755)).unwrap();
     }

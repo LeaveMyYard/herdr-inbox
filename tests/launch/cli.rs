@@ -7,23 +7,8 @@ use std::path::Path;
 
 use crate::world::{Root, repo, stand_in, stdout};
 
-/// A stand-in `uv` that says what it was asked to run.
-fn with_uv(r: &Root) -> String {
-    let dir = r.dir.path().join("fakeuv");
-    fs::create_dir_all(&dir).unwrap();
-    fs::write(dir.join("uv"), "#!/bin/sh\necho \"uv $*\"\n").unwrap();
-    fs::set_permissions(dir.join("uv"), fs::Permissions::from_mode(0o755)).unwrap();
-    format!(
-        "{}:{}:{}",
-        dir.display(),
-        r.dir.path().join("tools").display(),
-        std::env::var("PATH").unwrap()
-    )
-}
-
 fn launch(r: &Root, args: &[&str]) -> String {
-    let path = with_uv(r);
-    stdout(&r.sh("launch", args, "", &[("PATH", Path::new(&path))]))
+    stdout(&r.sh("launch", args, "", &[]))
 }
 
 /// What Python's `inbox <args>` looks like through the stand-in uv.
@@ -183,13 +168,7 @@ fn the_installs_own_binary_goes_before_a_recorded_newer_one() {
 fn exit_codes_pass_through() {
     let r = Root::new();
     stand_in(&r.root().join("bin/herdr-inbox"), "own", "1.0.0", 2, 3);
-    let path = with_uv(&r);
-    let out = r.sh(
-        "launch",
-        &["cli", "open"],
-        "",
-        &[("PATH", Path::new(&path))],
-    );
+    let out = r.sh("launch", &["cli", "open"], "", &[]);
     assert_eq!(
         out.status.code(),
         Some(3),
