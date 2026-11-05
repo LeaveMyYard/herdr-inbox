@@ -3,6 +3,7 @@
 //! binaries, and stand-in curl and cargo (world.rs).
 
 mod cli;
+mod engine;
 mod fallback;
 mod fetch;
 #[path = "../support/herdr_cli.rs"]

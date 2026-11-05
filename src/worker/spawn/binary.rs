@@ -25,18 +25,23 @@ pub const PYTHON: &str = "python3";
 /// The file at a plugin root that says which code runs (`scripts/launch`).
 pub const ENGINE_FILE: &str = "engine";
 
-/// Whether `root`'s `engine` file says `rust`. Anything else, or no file, is
-/// Python: a root that went back to Python must not be followed into a
-/// binary it still has on disk.
+/// Whether `root`'s `engine` file says `rust`: its first line is those four
+/// bytes, compared as bytes, as `scripts/launch` and Python's `runs_rust` do
+/// (tests/launch/engine.rs holds the three together). Anything else, or no
+/// file, is Python: a root that went back to Python must not be followed into
+/// a binary it still has on disk.
 pub fn runs_rust(root: &Path) -> bool {
-    fs::read_to_string(root.join(ENGINE_FILE))
-        .is_ok_and(|text| text.lines().next().is_some_and(|l| l == "rust"))
+    fs::read(root.join(ENGINE_FILE))
+        .is_ok_and(|bytes| bytes.split(|b| *b == b'\n').next() == Some(b"rust"))
 }
 
 /// The installed Rust worker under `root`: the first of
 /// [`RUST_WORKER_BINARIES`] that is a regular file with an execute bit (a
 /// symlink to one counts), when `root` [`runs_rust`]. `None`: no Rust worker
-/// there, or that root runs Python.
+/// there, or that root runs Python. This does not ask the binary's contract,
+/// as `scripts/launch` does: a stale `target/release` is taken before a good
+/// `bin/`. One with no `worker` exits at once and Python takes over; one with
+/// a `worker` runs, and it is that checkout's own build.
 pub fn rust_worker_binary(root: &Path) -> Option<PathBuf> {
     if !runs_rust(root) {
         return None;

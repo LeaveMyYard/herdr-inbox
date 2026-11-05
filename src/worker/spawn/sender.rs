@@ -1,15 +1,18 @@
 //! The detached sender (Python `service.spawn_cli`, `tui.spawn_delivery`,
-//! `remote_api.spawn_delivery`): `<exe> deliver <ids> [--force]`, in a session
-//! of its own, stderr appended to `worker.log`. The caller returns at once;
+//! `remote_api.spawn_delivery`): `<exe> deliver <ids> [--force]`, which enters
+//! a session of its own as it starts ([`enter_own_session`]), so a popup pane
+//! that closes does not end it. Stderr goes to `worker.log`. The caller returns at once;
 //! the answers are recorded already, so a sender that cannot start only
 //! leaves them to the worker's retry.
+//!
+//! [`enter_own_session`]: super::enter_own_session
 
 use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
 
-use super::child::{reap_later, spawn_detached};
+use super::child::{reap_later, spawn_for_session};
 use crate::worker::spawn_env;
 
 /// The sender's arguments (Python `deliver <ids> [--force]`).
@@ -38,7 +41,7 @@ pub fn start_sender(
         .ok();
     let env = spawn_env(std::env::vars_os(), "".as_ref());
     let args = deliver_args(qids, force);
-    let child = spawn_detached(exe.as_os_str(), &args, None, &env, stderr)?;
+    let child = spawn_for_session(exe.as_os_str(), &args, &env, stderr)?;
     reap_later(child);
     Ok(())
 }

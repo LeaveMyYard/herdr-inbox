@@ -47,6 +47,9 @@ impl World {
     }
 }
 
+#[path = "session.rs"]
+mod session;
+
 /// Waits up to `secs` for `child` to exit; kills it (our own child) if not.
 fn wait(mut child: Child, secs: u64) -> Option<i32> {
     let deadline = Instant::now() + Duration::from_secs(secs);
