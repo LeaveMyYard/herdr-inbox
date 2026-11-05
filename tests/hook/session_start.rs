@@ -198,11 +198,9 @@ fn a_json_payload_that_is_not_an_object_still_gets_the_rules() {
 /// A Claude Code process stand-in: a script named `claude` (its comm on Linux) that runs `next`.
 #[cfg(target_os = "linux")]
 fn claude_script(dir: &std::path::Path, next: &str) -> std::path::PathBuf {
-    use std::os::unix::fs::PermissionsExt;
     std::fs::create_dir_all(dir).unwrap();
     let path = dir.join("claude");
-    std::fs::write(&path, format!("#!/bin/sh\n{next}\n")).unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    crate::herdr_cli::exe::install(&path, format!("#!/bin/sh\n{next}\n"));
     path
 }
 

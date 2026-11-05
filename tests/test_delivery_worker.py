@@ -426,6 +426,7 @@ def test_m2_spawns_do_not_inherit_the_mcp_venv(fake_herdr, monkeypatch):
     from herdr_inbox import herdr
 
     monkeypatch.setattr(herdr, "current_plugin_root", herdr._own_checkout)  # asks herdr through Popen
+    monkeypatch.setattr(worker, "rust_worker_binary", lambda root: None)  # never this checkout's own build
     monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: spawned.append(k))
     worker.ensure()
     assert worker.start_successor() is True

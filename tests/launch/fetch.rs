@@ -12,9 +12,7 @@ use crate::world::{Root, stdout};
 fn with_uv(r: &Root) -> String {
     let dir = r.dir.path().join("fakeuv");
     fs::create_dir_all(&dir).unwrap();
-    fs::write(dir.join("uv"), "#!/bin/sh\necho \"uv $*\"\n").unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(dir.join("uv"), fs::Permissions::from_mode(0o755)).unwrap();
+    crate::herdr_cli::exe::install(&dir.join("uv"), "#!/bin/sh\necho \"uv $*\"\n");
     format!(
         "{}:{}:{}",
         dir.display(),

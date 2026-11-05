@@ -5,7 +5,6 @@
 
 use std::ffi::OsString;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -144,8 +143,7 @@ pub fn with_mode(mut env: WorkerEnv, mode: &str) -> WorkerEnv {
 
 pub fn write_exe(path: &Path, text: &str) -> PathBuf {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, text).unwrap();
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    crate::test_exe::install(path, text);
     path.to_path_buf()
 }
 

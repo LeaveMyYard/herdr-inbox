@@ -4,8 +4,10 @@
 //! and a test can say which CLI calls it expected.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+
+#[path = "exe.rs"]
+pub mod exe;
 
 /// The stub under `dir` and its log.
 pub struct CliStub {
@@ -20,8 +22,7 @@ impl CliStub {
         fs::create_dir_all(dir).unwrap();
         let bin = dir.join("herdr-cli-stub");
         let log = dir.join("herdr-cli-stub.log");
-        fs::write(&bin, "#!/bin/sh\necho \"$*\" >> \"$0.log\"\nexit 1\n").unwrap();
-        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+        exe::install(&bin, "#!/bin/sh\necho \"$*\" >> \"$0.log\"\nexit 1\n");
         CliStub { bin, log }
     }
 

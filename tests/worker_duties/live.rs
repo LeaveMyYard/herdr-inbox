@@ -7,7 +7,6 @@
 //! exist, so the remote thread's pulls fail without leaving the test's dir.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};
 
 use herdr_agent_kit::plugin_env::config::ConfigFile;
@@ -40,15 +39,13 @@ impl World {
         let d = self.dir.path();
         let bin = d.join("herdr-cli");
         let log = d.join("herdr-cli.log");
-        fs::write(
+        crate::exe::install(
             &bin,
             format!(
                 "#!/bin/sh\necho \"$@\" >> '{}'\ncat <<'EOF'\n{machines}\nEOF\n",
                 log.display()
             ),
-        )
-        .unwrap();
-        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+        );
         let herdr = self.herdr.clone().with_bin(bin);
         let env = WorkerEnv {
             db: db.to_path_buf(),
