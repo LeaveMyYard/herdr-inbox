@@ -80,6 +80,7 @@ fn versions_compare_numerically_across_both_directories() {
 #[test]
 fn a_linked_checkouts_own_build_comes_first() {
     let r = Root::new();
+    std::fs::create_dir_all(r.root().join(".git")).unwrap();
     stand_in(
         &r.data_bin().join("herdr-inbox-9.9.9"),
         "data",
@@ -196,6 +197,7 @@ fn a_directory_with_a_backslash_still_runs_its_binary() {
 #[test]
 fn the_linked_builds_probe_never_reads_the_hooks_payload() {
     let r = Root::new();
+    std::fs::create_dir_all(r.root().join(".git")).unwrap();
     stand_in(
         &r.root().join("target/release/herdr-inbox"),
         "dev",
@@ -206,5 +208,30 @@ fn the_linked_builds_probe_never_reads_the_hooks_payload() {
     assert_eq!(
         stdout(&r.sh("launch", &["hook", "stop"], "{\"p\":1}", &[])),
         "dev stop\n{\"p\":1}"
+    );
+}
+
+#[test]
+fn a_build_in_a_root_that_is_no_git_checkout_is_not_run() {
+    // #74: a local-folder marketplace's cache copy holds target/ but no .git
+    let r = Root::new();
+    stand_in(
+        &r.data_bin().join("herdr-inbox-1.0.0"),
+        "data",
+        "1.0.0",
+        1,
+        0,
+    );
+    let dev = r.root().join("target/release/herdr-inbox");
+    stand_in(&dev, "dev", "0.1.0", 1, 0);
+    assert_eq!(
+        stdout(&r.sh("launch", &["hook", "stop"], "", &[])),
+        "data stop\n"
+    );
+    // a git worktree's .git is a file
+    std::fs::write(r.root().join(".git"), "gitdir: elsewhere\n").unwrap();
+    assert_eq!(
+        stdout(&r.sh("launch", &["hook", "stop"], "", &[])),
+        "dev stop\n"
     );
 }
