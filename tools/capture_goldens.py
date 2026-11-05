@@ -69,6 +69,7 @@ def isolate(work: Path) -> None:
         "TZ": "UTC",
         "HERDR_INBOX_DB": str(work / "inbox.db"),
         "HERDR_PANE_ID": "w1:p1",
+        "HERDR_BIN_PATH": "/nonexistent/herdr-not-allowed-in-captures",  # capture_screens installs its fake over this
         "CLAUDE_CONFIG_DIR": str(work / "claude"),
         "HERDR_INBOX_NO_WORKER": "1",
         "HERDR_INBOX_HERDR_CONFIG": str(work / "herdr-config" / "config.toml"),

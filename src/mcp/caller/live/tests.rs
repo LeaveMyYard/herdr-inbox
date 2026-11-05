@@ -19,7 +19,8 @@ fn a_tabs_own_marks_come_from_the_store() {
     )
     .unwrap();
     let live = Live {
-        herdr: Herdr::new(ServerId::new(dir.path().join("no-herdr.sock"))),
+        herdr: Herdr::new(ServerId::new(dir.path().join("no-herdr.sock")))
+            .with_bin("/nonexistent/herdr-cli"),
         files: Transcripts::new(None),
         state_dir: dir.path().to_path_buf(),
         db: db.clone(),

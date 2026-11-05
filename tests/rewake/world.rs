@@ -97,7 +97,10 @@ impl World {
             db: self.db.clone(),
             state_dir: self.dir.path().to_path_buf(),
             pane: pane.map(str::to_owned),
-            herdr: self.herdr.blocking_client(),
+            herdr: self
+                .herdr
+                .blocking_client()
+                .with_bin("/nonexistent/herdr-cli"),
             files: Transcripts::new(Some(ProjectsRoot::new(self.dir.path().join("projects")))),
             owner: None,
             clock,

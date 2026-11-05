@@ -47,7 +47,8 @@ fn a_pane_is_found_through_its_sessions_recorded_transcript() {
          "agent_session": {"kind": "id", "value": OLD}}
     ]))
     .unwrap();
-    let herdr = Herdr::new(ServerId::new(dir.path().join("no.sock")));
+    let herdr =
+        Herdr::new(ServerId::new(dir.path().join("no.sock"))).with_bin("/nonexistent/herdr-cli");
     let files = Transcripts::new(Some(ProjectsRoot::new(projects)));
     let (mut notify, mut unreadable) = (|_: &str, _: &str| {}, Unreadable::default());
     let ctx = Ctx {
