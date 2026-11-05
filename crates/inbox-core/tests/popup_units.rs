@@ -222,3 +222,15 @@ fn a_remote_action_is_refused_unless_the_mirror_holds_the_question_shown() {
         Some("that remote question is gone")
     );
 }
+
+/// The readers take a group's first question: an empty group is no group.
+#[test]
+fn a_remote_group_without_questions_is_not_open() {
+    use inbox_core::popup::{Remote, RemoteGroup};
+    let mut r = Remote::default();
+    r.groups.push(RemoteGroup {
+        key: "m1|dd|1".into(),
+        ..RemoteGroup::default()
+    });
+    assert_eq!(r.group("m1|dd|1"), None);
+}

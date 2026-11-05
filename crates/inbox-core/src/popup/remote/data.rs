@@ -179,9 +179,11 @@ impl Remote {
             .unwrap_or_else(|| id.to_string())
     }
 
-    /// The open group `key` (Python `remote.group_by_key`).
+    /// The open group `key` (Python `remote.group_by_key`): one with a
+    /// question, so its callers may read the first.
     pub fn group(&self, key: &str) -> Option<&RemoteGroup> {
-        self.groups.iter().find(|g| g.key == key)
+        let open = |g: &&RemoteGroup| g.key == key && !g.questions.is_empty();
+        self.groups.iter().find(open)
     }
 
     /// The open alert `key` (Python `remote.alert_by_key`).

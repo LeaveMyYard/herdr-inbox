@@ -62,28 +62,26 @@ pub fn snapshot(v: &Value) -> Snapshot {
 
 /// A question as the golden gives it (the fields the model decides with).
 pub fn question(q: &Value) -> Question {
-    {
-        let mut options: Vec<QOption> = q["options"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|o| QOption::label(o.as_str().unwrap()))
-            .collect();
-        if q["has_preview"].as_bool().unwrap() {
-            options[0].preview = Some("preview".into()); // the golden says only that some option has one
-        }
-        Question {
-            id: q["id"].as_i64().unwrap(),
-            group: q["group"].as_i64().unwrap(),
-            status: s(&q["status"]).unwrap(),
-            pane_id: s(&q["pane_id"]),
-            options,
-            multi_select: q["multi_select"].as_bool().unwrap(),
-            draft: q.get("draft").and_then(detail),
-            delivery_error: q.get("delivery_error").and_then(s),
-            delivered: q.get("delivered").and_then(Value::as_bool).unwrap_or(false),
-            ..Question::default()
-        }
+    let mut options: Vec<QOption> = q["options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| QOption::label(o.as_str().unwrap()))
+        .collect();
+    if q["has_preview"].as_bool().unwrap() {
+        options[0].preview = Some("preview".into()); // the golden says only that some option has one
+    }
+    Question {
+        id: q["id"].as_i64().unwrap(),
+        group: q["group"].as_i64().unwrap(),
+        status: s(&q["status"]).unwrap(),
+        pane_id: s(&q["pane_id"]),
+        options,
+        multi_select: q["multi_select"].as_bool().unwrap(),
+        draft: q.get("draft").and_then(detail),
+        delivery_error: q.get("delivery_error").and_then(s),
+        delivered: q.get("delivered").and_then(Value::as_bool).unwrap_or(false),
+        ..Question::default()
     }
 }
 

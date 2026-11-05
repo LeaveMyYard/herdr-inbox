@@ -294,6 +294,15 @@ scenarios! {
         dismiss_kept_and_polled_under = "remote_edge.dismiss_kept_and_polled_under",
         unlabelled_machine = "remote_edge.unlabelled_machine",
         remote_question_ends_after_answer_elsewhere = "remote_edge.remote_question_ends_after_answer_elsewhere",
+        closed_but_group_lives = "remote_edge.closed_but_group_lives",
+        two_machines_same_id = "remote_edge.two_machines_same_id",
+        tab_chain_box = "remote_edge.tab_chain_box",
+        tab_chain_preview = "remote_edge.tab_chain_preview",
+        tab_chain_preview_box = "remote_edge.tab_chain_preview_box",
+        tab_chain_shared_id = "remote_edge.tab_chain_shared_id",
+        tab_choices_then_pick = "remote_edge.tab_choices_then_pick",
+        two_alerts_only = "remote_edge.two_alerts_only",
+        g_in_a_remote_alert_shares_a_local_id = "remote_edge.g_in_a_remote_alert_shares_a_local_id",
     }
 }
 

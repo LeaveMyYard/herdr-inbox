@@ -174,5 +174,8 @@ fn y_on_a_remote_group_stops_at_a_question_that_changed() {
         assert_eq!(state["running"], true);
         assert_eq!(state["closed"], json!({}));
         assert!(state["entries"].as_array().unwrap().contains(&json!(ROW)));
+        // the row now holds what is left: the queued question is out of the model's copy
+        rig.key("enter");
+        assert_eq!(rig.state()["view"]["qid"], 3);
     }
 }
