@@ -49,7 +49,7 @@ tests/test_async_actions.py::test_ask_notification_runs_in_the_background,tests/
 tests/test_async_actions.py::test_popup_never_calls_herdr_for_tab_labels_on_the_ui_thread,tests/test_async_actions.py,,todo,,P5
 tests/test_async_actions.py::test_go_to_agent_focuses_off_the_ui_thread,tests/test_async_actions.py,herdr-inbox --lib tui::run::tests::goto::g_focuses_the_agent_off_the_popups_thread_then_closes,mapped,,P6
 tests/test_async_actions.py::test_spawn_delivery_runs_inbox_deliver_detached,tests/test_async_actions.py,herdr-inbox --lib tui::live::handoff::tests::the_detached_sender_runs_deliver_with_the_ids_and_force,mapped,,P6
-tests/test_async_actions.py::test_inbox_trace_logs_steps_only_when_set,tests/test_async_actions.py,,todo,,P5
+tests/test_async_actions.py::test_inbox_trace_logs_steps_only_when_set,tests/test_async_actions.py,herdr-inbox --test mcp_herdr inbox_trace_logs_steps_only_when_set,mapped,,P5
 tests/test_async_actions.py::test_m1_a_stale_claim_takeover_looks_at_the_transcript_first,tests/test_async_actions.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_async_actions.py::test_the_detached_sender_end_to_end,tests/test_async_actions.py,,todo,,P5
 tests/test_async_actions.py::test_a_hidden_pending_answer_is_still_delivered,tests/test_async_actions.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5

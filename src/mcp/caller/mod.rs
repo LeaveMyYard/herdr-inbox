@@ -17,6 +17,7 @@ pub mod live;
 
 use crate::mcp::retry::Failure;
 use crate::store::questions::Owner;
+use crate::trace;
 
 /// The asker (Python `service.Caller`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -107,10 +108,14 @@ pub fn pane_running(world: &dyn World, session: Option<&str>) -> Option<String> 
 /// Who is asking now.
 pub fn resolve(world: &dyn World, env: &Env) -> Result<Caller, Failure> {
     let mut pane_id = some(env.pane_id.as_deref());
-    if pane_id.is_some() && world.nested() {
+    if trace::timed("caller.nested_claude", || {
+        pane_id.is_some() && world.nested()
+    }) {
         pane_id = None; // a claude run by the pane's agent is not the pane's agent
     }
-    let mut ident = pane_id.as_deref().and_then(|p| world.pane(p));
+    let mut ident = trace::timed("caller.pane_identity", || {
+        pane_id.as_deref().and_then(|p| world.pane(p))
+    });
     if pane_id.is_some()
         && ident.is_none()
         && let Some(moved) = pane_running(world, env.session_id.as_deref())
@@ -131,7 +136,9 @@ pub fn resolve(world: &dyn World, env: &Env) -> Result<Caller, Failure> {
     let tab_label = match tab_label {
         // never our "❓2 " prefix
         Some(label) => {
-            let marks = world.marks(ident.tab_id.as_deref())?;
+            let marks = trace::timed("caller.base_label_store", || {
+                world.marks(ident.tab_id.as_deref())
+            })?;
             let marks: Vec<&str> = marks.iter().map(String::as_str).collect();
             Some(crate::tabs::base_label(&label, &marks))
         }

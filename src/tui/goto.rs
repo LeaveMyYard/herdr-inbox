@@ -35,7 +35,7 @@ pub fn go_to(pane: String, graced: bool, agents: Arc<dyn Agents>, back: Sender<B
             let _ = back.send(Back::Toast(Toast::new(AT_PROMPT, Severity::Information)));
             return;
         }
-        let error = agents.focus(&pane);
+        let error = crate::trace::timed("popup.focus_pane", || agents.focus(&pane));
         let _ = back.send(Back::Focused { pane, error }); // the popup may be gone by now
     };
     // a thread that cannot start: nothing happens, as a herdr that does not answer

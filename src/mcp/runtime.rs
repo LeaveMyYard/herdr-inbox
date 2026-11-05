@@ -25,6 +25,7 @@ use super::retry::{Backoff, Failure, busy_safe};
 use crate::claude::Transcripts;
 use crate::store::Store;
 use crate::store::alerts::Effect;
+use crate::trace;
 
 /// Everything a call needs.
 pub struct Runtime {
@@ -54,20 +55,22 @@ impl Runtime {
             Ok(items) => items,
             Err(receipt) => return Ok(receipt),
         };
-        let (store, caller) = self.store_then_caller()?;
+        let store = trace::timed("mcp.ask_operator", || {
+            trace::timed("mcp.tool_store", || open(&self.db, self.backoff.attempt))
+        })?;
+        let _body = trace::step("mcp.ask_operator.body");
+        let caller = caller::resolve(&*self.world, &self.env)?;
         let call = file::Call {
             items: &items,
             context: a.context.as_deref(),
             asked_by: a.asked_by.as_deref(),
             title: a.title.as_deref(),
         };
-        let receipt = self.with_effects(file::ask_group(
-            &store,
-            &caller,
-            &call,
-            &self.server,
-            &self.files,
-        ))?;
+        let filed = file::ask_group(&store, &caller, &call, &self.server, &self.files);
+        // Python's step is under `if new`: only a new question has effects
+        let new = matches!(&filed, Ok((_, effects)) if !effects.is_empty());
+        let _markers = new.then(|| trace::step("ask.markers"));
+        let receipt = self.with_effects(filed)?;
         // `question` gets its one receipt; `questions` the group's
         Ok(if a.questions.as_ref().is_some_and(|q| !q.is_empty()) {
             receipt

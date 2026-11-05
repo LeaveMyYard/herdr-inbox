@@ -326,3 +326,71 @@ fn with_herdr_unreachable_the_question_is_still_filed_for_the_pane() {
 fn the_callers_own_questions_and_alerts_are_listed_withdrawn_raised_and_reported() {
     check("herdr-tools", Some(&fake()), &[]);
 }
+
+/// Runs the recorded pane session with `extra` set, in a fresh `dir`.
+fn traced_session(dir: &Path, f: &FakeHerdr, extra: &[(&str, String)]) {
+    Store::open_migrating(&dir.join("inbox.db"), Duration::from_secs(3)).unwrap();
+    let mut env = vec![
+        ("HERDR_PANE_ID", "w1:p1".to_owned()),
+        (
+            "HERDR_SOCKET_PATH",
+            f.socket().to_string_lossy().into_owned(),
+        ),
+    ];
+    env.extend(extra.iter().cloned());
+    session(&golden("herdr-pane"), dir, &env, &mut act);
+}
+
+#[test]
+fn inbox_trace_logs_steps_only_when_set() {
+    // Python: test_inbox_trace_logs_steps_only_when_set
+    let log = tempfile::tempdir().unwrap();
+    let log = log.path().join("trace.jsonl");
+
+    let off = tempfile::tempdir().unwrap();
+    traced_session(off.path(), &fake(), &[]);
+    assert!(!log.exists());
+    let empty = tempfile::tempdir().unwrap();
+    traced_session(empty.path(), &fake(), &[("INBOX_TRACE", String::new())]);
+    assert!(!log.exists());
+
+    let on = tempfile::tempdir().unwrap();
+    let path = log.to_string_lossy().into_owned();
+    traced_session(on.path(), &fake(), &[("INBOX_TRACE", path)]);
+    let text = std::fs::read_to_string(&log).unwrap();
+    let steps: Vec<Value> = text
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let named = |name: &str| steps.iter().filter(|s| s["step"] == name).count();
+    let notified = steps
+        .iter()
+        .find(|s| s["step"] == "herdr notification show")
+        .expect("the question's notification");
+    assert!(notified["ms"].is_number(), "{notified}");
+    assert!(
+        !notified["thread"].as_str().unwrap().is_empty(),
+        "{notified}"
+    );
+    for step in [
+        "mcp.ask_operator",
+        "mcp.tool_store",
+        "mcp.ask_operator.body",
+        "caller.pane_identity",
+        "ask.markers",
+        "background.job",
+        "tabs.marker_lock_wait",
+    ] {
+        assert!(named(step) > 0, "{step}: {text}");
+    }
+    assert_eq!(
+        named("store.schema_check"),
+        0,
+        "a current stamp is not checked"
+    );
+    let db = rusqlite::Connection::open(on.path().join("inbox.db")).unwrap();
+    let asked: String = db
+        .query_row("SELECT question FROM questions LIMIT 1", [], |r| r.get(0))
+        .unwrap();
+    assert!(!text.contains(&asked), "no question text in a trace");
+}

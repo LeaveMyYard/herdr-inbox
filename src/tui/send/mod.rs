@@ -116,6 +116,7 @@ struct Job {
 
 impl Job {
     fn run(self, send: &Send) {
+        let _thread = crate::trace::step("popup.send_thread");
         let report = match self.work(send) {
             Ok(back) => back,
             Err(Refused::AlreadySending(qid)) => Back::Toast(Toast::new(

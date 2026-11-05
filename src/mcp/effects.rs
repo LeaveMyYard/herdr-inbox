@@ -37,20 +37,27 @@ impl Effects {
     pub fn start(herald: Arc<dyn Herald>) -> Effects {
         let (tx, rx) = channel::<Effect>();
         let (done_tx, done_rx) = channel();
-        thread::spawn(move || {
+        let job = move || {
             for e in rx {
                 // one bad job never stops the queue (Python's loop catches every exception)
-                let run = AssertUnwindSafe(|| match e {
-                    Effect::Notify { title, body } => herald.notify(&title, &body),
-                    Effect::Markers(Some(pane)) => herald.markers(&pane),
-                    Effect::Markers(None) => {}
+                let run = AssertUnwindSafe(|| {
+                    let _job = crate::trace::step("background.job");
+                    match e {
+                        Effect::Notify { title, body } => herald.notify(&title, &body),
+                        Effect::Markers(Some(pane)) => herald.markers(&pane),
+                        Effect::Markers(None) => {}
+                    }
                 });
                 if catch_unwind(run).is_err() {
                     let _ = writeln!(std::io::stderr(), "herdr-inbox: a background effect failed");
                 }
             }
             let _ = done_tx.send(());
-        });
+        };
+        thread::Builder::new()
+            .name("inbox-background".into())
+            .spawn(job)
+            .expect("the effects' thread starts");
         Effects {
             tx: Mutex::new(Some(tx)),
             done: Mutex::new(Some(done_rx)),

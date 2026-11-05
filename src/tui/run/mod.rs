@@ -31,6 +31,7 @@ use inbox_core::popup::{Event, Key, Millis, Mode, Open, Popup, Severity, View};
 use inbox_core::popup_view::{Ctx, Theme, ViewState, render};
 
 use crate::store::Store;
+use crate::trace;
 use crate::tui::back::Back;
 use crate::tui::goto::Agents;
 use crate::tui::marks::{DRAIN, Marks};
@@ -85,6 +86,7 @@ struct Ui<'c> {
 /// flight is recorded.
 pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock) -> io::Result<()> {
     let busy = BusySince::read(&parts.store, &open.snapshot).unwrap_or_default();
+    let mounted = trace::step("popup.on_mount");
     let (popup, fx) = Popup::open(open, clock.now());
     let mut ui = Ui {
         popup,
@@ -97,6 +99,7 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
         screen_gone: false,
     };
     ui.apply(fx, clock.now());
+    drop(mounted);
     let mut next_poll = clock.now() + POLL;
     let mut next_frame = clock.now() + FRAME;
     ui.draw(screen);
@@ -136,8 +139,11 @@ pub fn run(open: Open, parts: Parts, screen: &mut dyn Screen, clock: &dyn Clock)
             break; // nothing to show or read: wait for the sends below, without spinning
         }
     }
-    ui.parts.sender.wait();
-    ui.parts.marks.drain(DRAIN);
+    trace::timed("popup.quit_wait", || {
+        ui.parts.sender.wait();
+        ui.parts.marks.drain(DRAIN);
+    });
+    trace::record("popup.exit", 0.0, &[]);
     Ok(())
 }
 
@@ -197,6 +203,9 @@ impl Ui<'_> {
     }
 
     fn key(&mut self, key: Key, now: Millis) {
+        if trace::enabled() {
+            trace::record("popup.key", 0.0, &[("key", format!("{key:?}").into())]);
+        }
         if let Some(snap) = self.read() {
             let fx = self.popup.handle(Event::Data(snap), now);
             self.apply(fx, now);
@@ -211,6 +220,7 @@ impl Ui<'_> {
         if self.closing {
             return;
         }
+        let _poll = trace::step("popup.poll");
         if let Some(snap) = self.read() {
             let fx = self.popup.handle(Event::Poll(snap), now);
             self.apply(fx, now);
@@ -224,6 +234,7 @@ impl Ui<'_> {
                 Back::Toast(t) => self.toasts.push(t, now),
                 _ if self.closing => {}
                 Back::Sent { done, wanted } => {
+                    let _after = trace::step("popup.after_submit");
                     // a failed read: the model's own copy stands in for it
                     let snapshot = self.read().unwrap_or_else(|| self.popup.data().clone());
                     let event = Event::Sent {

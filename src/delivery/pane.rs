@@ -84,6 +84,10 @@ pub fn panel(herdr: &Herdr, pane: &str) -> bool {
 /// `herdr.prompt_agent`, cleaned to herdr's argument cap): herdr's error, if
 /// any. The error's wording is the socket client's, not the CLI's.
 pub fn prompt(herdr: &Herdr, pane: &str, text: &str) -> Option<String> {
+    let _step = crate::trace::step_with(
+        "deliver.prompt",
+        vec![("chars", text.chars().count().into())],
+    );
     herdr
         .prompt(&PaneId::new(pane), &Sanitized::new(text))
         .err()

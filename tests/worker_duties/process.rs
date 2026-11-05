@@ -236,3 +236,63 @@ fn an_mcp_call_on_a_database_not_ready_starts_the_worker() {
     assert!(wait(child, 30).is_some(), "the MCP server did not end");
     wait_for_the_end(&lock);
 }
+
+fn trace_steps(path: &Path) -> Vec<serde_json::Value> {
+    std::fs::read_to_string(path)
+        .unwrap_or_default()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
+}
+
+#[test]
+fn a_delivery_and_its_worker_leave_their_steps_in_the_trace_and_no_text() {
+    let mut w = World::new();
+    let qid = w.ask();
+    let question = w.store.get(qid).unwrap().unwrap().question;
+    let log = w.dir.path().join("trace.jsonl");
+    let id = format!("Q{qid}");
+    let status = w
+        .command(&["answer", &id, "Answer Text 501"])
+        .env("INBOX_TRACE", &log)
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(0));
+    wait_for_the_end(&w.lock());
+    let steps = trace_steps(&log);
+    let named = |name: &str| steps.iter().find(|s| s["step"] == name);
+    let typed = named("deliver.prompt").expect("the answer was typed");
+    assert!(typed["chars"].as_u64().unwrap() > 0, "{typed}");
+    for step in [
+        "herdr agent prompt",
+        "herdr agent get",
+        "herdr agent list",
+        "deliver.verify_wait",
+        "store.reconcile",
+    ] {
+        assert!(named(step).is_some(), "{step}: {steps:?}");
+    }
+    let text = std::fs::read_to_string(&log).unwrap();
+    assert!(!text.contains("Answer Text 501") && !text.contains(&question));
+}
+
+#[test]
+fn only_a_database_stamped_older_is_checked() {
+    let w = World::new();
+    let log = w.dir.path().join("trace.jsonl");
+    let list = || {
+        let status = w
+            .command(&["list"])
+            .env("INBOX_TRACE", &log)
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(0));
+        trace_steps(&log)
+            .iter()
+            .filter(|s| s["step"] == "store.schema_check")
+            .count()
+    };
+    assert_eq!(list(), 0);
+    w.store.db().pragma_update(None, "user_version", 0).unwrap();
+    assert_eq!(list(), 1);
+}

@@ -51,7 +51,7 @@ impl<'a> Watcher<'a> {
             db: db_path(env),
             state_dir: inbox::state_dir(env),
             pane: env.pane_id().map(str::to_owned),
-            herdr: Herdr::from_env(),
+            herdr: crate::trace::observed(Herdr::from_env()),
             files: Transcripts::from_env(),
             owner: owning_claude_here(),
             clock,

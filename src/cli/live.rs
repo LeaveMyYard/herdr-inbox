@@ -33,7 +33,7 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let db_path = inbox::db_path(&env);
     let herdr_config = crate::radar::config_path(&env);
     let state_dir = inbox::state_dir(&env);
-    let herdr = Herdr::from_env();
+    let herdr = crate::trace::observed(Herdr::from_env());
     let files = Transcripts::from_env();
     let mut config =
         ConfigFile::resolve(&env, || herdr.plugin_config_dir(PLUGIN_ID).ok().flatten());

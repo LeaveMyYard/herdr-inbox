@@ -1095,7 +1095,10 @@ change:
   takes ~300 ms for one message, and only that call waits on it.
 - **`INBOX_TRACE=<file>`** (off by default) appends one JSON line per step to `<file>`:
   every herdr call, the popup's handlers, `ask_operator`, delivery phases and lock waits,
-  each with its milliseconds and thread. Use it to investigate any future lag.
+  each with its milliseconds and thread. Use it to investigate any future lag. The popup logs
+  every key pressed, so a trace holds what was typed into it: treat the file accordingly. In
+  the Rust binary a key is its debug text, a popup retry logs as `popup.submit` and a group
+  dismissal as `popup.dismiss`, and `thread` is the Rust thread's name.
 
 **Answers that can't be delivered (0.6.3).**
 - A row whose "no agent" / "conversation changed" retries ran out is marked
