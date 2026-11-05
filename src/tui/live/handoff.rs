@@ -16,6 +16,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
+use herdr_agent_kit::plugin_env::PluginEnv;
 use inbox_core::deliver::Mode;
 
 use crate::claude::Transcripts;
@@ -27,7 +28,7 @@ use crate::store::{Question, Store};
 use crate::surface::Surface;
 use crate::surface::live::Live;
 use crate::tui::send::handoff::Handoff;
-use crate::worker::process::ensure_worker;
+use crate::worker::process::ensure_worker_in;
 use crate::worker::spawn::{reap_later, spawn_detached};
 use crate::worker::spawn_env;
 
@@ -41,6 +42,8 @@ pub struct LiveHandoff {
     pub server: String,
     /// This binary.
     pub exe: Option<PathBuf>,
+    /// The plugin's environment, which says where a worker's lock and database are.
+    pub env: PluginEnv,
 }
 
 /// The detached sender's arguments (Python `spawn_delivery`'s
@@ -56,7 +59,12 @@ pub fn deliver_args(qids: &[i64], force: bool) -> Vec<OsString> {
 
 impl LiveHandoff {
     fn ensure(&self, server: Option<&str>) {
-        ensure_worker(server);
+        match &self.exe {
+            Some(exe) => {
+                ensure_worker_in(&self.env, server, exe);
+            }
+            None => super::log("could not start the worker: this binary's path is unknown"),
+        }
     }
 }
 

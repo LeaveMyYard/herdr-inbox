@@ -56,10 +56,13 @@ fn exe() -> PathBuf {
 /// Starts a worker for `server` (`None`: this process's) unless one runs
 /// (Python `_ensure_worker`: never fails the caller). True if one started.
 pub fn ensure_worker(server: Option<&str>) -> bool {
-    let env = PluginEnv::from_env();
-    let exe = exe();
-    let wenv = worker_env(&env, std::env::vars_os(), server.map(OsStr::new), &exe);
-    ensure(&wenv, &exe)
+    ensure_worker_in(&PluginEnv::from_env(), server, &exe())
+}
+
+/// [`ensure_worker`] in `env`, starting `exe`: for a process that holds both.
+pub fn ensure_worker_in(env: &PluginEnv, server: Option<&str>, exe: &Path) -> bool {
+    let wenv = worker_env(env, std::env::vars_os(), server.map(OsStr::new), exe);
+    ensure(&wenv, exe)
 }
 
 /// `herdr-inbox worker [--ensure]`: the exit code. `--ensure` starts one in
