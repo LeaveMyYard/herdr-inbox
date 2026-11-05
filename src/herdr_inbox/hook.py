@@ -278,7 +278,7 @@ def run(event: str) -> int:
                 # first, and cheap: a resumed OLD session id runs itself from now on, not
                 # the session its transcript once continued in (store.live_session). Only a
                 # resume re-runs an id that may have continued elsewhere: a compaction
-                # continuation fires SessionStart:compact (captured, synthetic_90 10-15 18:22),
+                # continuation fires SessionStart:compact (captured, 00000002 10-15 17:00),
                 # and clear/fork/startup run a fresh id (review #53 final M1)
                 if payload.get("source") == "resume":
                     from .store import record_start

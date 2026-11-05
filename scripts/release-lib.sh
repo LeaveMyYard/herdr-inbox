@@ -85,3 +85,33 @@ inbox_fetch() {
 	_inbox_drop 0
 	[ "$_rc" -eq 0 ] || return 2
 }
+
+# inbox_versions <dir>...: the recorded binaries (herdr-inbox-X.Y.Z) in the directories, as
+# "major<TAB>minor<TAB>patch<TAB>path", newest first (anything else in them is skipped).
+inbox_versions() {
+	_t=$(printf '\t')
+	for _d in "$@"; do
+		for _f in "$_d"/herdr-inbox-*; do
+			[ -f "$_f" ] || continue
+			_v=${_f##*/herdr-inbox-}
+			case $_v in
+			*[!0-9.]* | .* | *.) continue ;;
+			esac
+			printf '%s\t%s\n' "$_v" "$_f" | awk -F '\t' '{ n = split($1, v, "."); if (n == 3) printf "%d\t%d\t%d\t%s\n", v[1], v[2], v[3], $2 }'
+		done
+	done | sort -t "$_t" -k1,1nr -k2,2nr -k3,3nr
+}
+
+# inbox_prune <dir> <keep> [<path>]: removes the recorded binaries of <dir> beyond the newest
+# <keep> of each contract (a Claude plugin of an older contract still finds its own), never
+# <path> (the one just recorded). Removing a file a process runs is safe: it keeps its inode;
+# and a launcher only ever picks the newest of its contract, which stays (#72). Every recorded
+# binary's `contract` is probed here, unbounded as in launch (#73: it prints before any I/O).
+inbox_prune() {
+	[ -d "$1" ] || return 0
+	inbox_versions "$1" | cut -f 4- | while IFS= read -r _f; do
+		printf '%s\t%s\n' "$("$_f" contract 2>/dev/null </dev/null | head -n 1)" "$_f"
+	done | awk -F '\t' -v keep="$2" 'seen[$1]++ >= keep { print $2 }' | while IFS= read -r _f; do
+		[ "$_f" = "${3:-}" ] || rm -f "$_f"
+	done
+}

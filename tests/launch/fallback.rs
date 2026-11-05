@@ -24,10 +24,17 @@ fn the_launcher_carries_the_binarys_contract() {
         launch.contains(&format!("\nCONTRACT={CONTRACT}\n")),
         "scripts/launch and src/contract.rs move together"
     );
+    // only the test's own environment: `contract` needs none, and never herdr
+    let dir = tempfile::tempdir().unwrap();
+    let cli = crate::herdr_cli::CliStub::new(dir.path());
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
         .arg("contract")
+        .env_clear()
+        .env("HOME", dir.path())
+        .env("HERDR_BIN_PATH", &cli.bin)
         .output()
         .unwrap();
+    cli.assert_only(&[]);
     assert_eq!(
         String::from_utf8(out.stdout).unwrap(),
         format!("{CONTRACT}\n")

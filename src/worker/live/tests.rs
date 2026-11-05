@@ -55,7 +55,7 @@ fn herdrs_own_install_follows_the_listed_root_uncached() {
     let dir = tempfile::tempdir().unwrap();
     let own = install(dir.path(), "own", "0.10.6");
     let fake = FakeHerdr::start();
-    let herdr = fake.blocking_client();
+    let herdr = fake.blocking_client().with_bin("/nonexistent/herdr-cli");
     let mut it = Install::new(Some(own.clone()));
     lists(&fake, None);
     assert_eq!(
@@ -94,7 +94,7 @@ fn another_checkout_never_follows_the_listed_root() {
     let own = install(dir.path(), "worktree", "0.10.6");
     let other = install(dir.path(), "main", "0.1.0");
     let fake = FakeHerdr::start();
-    let herdr = fake.blocking_client();
+    let herdr = fake.blocking_client().with_bin("/nonexistent/herdr-cli");
     lists(&fake, Some(&other));
     let mut it = Install::new(Some(own.clone()));
     assert!(!it.follows(|| listed_root(&herdr)));
@@ -108,7 +108,7 @@ fn an_installed_copy_without_a_checkout_follows_herdr() {
     let dir = tempfile::tempdir().unwrap();
     let listed = install(dir.path(), "x", "2.0.0");
     let fake = FakeHerdr::start();
-    let herdr = fake.blocking_client();
+    let herdr = fake.blocking_client().with_bin("/nonexistent/herdr-cli");
     lists(&fake, Some(&listed));
     let mut it = Install::new(None);
     assert!(it.follows(|| None));
@@ -120,7 +120,7 @@ fn an_installed_copy_without_a_checkout_follows_herdr() {
 #[test]
 fn server_gone_needs_herdrs_own_word() {
     let fake = FakeHerdr::start();
-    let herdr = fake.blocking_client();
+    let herdr = fake.blocking_client().with_bin("/nonexistent/herdr-cli");
     fake.on("workspace.list", Reply::Result(json!({"workspaces": []})));
     assert!(!server_gone(&herdr), "up");
     fake.on("workspace.list", Reply::error("timeout", "slow"));
@@ -150,7 +150,8 @@ fn an_unreachable_server_is_not_gone() {
     let socket = locked.join("s");
     std::os::unix::fs::symlink(fake.socket(), &socket).unwrap();
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
-    let herdr = Herdr::new(herdr_agent_kit::herdr_api::ServerId::new(&socket));
+    let herdr = Herdr::new(herdr_agent_kit::herdr_api::ServerId::new(&socket))
+        .with_bin("/nonexistent/herdr-cli");
     let gone = server_gone(&herdr);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
     assert!(!gone, "a permission error is not server_not_running");

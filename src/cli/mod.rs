@@ -1,19 +1,22 @@
-//! The `inbox` command line (Python `cli.main`): so far `list`, `answer`
-//! and `dismiss`. Output, exit codes and usage errors are Python's, word for
-//! word (the CLI golden, `tests/fixtures/cli.json`).
+//! The `inbox` command line (Python `cli.main`): so far `list`, `answer`,
+//! `dismiss`, `deliver`, `open`, `sync-tokens`, `radar-sidebar`, `export` and `apply`.
+//! Output, exit codes and usage errors are Python's, word for word (the CLI golden, `tests/fixtures/cli.json`).
 //!
 //! - [`args`]: argparse's parsing, help and usage errors.
 //! - [`specs`]: the subcommands' arguments and help.
-//! - [`list`], [`answer`]: the commands.
+//! - [`list`], [`answer`], [`open`], [`marks`], [`remote`]: the commands.
 //! - [`live`]: the real database, herdr and delivery behind [`Io`].
 
 pub mod answer;
 pub mod args;
 pub mod list;
 pub mod live;
+pub mod marks;
+pub mod open;
+pub mod remote;
 pub mod specs;
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::time::Duration;
 
@@ -39,6 +42,8 @@ pub const BUSY_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Everything a command reads and writes besides its arguments.
 pub struct Io<'a> {
+    /// stdin (the request of `export` and `apply`).
+    pub input: &'a mut dyn Read,
     /// stdout.
     pub out: &'a mut dyn Write,
     /// stderr.
@@ -57,6 +62,8 @@ pub struct Io<'a> {
     pub herdr: &'a mut dyn Surface,
     /// The plugin's `config.toml`.
     pub config: &'a mut ConfigFile,
+    /// herdr's own `config.toml` (herdr-radar's sidebar block).
+    pub herdr_config: &'a Path,
     /// How long a tab label update waits for its lock.
     pub lock_wait: Duration,
     /// Now, Unix seconds (the ages `list` shows).
@@ -75,24 +82,26 @@ pub fn run(cmd: &str, argv: &[String], io: &mut Io<'_>) -> i32 {
     };
     let args = match parse(spec, argv) {
         Parsed::Run(args) => args,
-        Parsed::Exit {
-            code,
-            stdout,
-            stderr,
-        } => {
-            let _ = io.out.write_all(stdout.as_bytes());
-            let _ = io.err.write_all(stderr.as_bytes());
-            return code;
-        }
+        exit => return print_exit(exit, io),
     };
+    // the commands that need no database
+    if cmd == "open" {
+        return open::open(&args, io).unwrap_or_else(|exit| print_exit(exit, io));
+    }
+    if cmd == "radar-sidebar" {
+        return marks::radar_sidebar(&args, io);
+    }
+    if cmd == "export" || cmd == "apply" {
+        return remote::run(cmd, io); // it parses its request before it opens the database
+    }
     let store = match Store::open(io.db_path, BUSY_TIMEOUT) {
         Ok(store) => store,
-        Err(OpenError::NotReady(_)) => return not_ready(io),
+        Err(OpenError::NotReady(_)) => return not_ready(cmd, io),
         Err(OpenError::Sqlite(_)) if !io.db_path.exists() => {
             // Python's Store() creates the file, finds it not migrated and says so to the
             // worker; this leaves creating it to the worker, which migrates it
             want(io.db_path, MIGRATION_REVISION, unix_now());
-            return not_ready(io);
+            return not_ready(cmd, io);
         }
         Err(OpenError::Sqlite(err)) => return failed(io, &err),
     };
@@ -102,19 +111,39 @@ pub fn run(cmd: &str, argv: &[String], io: &mut Io<'_>) -> i32 {
     }
 }
 
+/// Prints a help text or a usage error; its exit code.
+fn print_exit(exit: Parsed, io: &mut Io<'_>) -> i32 {
+    let Parsed::Exit {
+        code,
+        stdout,
+        stderr,
+    } = exit
+    else {
+        return 2;
+    };
+    let _ = io.out.write_all(stdout.as_bytes());
+    let _ = io.err.write_all(stderr.as_bytes());
+    code
+}
+
 fn dispatch(cmd: &str, args: &Args, store: &Store, io: &mut Io<'_>) -> rusqlite::Result<i32> {
     match cmd {
         "list" => list::list(store, args.has("--all"), io),
         "answer" => answer::answer(store, args, io),
         "dismiss" => answer::dismiss(store, args, io),
+        "sync-tokens" => marks::sync_tokens(store, args, io),
+        "deliver" => answer::deliver(store, args, io),
         _ => Ok(2),
     }
 }
 
 /// The database lacks this code's schema (Python never creates it ready
 /// either): start the worker, which migrates it, and say so.
-fn not_ready(io: &mut Io<'_>) -> i32 {
+fn not_ready(cmd: &str, io: &mut Io<'_>) -> i32 {
     io.delivery.ensure_worker(None);
+    if cmd == "sync-tokens" {
+        return 0; // herdr's startup command: nothing to count before the worker migrates
+    }
     let _ = writeln!(io.err, "{NOT_MIGRATED}");
     1
 }

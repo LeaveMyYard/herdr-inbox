@@ -4,10 +4,11 @@
 //! database as the write leaves it (the next snapshot confirms it).
 
 use super::GO_PAUSE;
+use super::confirm::{Confirm, ConfirmTarget};
 use super::data::Detail;
 use super::entry::{Entry, Mode, Tab};
 use super::event::{Effect, Send, Severity};
-use super::state::{Confirm, ConfirmTarget, Msg, Popup};
+use super::state::{Msg, Popup};
 
 impl Popup {
     pub(super) fn message(&mut self, msg: Msg) {
@@ -16,8 +17,9 @@ impl Popup {
             Msg::Quit => self.quit(),
             Msg::Open(entry) => self.open_entry(&entry, None),
             Msg::Answered(qid, detail) => self.answered(qid, detail),
+            Msg::Chat(_) if self.mode == Mode::Remote => self.chat_remote(),
             Msg::Chat(qid) => {
-                let pane = self.data.question(qid).map(|q| q.pane_id.clone());
+                let pane = self.view_question(qid).map(|q| q.pane_id.clone());
                 self.focus_pane(pane, false);
             }
             Msg::Edit(qid) => self.navigate(0, Some(Tab::Question(qid))),
@@ -53,6 +55,9 @@ impl Popup {
 
     /// A question view's answer (Python `on_question_view_answered`).
     fn answered(&mut self, qid: i64, detail: Option<Detail>) {
+        if self.mode == Mode::Remote {
+            return self.answer_remote(qid, detail);
+        }
         let tab = Tab::Question(qid);
         if self.mode != Mode::Group || self.gone.contains(&tab) || self.current != Some(tab) {
             return; // never act for a question that is not the one on screen
@@ -123,6 +128,9 @@ impl Popup {
     }
 
     fn ack(&mut self, entry: &Entry) {
+        if matches!(entry, Entry::RemoteAlert(_)) {
+            return self.ack_remote(entry);
+        }
         let Entry::Alert(id) = entry else { return };
         self.fx.push(Effect::Ack { alert: *id });
         if let Some(a) = self.data.alerts.iter_mut().find(|a| a.id == *id) {
@@ -154,6 +162,9 @@ impl Popup {
                     self.closed.insert(entry, "hidden".to_string());
                 }
                 Entry::Failed(_) => {}
+                Entry::Remote(_) | Entry::Outbox(_) | Entry::Problem(_) | Entry::RemoteAlert(_) => {
+                    self.dismiss_remote(entry)
+                }
                 Entry::Group(g) => {
                     let qs: Vec<i64> = self.data.open_group(*g).iter().map(|q| q.id).collect();
                     let what = match &qs[..] {
@@ -189,10 +200,19 @@ impl Popup {
             Entry::Alert(id) => p.data.alert(*id).map(|a| a.pane_id.clone()),
             Entry::Failed(id) => p.data.question(*id).map(|q| q.pane_id.clone()),
             Entry::Group(g) => p.data.open_group(*g).first().map(|q| q.pane_id.clone()),
-            Entry::Gone => None,
+            // the gone summary; every remote row: its pane is on another machine,
+            // and its number can be a local alert's or question's
+            _ => None,
         };
         match (self.mode, self.entry.clone()) {
             (Mode::List, _) => {
+                let remote = |e: &Entry| e.is_remote() && !matches!(e, Entry::Problem(_));
+                if self.list_target().is_some_and(|c| remote(&c)) {
+                    return self.notify(
+                        "That agent runs on a remote machine: open it from herdr's machine view",
+                        Severity::Information,
+                    );
+                }
                 if let Some(cursor) = self.list_target() {
                     let target = pane(self, &cursor);
                     self.focus_pane(target, cursor.is_alert());
@@ -228,36 +248,6 @@ impl Popup {
         self.fx.push(Effect::GoTo { pane, graced });
     }
 
-    /// Store a draft (the effect, and the model's copy if the question is
-    /// open); `false` if it is not open (Python `set_draft`'s rowcount).
-    pub(super) fn write_draft(&mut self, qid: i64, detail: Option<Detail>) -> bool {
-        self.fx.push(Effect::Draft {
-            qid,
-            detail: detail.clone(),
-        });
-        self.write_draft_quiet(qid, detail)
-    }
-
-    fn write_draft_quiet(&mut self, qid: i64, detail: Option<Detail>) -> bool {
-        match self.data.question_mut(qid).filter(|q| q.status == "open") {
-            Some(q) => {
-                q.draft = detail;
-                true
-            }
-            None => false,
-        }
-    }
-
-    /// Close an open question in the model's copy; `false` if it was not open.
-    pub(super) fn write_status(&mut self, qid: i64, status: &str) -> bool {
-        let Some(q) = self.data.question_mut(qid).filter(|q| q.status == "open") else {
-            return false;
-        };
-        q.status = status.to_string();
-        self.data.open.retain(|&id| id != qid);
-        true
-    }
-
     /// The confirmation closed: `y` confirms.
     pub(super) fn confirmed(&mut self, target: ConfirmTarget, yes: bool) {
         if !yes {
@@ -286,12 +276,11 @@ impl Popup {
                 }
                 self.closed.insert(entry, "dismissed".to_string());
             }
+            ConfirmTarget::Remote {
+                entry,
+                label,
+                questions,
+            } => self.confirmed_remote(entry, label, questions),
         }
-    }
-
-    /// Dismiss an open question (the effect; the model's copy follows).
-    fn close_question(&mut self, qid: i64) -> bool {
-        self.fx.push(Effect::Dismiss { qid });
-        self.write_status(qid, "dismissed")
     }
 }

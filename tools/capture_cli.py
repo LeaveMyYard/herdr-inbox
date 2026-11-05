@@ -12,7 +12,9 @@ step's outcome (``delivery``) onto the rows it is given. Steps can set the plugi
 ``CLAUDE_CODE_SESSION_ID`` / ``HERDR_PANE_ID`` (``me``). ``submit`` steps run ``service.submit``
 without delivery (the popup's path), and ``preamble`` steps run the real ``deliver_batch`` with every
 claim refused, which records only its preamble: the worker ensured and the answers it keeps
-for this herdr server (one foreign server per step: Python ensures them in set order). In stderr
+for this herdr server (one foreign server per step: Python ensures them in set order). The remote
+side's steps (``inbox export``, ``inbox apply``, their request as ``stdin``) are in
+``tools/capture_cli_remote.py``; ``fresh`` starts the database over for them. In stderr
 the work directory is ``<work>`` and a TOML parser's reason ``<reason>``. Times are relative to now (ages print as ``3h``) and masked in the tables.
 """
 
@@ -28,9 +30,11 @@ import re
 import sys
 from pathlib import Path
 
+import capture_cli_remote as cli_remote
+
 S_A = "aaaaaaaa-0000-4000-8000-00000000000a"
-S_OLD = "synthetic_91-0000-4000-8000-000000000001"
-S_NEW = "synthetic_92-0000-4000-8000-000000000002"
+S_OLD = "00000003-0000-4000-8000-0000000000b1"
+S_NEW = "00000004-0000-4000-8000-0000000000b2"
 S_X = "77777777-0000-4000-8000-000000000007"
 
 
@@ -67,6 +71,7 @@ CLI_OPS = [
     ("cli", {"argv": ["list"]}),
     ("cli", {"argv": ["answer", "1", "go"]}),
     ("cli", {"argv": ["dismiss", "1"]}),
+    *cli_remote.BEFORE,
     ("migrate", {}),
     _q(1, "-3 hours", "w1:p1", "Which region?", tab_label="my-tab", session=S_A, asked_by="lead"),
     _q(2, "-5 minutes", "w1:p2", "Ship it?\nSecond line ignored", repeat=2, session=S_A, tab="w1:t2"),
@@ -176,23 +181,220 @@ CLI_OPS = [
     _draft(24, '{"choices": ["ü\\u00fc"],"text":"  t  ", "extra": 1.50}'),
     ("submit", {"qids": [20, 21, 22, 23, 24, 99], "config": ON, "pane_tabs": TABS,
                 "labels": {"w1:t1": "❓5 my-tab", "w1:t2": "❓3 w1:t2-tab"}}),
+    # `inbox open`: the focus request and the popup, then the popup taking and resolving it
+    ("cli", {"argv": ["open"]}),
+    ("cli", {"argv": ["open", "--no-hold"], "open_error": "server_not_running"}),
+    ("cli", {"argv": ["open", "-h"]}),
+    ("cli", {"argv": ["open", "--question"]}),
+    ("cli", {"argv": ["open", "--question", "1", "--pane", "w1:p1"]}),
+    ("cli", {"argv": ["open", "--pane", "w1:p1", "--pane", "w1:p2"]}),
+    ("cli", {"argv": ["open", "--question=QQ12"]}),
+    ("cli", {"argv": ["open", "--g", "x"]}),
+    ("cli", {"argv": ["open", "--session", "nope"]}),
+    ("cli", {"argv": ["open", "--pane", "a b"]}),
+    ("cli", {"argv": ["open", "--no-hold=1"]}),
+    ("cli", {"argv": ["open", "--q=Q5", "extra"]}),
+    ("cli", {"argv": ["open", "--question", ""]}),
+    ("cli", {"argv": ["open", "--question", "Q20"]}),
+    ("cli", {"argv": ["open", "--question", "qnap:Q12", "--no-hold"]}),
+    ("cli", {"argv": ["open", "--group", "١٢"]}),
+    ("cli", {"argv": ["open", "--session", S_NEW.upper()]}),
+    ("cli", {"argv": ["open", "--pane", "w1:p2"], "popup_open": True}),
+    ("cli", {"argv": ["open", "--pane", "w1:p2"], "open_error": "pane_not_found"}),
+    _q(30, "-1 hours", "w1:p5", "Deep link one?", session=S_OLD, tab="w1:t5"),
+    _q(31, "-1 hours", "w1:p5", "Deep link two?", session=S_OLD, tab="w1:t5"),
+    ("sql", {"sql": "INSERT INTO question_ext (id, group_id) VALUES (31, 30)", "params": []}),
+    ("sql", {"sql": "INSERT INTO remote_machines (machine_id, label, db_id) VALUES ('m1', 'qnap', 'd1'),"
+                    " ('m2', 'other', 'd2')", "params": []}),
+    ("sql", {"sql": "INSERT INTO remote_questions (machine_id, db_id, remote_id, qkey, status, data_json,"
+                    " first_seen_at) VALUES ('m1', 'd1', 12, 'k12', 'open', ?, 'x'),"
+                    " ('m1', 'd1', 13, 'k13', 'answered', ?, 'x'), ('m2', 'd2', 12, 'k2', 'open', ?, 'x')",
+             "params": [json.dumps({"id": 12, "group": 12, "status": "open", "question": "Remote?"}),
+                        json.dumps({"id": 13, "group": 13, "status": "answered", "question": "Done?"}),
+                        json.dumps({"id": 12, "group": 7, "status": "open", "question": "Other?"})]}),
+    ("deeplink", {"request": {"kind": "question", "value": "31"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": " Q30 "}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": "29"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": "x"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "group", "value": "30", "hold": False}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "group", "value": "31"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "pane", "value": "w1:p5"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "pane", "value": "w1:p0"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "session", "value": S_OLD.upper()}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "session", "value": "nope"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "question", "value": "qnap:12"}, "nonce": "n1",
+                  "machines": [{"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "question", "value": "m1:Q12"}, "nonce": "n1",
+                  "machines": [{"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "question", "value": "qnap:13"}, "nonce": "n1",
+                  "machines": [{"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "question", "value": "qnap:12"}, "nonce": "n1", "machines": []}),
+    ("deeplink", {"request": {"kind": "question", "value": "other:12"}, "nonce": "n1",
+                  "machines": [{"label": "other", "id": "m2"}, {"label": "qnap", "id": "m1"}]}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": "n2"}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": None}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": "n1", "age": 6}),
+    ("deeplink", {"request": {"kind": "group", "value": "30"}, "nonce": "n1", "age": -1}),
+    ("deeplink", {"request": {"kind": "bogus", "value": "30"}, "nonce": "n1"}),
+    ("deeplink", {"request": {"kind": "group", "value": 30, "hold": 0}, "nonce": "n1"}),
+    ("deeplink", {"raw": "{not json", "nonce": "n1"}),
+    ("deeplink", {"raw": "[1, 2]", "nonce": "n1"}),
+    ("deeplink", {"nonce": "n1"}),
+    # `inbox deliver` (the popup's detached sender): only answered, undelivered, unseen ones
+    _q(40, "-1 hours", "w1:p6", "Deliver me?", status="answered", answer="yes", tab="w1:t6"),
+    _q(41, "-1 hours", "w1:p6", "Delivered already?", status="answered", answer="no", tab="w1:t6"),
+    _q(42, "-1 hours", "w1:p6", "Seen already?", status="answered", answer="ok", tab="w1:t6"),
+    _q(43, "-1 hours", "w1:p6", "Still open?", tab="w1:t6"),
+    ("sql", {"sql": "UPDATE questions SET delivered_at = '2001-01-01T00:00:00+00:00' WHERE id = 41", "params": []}),
+    ("sql", {"sql": "UPDATE questions SET acknowledged_at = '2001-01-01T00:00:00+00:00' WHERE id = 42",
+             "params": []}),
+    ("cli", {"argv": ["deliver", "Q43", "41", "42", "99"]}),
+    ("cli", {"argv": ["deliver", "40", "q41"], "delivery": {"error": "pending: busy"}}),
+    ("cli", {"argv": ["deliver", "--force", "40"], "delivery": {"delivered": True}}),
+    ("cli", {"argv": ["deliver", "40"]}),
+    ("cli", {"argv": ["deliver"]}),
+    ("cli", {"argv": ["deliver", "QQ1"]}),
+    ("cli", {"argv": ["deliver", "-h"]}),
     # deliver_batch's preamble: the worker made sure of, answers of another herdr server left to it
     ("sql", {"sql": "UPDATE questions SET status = 'answered', answer = 'a', delivered_at = NULL,"
                     " delivery_error = NULL, acknowledged_at = NULL WHERE id IN (20, 21, 22, 24)", "params": []}),
     ("sql", {"sql": "INSERT INTO question_ext (id, group_id, herdr_server) VALUES (21, 21, '/srv/other'),"
                     " (22, 22, '/srv/mine'), (24, 24, '/srv/third') ON CONFLICT(id) DO UPDATE SET"
                     " herdr_server = excluded.herdr_server", "params": []}),
+    # sync-tokens: every pane's token, then every tab's prefix (herdr lists the tabs)
+    ("sync", {"argv": ["sync-tokens"], "config": ON, "pane_tabs": TABS + [["w1:p1", "w1:t1"]],
+              "all_tabs": ["w1:t1", "w1:t2", "w1:t9", "w1:t0"],
+              "labels": {"w1:t1": "Billing API", "w1:t2": "!7 ❓1 w1:t2-tab", "w1:t9": "❓3 stale"}}),
+    ("sync", {"argv": ["sync-tokens"], "config": ON, "pane_tabs": TABS, "all_tabs": ["w1:t1"],
+              "labels": {"w1:t1": "❓4 Billing API"}}),
+    ("sync", {"argv": ["sync-tokens", "--remove-prefixes"], "config": ON, "pane_tabs": TABS,
+              "all_tabs": ["w1:t1", "w1:t2"], "labels": {"w1:t1": "❓4 Billing API", "w1:t2": "6"}}),
+    ("sync", {"argv": ["sync-tokens"], "config": ON, "pane_tabs": None}),
+    ("sync", {"argv": ["sync-tokens"], "config": ON, "pane_tabs": TABS, "all_tabs": None}),
+    ("cli", {"argv": ["sync-tokens", "-h"]}),
+    # radar-sidebar over radar's own blocks (tests/fixtures/radar)
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font"}, "radar": False}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": None, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font"}, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font", "edited": True}, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar", "--remove"], "herdr_config": {"block": "dark-font", "edited": True},
+               "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "light-text", "crlf": True}, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-no-vendors"}, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font",
+               "replace": ["# >>> herdr-radar sidebar block", "# radar was here"]}, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font", "replace": ["[keys]", "[keys"]},
+               "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font", "replace":
+               ["[ui.sidebar.spaces]\n", 'note = """multi [\nline ]"""\n[ui.sidebar.spaces]\n']}, "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font", "replace":
+               ["[ui.sidebar.spaces]\n", '[[ui.sidebar.agents.extra]]\nname = "x"\n[ui.sidebar.spaces]\n']},
+               "radar": True}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font"}, "radar": True,
+               "radar_config": 'extra_tokens = ["$inbox_q"]\n'}),
+    ("radar", {"argv": ["radar-sidebar", "--remove"], "herdr_config": {"block": "dark-font"}, "radar": True,
+               "radar_config": 'extra_tokens = ["$inbox_q"]\n'}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font"}, "radar": True,
+               "radar_config": "extra_tokens = []\n# $inbox_q in a comment\n[deep]\nextra_tokens = [{ token = \"$other\" }]\n"}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font"}, "radar": True,
+               "radar_config": "[a.b]\nextra_tokens = [{ token = \"inbox_q\" }]\n"}),
+    ("radar", {"argv": ["radar-sidebar"], "herdr_config": {"block": "dark-font"}, "radar": True,
+               "radar_config": "broken = [\n"}),
+    ("radar", {"argv": ["radar-sidebar", "-h"], "herdr_config": None, "radar": True}),
+    ("radar_missing", {"herdr_config": {"block": "dark-font"}, "radar": True}),
+    ("radar_missing", {"herdr_config": {"block": "dark-font", "edited": True}, "radar": True}),
+    ("radar_missing", {"herdr_config": {"block": "dark-font"}, "radar": False}),
+    ("radar_missing", {"herdr_config": {"block": "dark-font"}, "radar": True,
+                       "config": ON + "radar_sidebar_hint = false\n"}),
+    ("radar_missing", {"herdr_config": None, "radar": True, "config": ON}),
     ("preamble", {"qids": [20, 21, 22], "retry": False, "server": "/srv/mine"}),
     ("preamble", {"qids": [24, 21], "retry": False, "server": "/srv/other"}),
     ("preamble", {"qids": [21, 20], "retry": True, "server": "/srv/mine"}),
     ("preamble", {"qids": [22], "retry": False, "server": "/srv/other"}),
+    *cli_remote.REMOTE_OPS,  # last: a database of their own
 ]
 
 
-def _tables(path: Path) -> dict:
+RADAR_BEFORE = '# my herdr config\n[keys]\nprefix = "ctrl-b"\n\n[ui]\nsidebar_width = 40   # keep "this" [as is]\n\n'
+RADAR_AFTER = "\n# trailing comment, kept\n"
+
+
+def radar_text(spec: dict) -> str:
+    """herdr's config around one of radar's blocks (tests/test_radar.py's BEFORE/AFTER), with
+    ``replace`` [old, new] once, CRLF line endings for ``crlf``, our cells already in for
+    ``edited`` (radar.edited)."""
+    from herdr_inbox import radar
+
+    block = (Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "radar"
+             / f"{spec['block']}.block.toml").read_text(encoding="utf-8")
+    text = RADAR_BEFORE + block + RADAR_AFTER
+    if spec.get("replace"):
+        text = text.replace(spec["replace"][0], spec["replace"][1], 1)
+    if spec.get("edited"):
+        text = radar.edited(text, False)
+    return text.replace("\n", "\r\n") if spec.get("crlf") else text
+
+
+def _herdr_config(path: Path, args: dict, radar_dir: Path) -> None:
+    """The step's herdr config.toml (or none) and radar's own config.toml (or none)."""
+    path.unlink(missing_ok=True)
+    if args.get("herdr_config") is not None:
+        path.write_bytes(radar_text(args["herdr_config"]).encode())
+    (radar_dir / "config.toml").unlink(missing_ok=True)
+    if args.get("radar_config") is not None:
+        (radar_dir / "config.toml").write_text(args["radar_config"])
+
+
+def _deeplink(deeplink, path: Path, work: Path, args: dict) -> dict:
+    """The popup's side of a deep link (tui.on_mount): the step's request file (``request``
+    with nonce ``n1``, ``age`` seconds old; or ``raw`` text; or none), taken with the step's
+    nonce (anything it raises is no request, as the popup catches it), then resolved."""
+    import time
+
+    from herdr_inbox import store as st
+
+    target = deeplink.request_path()
+    target.unlink(missing_ok=True)
+    if "raw" in args:
+        target.write_text(args["raw"])
+    elif "request" in args:
+        data = {**args["request"], "created_at": time.time() - args.get("age", 0), "nonce": "n1"}
+        target.write_text(json.dumps(data))
+    os.environ.pop(deeplink.NONCE_ENV, None)
+    if args["nonce"]:
+        os.environ[deeplink.NONCE_ENV] = args["nonce"]
+    try:
+        request = deeplink.consume_request()
+    except Exception:  # noqa: BLE001 - the popup's own guard: a deep link never breaks it
+        request = None
+    finally:
+        os.environ.pop(deeplink.NONCE_ENV, None)
+    out = {"request": request, "left": target.exists()}
+    target.unlink(missing_ok=True)
+    if request:
+        with st.Store(path) as s:
+            got = deeplink.resolve(s, request)
+        out["resolved"] = None if got is None else [list(got[0]), got[1]]
+        out["describe"] = deeplink.describe(request)
+    return out
+
+
+def _tables(path: Path, fresh: bool) -> dict:
+    """The rows a step leaves; after ``fresh``, the remote side's (and the database's id)."""
+    import sqlite3
+
     from capture_goldens import _store_tables
 
-    return _store_tables(path, ("questions", "question_ext", "tab_decor"))
+    if not fresh:
+        return _store_tables(path, ("questions", "question_ext", "tab_decor"))
+    out = _store_tables(path, cli_remote.REMOTE_TABLES)
+    db = sqlite3.connect(path)
+    try:
+        row = db.execute("SELECT value FROM meta WHERE key = 'db_id'").fetchone()
+    finally:
+        db.close()
+    out["db_id"] = None if row is None else row[0] if row[0] == cli_remote.DB else "<db_id>"
+    return out
 
 
 class _Stderr(logging.Handler):
@@ -203,10 +405,14 @@ class _Stderr(logging.Handler):
 
 
 def capture_cli(out: Path, work: Path) -> Path:
-    from herdr_inbox import herdr, service, store as st, tabs, worker
+    from herdr_inbox import deeplink, herdr, radar, remote, remote_api, service, store as st, tabs, worker
     from herdr_inbox import cli
 
     path = work / "cli.db"
+    radar_dir = work / "radar-config"
+    radar_dir.mkdir(parents=True, exist_ok=True)
+    herdr_cfg = Path(os.environ["HERDR_INBOX_HERDR_CONFIG"])
+    herdr_cfg.parent.mkdir(parents=True, exist_ok=True)
     os.environ["HERDR_INBOX_DB"] = str(path)
     cfg = Path(os.environ["HERDR_PLUGIN_CONFIG_DIR"]) / "config.toml"
     projects = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-r"
@@ -231,6 +437,30 @@ def capture_cli(out: Path, work: Path) -> Path:
         world.setdefault("labels", {})[tab] = label
         return None
 
+    def open_popup(env=None):
+        env = {k: ("<nonce>" if k == deeplink.NONCE_ENV else v) for k, v in (env or {}).items()}
+        effects.append(["open_popup", env])
+        return world.get("open_error")
+
+    def herdr_call(*args, **kw):
+        if args[:2] == ("plugin", "list"):
+            effects.append(["radar_installed"])
+            plugins = [{"plugin_id": "leavemyyard.herdr-inbox"}]
+            if world.get("radar"):
+                plugins.append({"plugin_id": radar.RADAR_ID})
+            return {"plugins": plugins}, None
+        raise AssertionError(f"unstubbed herdr call {args}")
+
+    def plugin_config_dir(plugin_id):
+        assert plugin_id == radar.RADAR_ID, plugin_id
+        effects.append(["radar_config_dir"])
+        return str(radar_dir) if world.get("radar_config") is not None else None
+
+    def run_raw(*args, **kw):
+        assert args == ("server", "reload-config"), args
+        effects.append(["reload_config"])
+        return "", None
+
     stubs = {
         (herdr, "set_open_count"): lambda pane, n: effects.append(["token", pane, n]),
         (herdr, "pane_tabs"): lambda: effects.append(["pane_tabs"]) or (
@@ -242,6 +472,15 @@ def capture_cli(out: Path, work: Path) -> Path:
         (service, "deliver_batch"): deliver_batch,
         (service, "_ensure_worker"): lambda server=None: effects.append(["ensure", server]),
         (worker, "ensure"): lambda server=None: effects.append(["ensure", server]),
+        (herdr, "open_popup"): open_popup,
+        (herdr, "all_tabs"): lambda: effects.append(["all_tabs"]) or (
+            None if world.get("all_tabs") is None
+            else [{"tab_id": t, "label": world.get("labels", {}).get(t)} for t in world["all_tabs"]]),
+        (herdr, "call"): herdr_call,
+        (herdr, "plugin_config_dir"): plugin_config_dir,
+        (herdr, "run_raw"): run_raw,
+        (remote, "enabled_machines"): lambda ttl=60.0: effects.append(["machines"]) or world.get("machines", []),
+        (remote_api, "spawn_delivery"): lambda qids, force=False: effects.append(["spawn_deliver", list(qids), force]),
     }
     saved = {k: getattr(*k) for k in stubs}
     real_deliver = service.deliver_batch
@@ -270,7 +509,11 @@ def capture_cli(out: Path, work: Path) -> Path:
             if me.get("pane"):
                 os.environ["HERDR_PANE_ID"] = me["pane"]
             step = {"op": op, "args": args}
-            if op == "migrate":
+            if op == "fresh":  # a new database, migrated
+                for f in work.glob("cli.db*"):
+                    f.unlink()
+                st.Store(path, migrate=True).close()
+            elif op == "migrate":
                 st.Store(path, migrate=True).close()
             elif op == "sql":
                 with st.Store(path) as s:
@@ -278,6 +521,11 @@ def capture_cli(out: Path, work: Path) -> Path:
             elif op == "submit":
                 with st.Store(path) as s:
                     step["result"] = [[q.id, q.answer] for q in service.submit(s, args["qids"], deliver=False)]
+            elif op == "radar_missing":
+                _herdr_config(herdr_cfg, args, radar_dir)
+                step["result"] = radar.missing()
+            elif op == "deeplink":
+                step["result"] = _deeplink(deeplink, path, work, args)
             elif op == "preamble":
                 kept: list = []
                 service.deliver_batch = real_deliver
@@ -291,21 +539,42 @@ def capture_cli(out: Path, work: Path) -> Path:
                 service.deliver_batch = deliver_batch
                 step["result"] = kept
             else:
+                if op == "radar":
+                    _herdr_config(herdr_cfg, args, radar_dir)
                 if args.get("sessions"):
                     with st.Store(path) as s:
                         for sid in args["sessions"]:
                             s.record_session(sid, str(projects / f"{sid}.jsonl"))
                 stdout, stderr = io.StringIO(), io.StringIO()
+                held = deeplink.hold_popup_lock() if args.get("popup_open") else None
+                request = deeplink.request_path()
+                request.unlink(missing_ok=True)
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                     try:
-                        code = cli.main(list(args["argv"]))
+                        code = cli.main(list(args["argv"]), stdin=args.get("stdin"))
                     except SystemExit as e:
                         code = e.code
+                if held is not None:
+                    held.close()
+                if request.exists():  # what `inbox open` left for the popup
+                    data = json.loads(request.read_text())
+                    step["request"] = {k: ("<" + k + ">" if k in ("nonce", "created_at") else v)
+                                       for k, v in data.items()}
+                    request.unlink()
                 err = re.sub(r"(config\.toml: ).*", r"\1<reason>", stderr.getvalue().replace(str(work), "<work>"))
-                step.update(code=code, stdout=stdout.getvalue(), stderr=err)
+                printed = stdout.getvalue().replace(str(work), "<work>")
+                if args["argv"][0] in ("export", "apply"):
+                    printed = cli_remote.mask(printed)
+                step.update(code=code, stdout=printed, stderr=err)
+                if op == "radar":
+                    step["herdr_config"] = herdr_cfg.read_bytes().decode() if herdr_cfg.exists() else None
+                    bak = herdr_cfg.with_name("config.toml.inbox-bak")
+                    step["backup"] = bak.exists()
+                    bak.unlink(missing_ok=True)
             step["effects"] = list(effects)
             migrated = op == "migrate" or any(s["op"] == "migrate" for s in steps)
-            dump = _tables(path) if migrated else None
+            fresh = any(s["op"] == "fresh" for s in steps) or op == "fresh"
+            dump = _tables(path, fresh) if migrated else None
             step["tables"] = "unchanged" if migrated and dump == last else dump
             last = dump
             steps.append(step)

@@ -25,6 +25,19 @@ impl Surface for Spy {
         Ok(())
     }
     fn notify(&mut self, _: &str, _: &str) {}
+    fn open_popup(&mut self, _: &[(String, String)]) -> Result<(), String> {
+        Ok(())
+    }
+    fn radar_installed(&mut self) -> bool {
+        false
+    }
+    fn radar_config_dir(&mut self) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn reload_config(&mut self) {}
+    fn all_tabs(&mut self) -> Option<Vec<(String, Option<String>)>> {
+        None
+    }
 }
 
 fn store(dir: &Path) -> (Store, std::path::PathBuf) {

@@ -35,6 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
+import popup_remote  # noqa: E402 - tools/ is on sys.path
 GOLDEN = ROOT / "tests" / "fixtures" / "popup-transitions.json"
 START_MS = 10_000  # the held clock's first reading (ms); Python's own defaults (0) are "long ago"
 HUMAN_GAP_MS = 600  # a deliberate key: past every arming and grace window
@@ -89,13 +90,17 @@ def snapshot(store) -> dict:
 
     qs = store.list(include_closed=True)
     rows = store.db.execute("SELECT * FROM alerts ORDER BY id").fetchall()
-    return {
+    out = {
         "questions": [question_json(q) for q in sorted(qs, key=lambda q: q.id)],
         "open": sorted(q.id for q in store.list()),
         "failed": [q.id for q in store.failed_deliveries()],
         "alerts": [alert_json(alerts.Alert(**dict(r))) for r in rows],
         "open_alerts": [a.id for a in alerts.open_alerts(store)],
     }
+    mirror = popup_remote.snapshot(store)  # remote machines (P6-D2): only when the mirror has rows
+    if mirror is not None:
+        out["remote"] = mirror
+    return out
 
 
 # -- the state: what the model must agree on after every event --------------------------------
@@ -320,6 +325,7 @@ class Recorder:
             return None
 
         tui.InboxApp.run_worker = run_worker
+        popup_remote.install(rec)
 
 
 # -- scenarios -------------------------------------------------------------------------------
@@ -349,6 +355,7 @@ async def run_scenario(scn, steps, work: Path, rec: Recorder, clock: Clock) -> d
     store = Store(migrate=True)
     clock.ms = START_MS
     rec.on, rec.effects, rec.sends, rec.exited = False, [], [], False
+    popup_remote.reset()
     scn.setup(store)
     request = None
     if scn.deeplink:
@@ -456,11 +463,12 @@ def focused(pane: str, error: str | None = None, gap: int = 100):
 
 async def capture(work: Path, only: str | None = None) -> tuple[list[dict], list[str]]:
     from scenarios_popup import SCENARIOS  # tools/ is on sys.path
+    from scenarios_popup_remote import REMOTE_SCENARIOS
 
     rec, clock = Recorder(), Clock()
     rec.install(clock)
     out, failures = [], []
-    for scn, steps in SCENARIOS(sys.modules[__name__]):
+    for scn, steps in SCENARIOS(sys.modules[__name__]) + REMOTE_SCENARIOS(sys.modules[__name__]):
         if only and not scn.name.startswith(only):
             continue
         try:

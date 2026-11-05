@@ -16,9 +16,9 @@ MCP server **there**. That server writes the remote's `inbox.db` and talks to th
 herdr server. So its questions never reach the operator's popup on this machine, and
 nobody answers them.
 
-What we know about the first remote, `moneylust` (read-only look, 2026-10-15):
+What we know about the first remote, `project1` (read-only look, 2026-10-15):
 
-- **Connection:** a saved profile (`target` = ssh host `moneylust`, session `default`),
+- **Connection:** a saved profile (`target` = ssh host `project1`, session `default`),
   reachable over ssh with keys.
 - **Installed:** Ubuntu with Python 3.12, plus `uv`, `herdr` and `claude` in
   `~/.local/bin`.
@@ -49,14 +49,14 @@ What we know about the first remote, `moneylust` (read-only look, 2026-10-15):
 - `export` returns it. The local mirror stores it per machine.
 - **If a machine's `db_id` changes:**
   - that machine's mirror is wiped and fully re-pulled;
-  - every queued action for it **fails**, with a notification: "moneylust's inbox was
+  - every queued action for it **fails**, with a notification: "project1's inbox was
     reset — answer again".
 - Every question has an identity beyond its number: `qkey` = sha256 of `db_id`,
   `created_at`, `norm` and `session_id`. Every action carries `db_id`, the id and the
   `qkey`. The remote refuses an action whose `qkey` doesn't match the question it names
   (`rejected: not that question`).
 - Popup and deep-link keys are `("remote", machine_id, db_id, id)`, and the operator sees
-  them as `moneylust:Q12`. A deep-link `machine:` prefix must name an enabled machine
+  them as `project1:Q12`. A deep-link `machine:` prefix must name an enabled machine
   from `herdr machine list`, or it is refused.
 
 ## The local mirror
@@ -138,7 +138,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
   within the timeout.
 - **The remote worker** that `apply` starts (via `ensure()`) runs `setsid`-detached and
   gets `HERDR_BIN_PATH=<herdr>`. It must survive the ssh session closing. Checked on
-  moneylust during the e2e: if systemd `KillUserProcesses` kills it, the remote's own
+  project1 during the e2e: if systemd `KillUserProcesses` kills it, the remote's own
   `[[startup]]` and MCP servers restart it, and the design says so.
 
 ## Pull and outbox: the local worker
@@ -151,7 +151,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
       tab label 120) and control characters stripped;
     - non-conforming rows are dropped and logged.
   - It then applies the reply to the mirror in one transaction.
-  - New open questions raise one local notification, `moneylust · Q12 · <tab>` (Q85),
+  - New open questions raise one local notification, `project1 · Q12 · <tab>` (Q85),
     passed through `herdr.clean`.
 - **Outbox:** FIFO **per question** (H2). A queued answer and a later dismiss for the
   same question go in order, and a failed head blocks the rest of that question, but no
@@ -168,14 +168,14 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
     - If an action was sent and its reply lost, it is **never applied late**. Once the
       machine is reachable, `{"action": "status"}` asks whether the remote recorded that
       request id:
-      - recorded as applied → done, with the notification "reached moneylust after all";
+      - recorded as applied → done, with the notification "reached project1 after all";
       - recorded as rejected → shown as rejected;
       - not recorded → the remote writes a **tombstone** (`rejected: expired`) for that
         id in the same locked transaction and answers `expired`. The original apply may
         still be running there after our ssh was killed; whichever commits first wins,
         and a late apply refuses.
       - An older remote without `status` answers "bad request". That counts as "can't
-        tell": the row expires with "may have reached moneylust — check there", notified
+        tell": the row expires with "may have reached project1 — check there", notified
         once.
 
       While the machine stays unreachable, the sweep says the action "may have reached"
@@ -187,11 +187,11 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
     compare-and-set on `queued`. So with two local workers (one per herdr session) only
     one of them notifies.
   - **Results:** `applied` / `already_applied` mark the row done. `rejected` is shown on
-    the mirror row ("moneylust rejected your answer: answered with X") and raises a
+    the mirror row ("project1 rejected your answer: answered with X") and raises a
     notification.
   - **Errors:** ssh and transport errors retry with backoff (5, 10, 20 … up to 60 s).
   - **Version skew (Low):** an argparse exit 2, or an export-reported version too old for
-    `apply`, is **permanent**: "upgrade moneylust (`inbox remote upgrade moneylust`)".
+    `apply`, is **permanent**: "upgrade project1 (`inbox remote upgrade project1`)".
     In practice no action is sent to an older remote: actions go out only after a pull
     succeeds, and a pull succeeds only if the export has the current format.
 
@@ -199,7 +199,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAlive
 
 A mirrored answered question that is agent-gone or not delivered on its machine (for any
 reason other than pending) becomes a ⚠ row here:
-`⚠ moneylust:Q12 answered · agent closed — answer kept for check_answers`.
+`⚠ project1:Q12 answered · agent closed — answer kept for check_answers`.
 Only **terminal** states count: agent-gone, or "not verified" at its retry cap. Anything the
 remote worker still retries doesn't, because a notification can't be taken back. It raises
 one local notification (`issue_notified_at`), and `d` clears it here. The remote
@@ -208,12 +208,12 @@ keeps the answer for `check_answers`.
 ## The popup
 
 - Remote groups appear in the same list. Their second line reads
-  `moneylust · <tab> · <asked_by>`.
+  `project1 · <tab> · <asked_by>`.
 - All existing safety rules apply: arming, targets not indexes, arrivals appended, closed
   rows inert.
-- **Offline machine (M2):** one dim line, `moneylust: offline since 10:42 (3 h)`. Its rows
+- **Offline machine (M2):** one dim line, `project1: offline since 10:42 (3 h)`. Its rows
   are greyed and show their age. Answering them queues the action, and the row says
-  "queued for moneylust · expires 22:42".
+  "queued for project1 · expires 22:42".
 - **Text:** every remote string goes through `escape()` (Rich) or `markup=False`, as local
   ones do.
 
@@ -247,7 +247,7 @@ in the local herdr TUI's view of that machine. herdr-radar is per server.
 | someone else answered first | `rejected: answered with X`, shown and notified |
 | remote inbox recreated | `db_id` changes: mirror wiped, queued actions fail with "answer again" |
 | same number on two machines / after a reset | keyed by `(machine, db_id, id)` plus `qkey` |
-| remote too old | permanent "upgrade moneylust"; no retry storm |
+| remote too old | permanent "upgrade project1"; no retry storm |
 | hostile or garbled export | capped, validated, escaped; bad rows dropped; nothing executed |
 | remote worker killed at logout | restarted by the remote's `[[startup]]` / MCP servers |
 
@@ -258,11 +258,11 @@ in the local herdr TUI's view of that machine. herdr-radar is per server.
   FIFO, expiry, offline backoff, version skew, hostile exports and popup rows.
 - **Isolated herdr:** two isolated servers on two sockets, with "ssh" running locally
   against the second.
-- **moneylust:** the e2e install is OKed (Q82). Test questions are removed afterwards.
+- **project1:** the e2e install is OKed (Q82). Test questions are removed afterwards.
 
 ## Operator decisions (Q82–Q85, answered 2026-10-15)
 
-- **Q82 — yes, install on moneylust now** for end-to-end testing: both plugins, nothing
+- **Q82 — yes, install on project1 now** for end-to-end testing: both plugins, nothing
   else on its herdr server beyond the plugin, no costly agents beyond what the e2e needs,
   and test questions cleaned up afterwards.
 - **Q83 — automated:** `inbox remote install|upgrade <machine>` (above).

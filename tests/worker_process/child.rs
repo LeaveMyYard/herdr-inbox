@@ -79,7 +79,9 @@ pub fn main() -> ExitCode {
         root: root.clone(),
         idle: var("E1_IDLE").as_deref() == Some("1"),
     };
-    let herdr = Herdr::new(ServerId::new(&socket));
+    // herdr's CLI as the rig points HERDR_BIN_PATH at it (its logging fake), never PATH's
+    let bin = var("HERDR_BIN_PATH").unwrap_or_else(|| "/nonexistent/herdr-cli".into());
+    let herdr = Herdr::new(ServerId::new(&socket)).with_bin(bin);
     let exe = std::env::current_exe().expect("its path");
     let mut world = Live::new(env.clone(), herdr, Install::new(Some(root)), exe, duties);
     ExitCode::from(u8::try_from(run(&env, &mut world)).unwrap_or(1))

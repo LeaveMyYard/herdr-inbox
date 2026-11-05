@@ -1,12 +1,12 @@
-"""Live 2026-10-17 ("a huge amount of questions I responded to long ago show as failed"):
+"""Live 2026-10-17 (the operator reported long-answered questions showing as failed):
 16 answers in the popup's failed pile. Shapes from the operator's database and transcripts
 (error strings are the inbox's own constants, as stored; texts neutralised).
 
 - 6 x "not verified": herdr had resumed the pane's OLD session id; the old transcript still
   ended in `continued-in` -> NEW, so the inbox typed and watched NEW's transcript, while the
   typed batch landed as the first record of the resumed OLD one.
-- Q156 "agent gone: conversation changed in pane w6:p57": typed the same way, landed in OLD.
-- 9 x "agent gone: no live agent in pane w6:p48": filed under the dead pane id of a moved pane
+- Q156 "agent gone: conversation changed in pane w9:p2": typed the same way, landed in OLD.
+- 9 x "agent gone: no live agent in pane w9:p1": filed under the dead pane id of a moved pane
   (the MCP server's HERDR_PANE_ID), for a conversation that no longer runs anywhere.
 - acknowledged answers still carrying "agent gone"/"not verified" errors."""
 
@@ -20,12 +20,12 @@ from herdr_inbox.service import Caller
 from .test_session_continuation import NEW, OLD, tdir, write
 
 NOT_VERIFIED = "not verified: herdr accepted the text but it never reached the conversation"
-GONE_P48 = "agent gone: no live agent in pane w6:p48"
-CHANGED_P57 = "agent gone: conversation changed in pane w6:p57"
+GONE_P1 = "agent gone: no live agent in pane w9:p1"
+CHANGED_P2 = "agent gone: conversation changed in pane w9:p2"
 
 
 def agents(*pairs):
-    return json.dumps([{"pane_id": p, "tab_id": "w6:t4T", "agent": "claude", "agent_status": "idle",
+    return json.dumps([{"pane_id": p, "tab_id": "w9:t1", "agent": "claude", "agent_status": "idle",
                         "agent_session": {"value": s}} for p, s in pairs])
 
 
@@ -38,7 +38,7 @@ def continued_then_resumed(batch_text=None):
     """OLD -> NEW continuation, then herdr resumed OLD: the first record after the continued-in
     is the typed batch (captured order: continued-in, cost-state, user ...)."""
     write(OLD, [{"type": "user", "message": {"role": "user", "content": "earlier"}},
-                {"type": "continued-in", "timestamp": "2026-10-16T11:22:22.458Z", "sessionId": OLD,
+                {"type": "continued-in", "timestamp": "2026-10-16T10:00:00.000Z", "sessionId": OLD,
                  "continuedInSessionId": NEW},
                 {"type": "cost-state", "sessionId": OLD}])
     write(NEW, [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}])
@@ -47,7 +47,7 @@ def continued_then_resumed(batch_text=None):
 
 
 def filed(store, pane, session, text, answer):
-    qid = service.ask(store, Caller(pane, "Synthetic Text 96", "node", session, "/r"), text)["id"]
+    qid = service.ask(store, Caller(pane, "w1:t3", "node", session, "/r"), text)["id"]
     store.set_draft(qid, service.make_detail(answer))
     service.submit(store, [qid], deliver=False)
     return store.get(qid)
@@ -62,14 +62,14 @@ def as_stored(store, qid, error, acknowledged=False):
 
 
 def test_typed_into_a_resumed_old_session_is_an_older_conversation_not_a_delivery(store, fake_herdr, monkeypatch):
-    """The 6 'not verified' (synthetic_100-synthetic_98): the typed batch landed in the resumed OLD session, an
+    """The 6 'not verified' (Q9001-Q9006): the typed batch landed in the resumed OLD session, an
     ANCESTOR of the asking NEW. #44 called that verified; it never reached the asker (the agent
-    there said "they belong to another session's questions"). Without our SessionStart marker
+    there declined them as another session's questions). Without our SessionStart marker
     the inbox cannot tell before typing, so it types once, sees where it went, and says so."""
     continued_then_resumed()
     monkeypatch.setenv("FAKE_HERDR_SESSION", OLD)  # herdr reports the resumed OLD id
     monkeypatch.setenv("FAKE_HERDR_LAND_SESSION", OLD)  # and the typed text lands there
-    q = filed(store, "w1:p1", NEW, "Three big prod analytics columns: views?", "yes, masked")
+    q = filed(store, "w1:p1", NEW, "Question Text 1", "Answer Text 1")
     service.deliver(store, q)
     q = store.get(q.id)
     assert not q.delivered_at and not q.acknowledged_at and not q.verified_at
@@ -80,8 +80,8 @@ def test_typed_into_a_resumed_old_session_is_an_older_conversation_not_a_deliver
 def test_reconcile_never_verifies_answers_that_landed_only_in_an_older_session(store, fake_herdr):
     """#44 verified these (the batch is in the resumed OLD transcript); OLD is an ancestor of
     the asking NEW, so they stay failed."""
-    q1 = filed(store, "Synthetic Text 95", NEW, "Three big prod analytics columns: views?", "yes")
-    q2 = filed(store, "Synthetic Text 95", NEW, "Where do the keys live?", "Secrets Manager")
+    q1 = filed(store, "w1:p3", NEW, "Question Text 1", "yes")
+    q2 = filed(store, "w1:p3", NEW, "Question Text 2", "Answer Text 2")
     for q in (q1, q2):
         as_stored(store, q.id, NOT_VERIFIED)
     batch = service.herdr.clean(service.delivery_text([store.get(q1.id), store.get(q2.id)]), limit=10**9)
@@ -96,55 +96,55 @@ def test_reconcile_never_verifies_answers_that_landed_only_in_an_older_session(s
 
 
 def test_reconcile_never_counts_a_changed_conversation_answer_found_in_an_older_session(store, fake_herdr, monkeypatch):
-    """Q156: 'conversation changed in pane w6:p57'; it landed in what p57 runs now, the resumed
+    """Q156: 'conversation changed in pane w9:p2'; it landed in what w9:p2 runs now, the resumed
     OLD, an ancestor of the asking NEW. #44 counted it; it is no delivery."""
-    q = filed(store, "w6:p57", NEW, "PR ghost#1927: screenshots blocked, merge anyway?", "merge")
-    as_stored(store, q.id, CHANGED_P57)
-    # captured relation: synthetic_91 -> synthetic_92, then herdr resumed synthetic_91 in p57
+    q = filed(store, "w9:p2", NEW, "Question Text 6 (PR #101)?", "Answer Text 6")
+    as_stored(store, q.id, CHANGED_P2)
+    # captured relation: 00000003 -> 00000004, then herdr resumed 00000003 in w9:p2
     write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW}])
     store.record_session(OLD, str(tdir() / f"{OLD}.jsonl"))
     write(OLD, [{"type": "user", "timestamp": st.now(),
                  "message": {"role": "user", "content": service.herdr.clean(service.delivery_text([store.get(q.id)]),
                                                                           limit=10**9)}}])
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w6:p57", OLD)))
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w9:p2", OLD)))
     worker.tick(store)
     r = store.get(q.id)
     assert not r.verified_at and not r.acknowledged_at and [x.id for x in store.failed_deliveries()] == [q.id]
 
 
 def test_an_acknowledged_answer_never_keeps_a_failure(store, fake_herdr):
-    q = filed(store, "w6:p48", NEW, "Old pane question?", "done")
-    as_stored(store, q.id, GONE_P48, acknowledged=True)
+    q = filed(store, "w9:p1", NEW, "Old pane question?", "done")
+    as_stored(store, q.id, GONE_P1, acknowledged=True)
     worker.tick(store)
     assert store.get(q.id).delivery_error is None
-    q2 = filed(store, "w6:p48", NEW, "Fetched by check_answers?", "ok")
-    as_stored(store, q2.id, GONE_P48)
+    q2 = filed(store, "w9:p1", NEW, "Fetched by check_answers?", "ok")
+    as_stored(store, q2.id, GONE_P1)
     store.acknowledge([q2.id])  # check_answers
     assert store.get(q2.id).delivery_error is None
 
 
 def test_a_truly_gone_answer_that_never_landed_stays_visible(store, fake_herdr, monkeypatch):
-    q = filed(store, "w6:p48", NEW, "table-page: wording for the error state?", "Could not load")
-    as_stored(store, q.id, GONE_P48)
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w6:p57", OLD)))
+    q = filed(store, "w9:p1", NEW, "Question Text 7?", "Answer Text 7")
+    as_stored(store, q.id, GONE_P1)
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w9:p2", OLD)))
     worker.tick(store)
     assert [r.id for r in store.failed_deliveries()] == [q.id]
 
 
 def test_a_question_from_a_moved_pane_is_filed_under_the_pane_it_runs_in(store, fake_herdr, monkeypatch):
-    """Q158-Q166: the MCP server's HERDR_PANE_ID was the pane it started in (w6:p48)."""
-    monkeypatch.setenv("HERDR_PANE_ID", "w6:p48")
-    monkeypatch.setenv("FAKE_HERDR_GONE_PANES", "w6:p48")
+    """Q158-Q166: the MCP server's HERDR_PANE_ID was the pane it started in (w9:p1)."""
+    monkeypatch.setenv("HERDR_PANE_ID", "w9:p1")
+    monkeypatch.setenv("FAKE_HERDR_GONE_PANES", "w9:p1")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", NEW)
     monkeypatch.setenv("FAKE_HERDR_SESSION", NEW)
-    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w6:p57", NEW), ("w6:p32", "other")))
+    monkeypatch.setenv("FAKE_HERDR_AGENTS", agents(("w9:p2", NEW), ("w9:p3", "other")))
     caller = service.resolve_caller()
-    assert caller.pane_id == "w6:p57" and caller.session_id == NEW
+    assert caller.pane_id == "w9:p2" and caller.session_id == NEW
 
 
 def test_reconcile_backs_off_per_answer(store, fake_herdr, monkeypatch):
-    q = filed(store, "w6:p48", NEW, "Backoff?", "x")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Backoff?", "x")
+    as_stored(store, q.id, GONE_P1)
     looked = []
     real = service._relative_paths
     monkeypatch.setattr(service, "_relative_paths", lambda store, q: looked.append(q.session_id) or real(store, q))
@@ -164,8 +164,8 @@ _made = iter(range(10**6))
 def gone_rows(store, n):
     ids = []
     for _ in range(n):
-        q = filed(store, "w6:p48", NEW, f"Gone question {next(_made)}?", "a")
-        as_stored(store, q.id, GONE_P48)
+        q = filed(store, "w9:p1", NEW, f"Gone question {next(_made)}?", "a")
+        as_stored(store, q.id, GONE_P1)
         ids.append(q.id)
     return ids
 
@@ -232,7 +232,7 @@ def own_cli_answer_records(qid, answer, at):
                            f"$B answer {qid} \"{answer}\""}}]}},
         {"type": "user", "timestamp": at, "message": {"role": "user", "content": [
             {"type": "tool_result", "tool_use_id": "toolu_x",
-             "content": f"Q{qid} answered, not delivered: no live agent in pane w6:p48\n"}]}},
+             "content": f"Q{qid} answered, not delivered: no live agent in pane w9:p1\n"}]}},
     ]
 
 
@@ -240,9 +240,9 @@ def test_reconcile_never_counts_an_answer_an_older_session_gave_itself(store, fa
     """#44 counted this as seen (Q159-Q166 shape). The CLI answer came from the resumed OLD, an
     ancestor of the asking NEW: NEW never got it, so it stays failed. (The asking session's
     own CLI answer still counts: test_r3_* below.)"""
-    q = filed(store, "w6:p48", NEW, "P7 domains: v1 whitelisted/blacklisted pages are placeholders; port?",
-              "Keep as built (already merged in #1943): faithful empty placeholder")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Question Text 8: a/b with a semicolon; port?",
+              "Answer Text 8 (PR #102): a long enough answer")
+    as_stored(store, q.id, GONE_P1)
     # OLD -> NEW, then the operator resumed OLD; the agent there answered with the CLI
     write(OLD, [{"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW},
                 {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": "back"}}]
@@ -255,8 +255,8 @@ def test_reconcile_never_counts_an_answer_an_older_session_gave_itself(store, fa
 
 
 def test_a_mere_id_mention_with_a_short_answer_is_not_evidence(store, fake_herdr):
-    q = filed(store, "w6:p48", NEW, "Short one?", "yes")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Short one?", "yes")
+    as_stored(store, q.id, GONE_P1)
     write(NEW, [{"type": "user", "timestamp": st.now(), "message": {"role": "user",
                  "content": f"about Q{q.id}: yes, later"}}])
     worker.tick(store)
@@ -343,8 +343,8 @@ def test_r1_b1_the_agent_echoing_the_options_is_not_evidence(store, fake_herdr, 
 
 
 def test_r1_b2_a_short_answer_never_matches_inside_a_word(store, fake_herdr):
-    q = filed(store, "w6:p48", NEW, "Should we ship the hotfix today?", "Yes")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Should we ship the hotfix today?", "Yes")
+    as_stored(store, q.id, GONE_P1)
     write(NEW, [assistant(f"Q{q.id} (Should we ship the hotfix today?) is still open. Yesterday's build is green"),
                 tool_result(f"Q{q.id} Should we ship the hotfix today? Yesterday's build is green")])
     worker.tick(store)
@@ -372,8 +372,8 @@ CHECK_ANSWERS = "mcp__plugin_herdr-inbox_herdr-inbox__check_answers"
 
 
 def test_r1_check_answers_output_in_a_related_session_is_evidence(store, fake_herdr):
-    q = filed(store, "w6:p48", NEW, "Short one?", "yes")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Short one?", "yes")
+    as_stored(store, q.id, GONE_P1)
     write(NEW, [tool_use(CHECK_ANSWERS, {}),
                 tool_result(json.dumps({"answers": [{"id": q.id, "question": q.question, "answer": "yes"}]}))])
     worker.tick(store)
@@ -401,9 +401,9 @@ def test_r1_the_evidence_scan_reads_each_transcript_once(store, fake_herdr, monk
 
 def test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence(store, fake_herdr):
     """The agent reads the operator's terminal / a log that shows `Q12 answered, …`."""
-    q = filed(store, "w6:p48", NEW, "Quoted elsewhere?", "a long answer value here")
-    as_stored(store, q.id, GONE_P48)
-    write(NEW, [tool_use("Bash", {"command": "herdr pane read w6:p3F --source recent"}, "u1"),
+    q = filed(store, "w9:p1", NEW, "Quoted elsewhere?", "a long answer value here")
+    as_stored(store, q.id, GONE_P1)
+    write(NEW, [tool_use("Bash", {"command": "herdr pane read w9:p7 --source recent"}, "u1"),
                 {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": [
                     {"type": "tool_result", "tool_use_id": "u1",
                      "content": f"$ inbox answer {q.id} x\nQ{q.id} answered, pending: busy: the agent is working"}]}}])
@@ -412,8 +412,8 @@ def test_r2_a_quoted_cli_line_without_the_own_command_is_not_evidence(store, fak
 
 
 def test_r2_json_the_agent_printed_itself_is_not_evidence(store, fake_herdr):
-    q = filed(store, "w6:p48", NEW, "Echoed json?", "yes")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Echoed json?", "yes")
+    as_stored(store, q.id, GONE_P1)
     body = json.dumps({"id": q.id, "answer": "yes"})
     write(NEW, [tool_use("Bash", {"command": f"echo '{body}'"}, "u2"),
                 {"type": "user", "timestamp": st.now(), "message": {"role": "user", "content": [
@@ -450,15 +450,15 @@ def bash_and_result(command, result, use_id):
 
 @pytest.mark.parametrize("command,result", [
     ('grep -n "answer {n}" ~/Code/herdr-inbox/worker.log',
-     "1234: Q{n} answered, not delivered: no live agent in pane w6:p48"),
+     "1234: Q{n} answered, not delivered: no live agent in pane w9:p1"),
     ('gh pr comment 44 -R LeaveMyYard/herdr-inbox --body "run inbox answer {n} x to reproduce"',
      "https://github.com/x/1\nQ{n} answered, pending: busy"),
     ("inbox answer {n} x; grep 'Q{n}' ~/.local/state/herdr-inbox/worker.log",
      "Q{n} is not open\nQ{n} answered, delivered to w1:p1"),
 ])
 def test_r3_only_a_real_successful_inbox_answer_invocation_counts(store, fake_herdr, command, result):
-    q = filed(store, "w6:p48", NEW, "Anchored own answer?", "a long answer value here")
-    as_stored(store, q.id, GONE_P48)
+    q = filed(store, "w9:p1", NEW, "Anchored own answer?", "a long answer value here")
+    as_stored(store, q.id, GONE_P1)
     write(NEW, bash_and_result(command.format(n=q.id), result.format(n=q.id), "u9"))
     worker.tick(store)
     assert [r.id for r in store.failed_deliveries()] == [q.id]
@@ -471,9 +471,9 @@ def test_r3_only_a_real_successful_inbox_answer_invocation_counts(store, fake_he
     "python3 -m herdr_inbox.cli answer {n} x",
 ])
 def test_r3_the_real_invocation_forms_count(store, fake_herdr, command):
-    q = filed(store, "w6:p48", NEW, "Real own answer?", "a long answer value here")
-    as_stored(store, q.id, GONE_P48)
-    out = f"inbox: herdr ('agent', 'get') failed: x\nQ{q.id} answered, not delivered: no live agent in pane w6:p48\n"
+    q = filed(store, "w9:p1", NEW, "Real own answer?", "a long answer value here")
+    as_stored(store, q.id, GONE_P1)
+    out = f"inbox: herdr ('agent', 'get') failed: x\nQ{q.id} answered, not delivered: no live agent in pane w9:p1\n"
     write(NEW, bash_and_result(command.format(n=q.id), out, "u8"))
     worker.tick(store)
     assert store.get(q.id).acknowledged_at
@@ -495,9 +495,9 @@ def test_r3_the_captured_multi_answer_command_counts_every_question():
     """The live command (2026-10-17): one Bash call answering Q159..Q166 with `&&` + newline,
     answers containing `;`, `(a)`, `/` (text neutralised)."""
     cmd = ("B=~/.claude/plugins/data/herdr-inbox-herdr-inbox/venv-0.10.4/bin/inbox\n"
-           '$B answer 159 "Keep as built (merged in #1943): placeholder; goes away with v1" &&\n'
-           '$B answer 160 "Keep as built: prev/next + counter" &&\n'
-           '$B answer 165 "(a) as built (allowance / week); log it" &&\n'
+           '$B answer 159 "Answer Text 9 (PR #102): text; more text" &&\n'
+           '$B answer 160 "Answer Text 10: a/b + c" &&\n'
+           '$B answer 165 "(a) Answer Text 11 (x / y); z" &&\n'
            '$B answer 166 "x | y"')
     assert transcript.own_answer_qids(cmd) == {159, 160, 165, 166}
 

@@ -46,10 +46,23 @@ fn entry_names_round_trip() {
         Entry::Failed(5),
         Entry::Gone,
         Entry::Alert(1),
+        Entry::Remote("m1|dd|3".into()),
+        Entry::Outbox("00ff".into()),
+        Entry::Problem("m1|4".into()),
+        Entry::RemoteAlert("m1|2".into()),
     ] {
         assert_eq!(Entry::parse(&e.to_string()), Some(e));
     }
-    assert_eq!(Entry::parse("remote:m|1"), None);
+    assert_eq!(
+        Entry::parse("remote:m1|dd|3").map(|e| e.is_alert()),
+        Some(false)
+    );
+    assert_eq!(
+        Entry::parse("ralert:m1|2").map(|e| e.is_alert()),
+        Some(true)
+    );
+    assert_eq!(Entry::parse("remote:"), None);
+    assert_eq!(Entry::parse("elsewhere:m|1"), None);
     assert_eq!(Tab::Question(3).to_string(), "q:3");
     assert_eq!(Tab::Submit.to_string(), "submit");
 }
@@ -173,4 +186,51 @@ fn a_second_box_replaces_one_that_lost_the_focus() {
     };
     assert!(v.editing.is_none());
     assert_eq!(v.notes.get(&0).map(String::as_str), Some("y")); // the new box's text replaced "x"
+}
+
+/// Python `remote.enqueue`'s `LookupError`: an action is queued under the
+/// identity shown, never under whatever the mirror holds there now.
+#[test]
+fn a_remote_action_is_refused_unless_the_mirror_holds_the_question_shown() {
+    use inbox_core::popup::{Remote, RemoteRef};
+    let shown = RemoteRef {
+        machine_id: "m1".into(),
+        remote_id: 12,
+        db_id: "d".repeat(32),
+        qkey: "a".repeat(16),
+    };
+    let mut r = Remote::default();
+    assert_eq!(r.refusal(&shown), Some("that remote question is gone"));
+    r.mirror.push(RemoteRef {
+        qkey: "b".repeat(16),
+        ..shown.clone()
+    });
+    assert_eq!(r.refusal(&shown), Some("that question changed — reopen it"));
+    r.mirror[0] = RemoteRef {
+        db_id: "e".repeat(32),
+        ..shown.clone()
+    };
+    assert_eq!(r.refusal(&shown), Some("that question changed — reopen it"));
+    r.mirror[0] = shown.clone();
+    assert_eq!(r.refusal(&shown), None);
+    let other_machine = RemoteRef {
+        machine_id: "m2".into(),
+        ..shown.clone()
+    };
+    assert_eq!(
+        r.refusal(&other_machine),
+        Some("that remote question is gone")
+    );
+}
+
+/// The readers take a group's first question: an empty group is no group.
+#[test]
+fn a_remote_group_without_questions_is_not_open() {
+    use inbox_core::popup::{Remote, RemoteGroup};
+    let mut r = Remote::default();
+    r.groups.push(RemoteGroup {
+        key: "m1|dd|1".into(),
+        ..RemoteGroup::default()
+    });
+    assert_eq!(r.group("m1|dd|1"), None);
 }
