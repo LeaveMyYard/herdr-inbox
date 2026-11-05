@@ -464,8 +464,8 @@ tests/test_failed_pile.py::test_r3_the_captured_multi_answer_command_counts_ever
 "tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[XDG_STATE_HOME=/tmp/s ~/.venv/bin/inbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
 "tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[export HERDR_INBOX_DB=~/copy.db\ninbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
 "tests/test_failed_pile.py::test_final_an_answer_against_another_database_is_not_own[HERDR_INBOX_DB=~/copy.db && inbox answer {n} ""x""]",tests/test_failed_pile.py,herdr-inbox --lib claude::evidence::shell::tests::every_command_answers_what_python_says_it_answers,mapped,,P5
-tests/test_final_review.py::test_cursor_row_stays_visible_in_a_short_popup,tests/test_final_review.py,,todo,,
-tests/test_final_review.py::test_cursor_row_stays_visible_without_previews,tests/test_final_review.py,,todo,,
+tests/test_final_review.py::test_cursor_row_stays_visible_in_a_short_popup,tests/test_final_review.py,,todo,,P6
+tests/test_final_review.py::test_cursor_row_stays_visible_without_previews,tests/test_final_review.py,,todo,,P6
 tests/test_final_review.py::test_send_runs_in_the_background,tests/test_final_review.py,herdr-inbox --lib tui::run::tests::sends::the_popup_keeps_taking_keys_while_a_send_is_in_flight,mapped,,P6
 tests/test_final_review.py::test_marker_failure_never_fails_ask,tests/test_final_review.py,herdr-inbox --lib surface::markers::tests::a_database_error_is_warned_about_never_raised,mapped,,P5
 tests/test_final_review.py::test_mcp_ask_returns_the_open_receipt_when_markers_fail,tests/test_final_review.py,,todo,,P5
@@ -585,10 +585,10 @@ tests/test_pane_moved.py::test_42_a_hidden_answer_is_never_revived,tests/test_pa
 tests/test_pane_moved.py::test_42_a_dismissed_question_is_never_revived,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_dismissed_question_is_never_revived,mapped,,P5
 tests/test_pane_moved.py::test_42_a_send_in_flight_is_not_revived_under_it,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::a_send_in_flight_is_not_revived_under_it,mapped,,P5
 tests/test_pane_moved.py::test_42_revival_backs_off_per_answer,tests/test_pane_moved.py,herdr-inbox --test worker_duties moved::revival_backs_off_per_answer,mapped,,P5
-tests/test_plugin_copy.py::test_session_start_hook_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,
-tests/test_plugin_copy.py::test_mcp_server_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,
-tests/test_plugin_copy.py::test_plugin_and_marketplace_versions_agree,tests/test_plugin_copy.py,,todo,,
-tests/test_poll_teardown.py::test_poll_after_the_widgets_are_gone_is_a_no_op,tests/test_poll_teardown.py,,todo,,
+tests/test_plugin_copy.py::test_session_start_hook_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,P5
+tests/test_plugin_copy.py::test_mcp_server_runs_from_the_copy,tests/test_plugin_copy.py,,todo,,P5
+tests/test_plugin_copy.py::test_plugin_and_marketplace_versions_agree,tests/test_plugin_copy.py,,todo,,P8
+tests/test_poll_teardown.py::test_poll_after_the_widgets_are_gone_is_a_no_op,tests/test_poll_teardown.py,,todo,,P6
 tests/test_poll_teardown.py::test_a_send_finishing_after_the_popup_exits_does_not_raise,tests/test_poll_teardown.py,herdr-inbox --lib tui::run::tests::sends::a_send_reporting_after_the_popup_closed_changes_nothing,mapped,,P6
 tests/test_poll_teardown.py::test_poll_does_nothing_once_unmounting,tests/test_poll_teardown.py,,todo,,P6
 tests/test_poll_teardown.py::test_an_error_inside_the_send_report_still_surfaces,tests/test_poll_teardown.py,,todo,,P6
@@ -873,18 +873,18 @@ tests/test_tui.py::test_one_becomes_several_while_open,tests/test_tui.py,inbox-c
 tests/test_tui.py::test_dismiss_question_in_group_and_whole_group_in_list,tests/test_tui.py,inbox-core --test popup_transitions tui::dismiss_question_in_group_and_whole_group_in_list,mapped,,P6
 tests/test_tui.py::test_busy_database_never_crashes_the_popup,tests/test_tui.py,herdr-inbox --lib tui::run::tests::contract::a_busy_database_ends_the_action_with_a_notice,mapped,,P6
 tests/test_tui.py::test_tab_row_scrolls_to_keep_the_current_tab_visible,tests/test_tui.py,inbox-core --test popup_screens the_tab_row_scrolls_to_keep_the_current_tab_in_view,mapped,,P6
-tests/test_venvs.py::test_scope_older_settled_versions_only,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_a_live_holder_blocks_deletion_and_a_released_lock_allows_it,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_a_symlinked_or_relative_data_dir_changes_nothing,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_venvs_without_a_lock_file_are_never_removed_automatically,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_clean_venvs_command,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_a_recently_claimed_venv_is_kept_even_when_released,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_claiming_a_removed_venv_exits_cleanly,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_mcp_takes_the_lock_before_heavy_imports,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_interrupted_removals_are_swept,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_concurrent_cleanups_remove_each_venv_once_without_errors,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_the_server_holds_its_own_venv_lock,tests/test_venvs.py,,todo,,
-tests/test_venvs.py::test_the_server_start_call_uses_the_plugin_data_dir_and_this_version,tests/test_venvs.py,,todo,,
+tests/test_venvs.py::test_scope_older_settled_versions_only,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_a_live_holder_blocks_deletion_and_a_released_lock_allows_it,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_a_symlinked_or_relative_data_dir_changes_nothing,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_venvs_without_a_lock_file_are_never_removed_automatically,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_clean_venvs_command,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_a_recently_claimed_venv_is_kept_even_when_released,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_claiming_a_removed_venv_exits_cleanly,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_mcp_takes_the_lock_before_heavy_imports,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_interrupted_removals_are_swept,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_concurrent_cleanups_remove_each_venv_once_without_errors,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_the_server_holds_its_own_venv_lock,tests/test_venvs.py,,todo,,P8
+tests/test_venvs.py::test_the_server_start_call_uses_the_plugin_data_dir_and_this_version,tests/test_venvs.py,,todo,,P8
 tests/test_verified_delivery.py::test_prompt_that_never_lands_is_not_delivered_and_not_seen,tests/test_verified_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_verified_delivery.py::test_not_verified_is_retried_and_then_verified,tests/test_verified_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_verified_delivery.py::test_queued_mid_turn_record_counts_as_landed,tests/test_verified_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
@@ -894,16 +894,16 @@ tests/test_verified_delivery.py::test_hook_records_the_transcript_path_used_for_
 tests/test_verified_delivery.py::test_transcript_parsing_is_lenient_and_exact,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python ; herdr-inbox --test delivery_watch only_what_was_appended_after_the_offset_counts,mapped,,P5
 tests/test_verified_delivery.py::test_receipt_and_hook_mention_check_answers,tests/test_verified_delivery.py,herdr-inbox --lib hook::rules::tests::the_rules_are_pythons_word_for_word ; herdr-inbox --lib hook::rules::tests::the_rules_are_short,mapped,,P2
 tests/test_verified_delivery.py::test_receipt_mentions_check_answers,tests/test_verified_delivery.py,herdr-inbox --test mcp_goldens claude_codes_tool_calls_get_the_python_servers_results,mapped,,P5
-tests/test_verified_delivery.py::test_popup_shows_pending_delivery,tests/test_verified_delivery.py,,todo,,
+tests/test_verified_delivery.py::test_popup_shows_pending_delivery,tests/test_verified_delivery.py,,todo,,P6
 tests/test_verified_delivery.py::test_migration_uses_the_verifier,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::migration_uses_the_verifier,mapped,,P5
 tests/test_verified_delivery.py::test_old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::old_server_deliveries_are_rechecked_on_every_open_and_cannot_loop,mapped,,P5
 tests/test_verified_delivery.py::test_check_answers_acknowledgement_is_not_the_old_server_signature,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::check_answers_acknowledgement_is_not_the_old_server_signature,mapped,,P5
 tests/test_verified_delivery.py::test_never_landing_prompt_is_typed_at_most_twice,tests/test_verified_delivery.py,inbox-core --test deliver_rows every_deliver_batch_pass_is_the_policys,mapped,,P5
 tests/test_verified_delivery.py::test_list_content_and_collapsed_paste_records_count_as_landed,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P5
-tests/test_verified_delivery.py::test_cli_redeliver,tests/test_verified_delivery.py,,todo,,
+tests/test_verified_delivery.py::test_cli_redeliver,tests/test_verified_delivery.py,,todo,,P5
 tests/test_verified_delivery.py::test_a_mention_of_a_q_id_is_not_a_delivery_of_it,tests/test_verified_delivery.py,herdr-inbox --lib claude::landed::tests::every_captured_record_lands_as_in_python,mapped,,P5
 tests/test_verified_delivery.py::test_seven_day_sweep_continues_past_one_batch,tests/test_verified_delivery.py,herdr-inbox --test worker_duties reconcile::seven_day_sweep_continues_past_one_batch,mapped,,P5
-tests/test_verified_delivery.py::test_verified_delivery_is_written_in_one_transaction,tests/test_verified_delivery.py,,todo,,
+tests/test_verified_delivery.py::test_verified_delivery_is_written_in_one_transaction,tests/test_verified_delivery.py,,todo,,P5
 tests/test_verify_edges.py::test_a_fresh_hook_send_not_yet_seen_is_left_for_the_next_tick,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
 tests/test_verify_edges.py::test_a_hook_send_without_a_transcript_stays_sent_and_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
 tests/test_verify_edges.py::test_a_long_answer_whose_reference_landed_is_verified_but_unseen,tests/test_verify_edges.py,inbox-core --test verify_rows every_verify_hook_row_is_the_policys,mapped,,P5
