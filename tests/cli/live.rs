@@ -16,6 +16,7 @@ use herdr_inbox::pyjson::dumps;
 use serde_json::{Value, json};
 
 use crate::common::{migrated, open};
+use crate::herdr_cli::CliStub;
 use crate::herdr_stub::Stub;
 
 const S: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
@@ -27,6 +28,8 @@ struct Rig {
     stub: Stub,
     /// The operator is in the asking pane.
     focused: Arc<AtomicBool>,
+    /// herdr's CLI: a logging stub, never the machine's herdr.
+    cli: CliStub,
 }
 
 fn append(path: &Path, content: &str) {
@@ -84,11 +87,13 @@ impl Rig {
             )
             .unwrap();
         }
+        let cli = CliStub::new(&dir.path().join("bin"));
         Rig {
             dir,
             db,
             stub,
             focused,
+            cli,
         }
     }
 
@@ -100,7 +105,7 @@ impl Rig {
     /// [`Rig::run`] with `extra` variables too.
     fn run_with(&self, args: &[&str], extra: &[(&str, &str)]) -> Output {
         let d = self.dir.path();
-        Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
+        let out = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
             .args(args)
             .env_clear()
             .envs(extra.iter().copied())
@@ -109,12 +114,15 @@ impl Rig {
             .env("XDG_STATE_HOME", d.join("state"))
             .env("XDG_CONFIG_HOME", d.join("xdg"))
             .env("HERDR_SOCKET_PATH", &self.stub.socket)
-            .env("HERDR_BIN_PATH", d.join("no-herdr"))
+            .env("HERDR_BIN_PATH", &self.cli.bin)
             .env("HERDR_INBOX_DB", &self.db)
             .env("HERDR_PLUGIN_CONFIG_DIR", d.join("cfg"))
             .env("CLAUDE_CONFIG_DIR", d.join("claude"))
             .output()
-            .unwrap()
+            .unwrap();
+        // herdr is the socket stub; its CLI is never needed here
+        self.cli.assert_only(&[]);
+        out
     }
 
     fn status(&self, id: i64) -> String {
@@ -241,10 +249,21 @@ fn deliver_keeps_out_of_the_operators_pane_unless_sent_now() {
     // the operator is elsewhere: the worker's retry types it
     let out = rig.run(&["deliver", "2"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    let error2: Option<String> = open(&rig.db)
+        .query_row(
+            "SELECT delivery_error FROM questions WHERE id = 2",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let methods: Vec<String> = (rig.stub.requests.lock().unwrap().iter())
+        .map(|(m, _)| m.clone())
+        .collect();
     assert_eq!(
         rig.stub.params_of("agent.prompt").len(),
         1,
-        "typed in retry mode"
+        "typed in retry mode; Q2 delivery_error {error2:?}, herdr calls {methods:?}, stderr {}",
+        text(&out.stderr)
     );
     rig.focused.store(true, Ordering::SeqCst);
     let out = rig.run(&["deliver", "1"]);

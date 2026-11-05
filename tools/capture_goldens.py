@@ -69,6 +69,7 @@ def isolate(work: Path) -> None:
         "TZ": "UTC",
         "HERDR_INBOX_DB": str(work / "inbox.db"),
         "HERDR_PANE_ID": "w1:p1",
+        "HERDR_BIN_PATH": "/nonexistent/herdr-not-allowed-in-captures",  # capture_screens installs its fake over this
         "CLAUDE_CONFIG_DIR": str(work / "claude"),
         "HERDR_INBOX_NO_WORKER": "1",
         "HERDR_INBOX_HERDR_CONFIG": str(work / "herdr-config" / "config.toml"),
@@ -468,6 +469,9 @@ def capture_screens(out: Path, work: Path) -> list[Path]:
     shots = Shots()
     asyncio.run(popup_screens(shots, work))
     asyncio.run(extra_screens(shots, work))
+    from popup_remote_screens import remote_screens  # tools/ (P6-D2): a remote machine's rows
+
+    asyncio.run(remote_screens(shots, work, sys.modules[__name__]))
     written = []
     for name, doc in shots.files.items():
         doc["source"] += "; TZ=UTC; tools/capture_goldens.py"
@@ -796,6 +800,11 @@ def capture_herdr_screens(out: Path) -> Path:
         ("focused null", {"agent": {**full, "focused": None}}),
         ("no kind", {"agent": {k: v for k, v in full.items() if k != "agent"}}),
         ("a codex agent", {"agent": {**full, "agent": "codex"}}),
+        # #97: herdr's target also matches agent names; only this pane's agent counts
+        ("another pane's agent (a name match)", {"agent": {**full, "pane_id": "w1:p9"}}),
+        ("no pane id", {"agent": {k: v for k, v in full.items() if k != "pane_id"}}),
+        ("a null pane id", {"agent": {**full, "pane_id": None}}),
+        ("a numeric pane id", {"agent": {**full, "pane_id": 1}}),
         ("an empty agent", {"agent": {}}),
         ("no agent", {"agent": None}),
         ("an empty result", {}),
@@ -824,7 +833,7 @@ def _capture_plans(work: Path) -> dict:
     Rust side rebuilds the same world (tests/delivery_plans.rs)."""
     from herdr_inbox import service, store as st, transcript
 
-    OLD, NEW, X = ("a58e3f68-0000-4000-8000-000000000001", "06acc80f-0000-4000-8000-000000000002",
+    OLD, NEW, X = ("00000003-0000-4000-8000-0000000000b1", "00000004-0000-4000-8000-0000000000b2",
                    "77777777-0000-4000-8000-000000000007")
     root = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects"
     tdir = root / "-r"
@@ -837,7 +846,7 @@ def _capture_plans(work: Path) -> dict:
 
     write(OLD, [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": OLD,
                  "message": {"role": "user", "content": "earlier work"}},
-                {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": OLD,
+                {"type": "continued-in", "timestamp": "2026-10-16T18:30:00.000Z", "sessionId": OLD,
                  "continuedInSessionId": NEW},
                 {"type": "cost-state", "sessionId": OLD}])
     write(NEW, [{"type": "ai-title", "aiTitle": "x", "sessionId": NEW}])
@@ -875,8 +884,8 @@ def _capture_plans(work: Path) -> dict:
 
 
 DELIVERY_A = "aaaaaaaa-0000-4000-8000-00000000000a"
-DELIVERY_OLD = "a58e3f68-0000-4000-8000-000000000001"
-DELIVERY_NEW = "06acc80f-0000-4000-8000-000000000002"
+DELIVERY_OLD = "00000003-0000-4000-8000-0000000000b1"
+DELIVERY_NEW = "00000004-0000-4000-8000-0000000000b2"
 DELIVERY_X = "77777777-0000-4000-8000-000000000007"
 
 
@@ -886,8 +895,8 @@ def _delivery_scenarios():
     run through Python's deliver_batch, its result kept for tests/delivery/scenarios.rs."""
     A, OLD, NEW, X = DELIVERY_A, DELIVERY_OLD, DELIVERY_NEW, DELIVERY_X
 
-    def agent(session=A, status="idle", focused=False, kind="claude"):
-        rec = {"pane_id": "w1:p1", "tab_id": "w1:t1", "agent": kind, "agent_status": status, "focused": focused}
+    def agent(session=A, status="idle", focused=False, kind="claude", pane="w1:p1"):
+        rec = {"pane_id": pane, "tab_id": "w1:t1", "agent": kind, "agent_status": status, "focused": focused}
         if session:
             rec["agent_session"] = {"kind": "id", "value": session}
         return rec
@@ -898,7 +907,7 @@ def _delivery_scenarios():
     hello = [{"type": "user", "message": {"role": "user", "content": "hello"}}]
     continued = [{"type": "user", "timestamp": "2026-10-16T18:00:00.000Z", "sessionId": OLD,
                   "message": {"role": "user", "content": "earlier"}},
-                 {"type": "continued-in", "timestamp": "2026-10-16T18:41:47.545Z", "sessionId": OLD,
+                 {"type": "continued-in", "timestamp": "2026-10-16T18:30:00.000Z", "sessionId": OLD,
                   "continuedInSessionId": NEW}, {"type": "cost-state", "sessionId": OLD}]
     empty = (ROOT / "tests" / "fixtures" / "composer" / "empty.ansi").read_text()
     draft = (ROOT / "tests" / "fixtures" / "composer" / "draft.ansi").read_text()
@@ -937,7 +946,9 @@ def _delivery_scenarios():
         S("no transcript to verify against", questions=[q()], transcripts={}, prompt="none"),
         S("verified later", questions=[q(), q(question="Region?", answer="eu")],
           mode={"retry": False, "force": False, "verify_later": True}),
-        S("a codex agent: no input box check", questions=[q()], agent=agent(kind="codex"), screen=draft),
+        # #96 (deliberate change): the box is read for every kind; a Claude Code draft holds any
+        # kind, an unreadable box only Claude's (another harness draws no such box)
+        S("a codex agent onto a Claude draft: held", questions=[q()], agent=agent(kind="codex"), screen=draft),
         # one scenario per branch the ones above leave open (#95-style mutant pass on D2)
         S("an idle session its watcher wakes", questions=[q()], watch_stamp=True, watch_lock=True),
         S("a watcher lock without a fresh stamp", questions=[q()], watch_lock=True),
@@ -973,6 +984,16 @@ def _delivery_scenarios():
         S("working, pending exactly the grace", questions=[q(pending_ago=20)], agent=agent(status="working")),
         # #100 final pass M2: a fresh stamp from a watcher that died (its lock is free): typed
         S("a fresh watcher stamp without its lock", questions=[q()], watch_stamp=True),
+        # #96: another kind with a box we cannot read is typed into as before, and nobody is told
+        S("a codex agent, an unreadable box: typed", questions=[q(tab_label="node")], agent=agent(kind="codex"),
+          screen="plain output"),
+        S("send now, a codex agent onto a draft: not sent, said so", questions=[q()], agent=agent(kind="codex"),
+          screen=draft, mode={"retry": True, "force": True, "verify_later": False}),
+        S("send now, a codex agent onto an unreadable box: typed, nobody told", questions=[q(tab_label="node")],
+          agent=agent(kind="codex"), screen="plain output", mode={"retry": True, "force": True, "verify_later": False}),
+        S("no kind onto a Claude draft: held", questions=[q()], agent=agent(kind=None), screen=draft),
+        # #97: herdr's target also matches agent names; an agent of another pane is not this pane's
+        S("another pane's agent answers", questions=[q()], agent=agent(pane="w1:p9")),
     ]
 
 

@@ -1,7 +1,7 @@
 """Every column the schema declares reaches databases created before it existed.
 
 Final pass 2 of #21: columns added to `CREATE TABLE IF NOT EXISTS` only never reach an
-existing database (moneylust ran an earlier head of this branch); remote sync then failed
+existing database (project1 ran an earlier head of this branch); remote sync then failed
 silently there. BASELINE is each table's column set when the table first shipped: any
 other column must be in the migration map."""
 
@@ -251,10 +251,11 @@ def test_concurrent_pre_bridge_restamps_bridge_workers_and_hooks(migrated):
     errors: list[str] = []
     written: list[int] = []
     stop = time.monotonic() + 1.5
+    hard_stop = stop + 30  # under load the hook may not get a write in 1.5 s: run until one did
 
     def guard(fn):
         def run():
-            while time.monotonic() < stop:
+            while time.monotonic() < stop or (not written and time.monotonic() < hard_stop):
                 try:
                     fn()
                 except sqlite3.OperationalError as exc:
@@ -376,3 +377,83 @@ def test_the_popup_migrates(fake_herdr):
     make_older_head(path)
     InboxApp().store.close()
     assert stamp_of(path) == revision_stamp() and "sending_at" in columns(path, "remote_outbox")
+
+
+def test_the_switch_to_wal_waits_out_a_writer_on_a_rollback_journal_database(tmp_path):
+    """The concurrent-open flake's root cause: on a fresh (rollback-journal) file the switch to
+    WAL asks for the write lock while holding a read lock, and SQLite says "database is locked"
+    at once instead of waiting out busy_timeout. _switch_to_wal retries until its deadline."""
+    import sqlite3
+    import threading
+    import time
+
+    path = tmp_path / "inbox.db"
+    sqlite3.connect(path).execute("CREATE TABLE t (x)").connection.close()
+    holder = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+    holder.execute("BEGIN IMMEDIATE")
+    db = sqlite3.connect(path, timeout=5.0, isolation_level=None)
+    started = time.monotonic()
+    try:
+        st._switch_to_wal(db, wait=0.0)
+        raise AssertionError("the switch got the lock a writer holds")
+    except sqlite3.OperationalError:
+        assert time.monotonic() - started < 2.5, "no busy handler ran"
+    release = threading.Timer(0.3, lambda: holder.execute("COMMIT"))
+    release.start()
+    st._switch_to_wal(db, wait=5.0)
+    release.join()
+    assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+
+
+def test_a_migrating_store_waits_out_a_writer_on_a_rollback_journal_database(tmp_path):
+    """Store(migrate=True) itself (the Rust a_migrating_open_waits_for_a_writer_...): a fresh
+    rollback-journal file, a writer holding the lock for 0.3 s; the open waits, then migrates."""
+    import sqlite3
+    import threading
+
+    path = tmp_path / "inbox.db"
+    sqlite3.connect(path).execute("CREATE TABLE t (x)").connection.close()
+    holder = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+    holder.execute("BEGIN IMMEDIATE")
+    release = threading.Timer(0.3, lambda: holder.execute("COMMIT"))
+    release.start()
+    with Store(path, timeout=5.0, migrate=True, maintenance=False) as s:
+        assert s.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert st.stamped_revision(s.db.execute("PRAGMA user_version").fetchone()[0]) == st.MIGRATION_REVISION
+    release.join()
+
+
+def test_a_migrating_store_gives_up_behind_a_held_lock_and_leaves_the_database_alone(tmp_path):
+    """The Rust a_due_migration_behind_a_held_lock_fails_...: the open stops about when its
+    busy timeout says, not much later, and the stamp stays."""
+    path = tmp_path / "inbox.db"
+    sqlite3.connect(path).execute("CREATE TABLE t (x)").connection.close()
+    holder = sqlite3.connect(path, isolation_level=None)
+    holder.execute("BEGIN IMMEDIATE")
+    started = time.monotonic()
+    with pytest.raises(sqlite3.OperationalError):
+        Store(path, timeout=0.2, migrate=True, maintenance=False)
+    elapsed = time.monotonic() - started
+    holder.execute("ROLLBACK")
+    assert elapsed < 2.5, elapsed
+    assert holder.execute("PRAGMA user_version").fetchone()[0] == 0
+
+
+def test_the_switch_to_wal_raises_any_other_error_at_once(tmp_path):
+    """A non-busy OperationalError (journal mode cannot change inside a transaction: code 1)
+    is raised at once, never retried until the deadline."""
+    import sqlite3
+    import time
+
+    path = tmp_path / "inbox.db"
+    db = sqlite3.connect(path, isolation_level=None)
+    db.execute("CREATE TABLE t (x)")
+    # A read, not a write: once the transaction has written, SQLite ignores the pragma silently.
+    db.execute("BEGIN")
+    db.execute("SELECT * FROM t").fetchall()
+    started = time.monotonic()
+    try:
+        st._switch_to_wal(db, wait=5.0)
+        raise AssertionError("switched to WAL inside a transaction")
+    except sqlite3.OperationalError as exc:
+        assert "locked" not in str(exc) and time.monotonic() - started < 2.5, exc

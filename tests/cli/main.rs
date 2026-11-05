@@ -7,6 +7,8 @@ mod common;
 mod deeplink;
 mod fakes;
 mod golden;
+#[path = "../support/herdr_cli.rs"]
+mod herdr_cli;
 #[path = "../delivery/herdr_stub.rs"]
 mod herdr_stub;
 mod live;

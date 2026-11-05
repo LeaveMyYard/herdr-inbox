@@ -17,7 +17,7 @@ use crate::store::Store;
 use crate::store::alerts::Effect;
 use crate::store::norm::normalize;
 use crate::store::question::normalize_options;
-use crate::store::questions::{NewQuestion, Owner};
+use crate::store::questions::NewQuestion;
 use crate::text::py_isspace;
 
 /// AskUserQuestion's chip limit, in characters (Python `service.MAX_HEADER`).
@@ -64,10 +64,7 @@ pub fn ask_group(
         // nobody watches the inbox for agents outside herdr: no popup, no notification, no delivery
         return Ok((receipts::unavailable(), Vec::new()));
     };
-    let owner = Owner {
-        session_id: caller.session_id.as_deref(),
-        pane_id: Some(pane),
-    };
+    let owner = caller.owner();
     let (receipts, new, group_id, body) = store.immediate(|_| {
         let (mut receipts, mut new, mut group_id) = (Vec::new(), Vec::new(), None::<i64>);
         for item in call.items {

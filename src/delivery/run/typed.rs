@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use herdr_agent_kit::herdr_api::clean;
-use inbox_core::deliver::{COMPOSER_DRAFT, COMPOSER_UNKNOWN, Composer};
+use inbox_core::deliver::{Agent, Composer};
 use inbox_core::verify::Landing;
 use serde_json::{Value, json};
 
@@ -75,33 +75,35 @@ impl PaneLook<'_, '_> {
     }
 
     /// Claude Code's input box, with the two notices that are the caller's:
-    /// once per pane for a box that stays unreadable, and under "Send now"
-    /// that the answers were not sent. A halted pass reads nothing, tells nothing.
+    /// once per pane for a Claude agent's box that stays unreadable, and
+    /// under "Send now" that the answers were not sent (a draft, or a Claude
+    /// agent's unreadable box: what holds them, #96). A halted pass reads
+    /// nothing, tells nothing.
     pub(super) fn composer_state(&mut self, ids: &[i64], now: Instant) -> Composer {
         if self.halted() {
             // Python never gets here: no read, no notice
             return Composer::Unknown;
         }
         let state = composer(self.ctx.herdr, &self.pane);
+        let claude = self.agent.as_ref().is_some_and(Agent::is_claude);
+        let held = self.agent.as_ref().and_then(|a| a.held_by(state));
         let refs = self.refs(ids);
         let first = ids.first().map(|id| self.q(*id));
         let where_ = first
             .and_then(|q| q.tab_label.clone())
             .filter(|l| !l.is_empty())
             .unwrap_or(self.pane.clone());
-        if let Some((title, body)) = self
-            .ctx
-            .unreadable
-            .note(&self.pane, state, &where_, &refs, now)
-        {
+        let note = claude
+            .then(|| {
+                self.ctx
+                    .unreadable
+                    .note(&self.pane, state, &where_, &refs, now)
+            })
+            .flatten();
+        if let Some((title, body)) = note {
             (self.ctx.notify)(&title, &body);
         }
-        if state != Composer::Empty && self.mode.force {
-            let reason = if state == Composer::Draft {
-                COMPOSER_DRAFT
-            } else {
-                COMPOSER_UNKNOWN
-            };
+        if let Some(reason) = held.filter(|_| self.mode.force) {
             (self.ctx.notify)(
                 &format!("{refs} not sent"),
                 reason.trim_start_matches("waiting: "),

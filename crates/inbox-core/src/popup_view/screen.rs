@@ -111,7 +111,10 @@ fn confirm_detail(popup: &Popup) -> String {
         }),
         (Mode::List, View::List(v)) => match &v.cursor {
             Some(Entry::Group(g)) => data.open_group(*g).first().copied(),
-            _ => None,
+            _ => popup
+                .confirm()
+                .and_then(|c| c.remote()?.first())
+                .map(|q| &q.question),
         },
         _ => None,
     };
