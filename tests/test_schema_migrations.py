@@ -432,8 +432,9 @@ def test_the_switch_to_wal_raises_any_other_error_at_once(tmp_path):
     path = tmp_path / "inbox.db"
     db = sqlite3.connect(path, isolation_level=None)
     db.execute("CREATE TABLE t (x)")
+    # A read, not a write: once the transaction has written, SQLite ignores the pragma silently.
     db.execute("BEGIN")
-    db.execute("INSERT INTO t VALUES (1)")
+    db.execute("SELECT * FROM t").fetchall()
     started = time.monotonic()
     try:
         st._switch_to_wal(db, wait=5.0)
