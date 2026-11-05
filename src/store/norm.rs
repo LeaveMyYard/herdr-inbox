@@ -21,26 +21,10 @@
 
 use unicode_general_category::{GeneralCategory as G, get_general_category};
 
-use crate::text::{py_isspace, squash};
+use crate::text::{is_word, py_isspace, squash};
 
 /// The longest group title, in characters (Python `MAX_TITLE`).
 pub const MAX_TITLE: usize = 60;
-
-/// Python's `re` `\w` for one character: a letter, a number, or `_`.
-pub fn is_word(c: char) -> bool {
-    c == '_'
-        || matches!(
-            get_general_category(c),
-            G::UppercaseLetter
-                | G::LowercaseLetter
-                | G::TitlecaseLetter
-                | G::ModifierLetter
-                | G::OtherLetter
-                | G::DecimalNumber
-                | G::LetterNumber
-                | G::OtherNumber
-        )
-}
 
 /// Python's `str.isprintable` for one character.
 pub fn printable(c: char) -> bool {

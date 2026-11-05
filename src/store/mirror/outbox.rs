@@ -254,6 +254,28 @@ impl Store {
         Ok(())
     }
 
+    /// `d` in the popup (Python `action_dismiss`): the row cleared if it is
+    /// [`Store::clearable`] now, with `expire` first settled as failed. One
+    /// write transaction, so the row cannot start sending between the look and
+    /// the write; `false`: it was not clearable, nothing changed.
+    pub fn clear_outbox(
+        &self,
+        request_id: &str,
+        expire: bool,
+        clock: Clock<'_>,
+    ) -> rusqlite::Result<bool> {
+        self.immediate(|_| {
+            if !self.clearable(request_id, clock)? {
+                return Ok(false);
+            }
+            if expire {
+                self.settle(request_id, "failed", "expired", None, clock())?;
+            }
+            self.mark_seen(request_id)?;
+            Ok(true)
+        })
+    }
+
     /// `d` in the popup: failed or rejected rows, and queued ones past expiry
     /// that are not being sent right now.
     pub fn clearable(&self, request_id: &str, clock: Clock<'_>) -> rusqlite::Result<bool> {

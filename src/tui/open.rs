@@ -46,8 +46,8 @@ pub fn take(
 /// The deep link this popup was opened for, if any: the request named by
 /// `nonce` in `state_dir`, resolved in `store`.
 ///
-/// A remote question (`machine:Qn`) is not taken up yet: the popup model has
-/// no remote rows (P6-D2), so such a request opens the popup as usual.
+/// A remote question (`machine:Qn`) is not taken up yet (it needs herdr's
+/// machine list here): such a request opens the popup as usual.
 pub fn deeplink(
     store: &Store,
     state_dir: &std::path::Path,

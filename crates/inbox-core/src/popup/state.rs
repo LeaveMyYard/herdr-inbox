@@ -39,6 +39,7 @@ pub struct Popup {
     pub(super) confirm: Option<Confirm>,
     pub(super) remote_open: Option<Shown>,
     pub(super) remote_alert: Option<RemoteAlert>,
+    pub(super) undo: Option<Box<Popup>>,
     pub(super) running: bool,
     pub(super) now: Millis,
     pub(super) fx: Vec<Effect>,
@@ -108,6 +109,7 @@ impl Popup {
             confirm: None,
             remote_open: None,
             remote_alert: None,
+            undo: None,
             running: true,
             now,
             fx: Vec::new(),
@@ -149,7 +151,12 @@ impl Popup {
     /// Handle one event at `now`; the effects to carry out, in order.
     pub fn handle(&mut self, event: Event, now: Millis) -> Vec<Effect> {
         self.now = now;
-        if self.running {
+        // a refusal answers the action just taken, which may have ended the popup
+        let refused = matches!(event, Event::RemoteRefused { .. });
+        if !refused {
+            self.undo = None;
+        }
+        if self.running || refused {
             match event {
                 Event::Key(key) => self.key(&key),
                 Event::Poll(snapshot) => self.poll(snapshot),
@@ -160,6 +167,9 @@ impl Popup {
                 } => self.sent(&done, wanted, snapshot),
                 Event::Focused { pane, error } => self.focused(&pane, error.as_deref()),
                 Event::Data(snapshot) => self.data = snapshot,
+                Event::RemoteRefused { notice, snapshot } => {
+                    self.remote_refused(notice, snapshot);
+                }
             }
             self.drain();
         }

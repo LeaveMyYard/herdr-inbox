@@ -196,3 +196,77 @@ fn a_missing_transcript_has_no_evidence() {
         None
     ));
 }
+
+/// What `path` holds now, with every `from` replaced, then a filler record.
+fn rewritten(path: &Path, swaps: &[(&str, &str)]) -> String {
+    let mut text = fs::read_to_string(path).unwrap();
+    for (from, to) in swaps {
+        text = text.replace(from, to);
+    }
+    let filler = json!({"type": "user", "timestamp": AT, "message": {"content": "more"}});
+    format!("{text}{filler}\n")
+}
+
+#[test]
+fn a_rewrite_in_place_that_grows_is_read_from_the_start() {
+    let r1 = json!({"answers": [{"id": 7, "answer": "aaaa"}]}).to_string();
+    let (_d, p) = transcript(&[
+        tool_use(CHECK_ANSWERS, json!({}), "u4", AT),
+        tool_result("u4", &r1, AT),
+    ]);
+    let mut ev = Evidence::default();
+    assert!(seen_answer(&mut ev, &p, 7, "aaaa", None));
+    // the bytes at the indexed edge change too
+    let text = rewritten(&p, &[("aaaa", "bbbb"), (AT, "2026-01-03T10:00:00Z")]);
+    fs::write(&p, text).unwrap(); // same inode, longer
+    assert!(!seen_answer(&mut ev, &p, 7, "aaaa", None));
+    assert!(seen_answer(&mut ev, &p, 7, "bbbb", None));
+}
+
+#[test]
+fn a_replacement_with_the_same_edge_is_read_from_the_start() {
+    let r1 = json!({"answers": [{"id": 7, "answer": "aaaa"}]}).to_string();
+    let pad = "x".repeat(EDGE as usize * 2); // the answer lies before the edge
+    let (d, p) = transcript(&[
+        tool_use(CHECK_ANSWERS, json!({}), "u5", AT),
+        tool_result("u5", &r1, AT),
+        json!({"type": "user", "timestamp": AT, "message": {"content": pad}}),
+    ]);
+    let mut ev = Evidence::default();
+    assert!(seen_answer(&mut ev, &p, 7, "aaaa", None));
+    let tmp = d.path().join("new.jsonl");
+    fs::write(&tmp, rewritten(&p, &[("aaaa", "bbbb")])).unwrap();
+    fs::rename(&tmp, &p).unwrap(); // another inode, longer, the same bytes at the edge
+    assert!(!seen_answer(&mut ev, &p, 7, "aaaa", None));
+    assert!(seen_answer(&mut ev, &p, 7, "bbbb", None));
+}
+
+#[test]
+fn the_index_keeps_the_newest_transcripts_only() {
+    let d = tempfile::tempdir().unwrap();
+    let mut ev = Evidence::default();
+    let first = d.path().join("0.jsonl");
+    for n in 0..=CACHE_MAX {
+        let p = d.path().join(format!("{n}.jsonl"));
+        fs::write(&p, "{}\n").unwrap();
+        ev.of(&p);
+    }
+    assert_eq!(ev.cache.len(), CACHE_MAX);
+    assert!(!ev.cache.contains_key(first.to_string_lossy().as_ref()));
+}
+
+#[test]
+fn a_line_with_a_lone_surrogate_is_skipped_as_less_evidence() {
+    // a deviation from Python, whose json.loads takes a lone `\ud83d`: less evidence, never more
+    let good = json!({"answers": [{"id": 7, "answer": "yes"}]}).to_string();
+    let result = tool_result("u6", &good, AT).to_string();
+    let (_d, p) = transcript(&[tool_use(CHECK_ANSWERS, json!({}), "u6", AT)]);
+    let surrogate = result.replacen('{', "{\"x\":\"\\ud83d\",", 1);
+    assert_ne!(surrogate, result);
+    let mut f = fs::OpenOptions::new().append(true).open(&p).unwrap();
+    writeln!(f, "{surrogate}").unwrap();
+    let mut ev = Evidence::default();
+    assert!(!seen_answer(&mut ev, &p, 7, "yes", None));
+    writeln!(f, "{result}").unwrap(); // the same line without it is read
+    assert!(seen_answer(&mut ev, &p, 7, "yes", None));
+}

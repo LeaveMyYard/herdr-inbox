@@ -1,7 +1,8 @@
 # Test fixtures
 
-Every fixture here is captured, never written by hand, except `popup-deviations.json`: where the
-Rust popup deliberately differs from Python, no capture can produce it.
+Every fixture here is captured, never written by hand, except `popup-deviations.json` (where the
+Rust popup deliberately differs from Python, no capture can produce it) and `ancestor-replay.json`
+(synthetic, see below).
 
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
@@ -426,6 +427,26 @@ say why in the PR:
   `<machine>|<id>`, with no `db_id`, so after a remote reset that reuses the number, `d` acknowledges
   an alert the operator never saw (Python `_ack_entry` re-reads `alert_by_key`; the model does the
   same). No question or dismissal is affected: those go under the identity shown.
+
+  Known gap, kept as parity: clearing an undeliverable answer (`clear_problem`) has no identity
+  check. It goes by machine and id only (Python `clear_problem` too), so after a remote reset that
+  reuses the number it stamps the question the mirror holds now. It only hides a row here (the
+  remote keeps the answer for check_answers), and the new question's own problem row stays hidden.
+
+  A write refused after the model moved on (P6-D3; no capture: Python writes first and never has
+  to take anything back). The model announces a remote action and moves on in the same step, and
+  the IO layer's write comes after it. When that write is refused (the mirror changed since the
+  read, the outbox row started sending, the database failed), the IO layer stops the batch there,
+  ahead of the announcement, and sends `RemoteRefused`. The model returns to the state it had when
+  the action started, as if it had refused by itself: an answer's view with what was typed, the
+  row open, the popup running. The one exception is an alert's view, which ends on the list, as
+  Python's `on_alert_view_ack` does after a `LookupError`; a database error ends there too, where
+  Python's `guarded` stays in the view (an alert has no typed text to lose). Dismissals queued
+  before the refused one stay queued, and the fresh read leaves the row with the questions that
+  are left. If that read fails too, the model's copy still shows them as open, so the IO layer
+  refuses a second answer or dismissal of a question that has one queued or done (`not queued:
+  that question already has an action queued`). Python's `enqueue` has no such check; its popup
+  reads live. `crates/inbox-core/tests/popup_refused.rs` and `src/tui/run/tests/remote.rs` pin it.
 
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 
