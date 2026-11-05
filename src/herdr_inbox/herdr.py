@@ -142,6 +142,10 @@ def live_agent(pane_id: str) -> dict | None:
     agent = (res or {}).get("agent")
     if not agent:
         return None
+    # herdr's target also matches agent NAMES: an agent that answers for another pane is not
+    # the one in this pane (#97). A reply without a pane id (none seen) is taken as before.
+    if agent.get("pane_id") is not None and agent.get("pane_id") != pane_id:
+        return None
     reported = (agent.get("agent_session") or {}).get("value")
     from .store import live_session
 
@@ -224,7 +228,12 @@ def composer_state(pane_id: str) -> str:
     The box is the lines between the last two ─── borders on screen; its first line starts
     with ❯ (captured on Claude Code 2.1.301, tests/fixtures/composer). EMPTY is recognised
     positively (review #37): the ❯ line is blank, or holds exactly the dim placeholder
-    `Try "…"` (one non-dim cell allowed: a drawn cursor), and every other box line is blank."""
+    `Try "…"` (one non-dim cell allowed: a drawn cursor), and every other box line is blank.
+
+    Accepted (#98): an empty box in vim NORMAL mode reads as empty (no capture shows a mode
+    marker to tell it by; the box is empty, so no draft is lost, and text that does not land is
+    never verified), as do two contrived screens (a lone typed character before a dim `Try "…"`
+    suggestion, a draft holding a ─── line)."""
     out, _ = run_raw("pane", "read", pane_id, "--source", "visible", "--lines", "30", "--format", "ansi")
     if not out:
         return "unknown"
