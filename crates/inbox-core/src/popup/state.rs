@@ -49,7 +49,7 @@ pub struct Popup {
 /// queued under, and its machine's label as it was then.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Shown {
-    pub label: Option<String>,
+    pub label: String,
     pub question: RemoteQuestion,
 }
 

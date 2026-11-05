@@ -1,7 +1,9 @@
 //! The popup model replays the popup transition golden
 //! (tests/fixtures/popup-transitions.json, captured from the Python popup by
 //! tools/capture_popup_transitions.py): every scenario's events, at their
-//! times, give the same state and the same effects, step by step.
+//! times, give the same state and the same effects, step by step. Where the
+//! Rust popup deliberately differs from Python, a scenario's tail comes from
+//! tests/fixtures/popup-deviations.json instead (the README lists why).
 
 mod popup;
 
@@ -10,6 +12,7 @@ use popup::json;
 use serde_json::Value;
 
 const GOLDEN: &str = include_str!("../../../tests/fixtures/popup-transitions.json");
+const DEVIATIONS: &str = include_str!("../../../tests/fixtures/popup-deviations.json");
 
 /// The keys where two states differ, with both values.
 fn differences(want: &Value, got: &Value) -> Vec<String> {
@@ -79,6 +82,26 @@ fn golden() -> Value {
     serde_json::from_str(GOLDEN).unwrap()
 }
 
+fn deviations() -> Vec<Value> {
+    let doc: Value = serde_json::from_str(DEVIATIONS).unwrap();
+    assert_eq!(doc["schema"], 1);
+    doc["transitions"].as_array().unwrap().clone()
+}
+
+/// The scenario as Rust must play it: Python's, up to a deviation.
+fn with_deviation(scenario: &Value) -> Value {
+    let mut out = scenario.clone();
+    if let Some(d) = deviations()
+        .iter()
+        .find(|d| d["scenario"] == scenario["name"])
+    {
+        let steps = out["steps"].as_array_mut().unwrap();
+        steps.truncate(usize::try_from(d["from_step"].as_u64().unwrap()).unwrap());
+        steps.extend(d["steps"].as_array().unwrap().iter().cloned());
+    }
+    out
+}
+
 /// Replay the golden's scenario `name`.
 fn scenario(name: &str) {
     let golden = golden();
@@ -88,7 +111,7 @@ fn scenario(name: &str) {
         .iter()
         .find(|s| s["name"] == name);
     let scenario = scenario.unwrap_or_else(|| panic!("no scenario {name} in the golden"));
-    if let Err(diff) = replay(scenario) {
+    if let Err(diff) = replay(&with_deviation(scenario)) {
         panic!("{diff}");
     }
 }
@@ -291,6 +314,27 @@ fn every_scenario_of_the_golden_has_its_test() {
         names, listed,
         "the golden was regenerated: list its scenarios here"
     );
+}
+
+/// A deviation starts at the first step that differs from what Python does.
+/// When Python is fixed and the golden recaptured, this asks to drop it.
+#[test]
+fn every_deviation_still_differs_from_python() {
+    let golden = golden();
+    let scenarios = golden["scenarios"].as_array().unwrap();
+    let list = deviations();
+    assert!(!list.is_empty());
+    for d in &list {
+        let name = &d["scenario"];
+        let python = scenarios.iter().find(|s| s["name"] == *name).unwrap();
+        let python = python["steps"].as_array().unwrap();
+        let from = usize::try_from(d["from_step"].as_u64().unwrap()).unwrap();
+        assert!(
+            d["quirk"].as_u64().is_some() && d["why"].is_string(),
+            "{name}"
+        );
+        assert_ne!(python[from], d["steps"][0], "{name}: Python does this now");
+    }
 }
 
 #[test]

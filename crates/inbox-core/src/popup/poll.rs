@@ -67,19 +67,11 @@ impl Popup {
         self.mount(View::Gone(GoneView { r#ref, reason }));
     }
 
-    /// A remote alert's name in its placeholder: `<label>:A<id>`, or `A<id>`
-    /// for a machine without a label (Python reads the label afresh; a
-    /// machine no longer mirrored shows its id).
+    /// A remote alert's name in its placeholder: `<machine>:A<id>`, the
+    /// machine's name read afresh.
     fn remote_alert_ref(&self, key: &str) -> String {
         let (mid, aid) = key.rsplit_once('|').unwrap_or(("", key));
-        let label = match self.data.remote.machine(mid) {
-            Some(m) => m.label.clone(),
-            None => Some(mid.to_string()),
-        };
-        match label.filter(|l| !l.is_empty()) {
-            Some(l) => format!("{l}:A{aid}"),
-            None => format!("A{aid}"),
-        }
+        format!("{}:A{aid}", self.data.remote.name(mid))
     }
 
     /// The open group under a poll (Python `_poll_group`): its closed tabs

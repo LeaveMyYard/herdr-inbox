@@ -329,8 +329,8 @@ say why in the PR:
   first (the local ones, then the remote ones), the remote groups, outbox rows and problems
   last. Mode `remote`: one remote question in a question view, opened from its row (its
   group's first open question). It has no tabs (Tab, Shift+Tab, ←/→ never switch or release a
-  held deep link; Tab moves Textual's focus: view, option list, the open box, the preview
-  pane), and `d` and `g` do nothing. Enter on a `routbox` or `rproblem` row only says "This is on
+  held deep link, in Python; Tab moves Textual's focus: view, option list, the open box, the
+  preview pane), and `d` and `g` do nothing. Enter on a `routbox` or `rproblem` row only says "This is on
   a remote machine; d clears it here". `g` on a remote row in the list says "That agent runs on
   a remote machine: open it from herdr's machine view", except an `rproblem` row: nothing.
 
@@ -353,9 +353,9 @@ say why in the PR:
   `acknowledged`). Reasons at a poll: `answered or closed`, `sent`, `delivered or cleared`,
   `closed` (a remote alert). A poll in mode `remote` whose question left its group puts an
   inert `{"kind": "gone", "ref": "<label>:Q<id>", "reason": "closed on the remote machine"}` on
-  screen with the grace window (Python writes the label as shown when it opened, `None` for a
-  machine without one); an open remote alert that ends shows `<label>:A<id>` (the label read
-  afresh; `A<id>` without one).
+  screen with the grace window (the label as shown when it opened); an open remote alert that
+  ends shows `<label>:A<id>` (the label read afresh). For a machine without a label, see
+  deviation 3 below.
 
   What a model does not reproduce, because the golden cannot hold it:
   - Shift selections and the clipboard in a text box (`shift+←`, `ctrl+x`/`c`/`v`). The box
@@ -366,9 +366,51 @@ say why in the PR:
   - A second box opened while a box is open but does not have the focus. This happens with
     `n`, or with Enter or Space on "Type something." after Tab or Shift+Tab out of a box.
     Python crashes there (Textual `DuplicateIds`); the model replaces the box.
-  - `y` on a remote group whose mirror changed after `d` (a question replaced or gone): Python's
-    `LookupError` escapes the confirmation and ends the popup. The model queues the dismissals
-    up to that question, then says `not queued: …` and leaves the row open.
+
+  Deliberate deviations from Python (main's decision, P6-D2). These five remote-row behaviours
+  are Python bugs, and the Rust popup fixes them instead of copying them. The captured goldens
+  above stay Python's own, byte for byte: `tools/capture_popup_transitions.py` and
+  `tools/capture_goldens.py` cannot produce the fixed behaviour, and
+  `tests/test_goldens.py` keeps checking them against the Python code.
+
+  What Rust must do instead is written by hand in `popup-deviations.json`. A model replays a
+  golden through it:
+
+  ```
+  {"schema": 1, "source": "...",
+   "transitions": [{"scenario": <name>, "quirk": <n>, "why": "...", "from_step": <i>,
+                    "steps": [<step>...]}],
+   "screens": [{"file": "popup-remote", "screen": <name>, "quirk": <n>, "why": "...",
+                "row": <y>, "runs": [<run>...]}]}
+  ```
+
+  A `transitions` entry replaces the scenario's steps from `from_step` to its end (the tail can
+  be shorter than Python's: the scenario ends differently). A `screens` entry replaces one row
+  of a screen. `crates/inbox-core/tests/popup_transitions.rs` and `popup_screens.rs` apply them,
+  and fail when an entry no longer differs from the golden, so a Python fix followed by a new
+  capture asks for the entry to go. What no capture reaches is in
+  `crates/inbox-core/tests/popup_deviations.rs`.
+
+  1. **"Chat about this" on a remote question** (scenario `remote_edge.chat_about_this`). Python
+     goes to the remote question's pane id on this machine, which can be an unrelated local
+     agent. Rust focuses nothing, stays in the view and says `That agent runs on <machine>: open
+     it from herdr's machine view`. A safety fix: no `go_to`, so no `focused` and no quit.
+  2. **The label of an acknowledged remote alert** (screen `remote alert acknowledged in the
+     list`). Python draws `✓ None:A1 · acknowledged`, because it looks the label up among the open
+     alerts. Rust takes the machine from the row's key: `✓ project1:A1 · acknowledged`.
+  3. **A machine without a label** (screen `an unlabelled machine's question`, scenario
+     `remote_edge.unlabelled_machine`). Python writes `None:Q1` in the question's title and
+     placeholder, and `A1` in an alert's placeholder. Rust goes by the machine id everywhere
+     (`m2:Q1`, `m1:A1`), as the other remote text already does; an empty label counts as none.
+  4. **A held deep link into a remote question** (scenario
+     `remote_sync.deep_link_to_a_remote_question.held`). Python never releases it, although the
+     hint says "press Tab or →". Rust releases it as in a group: Tab or → after the release
+     delay, and that key does nothing more. While held, Shift+Tab and ← do nothing either (no
+     focus move). Once released, Tab moves the focus again.
+  5. **`y` on a remote group whose mirror changed after `d`** (a question replaced or gone; no
+     capture: it ends the popup). Python's `LookupError` escapes the confirmation and crashes
+     it. Rust queues the dismissals up to that question, then says `not queued: …` and leaves the
+     row open.
 
 ## Design goldens (rust-rewrite plan §5.2 item 1)
 
