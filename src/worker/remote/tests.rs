@@ -1,11 +1,12 @@
 //! The remote thread's round against stand-ins: a herdr whose `machine
 //! list` is a script, an ssh script that plays the remote (the paths probe,
 //! `plugin list`, `inbox export`), and a temporary database. herdr's socket
-//! is a path nobody listens on: the notifications go nowhere.
+//! is a path nobody listens on, unless a test records the notifications.
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use herdr_agent_kit::herdr_api::ServerId;
 use serde_json::json;
@@ -59,6 +60,7 @@ fn sync_seconds_is_read_as_python_reads_it() {
     assert_eq!(s(json!(true)), 1.0);
     assert_eq!(s(json!(-1)), SYNC_SECONDS);
     assert_eq!(s(json!("soon")), SYNC_SECONDS);
+    assert_eq!(s(json!(1e300)), SYNC_SECONDS); // too long to sleep for
     assert_eq!(sync_seconds(&Map::new()), SYNC_SECONDS);
 }
 
@@ -228,4 +230,116 @@ fn a_failed_pull_flushes_nothing() {
         "{calls}"
     );
     assert!(!calls.contains(" inbox apply"), "{calls}");
+}
+
+/// A herdr socket that records every `notification.show`'s params.
+fn recording_herdr(dir: &Path) -> (Herdr, Arc<Mutex<Vec<Value>>>) {
+    use std::io::{BufRead, BufReader, Write};
+    let socket = dir.join("notes.sock");
+    let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    let notes = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&notes);
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let mut line = String::new();
+            let _ = BufReader::new(&stream).read_line(&mut line);
+            let Ok(request) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+            if request["method"] == "notification.show" {
+                seen.lock().unwrap().push(request["params"].clone());
+            }
+            let _ = writeln!(stream, "{}", json!({"id": request["id"], "result": {}}));
+        }
+    });
+    (
+        Herdr::new(ServerId::new(socket)).with_bin(dir.join("no-herdr")),
+        notes,
+    )
+}
+
+/// A queued action past its time that was never sent.
+fn expired_row(env: &RemoteEnv, id: &str) {
+    let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
+    store
+        .db()
+        .execute(
+            "INSERT INTO remote_outbox (request_id, machine_id, db_id, remote_id, qkey, action, created_at, \
+             expires_at, state) VALUES (?, 'm1', 'dd', 1, 'k', 'answer', 'c', '2020-01-01T00:00:00+00:00', 'queued')",
+            [id],
+        )
+        .unwrap();
+}
+
+fn state_of(env: &RemoteEnv, id: &str) -> String {
+    let store = Store::open(&env.db, Duration::from_secs(5)).unwrap();
+    store
+        .db()
+        .query_row(
+            "SELECT state FROM remote_outbox WHERE request_id = ?",
+            [id],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+#[test]
+fn a_new_remote_question_alerts_the_operator_with_the_request_sound() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = remote_env(dir.path());
+    let (herdr, notes) = recording_herdr(dir.path());
+    env.herdr = herdr;
+    sync_all(&env, || vec![machine("m1", "box.lan")]);
+    let notes = notes.lock().unwrap();
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert_eq!(notes[0]["sound"], "request");
+}
+
+#[test]
+fn the_sweep_runs_before_the_machines_are_asked_for_even_with_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = remote_env(dir.path());
+    let (herdr, notes) = recording_herdr(dir.path());
+    env.herdr = herdr;
+    expired_row(&env, "late");
+    let swept = Mutex::new(None);
+    sync_all(&env, || {
+        *swept.lock().unwrap() = Some(state_of(&env, "late"));
+        Vec::new()
+    });
+    let state = swept.lock().unwrap().clone().unwrap();
+    assert_ne!(state, "queued");
+    assert_eq!(notes.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn what_a_flush_reports_reaches_the_operator() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = remote_env(dir.path());
+    let (herdr, notes) = recording_herdr(dir.path());
+    env.herdr = herdr;
+    sync_all(&env, || {
+        expired_row(&env, "late"); // after the sweep: only the flush can report it
+        vec![machine("m1", "box.lan")]
+    });
+    assert_ne!(state_of(&env, "late"), "queued");
+    assert_eq!(notes.lock().unwrap().len(), 2, "the pull's and the flush's");
+}
+
+#[test]
+fn a_panic_on_one_machine_leaves_the_others_their_turn() {
+    let done = Mutex::new(Vec::new());
+    let found = [machine("m1", "a.lan"), machine("m2", "b.lan")];
+    each_machine(&found, &|m| {
+        assert_ne!(m.id.as_deref(), Some("m1"), "this machine panics");
+        done.lock().unwrap().push(m.id.clone());
+    });
+    assert_eq!(*done.lock().unwrap(), [Some("m2".to_string())]);
+}
+
+#[test]
+fn a_panic_in_the_round_never_reaches_the_loop() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = remote_env(dir.path());
+    guarded_round(&env, || panic!("Question Text 123"));
 }

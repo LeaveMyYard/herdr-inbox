@@ -11,6 +11,24 @@ use serde_json::{Value, json};
 use super::{Round, warn};
 use crate::store::alerts::{BlockedScan, Effect, SeenAgent};
 
+/// `agent.list`'s result (Python `(result or {}).get("agents", [])`): a falsy
+/// result or a missing `agents` is none; anything else that is not a list is
+/// no answer (Python raises on it, and the scan changes nothing).
+fn seen(result: &Value) -> Option<Vec<SeenAgent>> {
+    match result {
+        Value::Object(o) => match o.get("agents") {
+            None => Some(Vec::new()),
+            Some(Value::Array(a)) => Some(a.iter().filter_map(SeenAgent::from_json).collect()),
+            Some(_) => None,
+        },
+        Value::Null | Value::Bool(false) => Some(Vec::new()),
+        Value::Array(a) if a.is_empty() => Some(Vec::new()),
+        Value::String(s) if s.is_empty() => Some(Vec::new()),
+        Value::Number(n) if n.as_f64() == Some(0.0) => Some(Vec::new()),
+        _ => None,
+    }
+}
+
 /// One scan: the agents herdr reports (0 when it does not answer, or when
 /// the scan fails, which is logged). `marks` refreshes a pane's marks.
 pub fn scan_blocked(
@@ -21,17 +39,10 @@ pub fn scan_blocked(
 ) -> usize {
     let herdr = round.ctx.herdr;
     // Python `herdr.call("agent", "list")`: None on a failure, else `.result`
-    // a missing `agents` is none; one that is not a list is no answer (Python
-    // raises iterating it, and the scan changes nothing)
-    let agents: Option<Vec<SeenAgent>> =
-        herdr
-            .raw("agent.list", json!({}))
-            .ok()
-            .and_then(|res| match res.get("agents") {
-                None => Some(Vec::new()),
-                Some(Value::Array(a)) => Some(a.iter().filter_map(SeenAgent::from_json).collect()),
-                Some(_) => None,
-            });
+    let agents = herdr
+        .raw("agent.list", json!({}))
+        .ok()
+        .and_then(|r| seen(&r));
     let label = |tab: &str| {
         herdr
             .tab(&TabId::new(tab))

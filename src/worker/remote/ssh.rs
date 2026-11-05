@@ -80,17 +80,23 @@ pub fn run(
     stdin: Option<&str>,
 ) -> CallResult {
     let mut args: Vec<String> = SSH_OPTIONS.iter().map(|s| s.to_string()).collect();
-    let timeout = if stdin.is_some() {
+    if stdin.is_some() {
         args.extend(control_options(env));
-        CALL_TIMEOUT
-    } else if *command == FixedCommand::probe() {
-        PROBE_TIMEOUT
-    } else {
-        CALL_TIMEOUT
-    };
+    }
+    let timeout = timeout_of(command, stdin);
     args.extend(["--".into(), target.as_str().into(), command.as_str().into()]);
     // Python's call() sends its request even when it is empty; ssh() sends none
     exec(&env.program, &args, stdin, timeout, stdin.is_none())
+}
+
+/// How long `command` may take: only the paths probe, sent without a request,
+/// gets [`PROBE_TIMEOUT`].
+fn timeout_of(command: &FixedCommand, stdin: Option<&str>) -> Duration {
+    if stdin.is_none() && *command == FixedCommand::probe() {
+        PROBE_TIMEOUT
+    } else {
+        CALL_TIMEOUT
+    }
 }
 
 /// Starts `program args`, writes `stdin`, and collects its output within
