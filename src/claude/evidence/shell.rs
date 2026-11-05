@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 
 use super::shlex::split;
 use crate::pyint;
-use crate::store::norm::is_word;
+use crate::text::is_word;
 use crate::text::py_isspace;
 
 const SEPARATORS: &str = ";&|\n";

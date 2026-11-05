@@ -22,5 +22,13 @@ pub fn hex8() -> String {
     format!("{value:08x}")
 }
 
+/// A request id for the outbox (Python `uuid.uuid4().hex`): 32 lowercase hex
+/// digits. Its machine remembers each id it applied, so two actions must
+/// never share one; [`hex8`]'s fallback only ever weakens that when the system
+/// has no random source, and then a clash fails the insert, it is not sent.
+pub fn request_id() -> String {
+    format!("{}{}{}{}", hex8(), hex8(), hex8(), hex8())
+}
+
 #[cfg(test)]
 mod tests;

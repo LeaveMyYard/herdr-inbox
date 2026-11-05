@@ -13,6 +13,7 @@ mod fake;
 mod gone;
 #[path = "../delivery/herdr_stub.rs"]
 mod herdr_stub;
+mod hooks;
 mod moved;
 mod reconcile;
 mod retry;
@@ -25,6 +26,7 @@ use herdr_agent_kit::herdr_api::ServerId;
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 use herdr_inbox::claude::Transcripts;
 use herdr_inbox::delivery::run::{Ctx, Unreadable, deliver_batch};
+use herdr_inbox::delivery::{REFERENCE_INDEX, expected_segments};
 use herdr_inbox::store::Store;
 use herdr_inbox::store::question::normalize_options;
 use herdr_inbox::store::questions::NewQuestion;
@@ -175,6 +177,11 @@ impl World {
     /// makes, then the tick (no blocked scan: herdr reports no agents to it).
     pub fn full_tick(&mut self) -> Tock {
         reconcile_unverified(&self.store, &self.files).unwrap();
+        self.tick_alone()
+    }
+
+    /// A tick alone, without the re-check of a database open.
+    pub fn tick_alone(&mut self) -> Tock {
         let mut memory = std::mem::take(&mut self.memory);
         let tock = self.with_ctx(|ctx, server| {
             tick(&mut Round { ctx, server }, &mut memory, &mut |_| 0).unwrap()
@@ -238,6 +245,12 @@ impl World {
             .collect();
         let text = herdr_agent_kit::internal::inbox_contract::delivery::delivery_text(&answered);
         herdr_agent_kit::herdr_api::clean(&text, 1_000_000_000)
+    }
+
+    /// The long-answer reference a delivery of `qid` types.
+    pub fn reference_text(&self, qid: i64) -> String {
+        let q = self.store.get(qid).unwrap().unwrap();
+        expected_segments(&q).swap_remove(REFERENCE_INDEX)
     }
 
     /// The notifications whose title contains `text`.

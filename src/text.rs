@@ -1,4 +1,22 @@
-//! Python's string whitespace, where the inbox's text output depends on it.
+//! Python's string classes, where the inbox's text output depends on them.
+
+use unicode_general_category::{GeneralCategory as G, get_general_category};
+
+/// Python's `re` `\w` for one character: a letter, a number, or `_`.
+pub fn is_word(c: char) -> bool {
+    c == '_'
+        || matches!(
+            get_general_category(c),
+            G::UppercaseLetter
+                | G::LowercaseLetter
+                | G::TitlecaseLetter
+                | G::ModifierLetter
+                | G::OtherLetter
+                | G::DecimalNumber
+                | G::LetterNumber
+                | G::OtherNumber
+        )
+}
 
 /// Python's `str.isspace` for one character: Unicode `White_Space` plus the
 /// four separators U+001C..U+001F, which Python also splits on.

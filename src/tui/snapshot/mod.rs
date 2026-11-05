@@ -12,11 +12,14 @@
 //! - [`convert`]: a store row as the model's.
 //! - [`busy`]: how long each pending answer has waited (the renderer's
 //!   "will send in N s").
+//! - [`remote`]: the remote machines' mirror.
 
 pub mod busy;
 pub mod convert;
+pub mod remote;
 
 use std::collections::BTreeSet;
+use std::time::SystemTime;
 
 use inbox_core::popup::{Entry, Popup, Snapshot};
 
@@ -50,18 +53,18 @@ impl Shown {
     }
 }
 
-/// Reads the database for the model. `Err`: the database failed (busy,
-/// locked); the caller keeps the copy it has.
-pub fn read(store: &Store, shown: &Shown) -> rusqlite::Result<Snapshot> {
+/// Reads the database for the model at wall-clock time `wall`. `Err`: the
+/// database failed (busy, locked); the caller keeps the copy it has.
+pub fn read(store: &Store, shown: &Shown, wall: SystemTime) -> rusqlite::Result<Snapshot> {
     // one read transaction: every list from the same moment (rolled back on drop,
     // so a failed read never leaves the connection inside a transaction)
     let tx = store.db().unchecked_transaction()?;
-    let snap = read_now(store, shown)?;
+    let snap = read_now(store, shown, wall)?;
     tx.commit()?;
     Ok(snap)
 }
 
-fn read_now(store: &Store, shown: &Shown) -> rusqlite::Result<Snapshot> {
+fn read_now(store: &Store, shown: &Shown, wall: SystemTime) -> rusqlite::Result<Snapshot> {
     let open = store.list(false)?;
     let failed = store.failed_deliveries()?;
     let mut rows = Vec::new();
@@ -91,6 +94,7 @@ fn read_now(store: &Store, shown: &Shown) -> rusqlite::Result<Snapshot> {
     snap.failed = failed.iter().map(|q| q.id).collect();
     snap.alerts = alerts.iter().map(convert::alert).collect();
     snap.open_alerts = open_alerts.iter().map(|a| a.id).collect();
+    snap.remote = remote::read(store, wall)?;
     Ok(snap)
 }
 
