@@ -6,7 +6,8 @@ use std::fmt;
 
 /// A row of the group list (Python `Entry`, `("group", id)` ...). Its
 /// [`Display`](fmt::Display) form is the golden's (`group:2`, `failed:5`,
-/// `gone`, `alert:1`).
+/// `gone`, `alert:1`; a remote machine's `remote:<machine>|<db>|<group>`,
+/// `routbox:<request>`, `rproblem:<machine>|<id>`, `ralert:<machine>|<id>`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum Entry {
@@ -18,6 +19,16 @@ pub enum Entry {
     Gone,
     /// An alert (its id).
     Alert(i64),
+    /// A remote machine's open group (`<machine>|<db id>|<group>`, Python
+    /// `remote.group_key`).
+    Remote(String),
+    /// An action queued for a remote machine, or one it failed or refused
+    /// (the outbox's request id).
+    Outbox(String),
+    /// A remote answer its machine cannot deliver (`<machine>|<question id>`).
+    Problem(String),
+    /// A remote machine's alert (`<machine>|<alert id>`).
+    RemoteAlert(String),
 }
 
 impl Entry {
@@ -27,6 +38,14 @@ impl Entry {
             return Some(Entry::Gone);
         }
         let (kind, key) = s.split_once(':')?;
+        let text = || Some(key.to_string()).filter(|k| !k.is_empty());
+        match kind {
+            "remote" => return text().map(Entry::Remote),
+            "routbox" => return text().map(Entry::Outbox),
+            "rproblem" => return text().map(Entry::Problem),
+            "ralert" => return text().map(Entry::RemoteAlert),
+            _ => {}
+        }
         let n: i64 = key.parse().ok()?;
         match kind {
             "group" => Some(Entry::Group(n)),
@@ -39,7 +58,15 @@ impl Entry {
     /// An alert row: unnumbered, never where the cursor starts (Python
     /// `is_alert`).
     pub fn is_alert(&self) -> bool {
-        matches!(self, Entry::Alert(_))
+        matches!(self, Entry::Alert(_) | Entry::RemoteAlert(_))
+    }
+
+    /// A remote machine's row of any kind.
+    pub fn is_remote(&self) -> bool {
+        matches!(
+            self,
+            Entry::Remote(_) | Entry::Outbox(_) | Entry::Problem(_) | Entry::RemoteAlert(_)
+        )
     }
 }
 
@@ -50,6 +77,10 @@ impl fmt::Display for Entry {
             Entry::Failed(n) => write!(f, "failed:{n}"),
             Entry::Gone => write!(f, "gone"),
             Entry::Alert(n) => write!(f, "alert:{n}"),
+            Entry::Remote(k) => write!(f, "remote:{k}"),
+            Entry::Outbox(k) => write!(f, "routbox:{k}"),
+            Entry::Problem(k) => write!(f, "rproblem:{k}"),
+            Entry::RemoteAlert(k) => write!(f, "ralert:{k}"),
         }
     }
 }
@@ -84,8 +115,11 @@ pub enum Mode {
     Group,
     /// An undelivered answer's view.
     Failed,
-    /// An alert's view.
+    /// An alert's view (a remote machine's too).
     Alert,
+    /// A remote machine's question: one at a time, no tabs; an answer is
+    /// queued for the delivery worker to send there.
+    Remote,
 }
 
 impl Mode {
@@ -97,6 +131,7 @@ impl Mode {
             Mode::Group => "group",
             Mode::Failed => "failed",
             Mode::Alert => "alert",
+            Mode::Remote => "remote",
         }
     }
 }

@@ -438,24 +438,24 @@
  ],
  "plans": {
   "files": {
-   "-r/synthetic_92-0000-4000-8000-000000000002.jsonl": "{\"type\": \"ai-title\", \"aiTitle\": \"x\", \"sessionId\": \"synthetic_92-0000-4000-8000-000000000002\"}\n",
-   "-r/77777777-0000-4000-8000-000000000007.jsonl": "{\"type\": \"user\", \"timestamp\": \"2026-10-16T18:00:00.000Z\", \"sessionId\": \"77777777-0000-4000-8000-000000000007\", \"message\": {\"role\": \"user\", \"content\": \"other\"}}\n",
-   "-r/synthetic_91-0000-4000-8000-000000000001.jsonl": "{\"type\": \"user\", \"timestamp\": \"2026-10-16T18:00:00.000Z\", \"sessionId\": \"synthetic_91-0000-4000-8000-000000000001\", \"message\": {\"role\": \"user\", \"content\": \"earlier work\"}}\n{\"type\": \"continued-in\", \"timestamp\": \"2026-10-16T18:41:47.545Z\", \"sessionId\": \"synthetic_91-0000-4000-8000-000000000001\", \"continuedInSessionId\": \"synthetic_92-0000-4000-8000-000000000002\"}\n{\"type\": \"cost-state\", \"sessionId\": \"synthetic_91-0000-4000-8000-000000000001\"}\n"
+   "-r/00000003-0000-4000-8000-0000000000b1.jsonl": "{\"type\": \"user\", \"timestamp\": \"2026-10-16T18:00:00.000Z\", \"sessionId\": \"00000003-0000-4000-8000-0000000000b1\", \"message\": {\"role\": \"user\", \"content\": \"earlier work\"}}\n{\"type\": \"continued-in\", \"timestamp\": \"2026-10-16T18:30:00.000Z\", \"sessionId\": \"00000003-0000-4000-8000-0000000000b1\", \"continuedInSessionId\": \"00000004-0000-4000-8000-0000000000b2\"}\n{\"type\": \"cost-state\", \"sessionId\": \"00000003-0000-4000-8000-0000000000b1\"}\n",
+   "-r/00000004-0000-4000-8000-0000000000b2.jsonl": "{\"type\": \"ai-title\", \"aiTitle\": \"x\", \"sessionId\": \"00000004-0000-4000-8000-0000000000b2\"}\n",
+   "-r/77777777-0000-4000-8000-000000000007.jsonl": "{\"type\": \"user\", \"timestamp\": \"2026-10-16T18:00:00.000Z\", \"sessionId\": \"77777777-0000-4000-8000-000000000007\", \"message\": {\"role\": \"user\", \"content\": \"other\"}}\n"
   },
   "questions": [
    {
     "id": 1,
-    "session_id": "synthetic_92-0000-4000-8000-000000000002",
+    "session_id": "00000004-0000-4000-8000-0000000000b2",
     "created_at": "2026-10-16T19:00:00+00:00"
    },
    {
     "id": 2,
-    "session_id": "synthetic_91-0000-4000-8000-000000000001",
+    "session_id": "00000003-0000-4000-8000-0000000000b1",
     "created_at": "2026-10-16T17:00:00+00:00"
    },
    {
     "id": 3,
-    "session_id": "synthetic_91-0000-4000-8000-000000000001",
+    "session_id": "00000003-0000-4000-8000-0000000000b1",
     "created_at": "2026-10-16T19:00:00+00:00"
    },
    {
@@ -473,21 +473,21 @@
    {
     "id": 1,
     "family": [
-     "synthetic_92-0000-4000-8000-000000000002"
+     "00000004-0000-4000-8000-0000000000b2"
     ]
    },
    {
     "id": 2,
     "family": [
-     "synthetic_91-0000-4000-8000-000000000001",
-     "synthetic_92-0000-4000-8000-000000000002"
+     "00000003-0000-4000-8000-0000000000b1",
+     "00000004-0000-4000-8000-0000000000b2"
     ]
    },
    {
     "id": 3,
     "family": [
-     "synthetic_91-0000-4000-8000-000000000001",
-     "synthetic_92-0000-4000-8000-000000000002"
+     "00000003-0000-4000-8000-0000000000b1",
+     "00000004-0000-4000-8000-0000000000b2"
     ]
    },
    {
@@ -503,63 +503,63 @@
   ],
   "older": [
    {
-    "live": "synthetic_91-0000-4000-8000-000000000001",
-    "asker": "synthetic_91-0000-4000-8000-000000000001",
+    "live": "00000003-0000-4000-8000-0000000000b1",
+    "asker": "00000003-0000-4000-8000-0000000000b1",
     "older": false
    },
    {
-    "live": "synthetic_91-0000-4000-8000-000000000001",
-    "asker": "synthetic_92-0000-4000-8000-000000000002",
+    "live": "00000003-0000-4000-8000-0000000000b1",
+    "asker": "00000004-0000-4000-8000-0000000000b2",
     "older": true
    },
    {
-    "live": "synthetic_91-0000-4000-8000-000000000001",
+    "live": "00000003-0000-4000-8000-0000000000b1",
     "asker": "77777777-0000-4000-8000-000000000007",
     "older": false
    },
    {
-    "live": "synthetic_91-0000-4000-8000-000000000001",
+    "live": "00000003-0000-4000-8000-0000000000b1",
     "asker": null,
     "older": false
    },
    {
-    "live": "synthetic_91-0000-4000-8000-000000000001",
+    "live": "00000003-0000-4000-8000-0000000000b1",
     "asker": "",
     "older": false
    },
    {
-    "live": "synthetic_92-0000-4000-8000-000000000002",
-    "asker": "synthetic_91-0000-4000-8000-000000000001",
+    "live": "00000004-0000-4000-8000-0000000000b2",
+    "asker": "00000003-0000-4000-8000-0000000000b1",
     "older": false
    },
    {
-    "live": "synthetic_92-0000-4000-8000-000000000002",
-    "asker": "synthetic_92-0000-4000-8000-000000000002",
+    "live": "00000004-0000-4000-8000-0000000000b2",
+    "asker": "00000004-0000-4000-8000-0000000000b2",
     "older": false
    },
    {
-    "live": "synthetic_92-0000-4000-8000-000000000002",
+    "live": "00000004-0000-4000-8000-0000000000b2",
     "asker": "77777777-0000-4000-8000-000000000007",
     "older": false
    },
    {
-    "live": "synthetic_92-0000-4000-8000-000000000002",
+    "live": "00000004-0000-4000-8000-0000000000b2",
     "asker": null,
     "older": false
    },
    {
-    "live": "synthetic_92-0000-4000-8000-000000000002",
+    "live": "00000004-0000-4000-8000-0000000000b2",
     "asker": "",
     "older": false
    },
    {
     "live": "77777777-0000-4000-8000-000000000007",
-    "asker": "synthetic_91-0000-4000-8000-000000000001",
+    "asker": "00000003-0000-4000-8000-0000000000b1",
     "older": false
    },
    {
     "live": "77777777-0000-4000-8000-000000000007",
-    "asker": "synthetic_92-0000-4000-8000-000000000002",
+    "asker": "00000004-0000-4000-8000-0000000000b2",
     "older": false
    },
    {
@@ -579,12 +579,12 @@
    },
    {
     "live": null,
-    "asker": "synthetic_91-0000-4000-8000-000000000001",
+    "asker": "00000003-0000-4000-8000-0000000000b1",
     "older": false
    },
    {
     "live": null,
-    "asker": "synthetic_92-0000-4000-8000-000000000002",
+    "asker": "00000004-0000-4000-8000-0000000000b2",
     "older": false
    },
    {
@@ -604,12 +604,12 @@
    },
    {
     "live": "",
-    "asker": "synthetic_91-0000-4000-8000-000000000001",
+    "asker": "00000003-0000-4000-8000-0000000000b1",
     "older": false
    },
    {
     "live": "",
-    "asker": "synthetic_92-0000-4000-8000-000000000002",
+    "asker": "00000004-0000-4000-8000-0000000000b2",
     "older": false
    },
    {
@@ -631,60 +631,60 @@
   "watch_paths": [
    {
     "agent": {
-     "session_id": "synthetic_92-0000-4000-8000-000000000002",
-     "reported_session_id": "synthetic_91-0000-4000-8000-000000000001"
+     "session_id": "00000004-0000-4000-8000-0000000000b2",
+     "reported_session_id": "00000003-0000-4000-8000-0000000000b1"
     },
     "fresh": false,
     "paths": [
      [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
       90
      ],
      [
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl",
       426
      ]
     ]
    },
    {
     "agent": {
-     "session_id": "synthetic_92-0000-4000-8000-000000000002",
-     "reported_session_id": "synthetic_91-0000-4000-8000-000000000001"
+     "session_id": "00000004-0000-4000-8000-0000000000b2",
+     "reported_session_id": "00000003-0000-4000-8000-0000000000b1"
     },
     "fresh": true,
     "paths": [
      [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
       0
      ],
      [
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl",
       0
      ]
     ]
    },
    {
     "agent": {
-     "session_id": "synthetic_92-0000-4000-8000-000000000002",
-     "reported_session_id": "synthetic_92-0000-4000-8000-000000000002"
+     "session_id": "00000004-0000-4000-8000-0000000000b2",
+     "reported_session_id": "00000004-0000-4000-8000-0000000000b2"
     },
     "fresh": false,
     "paths": [
      [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
       90
      ]
     ]
    },
    {
     "agent": {
-     "session_id": "synthetic_92-0000-4000-8000-000000000002",
-     "reported_session_id": "synthetic_92-0000-4000-8000-000000000002"
+     "session_id": "00000004-0000-4000-8000-0000000000b2",
+     "reported_session_id": "00000004-0000-4000-8000-0000000000b2"
     },
     "fresh": true,
     "paths": [
      [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
       0
      ]
     ]
@@ -692,12 +692,12 @@
    {
     "agent": {
      "session_id": null,
-     "reported_session_id": "synthetic_91-0000-4000-8000-000000000001"
+     "reported_session_id": "00000003-0000-4000-8000-0000000000b1"
     },
     "fresh": false,
     "paths": [
      [
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl",
       426
      ]
     ]
@@ -705,12 +705,12 @@
    {
     "agent": {
      "session_id": null,
-     "reported_session_id": "synthetic_91-0000-4000-8000-000000000001"
+     "reported_session_id": "00000003-0000-4000-8000-0000000000b1"
     },
     "fresh": true,
     "paths": [
      [
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl",
       0
      ]
     ]
@@ -762,11 +762,11 @@
    "pane": "w1:p1",
    "watch": [
     [
-     "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
+     "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
      5
     ],
     [
-     "-r/synthetic_91-0000-4000-8000-000000000001.jsonl",
+     "-r/00000003-0000-4000-8000-0000000000b1.jsonl",
      0
     ],
     [
@@ -777,28 +777,28 @@
    "plans": {
     "1": {
      "counting": [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl"
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl"
      ],
-     "older_error": "older conversation: typed into synthetic_91 in pane w1:p1, an older session than the asking synthetic_92, which never got it; resume synthetic_92 to deliver"
+     "older_error": "older conversation: typed into 00000003 in pane w1:p1, an older session than the asking 00000004, which never got it; resume 00000004 to deliver"
     },
     "2": {
      "counting": [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl"
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl"
      ],
      "older_error": null
     },
     "3": {
      "counting": [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl"
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl"
      ],
      "older_error": null
     },
     "4": {
      "counting": [
-      "-r/synthetic_92-0000-4000-8000-000000000002.jsonl",
-      "-r/synthetic_91-0000-4000-8000-000000000001.jsonl",
+      "-r/00000004-0000-4000-8000-0000000000b2.jsonl",
+      "-r/00000003-0000-4000-8000-0000000000b1.jsonl",
       "-r/77777777-0000-4000-8000-000000000007.jsonl"
      ],
      "older_error": null
@@ -1895,11 +1895,11 @@
      "verify_later": false
     },
     "transcripts": {
-     "synthetic_91-0000-4000-8000-000000000001": [
+     "00000003-0000-4000-8000-0000000000b1": [
       {
        "type": "user",
        "timestamp": "2026-10-16T18:00:00.000Z",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001",
+       "sessionId": "00000003-0000-4000-8000-0000000000b1",
        "message": {
         "role": "user",
         "content": "earlier"
@@ -1907,20 +1907,20 @@
       },
       {
        "type": "continued-in",
-       "timestamp": "2026-10-16T18:41:47.545Z",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001",
-       "continuedInSessionId": "synthetic_92-0000-4000-8000-000000000002"
+       "timestamp": "2026-10-16T18:30:00.000Z",
+       "sessionId": "00000003-0000-4000-8000-0000000000b1",
+       "continuedInSessionId": "00000004-0000-4000-8000-0000000000b2"
       },
       {
        "type": "cost-state",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001"
+       "sessionId": "00000003-0000-4000-8000-0000000000b1"
       }
      ],
-     "synthetic_92-0000-4000-8000-000000000002": [
+     "00000004-0000-4000-8000-0000000000b2": [
       {
        "type": "ai-title",
        "aiTitle": "x",
-       "sessionId": "synthetic_92-0000-4000-8000-000000000002"
+       "sessionId": "00000004-0000-4000-8000-0000000000b2"
       }
      ]
     },
@@ -1932,16 +1932,16 @@
      "focused": false,
      "agent_session": {
       "kind": "id",
-      "value": "synthetic_91-0000-4000-8000-000000000001"
+      "value": "00000003-0000-4000-8000-0000000000b1"
      }
     },
     "agents": [],
     "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
     "prompt": "land",
-    "land_in": "synthetic_91-0000-4000-8000-000000000001",
+    "land_in": "00000003-0000-4000-8000-0000000000b1",
     "questions": [
      {
-      "session": "synthetic_92-0000-4000-8000-000000000002",
+      "session": "00000004-0000-4000-8000-0000000000b2",
       "question": "Merge it?",
       "answer": "yes"
      }
@@ -1952,7 +1952,7 @@
      "status": "answered",
      "pane": "w1:p1",
      "delivered": false,
-     "error": "older conversation: typed into synthetic_91 in pane w1:p1, an older session than the asking synthetic_92, which never got it; resume synthetic_92 to deliver",
+     "error": "older conversation: typed into 00000003 in pane w1:p1, an older session than the asking 00000004, which never got it; resume 00000004 to deliver",
      "acknowledged": false,
      "attempts": 1,
      "verified": false,
@@ -2276,9 +2276,9 @@
    ]
   },
   {
-   "name": "a codex agent: no input box check",
+   "name": "a codex agent onto a Claude draft: held",
    "scenario": {
-    "name": "a codex agent: no input box check",
+    "name": "a codex agent onto a Claude draft: held",
     "mode": {
      "retry": true,
      "force": false,
@@ -2322,19 +2322,17 @@
     {
      "status": "answered",
      "pane": "w1:p1",
-     "delivered": true,
-     "error": null,
-     "acknowledged": true,
+     "delivered": false,
+     "error": "pending: waiting: the agent's input box holds unsent text (send or clear it there)",
+     "acknowledged": false,
      "attempts": 0,
-     "verified": true,
+     "verified": false,
      "busy_attempts": 0,
      "pending_since": false,
      "tab_label": null
     }
    ],
-   "prompts": [
-    "[inbox] Q1 answered — Merge it?: yes"
-   ],
+   "prompts": [],
    "notifications": [],
    "jobs": []
   },
@@ -2771,11 +2769,11 @@
      "verify_later": false
     },
     "transcripts": {
-     "synthetic_91-0000-4000-8000-000000000001": [
+     "00000003-0000-4000-8000-0000000000b1": [
       {
        "type": "user",
        "timestamp": "2026-10-16T18:00:00.000Z",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001",
+       "sessionId": "00000003-0000-4000-8000-0000000000b1",
        "message": {
         "role": "user",
         "content": "earlier"
@@ -2783,20 +2781,20 @@
       },
       {
        "type": "continued-in",
-       "timestamp": "2026-10-16T18:41:47.545Z",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001",
-       "continuedInSessionId": "synthetic_92-0000-4000-8000-000000000002"
+       "timestamp": "2026-10-16T18:30:00.000Z",
+       "sessionId": "00000003-0000-4000-8000-0000000000b1",
+       "continuedInSessionId": "00000004-0000-4000-8000-0000000000b2"
       },
       {
        "type": "cost-state",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001"
+       "sessionId": "00000003-0000-4000-8000-0000000000b1"
       }
      ],
-     "synthetic_92-0000-4000-8000-000000000002": [
+     "00000004-0000-4000-8000-0000000000b2": [
       {
        "type": "ai-title",
        "aiTitle": "x",
-       "sessionId": "synthetic_92-0000-4000-8000-000000000002"
+       "sessionId": "00000004-0000-4000-8000-0000000000b2"
       }
      ]
     },
@@ -2808,19 +2806,19 @@
      "focused": false,
      "agent_session": {
       "kind": "id",
-      "value": "synthetic_91-0000-4000-8000-000000000001"
+      "value": "00000003-0000-4000-8000-0000000000b1"
      }
     },
     "agents": [],
     "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
     "prompt": "land",
-    "land_in": "synthetic_91-0000-4000-8000-000000000001",
+    "land_in": "00000003-0000-4000-8000-0000000000b1",
     "questions": [
      {
-      "session": "synthetic_92-0000-4000-8000-000000000002",
+      "session": "00000004-0000-4000-8000-0000000000b2",
       "question": "Merge it?",
       "answer": "yes",
-      "older_landed": "synthetic_91-0000-4000-8000-000000000001"
+      "older_landed": "00000003-0000-4000-8000-0000000000b1"
      }
     ]
    },
@@ -2829,7 +2827,7 @@
      "status": "answered",
      "pane": "w1:p1",
      "delivered": false,
-     "error": "older conversation: typed into synthetic_91 in pane w1:p1, an older session than the asking synthetic_92, which never got it; resume synthetic_92 to deliver",
+     "error": "older conversation: typed into 00000003 in pane w1:p1, an older session than the asking 00000004, which never got it; resume 00000004 to deliver",
      "acknowledged": false,
      "attempts": 1,
      "verified": false,
@@ -3103,11 +3101,11 @@
      "verify_later": false
     },
     "transcripts": {
-     "synthetic_91-0000-4000-8000-000000000001": [
+     "00000003-0000-4000-8000-0000000000b1": [
       {
        "type": "user",
        "timestamp": "2026-10-16T18:00:00.000Z",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001",
+       "sessionId": "00000003-0000-4000-8000-0000000000b1",
        "message": {
         "role": "user",
         "content": "earlier"
@@ -3115,13 +3113,13 @@
       },
       {
        "type": "continued-in",
-       "timestamp": "2026-10-16T18:41:47.545Z",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001",
-       "continuedInSessionId": "synthetic_92-0000-4000-8000-000000000002"
+       "timestamp": "2026-10-16T18:30:00.000Z",
+       "sessionId": "00000003-0000-4000-8000-0000000000b1",
+       "continuedInSessionId": "00000004-0000-4000-8000-0000000000b2"
       },
       {
        "type": "cost-state",
-       "sessionId": "synthetic_91-0000-4000-8000-000000000001"
+       "sessionId": "00000003-0000-4000-8000-0000000000b1"
       }
      ]
     },
@@ -3133,28 +3131,28 @@
      "focused": false,
      "agent_session": {
       "kind": "id",
-      "value": "synthetic_92-0000-4000-8000-000000000002"
+      "value": "00000004-0000-4000-8000-0000000000b2"
      }
     },
     "agents": [],
     "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
     "prompt": "land",
-    "land_in": "synthetic_91-0000-4000-8000-000000000001",
+    "land_in": "00000003-0000-4000-8000-0000000000b1",
     "questions": [
      {
-      "session": "synthetic_92-0000-4000-8000-000000000002",
+      "session": "00000004-0000-4000-8000-0000000000b2",
       "question": "Merge it?",
       "answer": "yes"
      }
     ],
-    "reported": "synthetic_91-0000-4000-8000-000000000001"
+    "reported": "00000003-0000-4000-8000-0000000000b1"
    },
    "states": [
     {
      "status": "answered",
      "pane": "w1:p1",
      "delivered": false,
-     "error": "older conversation: typed into synthetic_91 in pane w1:p1, an older session than the asking synthetic_92, which never got it; resume synthetic_92 to deliver",
+     "error": "older conversation: typed into 00000003 in pane w1:p1, an older session than the asking 00000004, which never got it; resume 00000004 to deliver",
      "acknowledged": false,
      "attempts": 1,
      "verified": false,
@@ -3636,6 +3634,322 @@
    "prompts": [
     "[inbox] Q1 answered — Merge it?: yes"
    ],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "a codex agent, an unreadable box: typed",
+   "scenario": {
+    "name": "a codex agent, an unreadable box: typed",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "plain output",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes",
+      "tab_label": "node"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": true,
+     "error": null,
+     "acknowledged": true,
+     "attempts": 0,
+     "verified": true,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": "node"
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: yes"
+   ],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "send now, a codex agent onto a draft: not sent, said so",
+   "scenario": {
+    "name": "send now, a codex agent onto a draft: not sent, said so",
+    "mode": {
+     "retry": true,
+     "force": true,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ [E2E TEST] Ok, so how is it going? Is it done yet?\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle)\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "pending: waiting: the agent's input box holds unsent text (send or clear it there)",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [],
+   "notifications": [
+    [
+     "Q1 not sent",
+     "the agent's input box holds unsent text (send or clear it there)"
+    ]
+   ],
+   "jobs": []
+  },
+  {
+   "name": "send now, a codex agent onto an unreadable box: typed, nobody told",
+   "scenario": {
+    "name": "send now, a codex agent onto an unreadable box: typed, nobody told",
+    "mode": {
+     "retry": true,
+     "force": true,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": "codex",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "plain output",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes",
+      "tab_label": "node"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": true,
+     "error": null,
+     "acknowledged": true,
+     "attempts": 0,
+     "verified": true,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": "node"
+    }
+   ],
+   "prompts": [
+    "[inbox] Q1 answered — Merge it?: yes"
+   ],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "no kind onto a Claude draft: held",
+   "scenario": {
+    "name": "no kind onto a Claude draft: held",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p1",
+     "tab_id": "w1:t1",
+     "agent": null,
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ [E2E TEST] Ok, so how is it going? Is it done yet?\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle)\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "pending: waiting: the agent's input box holds unsent text (send or clear it there)",
+     "acknowledged": false,
+     "attempts": 0,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [],
+   "notifications": [],
+   "jobs": []
+  },
+  {
+   "name": "another pane's agent answers",
+   "scenario": {
+    "name": "another pane's agent answers",
+    "mode": {
+     "retry": true,
+     "force": false,
+     "verify_later": false
+    },
+    "transcripts": {
+     "aaaaaaaa-0000-4000-8000-00000000000a": [
+      {
+       "type": "user",
+       "message": {
+        "role": "user",
+        "content": "hello"
+       }
+      }
+     ]
+    },
+    "agent": {
+     "pane_id": "w1:p9",
+     "tab_id": "w1:t1",
+     "agent": "claude",
+     "agent_status": "idle",
+     "focused": false,
+     "agent_session": {
+      "kind": "id",
+      "value": "aaaaaaaa-0000-4000-8000-00000000000a"
+     }
+    },
+    "agents": [],
+    "screen": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    \u001b[0m\u001b[38;2;153;153;153m◐ medium · /effort\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n❯ \u001b[0m\u001b[2mTry \"refactor <filepath>\"\u001b[0m\n\u001b[0m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[0m\n  \u001b[0m\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[0m\u001b[38;2;153;153;153m (shift+tab to cycle) · ← for agents\u001b[0m",
+    "prompt": "land",
+    "land_in": "aaaaaaaa-0000-4000-8000-00000000000a",
+    "questions": [
+     {
+      "session": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "question": "Merge it?",
+      "answer": "yes"
+     }
+    ]
+   },
+   "states": [
+    {
+     "status": "answered",
+     "pane": "w1:p1",
+     "delivered": false,
+     "error": "no live agent in pane w1:p1",
+     "acknowledged": false,
+     "attempts": 1,
+     "verified": false,
+     "busy_attempts": 0,
+     "pending_since": false,
+     "tab_label": null
+    }
+   ],
+   "prompts": [],
    "notifications": [],
    "jobs": []
   }

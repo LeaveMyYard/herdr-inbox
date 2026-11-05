@@ -16,7 +16,7 @@ pub use crate::verify::Landing;
 pub use decide::decide;
 pub use reasons::{
     BLOCKED_WAIT, BUSY_WAIT_IDLE, CHANGED, COMPOSER_DRAFT, COMPOSER_UNKNOWN, HOOK_WAIT, NO_AGENT,
-    NO_PANE, NOT_VERIFIED, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT, WATCHER_WAIT,
+    NO_PANE, NOT_VERIFIED, OLDER, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT, WATCHER_WAIT,
     older_error,
 };
 
@@ -26,6 +26,12 @@ pub const MAX_BUSY_ATTEMPTS: i64 = 1;
 /// Unseen hook sends after which an answer is left to typing (Python
 /// `store.MAX_HOOK_MISSES`).
 pub const MAX_HOOK_MISSES: i64 = 2;
+/// "No agent" / "conversation changed" tries after which the agent counts as
+/// gone (Python `service.MAX_STALE_RETRIES`).
+pub const MAX_STALE_RETRIES: i64 = 10;
+/// Typed-but-never-seen tries after which an answer is no longer typed
+/// (Python `service.MAX_UNVERIFIED_ATTEMPTS`).
+pub const MAX_UNVERIFIED_ATTEMPTS: i64 = 2;
 
 /// How this pass was asked for.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -63,6 +69,28 @@ pub struct Agent {
     pub session: Option<String>,
     /// The session herdr reports (it differs after herdr resumed an older id).
     pub reported_session: Option<String>,
+}
+
+impl Agent {
+    /// herdr reports Claude Code in the pane (its kind `claude`): an input
+    /// box that cannot be read then holds the answer. Any other kind is
+    /// still held by a recognised Claude Code draft (#96).
+    pub fn is_claude(&self) -> bool {
+        self.kind.as_deref() == Some("claude")
+    }
+
+    /// The pending reason when its input box in `state` holds the answer
+    /// (a draft, for any kind; an unreadable box, for Claude only), or
+    /// `None` when it can be typed into. The one rule for the hold and for
+    /// Send now's "not sent" notice.
+    pub fn held_by(&self, state: Composer) -> Option<&'static str> {
+        match state {
+            Composer::Empty => None,
+            Composer::Draft => Some(COMPOSER_DRAFT),
+            Composer::Unknown if self.is_claude() => Some(COMPOSER_UNKNOWN),
+            Composer::Unknown => None,
+        }
+    }
 }
 
 /// Claude Code's input box.
@@ -147,13 +175,15 @@ pub trait Look {
     fn messages(&mut self, ids: &[i64]) -> Vec<(Vec<i64>, bool)>;
     /// The agent looked up again just before typing.
     fn agent_again(&mut self, ids: &[i64]) -> Option<Agent>;
-    /// Claude Code's input box.
+    /// Claude Code's input box, read before every message for any agent
+    /// kind (#96).
     ///
     /// Two notifications are the caller's, not an [`Outcome`] (Python
-    /// `deliver_batch`): under "Send now", an input box that is not empty
-    /// notifies `"{refs} not sent"` with the pending reason minus
-    /// `waiting: `, once per message; and an input box that stays
-    /// unreadable notifies once per pane (`_note_unreadable`).
+    /// `deliver_batch`): under "Send now", an input box that holds the
+    /// answer (a draft; for a [`Agent::is_claude`] agent also an unreadable
+    /// box) notifies `"{refs} not sent"` with the pending reason minus
+    /// `waiting: `, once per message; and a Claude agent's input box that
+    /// stays unreadable notifies once per pane (`_note_unreadable`).
     fn composer(&mut self, ids: &[i64]) -> Composer;
     /// Types the message: herdr's error, if any (an empty one counts as
     /// none, as Python's `if err:`).

@@ -46,6 +46,12 @@ fn unbroken(s: &str) -> String {
 /// only when recognised positively (a blank `❯` line, or exactly the dim
 /// placeholder with at most one lit cell, and no other text in the box);
 /// anything else in it is a draft; no box recognised is unknown.
+///
+/// Accepted as Python reads it (#98): an empty box in Claude Code's vim
+/// NORMAL mode reads as empty (no capture shows a mode marker to tell it by;
+/// the box is empty, so no draft is lost, and text that does not land is
+/// never verified), as do two contrived screens (a lone typed character
+/// before a dim `Try "…"` suggestion, a draft holding a `───` line).
 pub fn composer_state(screen: &str) -> Composer {
     if screen.is_empty() {
         return Composer::Unknown;

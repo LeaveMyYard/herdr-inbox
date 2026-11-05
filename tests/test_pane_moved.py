@@ -1,4 +1,4 @@
-"""Live 2026-10-16 (Q155): the asking agent's pane moved (w6:p48 -> w6:p57), so delivery
+"""Live 2026-10-16 (Q155): the asking agent's pane moved (w9:p1 -> w9:p2), so delivery
 keyed by pane id found no agent and marked the answer gone. Before that, the agent is looked
 up by its (continuation-followed) session among herdr's agents."""
 
