@@ -103,6 +103,29 @@ pub const RADAR_SIDEBAR: Command = Command {
     positionals: &[],
 };
 
+/// A subcommand without arguments: `inbox <name> [-h]`.
+macro_rules! bare {
+    ($name:literal) => {
+        Command {
+            prog: concat!("inbox ", $name),
+            usage: concat!("usage: inbox ", $name, " [-h]"),
+            help: concat!(
+                "usage: inbox ",
+                $name,
+                " [-h]\n\noptions:\n  -h, --help  show this help message and exit\n"
+            ),
+            options: &[],
+            positionals: &[],
+        }
+    };
+}
+
+/// `inbox export` (remote machines; the request on stdin).
+pub const EXPORT: Command = bare!("export");
+
+/// `inbox apply` (remote machines; the request on stdin).
+pub const APPLY: Command = bare!("apply");
+
 /// `inbox deliver [--force] IDS...`.
 pub const DELIVER: Command = Command {
     prog: "inbox deliver",
@@ -127,6 +150,8 @@ pub fn command(cmd: &str) -> Option<&'static Command> {
         "open" => Some(&OPEN),
         "sync-tokens" => Some(&SYNC_TOKENS),
         "radar-sidebar" => Some(&RADAR_SIDEBAR),
+        "export" => Some(&EXPORT),
+        "apply" => Some(&APPLY),
         "deliver" => Some(&DELIVER),
         _ => None,
     }

@@ -171,6 +171,12 @@ impl Delivery for FakeDelivery {
         self.effects.borrow_mut().push(json!(["ensure", server]));
     }
 
+    fn spawn_deliver(&mut self, qids: &[i64], force: bool) {
+        self.effects
+            .borrow_mut()
+            .push(json!(["spawn_deliver", qids, force]));
+    }
+
     fn deliver_as(
         &mut self,
         store: &Store,

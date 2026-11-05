@@ -7,7 +7,7 @@ mod reads;
 mod writes;
 
 pub use owner::Owner;
-pub use writes::NewQuestion;
+pub use writes::{NewQuestion, write_answer};
 
 /// An answered question is handed back to a repeat only this long (Python
 /// `ANSWER_REUSE`): later the same words are probably a new instance.

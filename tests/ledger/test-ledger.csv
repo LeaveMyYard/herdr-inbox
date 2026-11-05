@@ -636,20 +636,20 @@ tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8
 tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8.7-rc1],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_release_manifest.py::test_a_tag_that_is_not_a_release_is_refused[v9.8.7 ],tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
 tests/test_release_manifest.py::test_a_manifest_it_cannot_rewrite_leaves_every_file_untouched,tests/test_release_manifest.py,,retired,"tests tools/release_manifest.py, release tooling that stays Python (plan §3); not plugin behaviour",P2
-tests/test_remote_api.py::test_every_database_has_a_stable_random_id,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_export_full_then_incremental,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_export_with_another_db_id_or_a_pruned_cursor_is_full,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_export_does_not_reconcile,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_answers_once_and_records_the_request_atomically,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_same_answer_without_a_record_is_already_applied,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-reset],tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question0],tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question1],tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_on_a_closed_question,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_apply_dismiss_and_hide,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_cli_export_and_apply_read_stdin_write_stdout,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_status_tombstones_an_unknown_request_so_a_late_apply_refuses,tests/test_remote_api.py,,todo,,
-tests/test_remote_api.py::test_status_reports_an_applied_request,tests/test_remote_api.py,,todo,,
+tests/test_remote_api.py::test_every_database_has_a_stable_random_id,tests/test_remote_api.py,herdr-inbox --lib remote_api::keys::tests::every_database_has_a_stable_random_id,mapped,,P5
+tests/test_remote_api.py::test_export_full_then_incremental,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_export_with_another_db_id_or_a_pruned_cursor_is_full,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_export_does_not_reconcile,tests/test_remote_api.py,herdr-inbox --lib remote_api::tests::export_makes_no_data_writes_but_its_id,mapped,,P5
+tests/test_remote_api.py::test_apply_answers_once_and_records_the_request_atomically,tests/test_remote_api.py,herdr-inbox --lib remote_api::tests::the_record_and_the_action_commit_together,mapped,,P5
+tests/test_remote_api.py::test_apply_same_answer_without_a_record_is_already_applied,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-reset],tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question0],tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_rejects_the_wrong_question[<lambda>-not that question1],tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_on_a_closed_question,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_apply_dismiss_and_hide,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_cli_export_and_apply_read_stdin_write_stdout,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_status_tombstones_an_unknown_request_so_a_late_apply_refuses,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
+tests/test_remote_api.py::test_status_reports_an_applied_request,tests/test_remote_api.py,herdr-inbox --test cli golden::the_cli_does_what_pythons_did,mapped,,P5
 tests/test_remote_install.py::test_install_runs_both_plugins_over_batchmode_ssh,tests/test_remote_install.py,,todo,,P7
 tests/test_remote_install.py::test_install_with_a_ref,tests/test_remote_install.py,,todo,,P7
 tests/test_remote_install.py::test_a_ref_with_shell_characters_is_refused,tests/test_remote_install.py,,todo,,P7

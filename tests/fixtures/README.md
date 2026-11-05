@@ -177,7 +177,15 @@ say why in the PR:
   radar's own `config.toml` (`radar_config`); they record the config left (`herdr_config`) and
   whether a backup was written. herdr's side is stubbed as `radar_installed`, `radar_config_dir`
   and `reload_config`. `radar_missing` steps are the popup's read-only hint check
-  (`radar.missing`). Ages
+  (`radar.missing`). `export` and `apply` steps (`tools/capture_cli_remote.py`) give their
+  request as `stdin`; their stdout is masked (times other than the seeds' fixed `CREATED` as
+  `<time>`, the version as `<version>`, a random `db_id` as `<db_id>`, a JSON parser's reason as
+  `<reason>`), and `spawn_deliver` records the detached `inbox deliver` (Python
+  `remote_api.spawn_delivery`, stubbed). The last part runs on a database of its own (`fresh`):
+  after it the tables are `questions`, `question_ext`, `question_groups`, `alerts`,
+  `applied_requests`, `changes` and the database's `db_id`. The Rust replay also hands every
+  export, Rust's as printed and Python's as kept, to the puller's validation and mirror
+  (`tests/cli/remote.rs`): both must pass and mirror the same rows. Ages
   are relative to now; in stderr the work directory is `<work>` and a TOML parser's reason
   `<reason>`. Python 3.13's argparse: older ones wrap the top usage line differently, so
   `test_goldens[cli]` runs on 3.13 only. `tests/cli/golden.rs` replays it on the Rust CLI.

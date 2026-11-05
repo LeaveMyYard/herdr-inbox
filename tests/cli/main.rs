@@ -13,6 +13,8 @@ mod herdr_cli;
 mod herdr_stub;
 mod live;
 mod radar;
+mod remote;
+mod remote_e2e;
 #[path = "../store/golden.rs"]
 #[allow(dead_code)]
 mod store_golden;
