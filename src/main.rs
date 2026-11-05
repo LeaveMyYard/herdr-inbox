@@ -3,7 +3,8 @@
 //! (the MCP stdio server; nothing launches it before P5-I), `tui` (the
 //! popup; nothing launches it before P6-E), `contract` (the
 //! launcher contract, `scripts/launch`) and the CLI's `list`, `answer`,
-//! `dismiss`, `open`, `sync-tokens` and `radar-sidebar` ([`herdr_inbox::cli`]).
+//! `dismiss`, `open`, `sync-tokens`, `radar-sidebar`, `export` and `apply`
+//! ([`herdr_inbox::cli`]).
 //!
 //! A hook never fails the session: a panic, a bad argument or any error
 //! exits 0 (the rewake watcher's wake code is the only other exit).
