@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use super::shlex::split;
-use crate::cli::args::pyint;
+use crate::pyint;
 use crate::store::norm::is_word;
 use crate::text::py_isspace;
 
