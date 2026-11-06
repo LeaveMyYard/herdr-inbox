@@ -146,9 +146,9 @@ GONE = delivery("agent_gone", "no live agent in pane w1:p3", None, 10, auto=Fals
 
 def every_kind():
     return feed([
-        alert(4, "agent", "info", 0, core("t6")),
         alert(5, "agent", "urgent", 1, tui()),
         alert(6, "blocked", "warning", 2, tui("w1:p2")),
+        alert(4, "agent", "info", 0, core("t6")),
         remote_alert(),
         group(12, 10, tui(), [q(12, "Header 1", G12_OPTIONS)]),
         group(14, 12, core(), g14_questions(), TITLE),

@@ -9,7 +9,7 @@ use std::time::Instant;
 use super::{ENSURE_WAIT, Ensured, ensure};
 use crate::app::writer::control;
 use crate::app::writer::files::Paths;
-use crate::app::writer::ledger::{Ledger, MAX_FAILURES};
+use crate::app::writer::ledger::{Ledger, MAX_FAILURES, now_ms};
 use crate::app::writer::record::{Record, sha256};
 use crate::test_exe;
 
@@ -192,4 +192,47 @@ fn a_stop_request_left_behind_goes_before_a_spawn() {
     );
     fs::write(r.paths.file("stop.request"), b"").unwrap();
     assert_eq!(ensure(&r.paths, &exe), Ok(Ensured::Started));
+}
+
+/// An `--ensure` waiting behind an uninstall read `disabled: false` before it waited.
+#[test]
+fn control_is_read_again_once_ensure_lock_is_held() {
+    let r = rig();
+    let exe = r.exe("ok", &format!("{}printf 'READY v1\\n'", r.counts()));
+    let held = r.paths.lock_file("ensure.lock").unwrap();
+    held.try_lock().unwrap();
+    let paths = r.paths.clone();
+    let waiting = std::thread::spawn(move || ensure(&paths, &exe));
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    control::disable(&r.paths).unwrap();
+    drop(held);
+    assert!(waiting.join().unwrap().is_err());
+    assert_eq!(r.spawned(), 0);
+}
+
+/// Counted after the proof, a crash in between would count nothing, and the bound is gone.
+#[test]
+fn a_spawn_is_counted_before_it_happens() {
+    let r = rig();
+    let body =
+        "grep -q '\"failures\":1' \"$4\"/data/herdr-inbox/start.json && printf 'READY v1\\n'";
+    let exe = r.exe("sees-its-count", body);
+    assert_eq!(ensure(&r.paths, &exe), Ok(Ensured::Started));
+    assert_eq!(r.failures(), 0, "a proven start removes it");
+}
+
+/// A broken new binary in backoff must not cost the writer that works.
+#[test]
+fn a_deferred_start_leaves_the_running_writer_alone() {
+    let r = rig();
+    let old = r.exe("old", "exit 0");
+    let new = r.exe("new", &format!("{}printf 'READY v1\\n'", r.counts()));
+    let _lock = r.hold_writer(&old);
+    Ledger::default().count(&r.paths, now_ms()).unwrap();
+    assert!(ensure(&r.paths, &new).is_err());
+    assert_eq!(r.spawned(), 0);
+    assert!(
+        !r.paths.file("stop.request").exists(),
+        "it was never asked to leave"
+    );
 }

@@ -302,7 +302,7 @@ fn ensure_with_another_binary_asks_the_running_writer_to_leave() {
     let f = Feed::new();
     ok(&f.ensure());
     let pid = f.record()["pid"].clone();
-    // a binary with other bytes: the same one plus a trailing byte still runs
+    // a binary with other bytes: a byte past the end, which no loader or signature check reads
     let other = f.rig.dir.path().join("other-inbox");
     fs::copy(BINARY, &other).unwrap();
     let mut bytes = fs::OpenOptions::new().append(true).open(&other).unwrap();

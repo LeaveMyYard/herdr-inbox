@@ -93,3 +93,17 @@ fn a_row_that_cannot_be_read_gives_no_feed_rather_than_a_short_one() {
     assert_eq!(f["entries"].as_array().unwrap().len(), 0);
     assert_eq!(f["errors"][0], "the inbox database could not be read");
 }
+
+#[test]
+fn a_database_moved_away_stops_reading_as_the_inbox() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    let store = Store::open_migrating(&path, Duration::from_secs(5)).unwrap();
+    let mut source = Source::new(&path);
+    assert_eq!(feed(&mut source)["ok"], true);
+    drop(store);
+    std::fs::rename(&path, dir.path().join("elsewhere.db")).unwrap();
+    let f = feed(&mut source);
+    assert_eq!(f["ok"], false);
+    assert_eq!(f["errors"][0], "the inbox database does not exist yet");
+}

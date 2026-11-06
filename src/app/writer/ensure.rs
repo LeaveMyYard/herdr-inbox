@@ -6,7 +6,6 @@
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{ErrorKind, Read};
-use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -56,6 +55,7 @@ pub fn ensure(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
             ledger::clear(paths); // a proven writer ends any run of failures
             return Ok(Ensured::Running);
         }
+        may_start(paths)?; // a writer that works stays until its successor may start
         stop_other(paths, &writer)?;
     }
     drop(writer); // the child takes it itself
@@ -75,16 +75,21 @@ fn stop_other(paths: &Paths, writer: &File) -> Result<(), String> {
     }
 }
 
-fn start(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
-    let before = Ledger::read(paths)?;
-    if before.failures >= MAX_FAILURES {
+/// The ledger, if it lets a spawn happen now.
+fn may_start(paths: &Paths) -> Result<Ledger, String> {
+    let ledger = Ledger::read(paths)?;
+    if ledger.failures >= MAX_FAILURES {
         control::disable(paths)?;
         return Err("the writer failed to start too often; disabled".to_string());
     }
-    if let Some(wait) = before.deferred(now_ms()) {
+    if let Some(wait) = ledger.deferred(now_ms()) {
         return Err(format!("starting is deferred for {} ms", wait.as_millis()));
     }
-    let attempt = before.count(paths, now_ms())?;
+    Ok(ledger)
+}
+
+fn start(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
+    let attempt = may_start(paths)?.count(paths, now_ms())?;
     let proven = spawn(paths, exe).and_then(|mut child| prove(paths, &mut child));
     match proven {
         Ok(()) => {
@@ -112,7 +117,6 @@ fn spawn(paths: &Paths, exe: &Path) -> Result<Child, String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .process_group(0)
         .spawn()
         .map_err(|e| format!("cannot start the writer: {e}"))
 }

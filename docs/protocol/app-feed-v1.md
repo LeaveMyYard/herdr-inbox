@@ -46,7 +46,7 @@ must show that the text was cut, and offers the whole question through
 the display order:
 
 1. local groups, oldest first;
-2. local alerts;
+2. local alerts, in display order;
 3. `failed` rows;
 4. remote rows.
 
@@ -174,9 +174,9 @@ see [What the reader derives](#what-the-reader-derives).
 
 ### Order
 
-Alerts, then remote alerts, then groups by their first open question's id, then `failed` by question
-id, then remote groups, outbox rows and problems. This is the popup's order without its focused pane
-rule.
+Alerts, urgent first, then warning, then the rest, each oldest first (`open_alerts`). Then remote alerts,
+groups by their first open question's id, `failed` by question id, remote groups, outbox rows and problems.
+This is the popup's order without its focused pane rule.
 
 ### `group`
 
@@ -437,7 +437,9 @@ bounded restart, a cooperative stop, and no signal to any PID.
 `herdr-inbox app-feed --help` starts nothing, touches no file, exits 0 and prints
 `herdr-inbox app-feed v1` as its first line.
 
-`herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` makes sure one writer of this binary runs.
+`herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` makes sure one writer of this binary runs. A binary
+too old to have it prints its version and exits 0, so a mod calls it only after the
+[`--help` probe](app-commands-v1.md#running-a-command) has passed.
 Repeated calls are idempotent. The mods call it from `init`, and again at most once per 5 s while the feed
 is stale. B5 may add optional arguments, such as Panorama's `--install-id`, within v1.
 
@@ -483,7 +485,8 @@ The writer:
 **Backoff.** Each spawn is counted in `start.json` before it happens. Failure n defers the next spawn by
 min(5 s × 2^(n−1), 160 s), and `--ensure` exits 1 without spawning until then. The 8th failure in a row
 sets `disabled`, which only a reinstall clears. So a writer that crashes at start cannot be restarted
-every 5 s by every mod.
+every 5 s by every mod. That covers a writer that dies before `READY`: one that dies after it, on its first
+read, is proven and uncounted, and the next `--ensure` starts it again.
 
 **Stopping.** Nothing is ever killed. A writer checks `control.json` and `stop.request` at each poll,
 at most 1 s apart. An uninstall takes `ensure.lock`, sets `disabled` and waits at most 2 s for `writer.lock`
@@ -498,8 +501,11 @@ also exits by itself when its executable file changes on disk, checked at each p
 
 **Idling out.** It uses `HERDR_APP_HOME=<appHome> herdr-app status`, as Panorama's writer does: every
 2 s, bounded to 500 ms. Exit 0 means the app runs. Exit 2 is a confirmed absent window. Anything else
-says nothing and restarts the count. After 30 s of confirmed absence the writer exits. `control.json` and
-the ledger stay, so the next app start ensures again.
+says nothing and restarts the count. After 30 s of confirmed absence the writer exits. It also exits after 10
+minutes with no exit 0, so an app started with no `herdr-app` on its `PATH` leaves no writer behind: a wrong
+guess costs one `--ensure`. `control.json` and the ledger stay, so the next app start ensures again.
+
+A rollback to Python does not stop a running writer. It only reads, and it leaves with the app.
 
 ### Installing
 

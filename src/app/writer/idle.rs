@@ -1,6 +1,10 @@
 //! When the writer leaves: `herdr-app status` for this app home, every 2 s and
 //! bounded to 500 ms. Exit 0 means the app runs, exit 2 is a confirmed absent
-//! window, and anything else says nothing, so it restarts the count.
+//! window, and anything else says nothing, so it restarts the count. But an app
+//! nobody can ask about must not hold a writer for ever: an app started with no
+//! `herdr-app` on its `PATH` would leave one behind each session. So the writer
+//! also leaves after [`NO_PROOF_EXIT`] with no proof the app runs. A wrong guess
+//! costs one `--ensure`.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -12,6 +16,8 @@ pub const EVERY: Duration = Duration::from_secs(2);
 pub const BOUND: Duration = Duration::from_millis(500);
 /// Confirmed absence for this long: the writer exits.
 pub const ABSENT_EXIT: Duration = Duration::from_secs(30);
+/// No proof the app runs for this long: the writer exits.
+pub const NO_PROOF_EXIT: Duration = Duration::from_secs(600);
 const POLL: Duration = Duration::from_millis(10);
 
 /// What the app's status says.
@@ -66,12 +72,20 @@ fn state(code: Option<i32>) -> State {
 #[derive(Debug, Default)]
 pub struct Idle {
     since: Option<Duration>,
+    proof: Option<Duration>,
 }
 
 impl Idle {
     /// Takes `state` seen at `now`, a time since any fixed start. True when
     /// the writer should leave.
     pub fn observe(&mut self, state: State, now: Duration) -> bool {
+        if state == State::Running {
+            self.proof = Some(now);
+        }
+        let proof = *self.proof.get_or_insert(now);
+        if now.saturating_sub(proof) >= NO_PROOF_EXIT {
+            return true;
+        }
         if state != State::Absent {
             self.since = None;
             return false;

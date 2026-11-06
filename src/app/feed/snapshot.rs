@@ -28,14 +28,19 @@ pub fn unavailable(wall: SystemTime, why: &str) -> Value {
 
 /// The feed of `store` at wall-clock time `wall`.
 pub fn read(store: &Store, wall: SystemTime) -> rusqlite::Result<Value> {
+    read_around(store, wall, || {})
+}
+
+/// [`read`], with `between` run after the rows and before the marks.
+fn read_around(store: &Store, wall: SystemTime, between: impl FnOnce()) -> rusqlite::Result<Value> {
     // rolled back on drop, so a failed read never leaves the connection in a transaction
     let tx = store.db().unchecked_transaction()?;
-    let snapshot = read_now(store, wall)?;
+    let snapshot = read_now(store, wall, between)?;
     tx.commit()?;
     Ok(snapshot)
 }
 
-fn read_now(store: &Store, wall: SystemTime) -> rusqlite::Result<Value> {
+fn read_now(store: &Store, wall: SystemTime, between: impl FnOnce()) -> rusqlite::Result<Value> {
     let mut items: Vec<Item> = Vec::new();
     let mut errors = Vec::new();
     let remote = remote::read(store, wall).unwrap_or_else(|_| remote::Rows {
@@ -45,7 +50,7 @@ fn read_now(store: &Store, wall: SystemTime) -> rusqlite::Result<Value> {
     if remote.unreadable > 0 {
         errors.push("remote machines could not be read".to_string());
     }
-    for a in alerts_by_id(store)? {
+    for a in store.open_alerts()? {
         items.push(Item {
             entry: alert::entry(store, &a)?,
             need: Need::Alert,
@@ -75,6 +80,7 @@ fn read_now(store: &Store, wall: SystemTime) -> rusqlite::Result<Value> {
         1 => errors.push("1 entry left out to stay under 1 MiB".to_string()),
         n => errors.push(format!("{n} entries left out to stay under 1 MiB")),
     }
+    between();
     Ok(feed(wall, true, errors, omitted, marks(store)?, entries))
 }
 
@@ -83,12 +89,6 @@ fn remote_item(entry: Value) -> Item {
         entry,
         need: Need::Remote,
     }
-}
-
-fn alerts_by_id(store: &Store) -> rusqlite::Result<Vec<crate::store::alerts::Alert>> {
-    let mut alerts = store.open_alerts()?;
-    alerts.sort_by_key(|a| a.id);
-    Ok(alerts)
 }
 
 /// The open questions by group, the groups by their first open question.

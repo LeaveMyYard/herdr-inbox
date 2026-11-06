@@ -51,6 +51,7 @@ for row, n in (("`question`, `context`, `answer` | 16 KiB", 1), ("`preview` | 4 
 
 TIME = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00$")
 CANON = re.compile(r"^[1-9][0-9]{0,15}$")
+SEVERITY_RANK = {"urgent": 0, "warning": 1}  # anything else comes last, as in open_alerts
 STATES = {"unattempted", "claimed", "pending", "agent_gone", "failed"}
 WAITS = {"busy_idle", "requeued", "panel", "busy", "blocked", "operator_here", "other"}
 ORDER = ["alert", "remote_alert", "group", "failed", "remote_group", "remote_outbox", "remote_problem"]
@@ -168,7 +169,7 @@ def check_feed(f, name):
         err(name, "a group has a question")
     if len(om["question_ids"]) != min(om["questions"], 1000) or om["question_ids"] != sorted(om["question_ids"]):
         err(name, "question_ids")
-    pos, keys, last = -1, set(), {}
+    pos, keys, last, top = -1, set(), {}, {}
     for e in f["entries"]:
         w = f"{name}:{e.get('key')}"
         k = e["kind"]
@@ -195,12 +196,13 @@ def check_feed(f, name):
         if strict and ORDER.index(k) < pos:
             err(w, "kind order")
         pos = ORDER.index(k)
-        sort = {"group": lambda: e["questions"][0]["id"], "failed": lambda: e["question_id"],
-                "alert": lambda: e["id"]}.get(k)
+        sort = {"group": lambda: (e["questions"][0]["id"],), "failed": lambda: (e["question_id"],),
+                "alert": lambda: (SEVERITY_RANK.get(e["severity"], 2), e["id"])}.get(k)
         if sort:
-            if sort() <= last.get(k, 0):
+            if sort() <= last.get(k, (0,)):
                 err(w, "order within the kind")
             last[k] = sort()
+            top[k] = max(top.get(k, 0), sort()[-1])
         if "asker" in e and strict:
             asker(e["asker"], w)
         limits(e, w)
@@ -248,9 +250,9 @@ def check_feed(f, name):
     ns = f["new_since"]
     if om["question_ids"] and om["question_ids"][-1] > ns["question_id"]:
         err(name, "question mark below a left-out id")
-    if f["ok"] and last.get("group", 0) > ns["question_id"]:
+    if f["ok"] and top.get("group", 0) > ns["question_id"]:
         err(name, "question mark below a published group")
-    if f["ok"] and last.get("alert", 0) > ns["alert_id"]:
+    if f["ok"] and top.get("alert", 0) > ns["alert_id"]:
         err(name, "alert mark below a published alert")
 
 
