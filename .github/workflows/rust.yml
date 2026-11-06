@@ -51,6 +51,8 @@ jobs:
               - 'src/main.rs'
               - 'src/**/*.rs'
               - 'tests/**/*.rs'
+              - 'engine'  # says which code runs: its one-word PR needs the real jobs
+              - 'scripts/**'  # the launcher and build step tests/launch runs
               - 'tests/fixtures/schema.json'  # compiled in (src/store/readiness.rs)
               - 'tests/fixtures/landed.json'  # replayed by src/claude/landed
               - 'tests/fixtures/decisions.json'  # replayed by crates/inbox-core/tests
