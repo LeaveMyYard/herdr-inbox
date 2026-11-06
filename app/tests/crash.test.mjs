@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { repo, sandbox } from './support/world.mjs';
@@ -19,5 +19,4 @@ test('a crash at any disk call of an install, upgrade or uninstall can be run ag
   const { points, failures } = JSON.parse(result.stdout);
   assert.deepEqual(failures, []);
   for (const [name, count] of Object.entries(points)) assert.ok(count >= 15, `${name}: ${count} points`);
-  rmSync(join(a.temp, 'again'), { recursive: true, force: true });
 });
