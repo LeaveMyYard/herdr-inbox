@@ -5,26 +5,11 @@
 use rusqlite::types::Value;
 use rusqlite::{OptionalExtension, params, params_from_iter};
 
-use super::{Alert, COLUMNS, Effect, MAX_MESSAGE, MAX_TITLE, SEVERITIES};
+use super::{Alert, COLUMNS, Effect};
 use crate::clock::now;
 use crate::store::Store;
 use crate::store::family::{Continuations, family};
 use crate::store::questions::Owner;
-use crate::text::{py_isspace, squash};
-
-/// What raising an alert did (Python's `status`: `open`, `already_open`,
-/// `error`, or the unavailable receipt).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RaiseOutcome {
-    /// Filed as this id; then these effects.
-    Raised(i64, Vec<Effect>),
-    /// The asker's open alert with this title.
-    AlreadyOpen(i64),
-    /// Nothing left of the title.
-    NoTitle,
-    /// The asker has no pane.
-    Unavailable,
-}
 
 /// What withdrawing did.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,89 +73,6 @@ impl Store {
             ),
             vec![Value::Text(since.into()), Value::Integer(limit)],
         )
-    }
-
-    /// An agent raises an alert: one per open title per asker. `server` is
-    /// this herdr server's id.
-    #[allow(clippy::too_many_arguments)]
-    pub fn raise_alert(
-        &self,
-        asker: Asker<'_>,
-        title: &str,
-        message: Option<&str>,
-        severity: &str,
-        asked_by: Option<&str>,
-        server: &str,
-        files: &impl Continuations,
-    ) -> rusqlite::Result<RaiseOutcome> {
-        let Some(pane) = asker.owner.pane_id.filter(|p| !p.is_empty()) else {
-            return Ok(RaiseOutcome::Unavailable);
-        };
-        let severity = if SEVERITIES.contains(&severity) {
-            severity
-        } else {
-            "warning"
-        };
-        let title: String = squash(title).chars().take(MAX_TITLE).collect();
-        if title.is_empty() {
-            return Ok(RaiseOutcome::NoTitle);
-        }
-        let message = message
-            .map(|m| {
-                m.trim_matches(py_isspace)
-                    .chars()
-                    .take(MAX_MESSAGE)
-                    .collect::<String>()
-            })
-            .filter(|m| !m.is_empty());
-        let (cond, args) = self.owner_clause(asker.owner, files)?;
-        let filed = self.immediate(|db| {
-            let mut dup_args = vec![Value::Text(title.clone())];
-            dup_args.extend(args);
-            let dup: Option<i64> = db
-                .query_row(
-                    &format!("SELECT id FROM alerts WHERE status = 'open' AND kind = 'agent' AND title = ? AND {cond}"),
-                    params_from_iter(dup_args),
-                    |r| r.get(0),
-                )
-                .optional()?;
-            if let Some(id) = dup {
-                return Ok(Err(id));
-            }
-            db.execute(
-                "INSERT INTO alerts (created_at, kind, severity, title, message, pane_id, tab_id, tab_label, session_id, \
-                 asked_by, herdr_server) VALUES (?, 'agent', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![
-                    now(),
-                    severity,
-                    title,
-                    message,
-                    pane,
-                    asker.tab_id,
-                    asker.tab_label,
-                    asker.owner.session_id,
-                    asked_by,
-                    server
-                ],
-            )?;
-            Ok(Ok(db.last_insert_rowid()))
-        })?;
-        Ok(match filed {
-            Err(id) => RaiseOutcome::AlreadyOpen(id),
-            Ok(id) => {
-                let place = asker.tab_label.filter(|l| !l.is_empty()).unwrap_or(pane);
-                RaiseOutcome::Raised(
-                    id,
-                    vec![
-                        Effect::Notify {
-                            title: format!("A{id} · {severity} · {place}"),
-                            body: title,
-                        },
-                        Effect::Markers(Some(pane.into())),
-                    ],
-                )
-            }
-        })
     }
 
     /// Closes open alert `aid` as `status` (`acked` stamps `acked_at`, the

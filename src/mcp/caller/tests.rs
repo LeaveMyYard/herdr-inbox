@@ -90,6 +90,7 @@ fn the_pane_its_tab_and_its_session_come_from_herdr() {
             tab_label: Some("my-tab".into()), // never our "❓2 " prefix
             session_id: Some("S".into()),
             cwd: Some("/r".into()),
+            core: None,
         }
     );
 }

@@ -4,7 +4,8 @@
 //! receipt back; a repeat of a question answered within the reuse window gets
 //! the answer (and the answer counts as seen). New ones share a group id and
 //! the call's title. Afterwards, what Python does to herdr comes back as
-//! [`Effect`]s.
+//! [`Effect`]s. A core caller's rows have no pane and a `question_host` row
+//! (`store::hosts`), and nothing is done to herdr for them.
 
 use serde_json::{Value, json};
 
@@ -15,6 +16,7 @@ use crate::mcp::caller::Caller;
 use crate::mcp::receipts;
 use crate::store::Store;
 use crate::store::alerts::Effect;
+use crate::store::hosts::CORE_SERVER;
 use crate::store::norm::normalize;
 use crate::store::question::normalize_options;
 use crate::store::questions::NewQuestion;
@@ -29,6 +31,17 @@ pub struct Call<'a> {
     pub context: Option<&'a str>,
     pub asked_by: Option<&'a str>,
     pub title: Option<&'a str>,
+}
+
+/// The receipt of a new question from a core terminal: nothing delivers there
+/// yet (plan herdr-app-inbox, B3), so it must not promise an `[inbox]` message.
+fn core_receipt(qid: i64) -> Value {
+    let r = format!("Q{qid}");
+    json!({"id": qid, "status": "open", "message": format!(
+        "Recorded as {r}. The operator will answer asynchronously. In a herdr-app terminal the \
+         answer does not arrive by itself yet: call check_answers later to fetch it. Continue \
+         with work that does not depend on it. Do not repeat the question in chat or call \
+         ask_operator for it again.")})
 }
 
 fn open_receipt(qid: i64) -> Value {
@@ -60,10 +73,12 @@ pub fn ask_group(
     server: &str,
     files: &Transcripts,
 ) -> rusqlite::Result<(Value, Vec<Effect>)> {
-    let Some(pane) = caller.pane_id.as_deref() else {
+    let (pane, seat) = (caller.pane_id.as_deref(), caller.core.as_ref());
+    if pane.is_none() && seat.is_none() {
         // nobody watches the inbox for agents outside herdr: no popup, no notification, no delivery
         return Ok((receipts::unavailable(), Vec::new()));
-    };
+    }
+    let server = if seat.is_some() { CORE_SERVER } else { server };
     let owner = caller.owner();
     let (receipts, new, group_id, body) = store.immediate(|_| {
         let (mut receipts, mut new, mut group_id) = (Vec::new(), Vec::new(), None::<i64>);
@@ -94,7 +109,7 @@ pub fn ask_group(
                 options,
                 context: call.context,
                 asked_by: call.asked_by,
-                pane_id: Some(pane),
+                pane_id: pane,
                 tab_id: caller.tab_id.as_deref(),
                 tab_label: caller.tab_label.as_deref(),
                 session_id: caller.session_id.as_deref(),
@@ -104,8 +119,14 @@ pub fn ask_group(
                 group_id,
             })?;
             store.set_server(q.id, Some(server))?; // this server's delivery worker owns it
+            if let Some(seat) = seat {
+                store.set_question_host(q.id, seat)?;
+            }
             group_id = Some(q.group());
-            receipts.push(open_receipt(q.id));
+            receipts.push(match seat {
+                Some(_) => core_receipt(q.id),
+                None => open_receipt(q.id),
+            });
             new.push(q);
         }
         let mut body = None;
@@ -117,7 +138,7 @@ pub fn ask_group(
         Ok((receipts, new, group_id, body))
     })?;
     let mut effects = Vec::new();
-    if let (Some(first), Some(body)) = (new.first(), body) {
+    if let (Some(first), Some(body), Some(pane)) = (new.first(), body, pane) {
         let refs: Vec<String> = new.iter().map(|q| format!("Q{}", q.id)).collect();
         // Python `tab_label or pane_id`: an empty label is none
         let place = [&first.tab_label, &first.pane_id]
@@ -139,11 +160,18 @@ pub fn ask_group(
         json!({
             "group": group_id,
             "questions": receipts,
-            "message": format!(
-                "Filed {}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working \
-                 and do not ask these again. If an answer seems overdue, call check_answers.",
-                ids.join(", ")
-            ),
+            "message": match seat {
+                Some(_) => format!(
+                    "Filed {}. In a herdr-app terminal answers do not arrive by themselves yet: call \
+                     check_answers later to fetch them; keep working and do not ask these again.",
+                    ids.join(", ")
+                ),
+                None => format!(
+                    "Filed {}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working \
+                     and do not ask these again. If an answer seems overdue, call check_answers.",
+                    ids.join(", ")
+                ),
+            },
         }),
         effects,
     ))

@@ -10,6 +10,9 @@ an old Python process meets).
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
   transcripts only from them.
+- `hc/get-*.json`: what `hc get --json` prints, per hc version.
+  0.1.17 is herdr-panorama's recording. 0.1.18 was recorded on an isolated server with a stand-in
+  `claude`, paths neutralised.
 - `composer/*.ansi`: Claude Code input boxes as `herdr pane read` returns them (empty, drafts,
   chips, wrapped text), captured from real panes; the fake herdr in `tests/conftest.py` serves them.
 - `radar/*.block.toml`: herdr-radar's own output, produced by `radar/generate.js`
