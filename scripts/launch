@@ -54,11 +54,13 @@ fi
 [ -r "$root/scripts/release-lib.sh" ] && . "$root/scripts/release-lib.sh"
 
 # Exactly `rust` as the first line, by bytes, as Rust's and Python's `runs_rust` read it
-# (tests/launch/engine.rs). A carriage return or a NUL in it is not rust.
+# (tests/launch/engine.rs). The first five bytes as hex, so that no NUL reaches a text tool or the
+# shell: sed, read and $(...) each drop or stop at one, and differ between BSD and GNU. A file that
+# cannot be read gives nothing.
 engine=python
-if [ "$(LC_ALL=C sed -n '1{/^rust$/p;q;}' "$root/engine" 2>/dev/null)" = rust ]; then
-	engine=rust
-fi
+case $(od -An -tx1 -N5 "$root/engine" 2>/dev/null | tr -d ' \t\n') in
+727573740a | 72757374) engine=rust ;;
+esac
 
 # Whether binary $1 can be run: it runs, and its contract is this launcher's.
 fits() {
