@@ -1,6 +1,7 @@
 // The safety rules between the feed, the model and the verbs, against the stand-in for B4's verbs.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readResult, verbArgs } from '../mods/herdr-inbox/commands.js';
 import { Rig, asker, failed, fixture, group, noOmissions, world } from './support/rig.mjs';
 
 const tokenArg = args => args[args.indexOf('--token') + 1];
@@ -426,12 +427,13 @@ test('a retry that is held has no sending… either', () => {
 
 test('a Submit where every question was skipped says nothing was sent, on the row too', () => {
   const r = new Rig(world([group(1, [1, 2]), group(5)]));
-  r.press('enter', 'enter');
+  r.press('enter', 'enter', 'enter');
+  assert.equal(r.popup.view.kind, 'review');
   r.db.find('group:1').questions.forEach(q => { q.draft = null; });
   r.db.retoken(r.db.find('group:1'));
   r.session.pins.moved('group:1', r.db.find('group:1').token);
   r.press('enter');
-  assert.notEqual(r.popup.closed.get('group:1'), 'sending…');
+  assert.equal(r.popup.closed.get('group:1'), 'nothing sent');
 });
 
 test('a core answer before B3 is held, as the contract says', () => {
@@ -472,7 +474,7 @@ test('a deep link past the id cap asks show before it says closed', () => {
 test('a publish while a deep link\'s show runs does not answer for it', () => {
   const feed = world([], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
   const s = new Rig(world([]));
-  s.session.link = { qid: 21, hold: true };
+  s.session.link = { qid: 21, hold: true, tried: true };
   s.session.popup = null;
   s.session.showing = { qid: 21, then: 'open' };
   s.session.read(JSON.stringify({ ...feed, generated_at: s.now / 1000 }), s.now);
@@ -644,4 +646,39 @@ test('dismissing all at once is one verb only when the row holds just those', ()
   r.session.book.row('group:1').questions.push({ ...r.session.book.row('group:1').questions[0], id: 3 });
   r.press('y');
   assert.equal(r.verbs('dismiss')[0].includes('--question'), true);
+});
+
+test('a feed naming one row twice is refused as a whole', () => {
+  const r = new Rig(world([group(1), group(2)]));
+  const bad = structuredClone(r.db.feed);
+  bad.entries.push(structuredClone(bad.entries[0]));
+  r.read(JSON.stringify(bad));
+  assert.equal(r.session.problem, 'unreadable');
+});
+
+test('a refusal arms the view anew', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.press('enter');
+  r.db.lock = 'busy';
+  r.press('enter');
+  assert.ok(r.popup.view.armed_at > r.now, 'armed after the refusal, not as it was');
+});
+
+test('a code it does not know reads as error, and no token is no command', () => {
+  const result = { code: 1, stdout: JSON.stringify({ v: 1, ok: false, verb: 'ack', entry: 'alert:1', code: 'future', message: 'x', closed: null }), stderr: '' };
+  assert.equal(readResult(result, 'ack', 'alert:1').code, 'error');
+  assert.equal(verbArgs({ verb: 'ack', entry: 'alert:1' }, ''), null);
+  assert.equal(verbArgs({ verb: 'ack', entry: 'alert:1' }, null), null);
+  assert.equal(verbArgs({ verb: 'draft', entry: 'group:1', qids: [0] }, 'x'), null);
+});
+
+test('typed text stays through a stale refusal, for a deliberate key after a look', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.press('enter', 'down', 'down', 'enter', 'T', 'x', 't');
+  r.db.find('group:1').questions[1].draft = { choices: ['Option B'], notes: {}, text: null };
+  r.published();
+  r.press('enter'); // the box submits; the draft verb is refused
+  assert.match(r.said, /look again/);
+  assert.equal(r.popup.view.kind, 'question');
+  assert.equal(r.popup.view.editing.box.chars.join(''), 'Txt');
 });

@@ -45,6 +45,7 @@ test('a held key can\'t close a confirmation or answer one', async () => {
   await w.key('d');
   await w.key('y', { held: true });
   await w.key('z', { held: true });
+  await w.key('down', { held: true });
   assert.ok(w.popup.confirm, 'still asking');
   assert.equal(w.verbs('dismiss').length, 0);
 });
@@ -116,6 +117,52 @@ test('a click in the grace window does nothing', async () => {
   w.view.onRow(0, w.cx);
   await w.settle();
   assert.equal(w.ran.filter(a => a[1] === 'draft' || a[1] === 'answer').length, 0);
+});
+
+test('a click in a refusal\'s grace window does nothing, though the view is armed', async () => {
+  const w = await open(world([three(1), group(5)]));
+  await w.key('enter');
+  w.db.lock = 'busy';
+  await w.key('enter');
+  w.db.lock = null;
+  w.clock = w.popup.view.armed_at + 10;
+  assert.ok(w.clock < w.popup.timers.grace_until);
+  const before = w.verbs('answer').length;
+  w.view.onRow(2, w.cx);
+  await w.settle();
+  assert.equal(w.verbs('answer').length, before);
+});
+
+test('a click on a held deep link does nothing', async () => {
+  const w = await open(world([three(1), group(5)]), { props: { overlay: 'o1', question: 1 } });
+  assert.equal(w.popup.held, true);
+  await w.click(1);
+  assert.equal(w.verbs('answer').length, 0);
+});
+
+test('a footer button under a confirmation neither closes it nor sends', async () => {
+  const w = await open(world([three(1), group(5)]));
+  await w.key('enter');
+  await w.key('d');
+  await w.button('enter');
+  assert.ok(w.popup.confirm);
+  assert.equal(w.verbs('dismiss').length, 0);
+});
+
+test('a click while a verb runs does nothing', async () => {
+  const w = await open(world([group(1, [1, 2]), group(5)]));
+  await w.key('enter'); // opens the group
+  let release;
+  w.gate = new Promise(done => { release = done; });
+  w.tick(700);
+  w.view.onKey(w.event('enter'), w.cx); // drafts Q1 and moves to Q2
+  for (let i = 0; i < 5; i += 1) await new Promise(done => { setImmediate(done); });
+  w.tick(700);
+  w.view.onRow(1, w.cx);
+  release();
+  w.gate = null;
+  await w.settle();
+  assert.equal(w.verbs('draft').length, 1);
 });
 
 test('a click on a multi-select toggles that option and sends nothing', async () => {
@@ -209,6 +256,14 @@ test('the overlay closes when the last answer is recorded, and a warning goes ou
   assert.equal(/Sending/.test(w.toasts), false);
 });
 
+test('held is told as a toast with the overlay still open too', async () => {
+  const w = await open(world([group(1), group(5)]), { standin: { host: 'gone' } });
+  await w.key('enter');
+  await w.key('enter');
+  assert.equal(w.closed, false);
+  assert.match(w.toasts, /nothing was sent/);
+});
+
 test('two pumps at once run one command once', async () => {
   const w = await open(world([group(1), group(2)]));
   await w.key('enter');
@@ -259,8 +314,7 @@ test('--ensure comes at most once per 5 s while the feed is stale', async () => 
 
 test('the first feed is read before --ensure: a readable feed waits for nothing', async () => {
   const w = await open(world([group(1), group(2)]));
-  assert.ok(w.popup);
-  assert.ok(w.ran.findIndex(a => a[0] === 'app-feed') >= 0);
+  assert.equal(w.readBeforeEnsure, true);
 });
 
 test('on a Cyrillic layout a key acts by its place, and types its letter in a box', async () => {

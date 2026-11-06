@@ -148,7 +148,6 @@ export class Steps {
     if (b?.before) this.run(this.popup.refused(b.before, this.book.snapshot(), now), now);
     else if (b) this.run(this.popup.handle({ poll: this.book.snapshot() }, now), now);
     if (stale && !KEEP_TYPED_ON_STALE) this.run(this.popup.remount(now), now);
-    this.closing = false;
     this.reload = true;
     return null;
   }

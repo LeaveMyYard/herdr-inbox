@@ -49,6 +49,7 @@ export class Window {
     const cli = args.slice(2);
     this.ran.push(cli);
     if (cli[0] === 'app' && cli[1] === '--help') return { code: 0, stdout: 'herdr-inbox app v1\n', stderr: '' };
+    if (cli[0] === 'app-feed') this.readBeforeEnsure ??= this.view.session.popup !== null;
     if (cli[0] === 'app-feed' || cli[0] === 'worker') return { code: 0, stdout: '', stderr: '' };
     if (cli[0] === 'open') return { code: this.openCode ?? 0, stdout: '', stderr: '' };
     if (this.gate) await this.gate;
