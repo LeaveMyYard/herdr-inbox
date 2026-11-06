@@ -263,7 +263,11 @@ fn the_switch_changes_only_done_and_never_says_force() {
 
 #[test]
 fn the_switch_stays_off_until_the_operator_says_otherwise() {
-    assert!(!PLAIN_SEND_AT_DONE);
+    let args = send_args("t3", "x", "done", PLAIN_SEND_AT_DONE);
+    assert!(
+        args.contains(&"--if"),
+        "keep --if idle until the operator says"
+    );
 }
 
 #[test]
