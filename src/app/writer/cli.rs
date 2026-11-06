@@ -1,5 +1,5 @@
 //! `herdr-inbox app-feed`: `--help`, `--ensure [--app-home ABSOLUTE_HOME]`,
-//! and `--writer`, which `--ensure` runs and nothing else should.
+//! and `--writer --binary-sha256 HASH`, which `--ensure` runs and nothing else should.
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -21,19 +21,20 @@ usage: herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]\n";
 enum Parsed {
     Help,
     Ensure(Option<PathBuf>),
-    Writer(Option<PathBuf>),
+    Writer(Option<PathBuf>, String),
 }
 
 fn parse(args: &[String]) -> Option<Parsed> {
     if matches!(args, [only] if only == "--help") {
         return Some(Parsed::Help);
     }
-    let (mut ensure, mut writer, mut home) = (false, false, None);
+    let (mut ensure, mut writer, mut home, mut hash) = (false, false, None, None);
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         match arg.as_str() {
             "--ensure" if !ensure => ensure = true,
             "--writer" if !writer => writer = true,
+            "--binary-sha256" if hash.is_none() => hash = Some(rest.next()?.clone()),
             "--app-home" if home.is_none() => {
                 let path = PathBuf::from(rest.next()?);
                 home = Some(path).filter(|p| p.is_absolute());
@@ -42,9 +43,9 @@ fn parse(args: &[String]) -> Option<Parsed> {
             _ => return None,
         }
     }
-    match (ensure, writer) {
-        (true, false) => Some(Parsed::Ensure(home)),
-        (false, true) => Some(Parsed::Writer(home)),
+    match (ensure, writer, hash) {
+        (true, false, None) => Some(Parsed::Ensure(home)),
+        (false, true, Some(hash)) => Some(Parsed::Writer(home, hash)),
         _ => None,
     }
 }
@@ -72,7 +73,9 @@ pub fn main(args: &[String]) -> i32 {
             Ok(_) => 0,
             Err(why) => refuse(&why),
         }),
-        Parsed::Writer(home) => with_home(home, serve),
+        Parsed::Writer(home, hash) => {
+            with_home(home, |paths, exe, db| serve(paths, exe, &hash, db))
+        }
     }
 }
 

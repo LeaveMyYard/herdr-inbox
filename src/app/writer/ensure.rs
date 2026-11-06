@@ -43,12 +43,14 @@ pub enum Ensured {
 pub fn ensure(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
     paths.check_folder()?;
     control::enabled(paths)?; // no install, no lock file: nothing here to create
+    // before the lock, which the next --ensure waits on, and only here: a child that hashed
+    // the binary again could miss its acknowledgement on a slow disk
+    let hash = sha256(exe).map_err(|e| format!("cannot hash this binary: {e}"))?;
     let serial = paths.lock_file("ensure.lock").map_err(|e| e.to_string())?;
     if !lock_within(&serial, ENSURE_WAIT) {
         return Err("another --ensure did not finish in time".to_string());
     }
     control::enabled(paths)?; // an uninstall holds that lock while it disables
-    let hash = sha256(exe).map_err(|e| format!("cannot hash this binary: {e}"))?;
     let writer = paths.lock_file("writer.lock").map_err(|e| e.to_string())?;
     if writer.try_lock().is_err() {
         if Record::read(paths).is_some_and(|r| r.binary_sha256 == hash) {
@@ -60,7 +62,7 @@ pub fn ensure(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
     }
     drop(writer); // the child takes it itself
     paths.remove("stop.request").map_err(|e| e.to_string())?;
-    start(paths, exe)
+    start(paths, exe, &hash)
 }
 
 /// Asks a writer of another binary to leave, and waits for it.
@@ -88,9 +90,9 @@ fn may_start(paths: &Paths) -> Result<Ledger, String> {
     Ok(ledger)
 }
 
-fn start(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
+fn start(paths: &Paths, exe: &Path, hash: &str) -> Result<Ensured, String> {
     let attempt = may_start(paths)?.count(paths, now_ms())?;
-    let proven = spawn(paths, exe).and_then(|mut child| prove(paths, &mut child));
+    let proven = spawn(paths, exe, hash).and_then(|mut child| prove(paths, &mut child));
     match proven {
         Ok(()) => {
             ledger::clear(paths);
@@ -106,11 +108,12 @@ fn start(paths: &Paths, exe: &Path) -> Result<Ensured, String> {
     }
 }
 
-fn spawn(paths: &Paths, exe: &Path) -> Result<Child, String> {
+fn spawn(paths: &Paths, exe: &Path, hash: &str) -> Result<Child, String> {
     let env = spawn_env(std::env::vars_os(), &OsString::new());
     Command::new(exe)
         .args(["app-feed", "--writer", "--app-home"])
         .arg(&paths.home)
+        .args(["--binary-sha256", hash])
         .env_clear()
         .envs(env)
         .env("HERDR_APP_HOME", &paths.home)

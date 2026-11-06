@@ -23,6 +23,14 @@ fn ensure_takes_an_absolute_home() {
 }
 
 #[test]
+fn a_writer_is_told_its_binarys_hash() {
+    assert_eq!(
+        parse(&args(&["--writer", "--binary-sha256", "x"])),
+        Some(Parsed::Writer(None, "x".to_string()))
+    );
+}
+
+#[test]
 fn anything_else_is_bad_arguments() {
     for bad in [
         &[][..],
@@ -34,6 +42,8 @@ fn anything_else_is_bad_arguments() {
         &["--ensure", "--help"],
         &["--app-home", "/a"],
         &["ensure"],
+        &["--writer"],
+        &["--ensure", "--binary-sha256", "x"],
     ] {
         assert_eq!(parse(&args(bad)), None, "{bad:?}");
     }
