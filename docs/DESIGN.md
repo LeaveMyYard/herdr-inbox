@@ -1107,7 +1107,7 @@ statements and which `tests/test_core_rows.py` applies to build the database an 
 |---|---|
 | `question_host(id, host, terminal, machine)` | Where a question from outside a herdr pane was asked. A pane question has no row. |
 | `alert_host(id, host, terminal, machine)` | The same for an agent's alert. The blocked scan stays herdr-only, so a `blocked` alert never has one. |
-| `question_ext.retry_count` | How many `app retry` verbs ran on the row. B4 writes it, in the verb's transaction, and the row's token covers it, so a replayed `retry` is refused. Nothing writes it yet. |
+| `question_ext.retry_count` | How many `app retry` verbs ran on the row. B4 writes it, in the verb's transaction, and the row's token covers it, so a replayed `retry` is refused. Nothing writes it yet. It is NULL until then, which B4 reads as 0, so the first retry changes a token only by the count. |
 
 **A core row keeps every old reader out, twice.** `pane_id` is NULL, so no reader can take `t3` for a
 herdr pane. `herdr_server` is `herdr-core`, which is no socket, so it is another server's row to
@@ -1135,8 +1135,10 @@ to Rust"). The database is left as it is:
 - **An answered core question is held, not sent.** Python types nothing, claims nothing and records
   no outcome: no error, no attempt, not marked gone. After 60 s it shows as an unattempted ⚠ row. Its
   session can fetch the answer with `check_answers`, from either language's MCP server. The popup's
-  Retry does nothing to it. The one side effect: `deliver` asks for a worker for that "server", which
-  finds none and exits after `SERVER_GONE_EXIT`, under the usual spawn limit.
+  Retry does nothing to it. The one side effect: `deliver` asks for a worker for that "server", under
+  the usual spawn limit. With a `herdr` binary it finds no server and exits after `SERVER_GONE_EXIT`.
+  A Python worker with no `herdr` binary at all stays up and ticks as that "server": it changes no
+  core row, since its listing asks for a pane and the blocked scan gets nothing from herdr.
 - Back on Rust, these rows are as they were.
 
 ## The host seam: agents in a herdr-core terminal (B2)

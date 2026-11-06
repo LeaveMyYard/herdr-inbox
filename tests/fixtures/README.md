@@ -2,9 +2,10 @@
 
 Every fixture here is captured, never written by hand, except `popup-deviations.json` (where the
 Rust popup deliberately differs from Python, no capture can produce it), `ancestor-replay.json`
-(synthetic, see below) and `migrate-rust.json` (what Rust added to the schema past Python's
-revision: compiled into the migration by `src/store/owned.rs`, and applied by
-`tests/test_core_rows.py` to build the database an old Python process meets).
+(synthetic, see below), `app-feed/` and `app-commands/` (contract examples, see below) and
+`migrate-rust.json` (what Rust added to the schema past Python's revision: compiled into the
+migration by `src/store/owned.rs`, and applied by `tests/test_core_rows.py` to build the database
+an old Python process meets).
 
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
@@ -16,6 +17,31 @@ revision: compiled into the migration by `src/store/owned.rs`, and applied by
   chips, wrapped text), captured from real panes; the fake herdr in `tests/conftest.py` serves them.
 - `radar/*.block.toml`: herdr-radar's own output, produced by `radar/generate.js`
   (see `tests/test_radar.py`).
+
+## herdr-app contract examples
+
+`app-feed/*.json` and `app-commands/commands.json` are examples of `docs/protocol/app-feed-v1.md` and
+`docs/protocol/app-commands-v1.md`, with fake data only. No code produces them yet: the mods are built
+against them, and the writer and the verbs must reproduce them. Their tokens are real, by the document's
+formula. Core rows are there before any code can file one.
+
+- `every-kind.json`: every entry kind, both hosts and an old row with neither, every delivery state and
+  `wait` word, two gone-agent answers (the popup's `gone` row), both alert kinds, a core alert, a group
+  whose first question has closed.
+- `stale-token.json`: the same world after an agent withdrew a question of group 14. That group's token
+  differs, and `commands.json`'s `stale-token` case sends the old one.
+- `empty.json`: nothing open. `partial.json`: `ok` with `errors`, `omitted` and a cut question.
+  `omitted-only.json`: no entries, and not an empty inbox. `not-migrated.json`: `ok: false`.
+- `unknown-vocabulary.json`: a newer writer's words and fields, which a v1 reader must survive. The tokens
+  ignore the extra fields.
+- `commands.json`: `{"source", "feeds", "cases": [{name, about, world, server, host, session, needs, argv,
+  exit, stdout, effects, replay_of}]}`, covering every verb, refusal code and `closed` word. `world` is the
+  feed the database matches, unless `about` starts `Setup:`, which names what changed after that feed was
+  read. `server` is the question's stored `herdr_server`, `session` whether it has a session, and `host` what
+  the probe says: `up`, `gone` (proven) or `unproven`. `needs: "B3"` marks a case that holds only once core
+  delivery exists. `effects` is what starts after the commit, in order: `ensure_worker` (a server), then
+  `sender` (arguments, or null) with `sender_socket`. `replay_of` names a case that ran first with the same
+  arguments.
 
 ## Behaviour goldens (rust-rewrite plan §5.2)
 

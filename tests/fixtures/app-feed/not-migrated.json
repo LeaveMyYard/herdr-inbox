@@ -1,0 +1,21 @@
+{
+ "v": 1,
+ "generated_at": 1767348000,
+ "ok": false,
+ "errors": [
+  "the inbox database is not migrated to this version yet"
+ ],
+ "omitted": {
+  "groups": 0,
+  "questions": 0,
+  "failed": 0,
+  "alerts": 0,
+  "remote": 0,
+  "question_ids": []
+ },
+ "new_since": {
+  "question_id": 0,
+  "alert_id": 0
+ },
+ "entries": []
+}
