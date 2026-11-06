@@ -25,16 +25,37 @@ log = Path(sys.argv[0]).with_suffix('.log')
 with log.open('a') as stream:
     stream.write(sys.argv[2] + '\\n')
 Path(sys.argv[2], 'gpui-kit.d.ts').write_text('// generated')
+if Path(sys.argv[0]).with_suffix('.socket').exists():
+    import socket
+    folder = Path(os.environ['XDG_RUNTIME_DIR'], 'herdr-core')
+    folder.mkdir()
+    socket.socket(socket.AF_UNIX).bind(str(folder / (os.environ['HC_SESSION'] + '.sock')))
 if Path(sys.argv[0]).with_suffix('.fail').exists():
     print('Question Title 123 failed to load', file=sys.stderr)
     sys.exit(9)
 `;
 
-export function sandbox(t, { checkout = false } = {}) {
+// What the tests' PATH finds first, so that no test can reach a real one. `herdr-app status` answers
+// what `window` set, or no window. `hc` must never run at all.
+const HERDR_APP = `#!/bin/sh
+here=$(dirname "$0")
+[ "$1" = status ] || exit 64
+echo "$HERDR_APP_HOME" >> "$here/status.log"
+[ -f "$here/status.delay" ] && sleep "$(cat "$here/status.delay")"
+[ -f "$here/status.out" ] && cat "$here/status.out"
+exit "$(cat "$here/status.code" 2>/dev/null || echo 2)"
+`;
+const HC = `#!/bin/sh
+echo "$@" >> "$(dirname "$0")/hc.log"
+exit 1
+`;
+
+export function sandbox(t, { checkout = false, root = 'plugin' } = {}) {
   const temp = realpathSync(mkdtempSync(join(tmpdir(), 'inbox-app-')));
   t.after(() => rmSync(temp, { recursive: true, force: true }));
   const home = join(temp, 'home');
-  const plugin = join(temp, 'plugin');
+  const plugin = join(temp, root);
+  const tools = join(temp, 'tools');
   const checker = join(temp, 'checker');
   mkdirSync(home);
   mkdirSync(join(plugin, 'scripts'), { recursive: true });
@@ -43,7 +64,9 @@ export function sandbox(t, { checkout = false } = {}) {
   cpSync(join(repo, 'scripts/launch'), join(plugin, 'scripts/launch'));
   if (checkout) mkdirSync(join(plugin, '.git'));
   writeFileSync(checker, CHECKER, { mode: 0o755 });
-  const env = { ...process.env, TEST_SECRET: 'x', HERDR_SOCKET_PATH: '/fake/live.sock', HC_SOCKET: '/fake/core.sock' };
+  mkdirSync(tools);
+  for (const [name, text] of [['herdr-app', HERDR_APP], ['hc', HC]]) writeFileSync(join(tools, name), text, { mode: 0o755 });
+  const env = { ...process.env, PATH: `${tools}:${process.env.PATH}`, TEST_SECRET: 'x', HERDR_SOCKET_PATH: '/fake/live.sock', HC_SOCKET: '/fake/core.sock' };
   delete env.CLAUDE_CONFIG_DIR;
   const run = (action, { root = plugin, extra = {} } = {}) => spawnSync('python3', [
     join(repo, 'scripts/app-install'), action, '--app-home', home, '--plugin-root', root,
@@ -51,7 +74,11 @@ export function sandbox(t, { checkout = false } = {}) {
   ], { env: { ...env, ...extra }, encoding: 'utf8' });
   const inHome = path => join(home, path);
   const receipt = () => JSON.parse(readFileSync(inHome('data/herdr-inbox/install.json'), 'utf8'));
-  return { temp, home, plugin, checker, env, run, inHome, receipt };
+  const window = (out, code = 0) => {
+    writeFileSync(join(tools, 'status.out'), out);
+    writeFileSync(join(tools, 'status.code'), String(code));
+  };
+  return { temp, home, plugin, checker, tools, env, run, inHome, receipt, window };
 }
 
 // Every path under a folder with its bytes and mode, to compare a home before and after.

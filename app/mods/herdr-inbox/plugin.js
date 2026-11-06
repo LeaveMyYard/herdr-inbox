@@ -31,7 +31,8 @@ async function isPlugin(host, root) {
   return (await read(host, `${root}/scripts/launch`)) !== null;
 }
 
-// herdr's answer, when a server runs. On a herdr-app-only machine this rejects or exits non-zero.
+// herdr's answer. It needs no server, but it waits on herdr's plugin lock, so while another
+// `herdr plugin` command holds that, this can take up to `exec`'s 30 s. With no herdr it rejects.
 async function fromHerdr(host) {
   try {
     const result = await host.exec('herdr', ['plugin', 'list', '--json']);
@@ -44,20 +45,25 @@ async function fromHerdr(host) {
   }
 }
 
-// Claude Code's own record of where the user-scope copy is. It needs no server.
+// Claude Code's own record of where the user-scope copy is. The install's shell may not have had
+// the CLAUDE_CONFIG_DIR that Claude Code runs with, so the default folder is read as well.
 async function fromClaude(host, config) {
-  const text = await read(host, `${config ?? `${host.home()}/.claude`}/plugins/installed_plugins.json`);
-  const entries = parsed(text)?.plugins?.[CLAUDE_PLUGIN];
-  if (!Array.isArray(entries)) return null;
-  return entries.find(entry => entry?.scope === 'user')?.installPath ?? null;
+  for (const folder of [config, `${host.home()}/.claude`]) {
+    if (!folder) continue;
+    const entries = parsed(await read(host, `${folder}/plugins/installed_plugins.json`))?.plugins?.[CLAUDE_PLUGIN];
+    const path = Array.isArray(entries) ? entries.find(entry => entry?.scope === 'user')?.installPath : null;
+    if (path) return path;
+  }
+  return null;
 }
 
-// The plugin root for this start, or null. A git checkout does not move: a pull updates it in
-// place, and an app home installed from a checkout stays on that checkout. A copy moves on every
-// update, and the old one can stay on disk with an `engine` a rollback never reaches, so what
-// herdr and Claude Code say now comes before what the install recorded.
+// The plugin root for this start, or null. The operator's own checkout does not move: a pull
+// updates it in place, and an app home installed from it stays on it. Everything else moves on an
+// update: herdr's installs are checkouts too, in a new generation each time, and the old one can
+// stay on disk with an `engine` a rollback never reaches. So what herdr and Claude Code say now
+// comes before what the install recorded.
 async function resolveRoot(host, receipt) {
-  if (!receipt.plugin_copy) return (await isPlugin(host, receipt.plugin_root)) ? receipt.plugin_root : null;
+  if (!receipt.plugin_moves) return (await isPlugin(host, receipt.plugin_root)) ? receipt.plugin_root : null;
   for (const root of [await fromHerdr(host), await fromClaude(host, receipt.claude_config), receipt.plugin_root]) {
     if (await isPlugin(host, root)) return root;
   }
@@ -70,9 +76,12 @@ export function launcher(root, args) {
 }
 
 // app-commands v1: exit 0 and this exact first line. After a rollback, or with no binary, `app`
-// reaches Python, which exits 2. A binary older than `app` prints something else.
+// reaches Python, which exits 2. A binary older than `app` prints something else. With no binary
+// that is known without starting Python, which would make a `.venv` in the plugin on each open.
 async function hasApp(host, root) {
   try {
+    const binary = await host.exec('sh', [`${root}/scripts/launch`, 'which']);
+    if (binary.code !== 0 || binary.stdout.trim() === '') return false;
     const result = await host.exec(...launcher(root, ['app', '--help']));
     return result.code === 0 && result.stdout.split('\n')[0] === 'herdr-inbox app v1';
   } catch {

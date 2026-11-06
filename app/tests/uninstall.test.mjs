@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { lived, sandbox, tree } from './support/world.mjs';
+import { lived, repo, sandbox, tree } from './support/world.mjs';
 
 const ok = result => assert.equal(result.status, 0, result.stderr || result.stdout);
 
@@ -74,27 +74,158 @@ test('with nothing installed, uninstall refuses and removes nothing', t => {
   assert.deepEqual(tree(s.home), before);
 });
 
-test('a layout on screen that shows the mod stops the uninstall', t => {
+const WINDOW = '{"layout":"main","errors":[]}';
+const USES = '{ "content": { "mod": "herdr-inbox" } }\n';
+
+function stopped(s, pattern) {
+  const before = tree(s.home);
+  const result = s.run('uninstall');
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, pattern);
+  assert.deepEqual(tree(s.home), before);
+}
+
+function shown(t) {
   const s = sandbox(t);
   lived(s);
   ok(s.run('install'));
-  writeFileSync(s.inHome('layouts/main.json'), '{ "content": { "mod": "herdr-inbox" } }\n');
-  const before = tree(s.home);
+  s.window(WINDOW);
+  return s;
+}
+
+test('a layout on screen that shows the mod stops the uninstall', t => {
+  const s = shown(t);
+  writeFileSync(s.inHome('layouts/main.json'), USES);
+  stopped(s, /Layout main is showing herdr-inbox/);
+  assert.equal(readFileSync(join(s.tools, 'status.log'), 'utf8').trim().split('\n').at(-1), s.home);
+});
+
+test('what shows is what the window says, not what shared.json says', t => {
+  const s = shown(t);
+  writeFileSync(s.inHome('layouts/project-alpha.json'), USES);
+  s.window('{"layout":"project-alpha"}');
+  stopped(s, /Layout project-alpha is showing herdr-inbox/);
+});
+
+test('a layout on screen reached through a link is read', t => {
+  const s = shown(t);
+  writeFileSync(join(s.temp, 'kept.json'), USES);
+  rmSync(s.inHome('layouts/main.json'));
+  symlinkSync(join(s.temp, 'kept.json'), s.inHome('layouts/main.json'));
+  stopped(s, /Layout main is showing herdr-inbox/);
+});
+
+test('a layouts folder that is a link is read', t => {
+  const s = shown(t);
+  mkdirSync(join(s.temp, 'dotfiles'));
+  writeFileSync(join(s.temp, 'dotfiles/main.json'), USES);
+  rmSync(s.inHome('layouts'), { recursive: true });
+  symlinkSync(join(s.temp, 'dotfiles'), s.inHome('layouts'));
+  stopped(s, /Layout main is showing herdr-inbox/);
+});
+
+test('a shown layout that does not parse stops the uninstall: the host keeps its last good version', t => {
+  const s = shown(t);
+  writeFileSync(s.inHome('layouts/main.json'), '{ broken');
+  stopped(s, /Layout main is on screen and its file cannot be read/);
+});
+
+test('a shown layout whose file was renamed stops the uninstall: the host keeps showing it', t => {
+  const s = shown(t);
+  rmSync(s.inHome('layouts/main.json'));
+  stopped(s, /Layout main is on screen and its file cannot be read/);
+});
+
+for (const [name, out, code] of [['nothing', '', 0], ['no JSON', 'nonsense', 0], ['no layout', '{"zoom":1}', 0],
+  ['an empty layout', '{"layout":""}', 0], ['a layout that is a path', '{"layout":"../main"}', 0], ['a failure', '', 1],
+  ['a crash', '', 139]]) {
+  test(`a window that answers with ${name} stops the uninstall`, t => {
+    const s = shown(t);
+    s.window(out, code);
+    stopped(s, /did not say what it shows/);
+  });
+}
+
+test('a window that does not answer in time stops the uninstall', t => {
+  const s = shown(t);
+  writeFileSync(join(s.tools, 'status.delay'), '6');
+  stopped(s, /did not say what it shows/);
+});
+
+test('with no window, nothing shows the mod: it goes, and the layout is named', t => {
+  const s = sandbox(t);
+  lived(s);
+  ok(s.run('install'));
+  writeFileSync(s.inHome('layouts/main.json'), USES);
   const result = s.run('uninstall');
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /Layout main is showing herdr-inbox/);
-  assert.deepEqual(tree(s.home), before);
+  ok(result);
+  assert.match(result.stdout, /Layout main still names a removed mod/);
+  assert.ok(!existsSync(s.inHome('mods/herdr-inbox')));
+});
+
+test('with no herdr-app at all there is no window to ask, and uninstall still works', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  const python = spawnSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).stdout.trim();
+  const result = spawnSync(python, [join(repo, 'scripts/app-install'), 'uninstall', '--app-home', s.home], { env: { PATH: '/nonexistent' }, encoding: 'utf8' });
+  ok(result);
+  assert.deepEqual(tree(s.home), {});
 });
 
 test('a layout not on screen is only named', t => {
-  const s = sandbox(t);
-  lived(s);
-  ok(s.run('install'));
-  writeFileSync(s.inHome('layouts/project-alpha.json'), '{ "content": { "mod": "herdr-inbox" } }\n');
+  const s = shown(t);
+  writeFileSync(s.inHome('layouts/project-alpha.json'), USES);
   const result = s.run('uninstall');
   ok(result);
   assert.match(result.stdout, /Layout project-alpha still names a removed mod/);
   assert.ok(existsSync(s.inHome('layouts/project-alpha.json')));
+});
+
+test('a host file name further down is an added file, not the host\'s', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  mkdirSync(s.inHome('mods/herdr-inbox/notes'));
+  writeFileSync(s.inHome('mods/herdr-inbox/notes/jsconfig.json'), 'Project Alpha\n');
+  const result = s.run('uninstall');
+  ok(result);
+  assert.match(result.stdout, /Kept, not ours: mods\/herdr-inbox\/notes\/jsconfig\.json/);
+});
+
+test('uninstall reports a link at the mod\'s path and leaves it', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  rmSync(s.inHome('mods/herdr-inbox'), { recursive: true });
+  symlinkSync(s.plugin, s.inHome('mods/herdr-inbox'));
+  const result = s.run('uninstall');
+  ok(result);
+  assert.match(result.stdout, /Kept, not ours: mods\/herdr-inbox/);
+});
+
+test('uninstall reports an empty folder someone added', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  mkdirSync(s.inHome('mods/herdr-inbox/notes'));
+  const result = s.run('uninstall');
+  ok(result);
+  assert.match(result.stdout, /Kept, not ours: mods\/herdr-inbox\/notes/);
+});
+
+test('with no record, a folder of runtime files is cleared; one with anything else is refused', t => {
+  const s = sandbox(t);
+  mkdirSync(s.inHome('data/herdr-inbox/stage'), { recursive: true });
+  writeFileSync(s.inHome('data/herdr-inbox/feed.json'), '{"v":1}\n');
+  ok(s.run('uninstall'));
+  assert.deepEqual(tree(s.home), {});
+  mkdirSync(s.inHome('data/herdr-inbox'), { recursive: true });
+  writeFileSync(s.inHome('data/herdr-inbox/notes.txt'), 'Project Alpha\n');
+  stopped(s, /Nothing is installed here/);
+});
+
+test('with no record, a mod folder is not ours to touch', t => {
+  const s = sandbox(t);
+  mkdirSync(s.inHome('mods/herdr-inbox'), { recursive: true });
+  mkdirSync(s.inHome('data/herdr-inbox'), { recursive: true });
+  stopped(s, /Nothing is installed here/);
 });
 
 test('a writer that stays refuses the uninstall and stays disabled; it can be run again', async t => {
@@ -144,6 +275,16 @@ for (const [name, path] of [['outside the home', 'mods/herdr-inbox/../../secret'
     assert.deepEqual(tree(s.home), before);
   });
 }
+
+test('a record that names a folder of the operator\'s is refused', t => {
+  const s = sandbox(t);
+  lived(s);
+  ok(s.run('install'));
+  writeFileSync(s.inHome('data/herdr-inbox/install.json'), JSON.stringify({ ...s.receipt(), dirs: ['layouts'] }), { mode: 0o600 });
+  const before = tree(s.home);
+  assert.equal(s.run('uninstall').status, 1);
+  assert.deepEqual(tree(s.home), before);
+});
 
 test('a record anyone can read is refused', t => {
   const s = sandbox(t);

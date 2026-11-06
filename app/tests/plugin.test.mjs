@@ -12,11 +12,11 @@ const CLAUDE = '/fake/home/.claude/plugins/installed_plugins.json';
 const HELP = { code: 0, stdout: 'herdr-inbox app v1\nusage\n', stderr: '' };
 
 const plugin = root => ({ [`${root}/herdr-plugin.toml`]: MANIFEST, [`${root}/scripts/launch`]: '# launch\n' });
-const record = fields => JSON.stringify({ v: 1, plugin_root: '/fake/recorded', plugin_copy: true, claude_config: null, ...fields });
+const record = fields => JSON.stringify({ v: 1, plugin_root: '/fake/recorded', plugin_moves: true, claude_config: null, ...fields });
 const registry = (installPath, scope = 'user') => JSON.stringify({ version: 2, plugins: { 'herdr-inbox@herdr-inbox': [{ scope, installPath }] } });
 const herdrList = root => JSON.stringify({ result: { plugins: [{ plugin_id: 'other', plugin_root: '/fake/other' }, { plugin_id: 'leavemyyard.herdr-inbox', plugin_root: root }] } });
 
-function host({ files = {}, herdr = null, app = HELP }) {
+function host({ files = {}, herdr = null, app = HELP, binary = '/fake/bin/herdr-inbox\n' }) {
   const calls = [];
   return {
     calls,
@@ -29,6 +29,7 @@ function host({ files = {}, herdr = null, app = HELP }) {
         if (herdr === null) throw Error('not installed');
         return herdr;
       }
+      if (args.at(-1) === 'which') return { code: 0, stdout: binary, stderr: '' };
       if (app instanceof Error) throw app;
       return app;
     },
@@ -93,14 +94,32 @@ test('a root that is another plugin, or has no launcher, is passed over', async 
 });
 
 test('a checkout stays where it is: herdr and Claude Code are not asked', async () => {
-  const files = { [RECEIPT]: record({ plugin_copy: false }), ...plugin('/fake/recorded'), [CLAUDE]: registry('/fake/new'), ...plugin('/fake/new') };
+  const files = { [RECEIPT]: record({ plugin_moves: false }), ...plugin('/fake/recorded'), [CLAUDE]: registry('/fake/new'), ...plugin('/fake/new') };
   const h = host({ files, herdr: { code: 0, stdout: herdrList('/fake/new'), stderr: '' } });
   assert.equal((await availability(h)).root, '/fake/recorded');
   assert.ok(h.calls.every(([command]) => command !== 'herdr'));
 });
 
-test('a checkout that is gone is unavailable, not replaced by the live plugin', async () => {
-  const files = { [RECEIPT]: record({ plugin_copy: false }), [CLAUDE]: registry('/fake/new'), ...plugin('/fake/new') };
+test('a generation herdr deleted is passed over: herdr names the new one', async () => {
+  const files = { [RECEIPT]: record({ plugin_root: '/fake/generation-1/checkout' }), ...plugin('/fake/generation-2/checkout') };
+  const h = host({ files, herdr: { code: 0, stdout: herdrList('/fake/generation-2/checkout'), stderr: '' } });
+  assert.deepEqual(await availability(h), { state: 'ready', root: '/fake/generation-2/checkout' });
+});
+
+test('the default Claude folder is read too, when the install did not have the one Claude Code uses', async () => {
+  const files = { [RECEIPT]: record({ claude_config: '/fake/other' }), [CLAUDE]: registry('/fake/new'), ...plugin('/fake/new') };
+  assert.equal((await availability(host({ files }))).root, '/fake/new');
+});
+
+test('with no binary the probe stops there, and Python is never started', async () => {
+  const files = { [RECEIPT]: record({}), ...plugin('/fake/recorded') };
+  const h = host({ files, binary: '' });
+  assert.deepEqual(await availability(h), { state: 'unavailable', reason: 'no-app' });
+  assert.deepEqual(h.calls.at(-1), ['sh', '/fake/recorded/scripts/launch', 'which']);
+});
+
+test('the operator\'s checkout that is gone is unavailable, not replaced by the live plugin', async () => {
+  const files = { [RECEIPT]: record({ plugin_moves: false }), [CLAUDE]: registry('/fake/new'), ...plugin('/fake/new') };
   assert.deepEqual(await availability(host({ files })), { state: 'unavailable', reason: 'no-plugin' });
 });
 
@@ -124,13 +143,17 @@ test('launcher goes through scripts/launch, never a binary of its own', () => {
 });
 
 // The real launcher, with a stand-in `uv` for Python. It keeps every path under the test's folder.
-function realHost(t, { engine, uv }) {
+function realHost(t, { engine, uv, binary = false }) {
   const s = sandbox(t);
   cpSync(join(repo, 'scripts/release-lib.sh'), join(s.plugin, 'scripts/release-lib.sh'));
   writeFileSync(join(s.plugin, 'engine'), `${engine}\n`);
-  mkdirSync(join(s.temp, 'tools'));
   writeFileSync(join(s.temp, 'tools/uv'), `#!/bin/sh\n${uv}\n`);
   chmodSync(join(s.temp, 'tools/uv'), 0o755);
+  if (binary) {
+    mkdirSync(join(s.plugin, 'bin'));
+    writeFileSync(join(s.plugin, 'bin/herdr-inbox'), '#!/bin/sh\n[ "$1" = contract ] && echo 2\n');
+    chmodSync(join(s.plugin, 'bin/herdr-inbox'), 0o755);
+  }
   const env = { PATH: `${join(s.temp, 'tools')}:/usr/bin:/bin`, HOME: s.temp, XDG_STATE_HOME: join(s.temp, 'state') };
   const files = { [RECEIPT]: record({ plugin_root: s.plugin }), ...plugin(s.plugin) };
   return {
@@ -143,17 +166,22 @@ function realHost(t, { engine, uv }) {
   };
 }
 
-test('engine rust with no binary falls to Python, so the inbox says unavailable', async t => {
-  const h = realHost(t, { engine: 'rust', uv: 'echo "usage: inbox" >&2; exit 2' });
+test('engine rust with no binary means unavailable, and Python is not started', async t => {
+  const h = realHost(t, { engine: 'rust', uv: 'exit 99' });
   assert.deepEqual(await availability(h), { state: 'unavailable', reason: 'no-app' });
 });
 
 test('after a rollback to Python the inbox says unavailable', async t => {
-  const h = realHost(t, { engine: 'python', uv: 'echo "usage: inbox" >&2; exit 2' });
+  const h = realHost(t, { engine: 'python', uv: 'exit 99' });
+  assert.deepEqual(await availability(h), { state: 'unavailable', reason: 'no-app' });
+});
+
+test('a binary with no `app` falls to Python, which exits 2: unavailable', async t => {
+  const h = realHost(t, { engine: 'rust', binary: true, uv: 'echo "usage: inbox" >&2; exit 2' });
   assert.deepEqual(await availability(h), { state: 'unavailable', reason: 'no-app' });
 });
 
 test('a real launcher that answers the probe is ready', async t => {
-  const h = realHost(t, { engine: 'python', uv: 'echo "herdr-inbox app v1"' });
+  const h = realHost(t, { engine: 'rust', binary: true, uv: 'echo "herdr-inbox app v1"' });
   assert.equal((await availability(h)).state, 'ready');
 });

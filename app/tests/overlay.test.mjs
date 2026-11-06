@@ -22,11 +22,11 @@ const ROOT = '/fake/plugin';
 
 function installed(app) {
   world.files = {
-    [RECEIPT]: JSON.stringify({ v: 1, plugin_root: ROOT, plugin_copy: false, claude_config: null }),
+    [RECEIPT]: JSON.stringify({ v: 1, plugin_root: ROOT, plugin_moves: false, claude_config: null }),
     [`${ROOT}/herdr-plugin.toml`]: 'id = "leavemyyard.herdr-inbox"\n',
     [`${ROOT}/scripts/launch`]: '#\n',
   };
-  world.exec = async () => app;
+  world.exec = async (_command, args) => (args.at(-1) === 'which' ? { code: 0, stdout: '/fake/bin\n', stderr: '' } : app);
 }
 
 test('the overlay checks first, and then says what it found', async () => {

@@ -34,16 +34,24 @@ def installed_mods(home, record):
     return [mod for mod in package.mods(receipt.known(record)) if home.kind(f'mods/{mod}') == 'dir']
 
 
+def not_folders(home, mods):
+    return [f'mods/{mod}' for mod in mods if home.kind(f'mods/{mod}') in ('file', 'other')]
+
+
 def preflight(home, payload, old):
     """Refuses anything that would overwrite what is not ours, before the first write."""
+    known = package.mods(receipt.known(old)) if old else []
     if old is not None:
         others = [path for mod in installed_mods(home, old) for path in scan(home, old, mod)[1]]
         if others:
             raise ValueError('Edited or added files would be lost, nothing changed: ' + ', '.join(others))
+    for path in not_folders(home, sorted({*known, *package.mods(payload)})):
+        raise ValueError(f'Name collision: {path} is not a folder')
     for mod in package.mods(payload):
-        if (old is None or mod not in package.mods(receipt.known(old))) and home.kind(f'mods/{mod}') is not None:
+        if mod not in known and home.kind(f'mods/{mod}') is not None:
             raise ValueError(f'Name collision: mods/{mod}')
-    if old is None and home.kind(DATA) is not None and home.list(DATA):
+    # Without a record, runtime files and a stage are what a crash left: the install takes them over.
+    if old is None and home.kind(DATA) is not None and not runtime.only_ours(home):
         raise ValueError(f'Name collision: {DATA}')
 
 
@@ -71,42 +79,56 @@ def erase_mod(home, record, mod):
 
 def erase(home, record):
     """Removes everything the install owns, the record last, so that a crash can be run again."""
+    mods = package.mods(receipt.known(record))
     leftovers = [path for mod in installed_mods(home, record) for path in erase_mod(home, record, mod)]
+    leftovers += not_folders(home, mods)
+    if 'mods' in record['dirs']:
+        home.rmdir('mods')
     home.rmtree(STAGE)
     runtime.erase(home)
     home.remove(receipt.RECEIPT)
-    for mod in package.mods(receipt.known(record)):
+    for mod in mods:
         home.rmdir(f'data/{mod}')
     leftovers += [f'{DATA}/{name}' for name in (home.list(DATA) if home.kind(DATA) == 'dir' else ())]
-    for path in reversed(record['dirs']):
-        home.rmdir(path)
+    if 'data' in record['dirs']:
+        home.rmdir('data')
     return leftovers
+
+
+def created(home):
+    """The top-level folders this install makes. `data` comes before the record can, so a crash can
+    leave it, empty or with our folder alone in it: that counts too."""
+    data = home.kind('data') is None or not set(home.list('data')) - {'herdr-inbox'}
+    return ['data'] * data + ['mods'] * (home.kind('mods') is None)
 
 
 def install(home, args):
     root = package.plugin(args.plugin_root)
     payload = package.load(root)
-    checker = args.checker or shutil.which('herdr-app') or ''
-    check_payload(payload, checker)
+    check_payload(payload, args.checker or shutil.which('herdr-app') or '')
     old = receipt.load(home)
     preflight(home, payload, old)
-    record = {'v': 1, 'plugin_root': root, 'plugin_copy': not Path(root, '.git').exists(),
-              'claude_config': os.environ.get('CLAUDE_CONFIG_DIR') or None,
-              'dirs': old['dirs'] if old else [], 'previous': {},
-              'files': {path: digest(data) for path, data in payload.items()}}
-    if old:
-        record['previous'] = {path: sorted(digests) for path, digests in receipt.known(old).items()}
+    dropped = sorted(set(package.mods(receipt.known(old)) if old else ()) - set(package.mods(payload)))
+    notes = layouts.guard(home.path, dropped) if dropped else []
+    record = {'v': 1, 'plugin_root': root, 'plugin_moves': package.moves(root), 'claude_config': package.claude_config(),
+              'dirs': old['dirs'] if old else created(home),
+              'files': {path: digest(data) for path, data in payload.items()},
+              'previous': {path: sorted(digests) for path, digests in receipt.known(old).items()} if old else {}}
     try:
-        record['dirs'] += [path for path in ('mods', 'data') if home.mkdir(path)]
+        home.mkdir('data')
         home.mkdir(DATA, 0o700)
         home.chmod(DATA, 0o700)
-        stage(home, payload)
+        for path in runtime.staged(home):
+            home.remove(path)
         receipt.save(home, record)  # a journal from here on: a crash can be run again or uninstalled
+        home.mkdir('mods')
+        stage(home, payload)
         runtime.enable(home)
         for mod in package.mods(payload):
             home.publish(f'{STAGE}/{mod}', f'mods/{mod}')
-        for mod in set(installed_mods(home, record)) - set(package.mods(payload)):
-            erase_mod(home, record, mod)
+        for mod in dropped:
+            if home.kind(f'mods/{mod}') == 'dir':
+                erase_mod(home, record, mod)
             home.rmdir(f'data/{mod}')
         record['previous'] = {}
         receipt.save(home, record)
@@ -116,24 +138,33 @@ def install(home, args):
             erase(home, record)
         raise
     print(f"{'Upgraded' if old else 'Installed'} {', '.join(package.mods(payload))}. No layout, key or setting changed.")
-    print('''Open it: herdr-app do mod.open '{"name":"herdr-inbox"}', or bind that in keys.json.''')
+    for note in notes:
+        print(note)
+    print("""The app takes a moment to see it. Then: herdr-app do mod.open '{"name":"herdr-inbox"}', or bind that in keys.json.""")
+
+
+def recover(home):
+    """Clears what a crash before the record, or after it went, left. Refuses anything else."""
+    if home.kind(DATA) != 'dir' or home.kind('mods/herdr-inbox') is not None or not runtime.only_ours(home):
+        raise ValueError('Nothing is installed here. Any herdr-inbox folder is not ours to remove')
+    with runtime.stopped(home):
+        home.rmtree(STAGE)
+        runtime.erase(home)
+    home.rmdir(DATA)
+    for name in ('mods', 'data'):
+        home.rmdir(name)
+    print('Removed what an interrupted install or uninstall left.')
 
 
 def uninstall(home):
     record = receipt.load(home)
     if record is None:
-        raise ValueError('Nothing is installed here')
-    mods = package.mods(receipt.known(record))
-    using = layouts.using(home, mods)
-    if layouts.shown(home) in using:
-        raise ValueError(f'Layout {layouts.shown(home)} is showing {mods[0]}: switch away from it first; nothing changed')
+        return recover(home)
+    notes = layouts.guard(home.path, package.mods(receipt.known(record)))
     with runtime.stopped(home):
         leftovers = erase(home, record)
-    for path in leftovers:
-        print(f'Kept, not ours: {path}')
-    for name in using:
-        print(f'Layout {name} still names a removed mod.')
-    print('Uninstalled.')
+    for line in (*(f'Kept, not ours: {path}' for path in leftovers), *notes, 'Uninstalled.'):
+        print(line)
 
 
 def main():

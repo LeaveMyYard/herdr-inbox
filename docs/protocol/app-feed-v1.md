@@ -506,13 +506,23 @@ also clears `disabled` and removes `start.json`. It keeps the feed.
 
 An uninstall removes every path in the table. A file there it does not know stays, and is reported.
 
+The record is written before anything else that matters and removed last, so after a crash at any point
+either command can be run again. With no record, a folder holding only these paths is what a crash left:
+`install` takes it over and `uninstall` clears it.
+
+An uninstall asks `herdr-app status` what the window shows. It refuses when the shown layout names a mod, when
+that layout's file can't be read, and when the answer is anything but exit 0 with a layout or exit 2 for no
+window. With no window, or no `herdr-app`, nothing is showing the mods, so it goes ahead and names any layout
+that still uses them. A mod open in a tab or as an overlay can't be seen this way: the window reports it
+missing until that closes.
+
 `install.json` records what the mods need to find the plugin:
 
 | Field | Type | Meaning |
 |---|---|---|
 | `plugin_root` | string | The root the install ran from. |
-| `plugin_copy` | bool | False for a git checkout, which an update does not move. |
-| `claude_config` | ?string | `CLAUDE_CONFIG_DIR` at install, where it was set. |
+| `plugin_moves` | bool | False only for the operator's own git checkout. A herdr install is a git checkout too, but each update makes a new generation under `plugins/github-installations/` and deletes the old one. |
+| `claude_config` | ?string | `CLAUDE_CONFIG_DIR` at install, when it was an absolute path. |
 
 The other fields are the installer's own. [app-commands v1](app-commands-v1.md#running-a-command) says how the
 mods use these.

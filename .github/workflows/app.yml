@@ -31,3 +31,11 @@ jobs:
         with:
           python-version: "3.11"  # pyproject's requires-python
       - run: node --test app/tests/*.test.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: An older Python is refused before anything is written
+        run: |
+          mkdir "$RUNNER_TEMP/home"
+          if python3 scripts/app-install install --app-home "$RUNNER_TEMP/home"; then exit 1; fi
+          test -z "$(ls -A "$RUNNER_TEMP/home")"

@@ -71,10 +71,19 @@ def stopped(home):
             yield
 
 
+def staged(home):
+    """What a crash inside Home.write left behind."""
+    return [f'{DATA}/{name}' for name in home.list(DATA) if name.startswith('.herdr-inbox-')]
+
+
+def only_ours(home):
+    """Whether the data folder holds nothing but what an install or the writer puts there."""
+    return all(name in (*FILES, 'install.json', 'stage') or name.startswith('.herdr-inbox-') for name in home.list(DATA))
+
+
 def erase(home):
     """Removes the runtime files, the feed with its question text first. Unknown files stay."""
     if home.kind(DATA) != 'dir':
         return
-    staged = [name for name in home.list(DATA) if name.startswith('.herdr-inbox-')]
-    for name in (*FILES, *staged):
-        home.remove(f'{DATA}/{name}')
+    for path in (*(f'{DATA}/{name}' for name in FILES), *staged(home)):
+        home.remove(path)

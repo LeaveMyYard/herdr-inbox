@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { lived, sandbox, tree } from './support/world.mjs';
@@ -64,6 +64,47 @@ test('an upgrade refuses to lose an edit or an added file, and changes nothing',
     assert.ok(result.stderr.includes(path));
     assert.deepEqual(tree(s.home), before);
   }
+});
+
+test('an upgrade refuses to drop an empty folder someone added', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  mkdirSync(s.inHome('mods/herdr-inbox/notes'));
+  assert.equal(s.run('install').status, 1);
+  assert.ok(existsSync(s.inHome('mods/herdr-inbox/notes')));
+});
+
+for (const kind of ['link', 'file']) {
+  test(`an upgrade refuses a ${kind} at the mod's path`, t => {
+    const s = sandbox(t);
+    ok(s.run('install'));
+    rmSync(s.inHome('mods/herdr-inbox'), { recursive: true });
+    if (kind === 'link') symlinkSync(join(s.temp, 'plugin'), s.inHome('mods/herdr-inbox'));
+    else writeFileSync(s.inHome('mods/herdr-inbox'), 'Project Alpha\n');
+    const before = tree(s.home);
+    const result = s.run('install');
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /is not a folder/);
+    assert.deepEqual(tree(s.home), before);
+  });
+}
+
+test('an upgrade that drops a mod the shown layout uses is refused', t => {
+  const s = sandbox(t);
+  const toast = join(s.plugin, 'app/mods/herdr-inbox-toast');
+  mkdirSync(toast);
+  writeFileSync(join(toast, 'main.js'), '// toast\n');
+  writeFileSync(join(toast, 'mod.json'), '{ "place": "none" }\n');
+  ok(s.run('install'));
+  mkdirSync(s.inHome('layouts'));
+  writeFileSync(s.inHome('layouts/main.json'), '{ "content": { "mod": "herdr-inbox-toast" } }\n');
+  s.window('{"layout":"main"}');
+  rmSync(toast, { recursive: true });
+  const before = tree(s.home);
+  const result = s.run('install');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Layout main is showing herdr-inbox-toast/);
+  assert.deepEqual(tree(s.home), before);
 });
 
 test('an upgrade that stopped half way can be run again', t => {

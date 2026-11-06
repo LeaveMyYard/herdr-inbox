@@ -26,7 +26,8 @@ class Home:
         if not os.path.isabs(path):
             raise ValueError('--app-home must be absolute')
         # The operator named this folder, links on the way to it included. Inside it, none count.
-        self.fd = os.open(os.path.realpath(path), os.O_RDONLY | os.O_DIRECTORY)
+        self.path = os.path.realpath(path)
+        self.fd = os.open(self.path, os.O_RDONLY | os.O_DIRECTORY)
 
     @contextmanager
     def parent(self, path):
@@ -70,10 +71,10 @@ class Home:
             return sorted(os.listdir(fd))
 
     def walk(self, path):
-        """Every path below a directory that is not one, depth first; links are not followed."""
+        """Every file, link and empty folder below a directory, depth first. Links are not followed."""
         for name in self.list(path):
             child = f'{path}/{name}'
-            if self.kind(child) == 'dir':
+            if self.kind(child) == 'dir' and self.list(child):
                 yield from self.walk(child)
             else:
                 yield child

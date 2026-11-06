@@ -1,10 +1,14 @@
 """What ships: the plugin root that is recorded, and the mod files that are installed."""
 import json
+import os
 import re
 from pathlib import Path
 
 MOD_NAME = re.compile(r'herdr-inbox(-[a-z0-9]+)*')
 PLUGIN_ID = 'id = "leavemyyard.herdr-inbox"'
+# Where herdr keeps what `plugin install` fetched. Each update is a new generation, a git checkout
+# too, and the old one is deleted, so a `.git` folder does not say that a root stays.
+MANAGED = '/plugins/github-installations/'
 # herdr-app writes these into a mod's folder: they are not the package's.
 HOST_FILES = frozenset(('gpui-kit.d.ts', 'jsconfig.json'))
 
@@ -21,6 +25,17 @@ def plugin(root):
     if not identified or not (root / 'scripts/launch').is_file():
         raise ValueError(f'Not the inbox plugin: {root}')
     return str(root)
+
+
+def moves(root):
+    """Whether an update can move this root. Only a checkout of the operator's own stays where it is."""
+    return MANAGED in root + '/' or not Path(root, '.git').exists()
+
+
+def claude_config():
+    """CLAUDE_CONFIG_DIR, when it is a path the mods can use."""
+    value = os.environ.get('CLAUDE_CONFIG_DIR', '')
+    return value if value.startswith('/') else None
 
 
 def load(root):

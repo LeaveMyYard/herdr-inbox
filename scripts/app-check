@@ -6,6 +6,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+if sys.version_info < (3, 11):
+    sys.exit('herdr-inbox: this needs Python 3.11 or later, and this is {}.{}. Nothing was changed.\n'
+             'Try: uv run --no-project --python 3.11 python {}'.format(*sys.version_info[:2], ' '.join(sys.argv)))
+
 sys.dont_write_bytecode = True
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'app' / 'installer'))

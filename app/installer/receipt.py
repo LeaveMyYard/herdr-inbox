@@ -8,7 +8,7 @@ from fs import parts
 DATA = 'data/herdr-inbox'
 RECEIPT = DATA + '/install.json'
 LIMIT = 1024 * 1024
-FIELDS = {'v', 'plugin_root', 'plugin_copy', 'claude_config', 'dirs', 'files', 'previous'}
+FIELDS = {'v', 'plugin_root', 'plugin_moves', 'claude_config', 'dirs', 'files', 'previous'}
 PATH = re.compile(r'mods/herdr-inbox(-[a-z0-9]+)*/.+')
 SHA256 = re.compile(r'[a-f0-9]{64}')
 
@@ -33,7 +33,7 @@ def digests(value):
 def validate(value):
     if not isinstance(value, dict) or set(value) != FIELDS or value['v'] != 1:
         raise ValueError('Invalid install record')
-    if (not absolute(value['plugin_root']) or type(value['plugin_copy']) is not bool
+    if (not absolute(value['plugin_root']) or type(value['plugin_moves']) is not bool
             or not (value['claude_config'] is None or absolute(value['claude_config']))):
         raise ValueError('Invalid plugin location in the install record')
     dirs, files, previous = value['dirs'], value['files'], value['previous']
