@@ -65,10 +65,11 @@ struct Hc1 {
 
 impl Hc for Hc1 {
     fn get(&self, address: &str) -> Result<Value, &'static str> {
-        if address == "t4" {
+        let elsewhere = [("t4", 24), ("t5", 25), ("t6", 26)];
+        if let Some((_, pid)) = elsewhere.iter().find(|(t, _)| *t == address) {
             return Ok(json!({
-                "address": "t4", "state": "live", "status": "idle",
-                "foreground": {"pid": 24, "name": "claude", "argv": ["claude"], "cwd": "/r"},
+                "address": address, "state": "live", "status": "idle",
+                "foreground": {"pid": pid, "name": "claude", "argv": ["claude"], "cwd": "/r"},
             }));
         }
         assert_eq!(address, "t3");
@@ -109,8 +110,12 @@ impl Hc for Hc1 {
     }
 
     fn list(&self) -> Vec<String> {
-        let elsewhere = self.world["elsewhere"].as_str().map(str::to_owned);
-        std::iter::once("t3".to_owned()).chain(elsewhere).collect()
+        let elsewhere = self.world["elsewhere"].as_str().unwrap_or_default();
+        let others = elsewhere.split(',').filter(|t| !t.is_empty());
+        std::iter::once("t3")
+            .chain(others)
+            .map(str::to_owned)
+            .collect()
     }
 
     fn send(&self, address: &str, text: &str, _: &str) -> Sent {
@@ -149,14 +154,18 @@ impl Machine for Machine1 {
         t.insert(22, 20, "claude", "s22", &["claude", "-p"]);
         t.insert(23, 1, "claude", "s23", &["claude"]);
         t.insert(24, 1, "claude", "s24", &["claude"]);
+        t.insert(25, 1, "claude", "s25", &["claude"]);
+        t.insert(26, 1, "claude", "s26", &["claude"]);
         t
     }
     fn parent(&self) -> Pid {
         1
     }
     fn recorded_session(&self, pid: Pid, _: &str) -> Record {
-        if pid == 24 {
-            return Record::Names(ASKER.into());
+        match pid {
+            24 | 25 => return Record::Names(ASKER.into()),
+            26 => return Record::Names(OTHER.into()),
+            _ => {}
         }
         let mut looks = self.looks.lock().unwrap();
         *looks += 1;

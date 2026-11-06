@@ -1306,6 +1306,68 @@
     "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
     "attempts": 0
    }
+  },
+  {
+   "name": "moved-to-two-terminals",
+   "about": "Two terminals run its conversation: nothing says which, so the row stays.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t4,t5",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "another-terminal-another-conversation",
+   "about": "Another terminal runs something else: the row does not go there.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t6",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
   }
  ],
  "python": [

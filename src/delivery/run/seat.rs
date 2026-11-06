@@ -242,3 +242,6 @@ fn remember(ctx: &Ctx<'_>, seated: &Seated) -> rusqlite::Result<()> {
 fn same(a: &Seated, b: &Seated) -> bool {
     (a.pid, &a.start, &a.agent.session) == (b.pid, &b.start, &b.agent.session)
 }
+
+#[cfg(test)]
+mod tests;
