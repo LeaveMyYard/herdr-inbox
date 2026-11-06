@@ -13,7 +13,6 @@
 //! 2026-11-05; docs/DESIGN.md, "Rust port decisions"): spawn `<exe> verify
 //! <job>` here.
 
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -31,8 +30,7 @@ use crate::surface::Surface;
 use crate::surface::live::Live;
 use crate::tui::send::handoff::Handoff;
 use crate::worker::process::ensure_worker_in;
-use crate::worker::spawn::{reap_later, spawn_detached};
-use crate::worker::spawn_env;
+use crate::worker::spawn::start_sender;
 
 /// The live hand-off.
 pub struct LiveHandoff {
@@ -46,17 +44,6 @@ pub struct LiveHandoff {
     pub exe: Option<PathBuf>,
     /// The plugin's environment, which says where a worker's lock and database are.
     pub env: PluginEnv,
-}
-
-/// The detached sender's arguments (Python `spawn_delivery`'s
-/// `deliver <ids> [--force]`).
-pub fn deliver_args(qids: &[i64], force: bool) -> Vec<OsString> {
-    let mut args: Vec<OsString> = vec!["deliver".into()];
-    args.extend(qids.iter().map(|q| OsString::from(q.to_string())));
-    if force {
-        args.push("--force".into());
-    }
-    args
 }
 
 impl LiveHandoff {
@@ -111,31 +98,11 @@ impl Handoff for LiveHandoff {
     }
 
     fn spawn_delivery(&self, qids: &[i64], force: bool) {
-        let log = self.state_dir.join("worker.log");
-        let started = self.exe.as_ref().map_or_else(
-            || Err(std::io::Error::other("this binary's path is unknown")),
-            |exe| {
-                let stderr = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&log)
-                    .ok();
-                let env = spawn_env(std::env::vars_os(), "".as_ref());
-                spawn_detached(
-                    exe.as_os_str(),
-                    &deliver_args(qids, force),
-                    None,
-                    &env,
-                    stderr,
-                )
-            },
-        );
-        match started {
-            Ok(child) => reap_later(child),
-            // recorded, not yet claimed: the worker `ensure` started retries them
-            Err(err) => super::log(&format!(
+        // recorded, not yet claimed: the worker `ensure` started retries them
+        if let Err(err) = start_sender(self.exe.as_deref(), &self.state_dir, qids, force) {
+            super::log(&format!(
                 "could not start the delivery; the worker will retry: {err}"
-            )),
+            ));
         }
     }
 }

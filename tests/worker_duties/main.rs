@@ -10,6 +10,8 @@ mod blocked;
 mod claims;
 #[path = "../store/common.rs"]
 mod common;
+#[path = "../support/exe.rs"]
+mod exe;
 mod failed;
 mod fake;
 mod gone;

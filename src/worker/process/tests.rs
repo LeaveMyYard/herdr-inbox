@@ -2,7 +2,6 @@
 //! stand-in executable (a script this test writes) as `<exe> worker`.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};
 
 use super::*;
@@ -86,15 +85,13 @@ fn ensure_starts_exe_worker_for_the_server_it_names() {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("started");
     let exe = dir.path().join("stand-in");
-    fs::write(
+    crate::test_exe::install(
         &exe,
         format!(
             "#!/bin/sh\necho \"$* $HERDR_SOCKET_PATH\" >> '{}'\n",
             out.display()
         ),
-    )
-    .unwrap();
-    fs::set_permissions(&exe, fs::Permissions::from_mode(0o755)).unwrap();
+    );
     let v = vars(dir.path(), &[]);
     let e = worker_env(
         &plugin_env(&v),

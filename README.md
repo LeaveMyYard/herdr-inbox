@@ -333,7 +333,8 @@ The inbox never types into that pane.
 A SessionStart hook teaches every Claude Code session to use them, so no `CLAUDE.md` edit is
 needed. Outside herdr the hooks stay silent and `ask_operator` tells the agent to ask in chat.
 
-From a shell (from a checkout, as `uv run inbox ...`):
+From a shell (from a checkout, as `sh scripts/launch cli ...`, which runs the Rust binary where
+it has the command and Python otherwise, or `uv run inbox ...`, which is always Python):
 
 ```sh
 inbox list [--all]

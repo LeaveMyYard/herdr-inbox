@@ -51,13 +51,13 @@ fn run_spec(r: &Root, spec: &Value) -> std::process::Output {
 
 #[test]
 fn only_the_watchers_wake_code_becomes_claude_codes_exit_2() {
-    for code in [0, 1, 2, 3, 4] {
+    for code in [0, 1, 2, 3, 4, 127] {
         let r = Root::new();
         stand_in(
             &r.data_bin().join("herdr-inbox-1.0.0"),
             "bin",
             "1.0.0",
-            1,
+            2,
             code,
         );
         for (event, spec) in specs() {
@@ -79,7 +79,7 @@ fn every_hook_reaches_the_binary_with_its_own_event() {
         &r.data_bin().join("herdr-inbox-1.0.0"),
         "bin",
         "1.0.0",
-        1,
+        2,
         0,
     );
     let mut seen: Vec<(String, String)> = specs()
@@ -96,4 +96,39 @@ fn every_hook_reaches_the_binary_with_its_own_event() {
     ]
     .map(|(e, o)| (e.to_owned(), o.to_owned()));
     assert_eq!(seen, want);
+}
+
+fn json_of(rel: &str) -> Value {
+    serde_json::from_str(&std::fs::read_to_string(repo().join(rel)).unwrap()).unwrap()
+}
+
+#[test]
+fn the_plugin_config_points_at_the_launcher() {
+    // Python test_hook::test_plugin_hook_and_mcp_config_point_at_the_cli
+    let hooks = json_of("hooks/hooks.json");
+    let launcher_args = |event: &str| {
+        let args = hooks["hooks"][event][0]["hooks"][0]["args"]
+            .as_array()
+            .unwrap();
+        args[args.len() - 2..].to_vec()
+    };
+    let launch = "${CLAUDE_PLUGIN_ROOT}/scripts/launch";
+    assert_eq!(launcher_args("SessionStart"), [launch, "session-start"]);
+    assert_eq!(launcher_args("SubagentStart"), [launch, "subagent-start"]);
+    let server = &json_of(".claude-plugin/plugin.json")["mcpServers"]["herdr-inbox"];
+    assert_eq!(server["command"], "sh");
+    assert_eq!(server["args"], serde_json::json!([launch, "mcp"]));
+    assert!(repo().join("skills/operator-questions/SKILL.md").exists());
+}
+
+#[test]
+fn session_start_fires_for_every_source_a_session_starts_from() {
+    // Python test_review_fixes::test_matcher_includes_fork, the matcher half
+    let hooks = json_of("hooks/hooks.json");
+    let matcher = hooks["hooks"]["SessionStart"][0]["matcher"]
+        .as_str()
+        .unwrap();
+    let mut sources: Vec<&str> = matcher.split('|').collect();
+    sources.sort_unstable();
+    assert_eq!(sources, ["clear", "compact", "fork", "resume", "startup"]);
 }

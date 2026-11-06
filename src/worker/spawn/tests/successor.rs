@@ -226,3 +226,19 @@ fn a_marker_falls_back_to_the_listed_installs_python_worker() {
     spawn_newer(&f.env(), None);
     assert_eq!(f.calls().len(), 2, "no root: nothing started");
 }
+
+#[test]
+fn a_root_rolled_back_to_python_gets_its_python_worker_with_the_binary_still_there() {
+    let f = Fakes::new();
+    f.logger("uv");
+    let root = f.root("r2");
+    f.rust(&root, "target/release/herdr-inbox");
+    std::fs::write(root.join(ENGINE_FILE), "python\n").unwrap();
+    assert!(start_successor(&f.env(), Some(&root)));
+    assert!(wait_for(|| !f.calls().is_empty()));
+    assert_eq!(
+        f.calls(),
+        [uv_line(&root)],
+        "never the rolled-back root's binary"
+    );
+}

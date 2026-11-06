@@ -71,6 +71,7 @@ pub fn python_root(dir: &Path, name: &str, version: &str, revision: i64) -> Path
 /// `root/target/release/herdr-inbox`: this executable, which runs as a
 /// Rust worker on `worker`.
 pub fn with_rust_worker(root: &Path) {
+    fs::write(root.join("engine"), "rust\n").unwrap();
     let exe = std::env::current_exe().unwrap();
     let link = root.join("target/release/herdr-inbox");
     fs::create_dir_all(link.parent().unwrap()).unwrap();
@@ -80,6 +81,7 @@ pub fn with_rust_worker(root: &Path) {
 /// `root/bin/herdr-inbox`: a release binary from before P5, with no
 /// `worker` (prints its version and exits 0).
 pub fn with_hooks_only_binary(root: &Path) {
+    fs::write(root.join("engine"), "rust\n").unwrap();
     let bin = root.join("bin/herdr-inbox");
     fs::create_dir_all(bin.parent().unwrap()).unwrap();
     fs::write(&bin, "#!/bin/sh\necho 'herdr-inbox 0.10.6'\n").unwrap();

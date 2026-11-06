@@ -8,6 +8,7 @@
 mod binary;
 mod child;
 mod rate;
+mod sender;
 
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
@@ -15,14 +16,16 @@ use std::io::Write;
 use std::path::Path;
 
 pub use binary::{
-    PYTHON, PYTHON_WORKER, RUST_WORKER_BINARIES, python_worker_args, rust_worker_args,
-    rust_worker_binary, uv_worker_args,
+    ENGINE_FILE, PYTHON, PYTHON_WORKER, RUST_WORKER_BINARIES, python_worker_args, runs_rust,
+    rust_worker_args, rust_worker_binary, uv_worker_args,
 };
-pub use child::{POLL, reap_later, spawn_detached, watch};
+pub use child::{POLL, enter_own_session, reap_later, spawn_detached, spawn_for_session, watch};
 pub use rate::{ENSURE_EVERY, may_spawn, stamp_path};
+pub use sender::{deliver_args, start_sender};
 
 use super::WorkerEnv;
 use super::handover::{holder_revision, live_standby};
+use super::live::own_checkout;
 use super::lock::is_running;
 pub use crate::store::revision_wanted::unix_now;
 
@@ -105,8 +108,13 @@ pub fn spawn_newer(env: &WorkerEnv, root: Option<&Path>) {
 /// `worker.log`) unless one runs, at most once per [`ENSURE_EVERY`]. A
 /// worker of an older revision holding the lock, with no standby yet, gets
 /// this revision's as a standby. True if one was started.
+///
+/// Not when `exe`'s own install went back to Python: a Rust MCP server that
+/// outlived a rollback must not start a Rust worker against the `engine` file
+/// ([`runs_rust`]). A binary outside any install (a recorded copy) has no
+/// file to ask, and starts as before.
 pub fn ensure(env: &WorkerEnv, exe: &Path) -> bool {
-    if env.no_worker {
+    if env.no_worker || own_checkout(exe).is_some_and(|root| !runs_rust(&root)) {
         return false;
     }
     let lock = env.lock_path();
@@ -122,13 +130,7 @@ pub fn ensure(env: &WorkerEnv, exe: &Path) -> bool {
     let log = env.state_dir().join("worker.log");
     let open_log = || OpenOptions::new().create(true).append(true).open(&log);
     let args = rust_worker_args();
-    match spawn_detached(
-        exe.as_os_str(),
-        &args,
-        None,
-        &env.spawn_env,
-        open_log().ok(),
-    ) {
+    match spawn_for_session(exe.as_os_str(), &args, &env.spawn_env, open_log().ok()) {
         Ok(child) => {
             reap_later(child);
             true

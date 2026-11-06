@@ -31,7 +31,7 @@ fn sha256(path: &Path) -> String {
 /// Publishes v<version> (a stand-in binary named "fetched") and returns its tarball's sha256.
 pub fn publish(r: &Root, version: &str) -> String {
     let stage = r.dir.path().join("stage");
-    stand_in(&stage.join("herdr-inbox"), "fetched", version, 1, 0);
+    stand_in(&stage.join("herdr-inbox"), "fetched", version, 2, 0);
     let rel = r.releases().join(format!("v{version}"));
     fs::create_dir_all(&rel).unwrap();
     let tarball = rel.join(format!("herdr-inbox-v{version}-{}.tar.gz", target()));

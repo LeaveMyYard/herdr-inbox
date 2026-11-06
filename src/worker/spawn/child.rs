@@ -2,6 +2,12 @@
 //! process started. The only process ever signalled is such a successor:
 //! still held here as an unreaped [`Child`], spawned in a process group of
 //! its own, so neither its pid nor its group id can name anyone else's.
+//!
+//! Two ways to detach. A process in a terminal (the CLI, an MCP server in a
+//! pane) starts this binary with [`spawn_for_session`], and the child leaves
+//! the terminal's session itself: closing the pane must not end it. A worker
+//! starts its successors with [`spawn_detached`]: it has no terminal to leave,
+//! and [`watch`] needs them in a group of their own.
 
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -19,9 +25,9 @@ pub const POLL: Duration = Duration::from_millis(50);
 /// `program args…` in `cwd`, detached in a process group of its own, with
 /// exactly `env` as its environment, stdin and stdout on `/dev/null`, stderr
 /// to `stderr` (else `/dev/null`). Python's `Popen(close_fds=True)`: Rust
-/// closes every other descriptor on exec already. Python's
-/// `start_new_session=True` is only approached: this is a new process group,
-/// not a new session, so the caller's controlling terminal stays.
+/// closes every other descriptor on exec already. This is a new process
+/// group, not a new session, so a caller's controlling terminal stays: only
+/// for a caller with none, which is a worker ([`enter_own_session`]).
 pub fn spawn_detached(
     program: &OsStr,
     args: &[OsString],
@@ -29,6 +35,39 @@ pub fn spawn_detached(
     env: &[(OsString, OsString)],
     stderr: Option<File>,
 ) -> io::Result<Child> {
+    command(program, args, cwd, env, stderr)
+        .process_group(0)
+        .spawn()
+}
+
+/// [`spawn_detached`] for this binary's `worker` and `deliver`, which call
+/// [`enter_own_session`] first (Python's `start_new_session=True`). The child
+/// stays out of a group of its own: a group leader cannot start a session,
+/// and std can only make one with `unsafe`, which this crate forbids.
+pub fn spawn_for_session(
+    program: &OsStr,
+    args: &[OsString],
+    env: &[(OsString, OsString)],
+    stderr: Option<File>,
+) -> io::Result<Child> {
+    command(program, args, None, env, stderr).spawn()
+}
+
+/// Leaves the session and the controlling terminal this process was started
+/// in, so that closing them does not end it. It fails, harmlessly, for a
+/// process that leads a group already: one Python started in a session of its
+/// own, a worker's successor, or a command a shell runs as a job.
+pub fn enter_own_session() {
+    let _ = rustix::process::setsid();
+}
+
+fn command(
+    program: &OsStr,
+    args: &[OsString],
+    cwd: Option<&Path>,
+    env: &[(OsString, OsString)],
+    stderr: Option<File>,
+) -> Command {
     let mut cmd = Command::new(program);
     cmd.args(args)
         .env_clear()
@@ -38,7 +77,7 @@ pub fn spawn_detached(
     }
     cmd.stdin(Stdio::null()).stdout(Stdio::null());
     cmd.stderr(stderr.map_or_else(Stdio::null, Stdio::from));
-    cmd.process_group(0).spawn()
+    cmd
 }
 
 /// Lets `child` run on: a thread reaps it when it exits, so a long-lived

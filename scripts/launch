@@ -2,24 +2,35 @@
 #
 #   sh scripts/launch hook <event>    every hook in hooks/hooks.json
 #   sh scripts/launch mcp             the MCP server in .claude-plugin/plugin.json
+#   sh scripts/launch cli <args...>   the inbox CLI and worker in herdr-plugin.toml
+#   sh scripts/launch which           prints the binary it would run, or nothing
+#
+# The file `engine` at the plugin root is the switch, one word: `rust` runs the binary as below;
+# anything else, or no file, runs Python for all of it, and nothing here looks for a binary. So
+# going back to Python is one line (docs/DESIGN.md, "The switch to Rust: P5-I as built").
 #
 # Claude Code and herdr update the plugin independently, so the binary next to the Claude
 # plugin is often another version. The launcher matches on a CONTRACT number instead of the
 # version: `herdr-inbox contract` prints the number of the hook payload handling, hook output,
 # exit codes and MCP tool schemas it implements, and this script carries the number it needs.
 # It runs the newest binary whose contract matches, looking in
-#   1. <plugin root>/target/release, only in a git checkout (a linked development checkout; a
-#      local-folder marketplace's cache copy of a clone holds no .git, but may hold target/,
-#      #74; a worktree's .git file, were it copied, still leaves the contract check),
-#   2. ${CLAUDE_PLUGIN_DATA}/bin (fetched by the MCP launch, below),
-#   3. ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin (recorded by herdr's build step).
+#   1. <plugin root>/target/release, only in a git checkout (a linked development checkout, or the
+#      folder a directory marketplace reads from; a plugin cache copy holds no .git, but may hold
+#      target/, #74; a worktree's .git file, were it copied, still leaves the contract check),
+#   2. <plugin root>/bin (herdr's build step put this install's binary there; the popup's root
+#      and the worker's install come from where the binary sits, so it goes first),
+#   3. ${CLAUDE_PLUGIN_DATA}/bin (fetched by the MCP launch, below),
+#   4. ${XDG_STATE_HOME:-~/.local/state}/herdr-inbox/bin (recorded by herdr's build step).
 #
 # Hooks never download. With no matching binary a hook runs the Python hooks (hooks/run.py,
 # until the cutover), and without those the SessionStart/SubagentStart rules from
 # hooks/fallback/ (so the agent still knows the inbox); every other hook then does nothing.
 # The MCP launch fetches the release named in this plugin's release.toml into
 # ${CLAUDE_PLUGIN_DATA}/bin when nothing matches (in the background, checksum checked), so the
-# hooks find it from then on, and starts the MCP server (Python until P5).
+# hooks find it from then on, and starts the MCP server: the binary when one matches, else
+# Python. The CLI runs the binary for the commands in RUST_CLI below and Python for everything
+# else, so a command the binary does not have yet keeps working, and with no binary all of them
+# do: a missing binary costs speed, never the inbox.
 #
 # Prints nothing of its own and reads no stdin: the hook payload goes to the hook. The exit
 # codes stay the hooks.json wrapper's job (`2>/dev/null; exit 0`, and for the rewake watcher
@@ -29,7 +40,7 @@
 # install's own build of its commit), or a git checkout's own build; a candidate that hangs on
 # `contract` would hold the hook until Claude Code's timeout. None of these does: `contract`
 # prints its number before any I/O (src/main.rs), so the probe stays unbounded (#73).
-CONTRACT=1
+CONTRACT=2
 
 root=$(cd "$(dirname "$0")/.." && pwd) || exit 0
 state=
@@ -42,15 +53,33 @@ fi
 # shellcheck source=scripts/release-lib.sh
 [ -r "$root/scripts/release-lib.sh" ] && . "$root/scripts/release-lib.sh"
 
-# The binary to run: the first candidate whose contract matches, or nothing.
+# Exactly `rust` as the first line, by bytes, as Rust's and Python's `runs_rust` read it
+# (tests/launch/engine.rs). The first five bytes as hex, so that no NUL reaches a text tool or the
+# shell: sed, read and $(...) each drop or stop at one, and differ between BSD and GNU. A file that
+# cannot be read gives nothing.
+engine=python
+case $(od -An -tx1 -N5 "$root/engine" 2>/dev/null | tr -d ' \t\n') in
+727573740a | 72757374) engine=rust ;;
+esac
+
+# Whether binary $1 can be run: it runs, and its contract is this launcher's.
+fits() {
+	[ -x "$1" ] && [ "$("$1" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]
+}
+
+# The binary to run: the first candidate that fits, or nothing. Nothing unless `engine` says rust.
 pick() {
-	dev="$root/target/release/herdr-inbox"
-	if [ -e "$root/.git" ] && [ -x "$dev" ] && [ "$("$dev" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
-		printf '%s\n' "$dev"
+	[ "$engine" = rust ] || return 0
+	if [ -e "$root/.git" ] && fits "$root/target/release/herdr-inbox"; then
+		printf '%s\n' "$root/target/release/herdr-inbox"
+		return
+	fi
+	if fits "$root/bin/herdr-inbox"; then
+		printf '%s\n' "$root/bin/herdr-inbox"
 		return
 	fi
 	inbox_versions ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/bin"} ${state:+"$state"} | cut -f 4- | while IFS= read -r c; do
-		if [ -x "$c" ] && [ "$("$c" contract 2>/dev/null </dev/null)" = "$CONTRACT" ]; then
+		if fits "$c"; then
 			printf '%s\n' "$c"
 			break
 		fi
@@ -77,7 +106,8 @@ hook)
 	exit 0
 	;;
 mcp)
-	if [ -n "${CLAUDE_PLUGIN_DATA:-}" ] && [ -z "$(pick)" ]; then
+	bin=$(pick)
+	if [ "$engine" = rust ] && [ -n "${CLAUDE_PLUGIN_DATA:-}" ] && [ -z "$bin" ]; then
 		tag=$(inbox_release_value "$root/release.toml" tag)
 		if [ -n "$tag" ]; then
 			# in the background, detached (double fork: init reaps it, not the MCP server), one
@@ -94,7 +124,27 @@ mcp)
 			) </dev/null >/dev/null 2>&1 &)
 		fi
 	fi
+	if [ -n "$bin" ]; then
+		exec "$bin" mcp
+	fi
 	exec uv run --quiet --frozen --no-dev --project "$root" inbox mcp
+	;;
+cli)
+	shift
+	# RUST_CLI: what the binary runs. Not here, so Python's until ported: redeliver, clean-venvs,
+	# remote, verify (and tui, the popup, until P6-E). tests/launch/cli.rs holds this to the binary.
+	case ${1:-} in
+	list | answer | dismiss | deliver | open | sync-tokens | radar-sidebar | export | apply | worker)
+		bin=$(pick)
+		if [ -n "$bin" ]; then
+			exec "$bin" "$@"
+		fi
+		;;
+	esac
+	exec uv run --quiet --frozen --no-dev --project "$root" inbox "$@"
+	;;
+which)
+	pick
 	;;
 esac
 exit 0

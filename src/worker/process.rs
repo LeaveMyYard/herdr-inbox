@@ -17,7 +17,7 @@ use super::live::{Install, Live, own_checkout, running_version};
 use super::remote::RemoteEnv;
 use super::remote::ssh::SshEnv;
 use super::run::run;
-use super::spawn::ensure;
+use super::spawn::{ensure, enter_own_session};
 use super::{Waits, WorkerEnv, spawn_env};
 use crate::claude::Transcripts;
 use crate::store::revision::MIGRATION_REVISION;
@@ -91,6 +91,7 @@ pub fn main(args: &[String]) -> i32 {
 }
 
 fn serve() -> i32 {
+    enter_own_session();
     let env = PluginEnv::from_env();
     let exe = own_exe();
     let wenv = worker_env(&env, std::env::vars_os(), None, &exe);

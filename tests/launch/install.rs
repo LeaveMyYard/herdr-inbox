@@ -116,7 +116,7 @@ fn before_the_first_release_nothing_is_built_or_installed() {
         ],
     );
     assert_eq!(code, Some(0));
-    assert!(err.contains("Python hooks"), "{err}");
+    assert!(err.contains("Python stays in use"), "{err}");
     assert_eq!(r.tool_log(), "", "no download, no build");
     assert!(!r.root().join("bin").exists());
 }
@@ -216,4 +216,44 @@ fn no_home_and_no_state_dir_still_exits_0() {
     );
     assert!(r.root().join("bin/herdr-inbox").is_file());
     assert!(String::from_utf8_lossy(&out.stderr).contains("not recorded"));
+}
+
+#[test]
+fn build_mode_builds_this_commit_and_records_it_with_no_release_out() {
+    let r = Root::new();
+    let target = r.dir.path().join("built");
+    let extra: [(&str, &Path); 2] = [
+        ("FAKE_CARGO_OK", Path::new("1")),
+        ("FAKE_TARGET_DIR", &target),
+    ];
+    let out = r.sh("install-bin.sh", &["--build"], "", &extra);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(r.root().join("bin/herdr-inbox").is_file());
+    assert!(r.state_bin().join("herdr-inbox-0.0.7").is_file());
+    assert!(r.tool_log().contains("cargo build --release --locked"));
+    // what the build recorded is what the launcher runs, from the Claude side too
+    let launch = r.sh("launch", &["which"], "", &[]);
+    assert_eq!(
+        stdout(&launch).trim(),
+        r.root().join("bin/herdr-inbox").display().to_string()
+    );
+}
+
+#[test]
+fn build_mode_says_so_when_it_cannot_build_and_leaves_python_in_use() {
+    let r = Root::new();
+    let out = r.sh("install-bin.sh", &["--build"], "", &[]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "the operator asked for a binary"
+    );
+    assert!(String::from_utf8_lossy(&out.stderr).contains("Python stays in use"));
+    assert!(!r.root().join("bin/herdr-inbox").exists());
+    assert_eq!(stdout(&r.sh("launch", &["which"], "", &[])), "");
 }

@@ -1,11 +1,10 @@
 //! A scratch plugin root with the real scripts, and stand-in binaries.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use crate::herdr_cli::CliStub;
+use crate::herdr_cli::{CliStub, exe};
 
 /// The repository (the scripts under test).
 pub fn repo() -> PathBuf {
@@ -35,7 +34,14 @@ impl Root {
         fs::create_dir_all(dir.path().join("data/bin")).unwrap();
         fs::create_dir_all(dir.path().join("state/herdr-inbox/bin")).unwrap();
         fake_tools(&dir.path().join("tools"));
-        Root { dir }
+        let r = Root { dir };
+        r.engine("rust\n");
+        r
+    }
+
+    /// The `engine` file says `text`.
+    pub fn engine(&self, text: &str) {
+        fs::write(self.root().join("engine"), text).unwrap();
     }
 
     /// Where the stand-in curl serves releases from: `<releases>/<tag>/<asset>`.
@@ -109,22 +115,22 @@ impl Root {
 }
 
 /// A stand-in binary at `path`: `contract` prints `contract`; no arguments print its
-/// version line; `hook <event>` prints "<name> <event>", then its stdin, and exits `code`.
+/// version line; `hook <event>` prints "<name> <event>", then its stdin, and exits `code`;
+/// anything else prints "<name> <args>" and exits `code`.
 pub fn stand_in(path: &Path, name: &str, version: &str, contract: u32, code: i32) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     // `contract` reads its stdin: a probe that let it would eat the hook's payload
     let script = format!(
-        "#!/bin/sh\ncase \"$1\" in\ncontract) cat >/dev/null; echo {contract} ;;\nhook) echo \"{name} $2\"; cat; exit {code} ;;\n'') echo 'herdr-inbox {version}' ;;\nesac\n"
+        "#!/bin/sh\ncase \"$1\" in\ncontract) cat >/dev/null; echo {contract} ;;\nhook) echo \"{name} $2\"; cat; exit {code} ;;\n'') echo 'herdr-inbox {version}' ;;\n*) echo \"{name} $*\"; exit {code} ;;\nesac\n"
     );
-    fs::write(path, script).unwrap();
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    exe::install(path, script);
 }
 
 pub fn stdout(o: &Output) -> String {
     String::from_utf8(o.stdout.clone()).unwrap()
 }
 
-/// Stand-ins first on PATH for every script run: `curl` serves only the fixed HTTPS release URL
+/// Stand-ins first on PATH for every script run: `uv` says what it was asked to run; `curl` serves only the fixed HTTPS release URL
 /// from $FAKE_RELEASES (after $FAKE_CURL_SLEEP seconds, if set) and logs its arguments; `cargo`
 /// logs and fails unless $FAKE_CARGO_OK (then `metadata` names $FAKE_TARGET_DIR and `build`
 /// puts a stand-in binary there).
@@ -156,13 +162,13 @@ case $1 in
 metadata) printf '{"target_directory":"%s"}\n' "$FAKE_TARGET_DIR" ;;
 build)
 	mkdir -p "$FAKE_TARGET_DIR/release"
-	printf '#!/bin/sh\n[ "$1" = contract ] && echo 1 && exit 0\necho "herdr-inbox 0.0.7"\n' > "$FAKE_TARGET_DIR/release/herdr-inbox"
+	printf '#!/bin/sh\n[ "$1" = contract ] && echo 2 && exit 0\necho "herdr-inbox 0.0.7"\n' > "$FAKE_TARGET_DIR/release/herdr-inbox"
 	chmod +x "$FAKE_TARGET_DIR/release/herdr-inbox"
 	;;
 esac
 "#;
-    for (name, body) in [("curl", curl), ("cargo", cargo)] {
-        fs::write(dir.join(name), body).unwrap();
-        fs::set_permissions(dir.join(name), fs::Permissions::from_mode(0o755)).unwrap();
+    let uv = "#!/bin/sh\necho \"uv $*\"\n";
+    for (name, body) in [("curl", curl), ("cargo", cargo), ("uv", uv)] {
+        exe::install(&dir.join(name), body);
     }
 }

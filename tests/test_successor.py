@@ -44,6 +44,7 @@ def checkout(tmp_path, fake_herdr, monkeypatch):
     fake Rust worker's log/lock wired up. Kills any fake still running afterwards."""
     root = tmp_path / "checkout"
     root.mkdir()
+    (root / "engine").write_text("rust\n")
     monkeypatch.setattr(herdr, "current_plugin_root", lambda: str(root))
     log = tmp_path / "rust.log"
     monkeypatch.setenv("FAKE_RUST_LOG", str(log))
@@ -131,6 +132,21 @@ def test_an_installed_rust_worker_takes_over_the_lock_and_no_python_starts(check
     assert call["argv"] == ["worker"] and call["cwd"] == str(checkout["root"]) and call["uv"] == []
     assert worker.hold_lock() is None  # the Rust worker holds it: a Python worker cannot start
     assert worker.run() == 0  # ...and one that tries exits at once
+
+
+@pytest.mark.parametrize("off", ["python\n", "", "rust \n", "Rust\n", None])
+def test_a_root_that_runs_python_starts_python_whatever_is_on_disk(checkout, off):
+    """The rollback: `engine` reverted, the binary still in target/ and bin/. Nothing may follow
+    it back into Rust (the worker, after an update or a hand over, reads the root's own file)."""
+    install(checkout["root"])
+    install(checkout["root"], "bin/herdr-inbox")
+    engine = checkout["root"] / "engine"
+    engine.unlink()
+    if off is not None:
+        engine.write_text(off)
+    assert worker.rust_worker_binary(str(checkout["root"])) is None
+    assert worker.start_successor() is True
+    assert [argv[0] for argv, _ in checkout["uv"]] == ["uv"] and calls(checkout["log"]) == []
 
 
 def test_target_release_is_preferred_over_bin(checkout):
@@ -327,6 +343,7 @@ def test_the_worker_hands_over_to_the_new_install_directory(tmp_path, herdr_cli,
     directory's binary, from that directory."""
     herdr_cli["root_file"].write_text(herdr._own_checkout())
     new = listed_install(tmp_path, "0.11.0", "0.11.0")
+    (new / "engine").write_text("rust\n")
     install(new, "bin/herdr-inbox")
 
     def update(n):

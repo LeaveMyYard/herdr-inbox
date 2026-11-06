@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::*;
+use crate::worker::spawn::deliver_args;
 
 #[test]
 fn the_detached_sender_runs_deliver_with_the_ids_and_force() {
@@ -8,16 +9,13 @@ fn the_detached_sender_runs_deliver_with_the_ids_and_force() {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("args");
     let exe = dir.path().join("stand-in");
-    std::fs::write(
+    crate::test_exe::install(
         &exe,
         format!(
             "#!/bin/sh\necho \"$@\" > {}.tmp && mv {0}.tmp {0}\n",
             out.display()
         ),
-    )
-    .unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
     let h = LiveHandoff {
         herdr: Herdr::new(herdr_agent_kit::herdr_api::ServerId::new(
             dir.path().join("no-herdr.sock"),
@@ -58,17 +56,14 @@ fn a_sender_that_cannot_start_is_only_logged() {
 
 /// A hand-off whose binary is a stand-in that writes its args and server to `out`.
 fn recording(dir: &std::path::Path, out: &std::path::Path, extra: &[(&str, &str)]) -> LiveHandoff {
-    use std::os::unix::fs::PermissionsExt;
     let exe = dir.join("stand-in");
-    std::fs::write(
+    crate::test_exe::install(
         &exe,
         format!(
             "#!/bin/sh\necho \"$@ $HERDR_SOCKET_PATH\" >> {}\n",
             out.display()
         ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
     let mut vars: Vec<(String, String)> = vec![
         (
             "HERDR_INBOX_DB".into(),

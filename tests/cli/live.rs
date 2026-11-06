@@ -104,9 +104,17 @@ impl Rig {
 
     /// [`Rig::run`] with `extra` variables too.
     fn run_with(&self, args: &[&str], extra: &[(&str, &str)]) -> Output {
+        let out = self.binary(args, extra).output().unwrap();
+        // herdr is the socket stub; its CLI is never needed here
+        self.cli.assert_only(&[]);
+        out
+    }
+
+    /// `herdr-inbox <args>`, ready to run, with only the test's own environment.
+    fn binary(&self, args: &[&str], extra: &[(&str, &str)]) -> Command {
         let d = self.dir.path();
-        let out = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
-            .args(args)
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
+        cmd.args(args)
             .env_clear()
             .envs(extra.iter().copied())
             .env("HOME", d)
@@ -118,12 +126,8 @@ impl Rig {
             .env("HERDR_INBOX_DB", &self.db)
             .env("HERDR_PLUGIN_CONFIG_DIR", d.join("cfg"))
             .env("CLAUDE_CONFIG_DIR", d.join("claude"))
-            .env("HERDR_INBOX_NO_WORKER", "1") // the CLI starts no real worker here
-            .output()
-            .unwrap();
-        // herdr is the socket stub; its CLI is never needed here
-        self.cli.assert_only(&[]);
-        out
+            .env("HERDR_INBOX_NO_WORKER", "1"); // the CLI starts no real worker here
+        cmd
     }
 
     fn status(&self, id: i64) -> String {
@@ -138,6 +142,9 @@ impl Rig {
 fn text(out: &[u8]) -> String {
     String::from_utf8(out.to_vec()).unwrap()
 }
+
+#[path = "live_sender.rs"]
+mod sender;
 
 #[test]
 fn answer_list_and_dismiss_through_the_binary() {

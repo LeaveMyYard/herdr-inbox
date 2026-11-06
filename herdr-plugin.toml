@@ -11,17 +11,18 @@ platforms = ["linux", "macos"]
 [[build]]
 command = ["uv", "sync", "--frozen", "--no-dev"]
 
-# The Rust binary (hooks and the rewake watcher): the release named in release.toml, checked
-# against its sha256, else built with cargo (scripts/install-bin.sh). It also records a copy
-# for the Claude Code side, whose hooks run it through scripts/launch (the Python hooks when
-# there is none).
+# The Rust binary: the release named in release.toml, checked against its sha256, else built
+# with cargo (scripts/install-bin.sh). It also records a copy for the Claude Code side. Every
+# command below runs it through scripts/launch when the `engine` file says rust, and Python when
+# that file says otherwise or there is no binary.
 [[build]]
 command = ["sh", "scripts/install-bin.sh"]
 
-# Runtime commands run with the plugin directory as cwd, so `--project .` is
-# this checkout. uv must be on PATH for the herdr server.
+# Runtime commands run with the plugin directory as cwd, so `--project .` and
+# scripts/launch are this checkout's. uv must be on PATH for the herdr server
+# (the popup, and Python whenever it is the one that runs).
 
-# The inbox itself. Bind a key to the `open` action below (prefix+i).
+# The inbox itself, Python until P6-E. Bind a key to the `open` action below (prefix+i).
 # A pane's cwd is not documented to be the plugin dir (herdr-radar passes
 # --cwd when opening its popup), so resolve the project from HERDR_PLUGIN_ROOT.
 [[panes]]
@@ -38,13 +39,13 @@ height = "80%"
 id = "open"
 title = "Inbox: open"
 description = "Open the question inbox popup."
-command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "open"]
+command = ["sh", "scripts/launch", "cli", "open"]
 
 [[actions]]
 id = "sync-tokens"
 title = "Inbox: resync sidebar counts"
 description = "Recompute the $inbox_q pane token from the open questions."
-command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "sync-tokens"]
+command = ["sh", "scripts/launch", "cli", "sync-tokens"]
 
 # herdr-radar replaces the agent rows and has no slot for $inbox_q (hhdebb/herdr-radar#57);
 # this adds it to radar's rows, on demand only.
@@ -52,13 +53,13 @@ command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "in
 id = "radar-sidebar"
 title = "Inbox: show ?N in herdr-radar's sidebar"
 description = "Add the open-question count ($inbox_q) to herdr-radar's sidebar rows in herdr's config.toml (run again after radar rewrites its block)."
-command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "radar-sidebar"]
+command = ["sh", "scripts/launch", "cli", "radar-sidebar"]
 
 # Pane tokens do not survive a herdr restart; put the counts back.
 [[startup]]
-command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "sync-tokens"]
+command = ["sh", "scripts/launch", "cli", "sync-tokens"]
 
 # The delivery worker retries every pending answer, whatever version the asking sessions
 # run (it also starts on demand from the popup, the CLI and MCP servers).
 [[startup]]
-command = ["uv", "run", "--quiet", "--frozen", "--no-dev", "--project", ".", "inbox", "worker", "--ensure"]
+command = ["sh", "scripts/launch", "cli", "worker", "--ensure"]

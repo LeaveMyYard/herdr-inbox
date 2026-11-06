@@ -198,11 +198,9 @@ fn a_json_payload_that_is_not_an_object_still_gets_the_rules() {
 /// A Claude Code process stand-in: a script named `claude` (its comm on Linux) that runs `next`.
 #[cfg(target_os = "linux")]
 fn claude_script(dir: &std::path::Path, next: &str) -> std::path::PathBuf {
-    use std::os::unix::fs::PermissionsExt;
     std::fs::create_dir_all(dir).unwrap();
     let path = dir.join("claude");
-    std::fs::write(&path, format!("#!/bin/sh\n{next}\n")).unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    crate::herdr_cli::exe::install(&path, format!("#!/bin/sh\n{next}\n"));
     path
 }
 
@@ -255,4 +253,24 @@ fn a_claude_nested_in_another_gets_nothing() {
         "one Claude above: its own hook"
     );
     assert_eq!(run(true), "", "a Claude inside a Claude: nothing");
+}
+
+#[test]
+fn hooks_are_silent_outside_herdr() {
+    // Python test_review_fixes::test_hooks_are_silent_outside_herdr
+    let w = World::new();
+    for event in ["session-start", "subagent-start"] {
+        let ran = w.hook_in(event, &w.payload(json!({"source": "startup"})), None);
+        assert_eq!((ran.code, ran.stdout.as_str()), (0, ""), "{event}");
+    }
+}
+
+#[test]
+fn a_fork_gets_the_rules() {
+    // Python test_review_fixes::test_matcher_includes_fork; the matcher half is tests/launch
+    let w = World::new();
+    let ctx = w
+        .hook("session-start", &w.payload(json!({"source": "fork"})))
+        .context("SessionStart");
+    assert_eq!(ctx.as_deref(), Some(SESSION_RULES));
 }

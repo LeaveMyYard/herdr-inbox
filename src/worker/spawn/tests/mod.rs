@@ -23,6 +23,21 @@ fn target_release_is_preferred_over_bin() {
 }
 
 #[test]
+fn a_root_that_runs_python_has_no_rust_worker_whatever_is_on_disk() {
+    let f = Fakes::new();
+    let root = f.root("checkout");
+    let bin = write_exe(&root.join("bin/herdr-inbox"), "#!/bin/sh\n");
+    for off in ["python\n", "", "rust \n", "Rust\n", " rust\n"] {
+        fs::write(root.join(ENGINE_FILE), off).unwrap();
+        assert_eq!(rust_worker_binary(&root), None, "{off:?}");
+    }
+    fs::remove_file(root.join(ENGINE_FILE)).unwrap();
+    assert_eq!(rust_worker_binary(&root), None, "no file");
+    fs::write(root.join(ENGINE_FILE), "rust").unwrap();
+    assert_eq!(rust_worker_binary(&root), Some(bin), "one word, no newline");
+}
+
+#[test]
 fn only_an_executable_file_counts_as_installed() {
     use std::os::unix::fs::PermissionsExt;
     let f = Fakes::new();

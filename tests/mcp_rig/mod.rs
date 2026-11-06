@@ -12,6 +12,9 @@ use std::time::Duration;
 
 use serde_json::Value;
 
+#[path = "../support/exe.rs"]
+mod exe;
+
 /// A recording under `tests/fixtures/mcp`.
 pub fn golden(name: &str) -> Vec<Value> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -67,8 +70,7 @@ pub fn session(
     // herdr's CLI is a stub that only logs (never the machine's own herdr, which `PATH`
     // could find): every CLI call the server makes lands in `herdr-cli.log`
     let stub = dir.join("herdr-cli");
-    std::fs::write(&stub, "#!/bin/sh\necho \"$@\" >> \"$0.log\"\nexit 1\n").unwrap();
-    std::fs::set_permissions(&stub, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    exe::install(&stub, "#!/bin/sh\necho \"$@\" >> \"$0.log\"\nexit 1\n");
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
     cmd.env_clear()
         .arg("mcp")
