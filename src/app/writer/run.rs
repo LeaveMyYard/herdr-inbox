@@ -12,7 +12,7 @@ use super::control;
 use super::ensure::READY;
 use super::files::Paths;
 use super::idle::{self, Idle};
-use super::record::{Record, sha256};
+use super::record::Record;
 use super::source::Source;
 use crate::worker::spawn::enter_own_session;
 
@@ -21,10 +21,11 @@ pub const POLL: Duration = Duration::from_millis(250);
 /// The writer publishes at least this often, so that `generated_at` moves.
 pub const PUBLISH_EVERY: Duration = Duration::from_secs(5);
 
-/// Runs a writer of `exe`, reading `db`, until something ends it. The exit code.
-pub fn serve(paths: &Paths, exe: &Path, db: &Path) -> i32 {
+/// Runs a writer of `exe`, whose hash `--ensure` gives as `hash`, reading `db`,
+/// until something ends it. The exit code.
+pub fn serve(paths: &Paths, exe: &Path, hash: &str, db: &Path) -> i32 {
     enter_own_session(); // it outlives a terminal that started it, as a worker does
-    match start(paths, exe) {
+    match start(paths, hash) {
         Ok(lock) => {
             run(paths, exe, db);
             drop(lock);
@@ -35,13 +36,12 @@ pub fn serve(paths: &Paths, exe: &Path, db: &Path) -> i32 {
 }
 
 /// Everything before the first read: the record, then the word to the parent.
-fn start(paths: &Paths, exe: &Path) -> Result<fs::File, String> {
+fn start(paths: &Paths, hash: &str) -> Result<fs::File, String> {
     paths.check_folder()?;
     control::enabled(paths)?;
     let lock = paths.lock_file("writer.lock").map_err(|e| e.to_string())?;
     lock.try_lock().map_err(|e| e.to_string())?;
-    let hash = sha256(exe).map_err(|e| e.to_string())?;
-    Record::write(paths, &hash).map_err(|e| e.to_string())?;
+    Record::write(paths, hash).map_err(|e| e.to_string())?;
     // a parent that stopped waiting has closed the pipe: no failure of the writer's
     let mut out = std::io::stdout();
     let _ = out.write_all(READY).and_then(|()| out.flush());

@@ -494,7 +494,8 @@ to come free. If it does not, it refuses and leaves everything else in place, wi
 `ensure.lock` throughout, so an `--ensure` that has read `disabled: false` finishes first or not at all, and
 `--ensure` refuses while `disabled`, so a late call cannot restart a writer behind an uninstall.
 
-**A changed binary.** `--ensure` hashes its own binary. A writer whose `writer.json` has another hash gets a
+**A changed binary.** `--ensure` hashes its own binary, before it takes `ensure.lock`, and hands the hash to the
+child, so that no hashing stands between a start and its `READY`. A writer whose `writer.json` has another hash gets a
 `stop.request`; `--ensure` waits at most 2 s for the lock, removes the request and starts its own. A writer
 also exits by itself when its executable file changes on disk, checked at each publish, and the mod's next
 `--ensure` replaces it. The token list above keeps actions working in between.
