@@ -10,15 +10,19 @@ use herdr_inbox::worker::spawn::runs_rust;
 
 use crate::world::{Root, repo, stand_in, stdout};
 
-const SHAPES: [(&[u8], bool); 16] = [
+const SHAPES: [(&[u8], bool); 20] = [
     (b"rust\n", true),
     (b"rust", true),
     (b"rust\nand a second line\n", true),
     (b"rust\n\xff\xfe\n", true),
+    (b"rust\n\0", true),
     (b"rust\r\n", false),
     (b"rust\r", false),
     (b"ru\0st\n", false),
     (b"rust\0\n", false),
+    (b"rust\0", false),
+    (b"\0rust\n", false),
+    (b"rus", false),
     (b"python\n", false),
     (b"\n", false),
     (b"", false),
