@@ -512,8 +512,9 @@ either command can be run again. With no record, a folder holding only these pat
 
 An uninstall asks `herdr-app status` what the window shows. It refuses when the shown layout names a mod, when
 that layout's file can't be read, and when the answer is anything but exit 0 with a layout or exit 2 for no
-window. With no window, or no `herdr-app`, nothing is showing the mods, so it goes ahead and names any layout
-that still uses them. A mod open in a tab or as an overlay can't be seen this way: the window reports it
+window. It asks `--checker` or the `herdr-app` on `PATH`. With neither, it tries to connect to
+`<appHome>/herdr-app.sock`: an absent or refused socket means no window, and anything else refuses. With no
+window nothing is showing the mods, so it goes ahead and names any layout that still uses them. A mod open in a tab or as an overlay can't be seen this way: the window reports it
 missing until that closes.
 
 `install.json` records what the mods need to find the plugin:

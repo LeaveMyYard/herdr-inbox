@@ -14,7 +14,7 @@ test('a crash at any disk call of an install, upgrade or uninstall can be run ag
   writeFileSync(join(a.plugin, 'app/mods/herdr-inbox/old.js'), '// old\n');
   writeFileSync(join(b.plugin, 'app/mods/herdr-inbox/new.js'), '// new\n');
   const result = spawnSync(python, [join(repo, 'app/tests/support/crash.py'), repo, a.plugin, b.plugin, a.temp],
-    { env: { PATH: '/nonexistent' }, encoding: 'utf8', timeout: 240000 });
+    { env: { PATH: '/nonexistent' }, encoding: 'utf8', timeout: 600000 });
   assert.equal(result.status, 0, result.stderr);
   const { points, failures } = JSON.parse(result.stdout);
   assert.deepEqual(failures, []);

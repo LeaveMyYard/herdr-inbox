@@ -33,16 +33,33 @@ test('without herdr-app there is nothing to check with, and it says so', t => {
   assert.match(result.stderr, /herdr-app is required/);
 });
 
-test('a check that starts a server fails, says where, and nothing runs hc or signals it', t => {
-  const s = sandbox(t);
+function failsWithServer(t, s) {
   writeFileSync(`${s.checker}.socket`, '');
   const result = appCheck(s);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /A check started a server/);
+  const pid = Number(readFileSync(`${s.checker}.server`, 'utf8'));
+  t.after(() => process.kill(pid)); // the stand-in this test started, by its exact pid
   const socket = result.stderr.match(/(\/tmp\/hi-[^/]+)\/\S+\.sock/);
   assert.ok(socket, result.stderr);
   t.after(() => rmSync(socket[1], { recursive: true, force: true }));
+  return { result, pid };
+}
+
+test('a server that starts just after a check fails it, names its pid, and nothing runs hc or signals it', t => {
+  const s = sandbox(t);
+  const { result, pid } = failsWithServer(t, s);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /A check started a server/);
+  assert.ok(result.stderr.includes(`pid ${pid},`), result.stderr);
+  assert.doesNotThrow(() => process.kill(pid, 0));
   assert.ok(!existsSync(join(s.tools, 'hc.log')), 'hc ran');
+});
+
+test('a check that fails and leaves a server reports both', t => {
+  const s = sandbox(t);
+  writeFileSync(`${s.checker}.fail`, '');
+  const { result } = failsWithServer(t, s);
+  assert.match(result.stderr, /A check started a server/);
+  assert.match(result.stderr, /The check also failed: herdr-app check failed for herdr-inbox: Question Title 123/);
 });
 
 test('no installer file runs hc, herdr-core or a signal: it cannot reach any core', () => {

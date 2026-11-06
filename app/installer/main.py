@@ -49,10 +49,11 @@ def preflight(home, payload, old):
         raise ValueError(f'Name collision: {path} is not a folder')
     for mod in package.mods(payload):
         if mod not in known and home.kind(f'mods/{mod}') is not None:
-            raise ValueError(f'Name collision: mods/{mod}')
+            raise ValueError(f'Name collision: mods/{mod}. With no install record nothing proves it ours: '
+                             'if it is, remove it by hand and install again')
     # Without a record, runtime files and a stage are what a crash left: the install takes them over.
     if old is None and home.kind(DATA) is not None and not runtime.only_ours(home):
-        raise ValueError(f'Name collision: {DATA}')
+        raise ValueError(f'Name collision: {DATA} holds files that are not ours: move them, then install again')
 
 
 def stage(home, payload):
@@ -105,11 +106,12 @@ def created(home):
 def install(home, args):
     root = package.plugin(args.plugin_root)
     payload = package.load(root)
-    check_payload(payload, args.checker or shutil.which('herdr-app') or '')
+    program = args.checker or shutil.which('herdr-app')
+    check_payload(payload, program or '')
     old = receipt.load(home)
     preflight(home, payload, old)
     dropped = sorted(set(package.mods(receipt.known(old)) if old else ()) - set(package.mods(payload)))
-    notes = layouts.guard(home.path, dropped) if dropped else []
+    notes = layouts.guard(home.path, dropped, program) if dropped else []
     record = {'v': 1, 'plugin_root': root, 'plugin_moves': package.moves(root), 'claude_config': package.claude_config(),
               'dirs': old['dirs'] if old else created(home),
               'files': {path: digest(data) for path, data in payload.items()},
@@ -146,7 +148,8 @@ def install(home, args):
 def recover(home):
     """Clears what a crash before the record, or after it went, left. Refuses anything else."""
     if home.kind(DATA) != 'dir' or home.kind('mods/herdr-inbox') is not None or not runtime.only_ours(home):
-        raise ValueError('Nothing is installed here. Any herdr-inbox folder is not ours to remove')
+        raise ValueError('Nothing is installed here, and with no install record any herdr-inbox folder is not '
+                         'ours to remove. If it is yours to lose, remove it by hand')
     with runtime.stopped(home):
         home.rmtree(STAGE)
         runtime.erase(home)
@@ -156,11 +159,11 @@ def recover(home):
     print('Removed what an interrupted install or uninstall left.')
 
 
-def uninstall(home):
+def uninstall(home, args):
     record = receipt.load(home)
     if record is None:
         return recover(home)
-    notes = layouts.guard(home.path, package.mods(receipt.known(record)))
+    notes = layouts.guard(home.path, package.mods(receipt.known(record)), args.checker or shutil.which('herdr-app'))
     with runtime.stopped(home):
         leftovers = erase(home, record)
     for line in (*(f'Kept, not ours: {path}' for path in leftovers), *notes, 'Uninstalled.'):
@@ -173,7 +176,7 @@ def main():
     parser.add_argument('--app-home', required=True, help='absolute, existing app home')
     parser.add_argument('--plugin-root', default=str(Path(__file__).resolve().parents[2]),
                         help='the plugin to install from and to run (default: this one)')
-    parser.add_argument('--checker', help='absolute herdr-app (default: the one on PATH)')
+    parser.add_argument('--checker', help='absolute herdr-app, for the check and to ask a window (default: the one on PATH)')
     args = parser.parse_args()
     try:
         home = Home(args.app_home)
@@ -182,7 +185,7 @@ def main():
                 fcntl.flock(home.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise ValueError('Another install is running in this app home') from None
-            install(home, args) if args.action == 'install' else uninstall(home)
+            (install if args.action == 'install' else uninstall)(home, args)
         finally:
             os.close(home.fd)
         return 0

@@ -12,6 +12,8 @@ export const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const CHECKER = `#!/usr/bin/env python3
 import os, sys
 from pathlib import Path
+if sys.argv[1:] == ['status']:
+    os.execv(str(Path(sys.argv[0]).parent / 'tools/herdr-app'), ['herdr-app', 'status'])
 assert len(sys.argv) == 3 and sys.argv[1] == 'check', sys.argv
 leaked = [k for k in os.environ if k.startswith(('HERDR_SOCKET', 'HC_SOCKET', 'CLAUDE_')) or k == 'TEST_SECRET']
 assert not leaked, leaked
@@ -26,10 +28,21 @@ with log.open('a') as stream:
     stream.write(sys.argv[2] + '\\n')
 Path(sys.argv[2], 'gpui-kit.d.ts').write_text('// generated')
 if Path(sys.argv[0]).with_suffix('.socket').exists():
-    import socket
-    folder = Path(os.environ['XDG_RUNTIME_DIR'], 'herdr-core')
-    folder.mkdir()
-    socket.socket(socket.AF_UNIX).bind(str(folder / (os.environ['HC_SESSION'] + '.sock')))
+    # a server that starts just after the check returns, as a mod's task can
+    import socket, time
+    path = Path(os.environ['XDG_RUNTIME_DIR'], 'herdr-core', os.environ['HC_SESSION'] + '.sock')
+    if os.fork() == 0:
+        os.setsid()
+        for fd in (0, 1, 2):
+            os.close(fd)
+        time.sleep(.1)
+        path.parent.mkdir()
+        server = socket.socket(socket.AF_UNIX)
+        server.bind(str(path))
+        server.listen()
+        Path(sys.argv[0]).with_suffix('.server').write_text(str(os.getpid()))
+        time.sleep(20)
+        os._exit(0)
 if Path(sys.argv[0]).with_suffix('.fail').exists():
     print('Question Title 123 failed to load', file=sys.stderr)
     sys.exit(9)
@@ -68,9 +81,9 @@ export function sandbox(t, { checkout = false, root = 'plugin' } = {}) {
   for (const [name, text] of [['herdr-app', HERDR_APP], ['hc', HC]]) writeFileSync(join(tools, name), text, { mode: 0o755 });
   const env = { ...process.env, PATH: `${tools}:${process.env.PATH}`, TEST_SECRET: 'x', HERDR_SOCKET_PATH: '/fake/live.sock', HC_SOCKET: '/fake/core.sock' };
   delete env.CLAUDE_CONFIG_DIR;
-  const run = (action, { root = plugin, extra = {} } = {}) => spawnSync('python3', [
+  const run = (action, { root = plugin, extra = {}, args = [] } = {}) => spawnSync('python3', [
     join(repo, 'scripts/app-install'), action, '--app-home', home, '--plugin-root', root,
-    ...(action === 'install' ? ['--checker', checker] : []),
+    ...(action === 'install' ? ['--checker', checker] : []), ...args,
   ], { env: { ...env, ...extra }, encoding: 'utf8' });
   const inHome = path => join(home, path);
   const receipt = () => JSON.parse(readFileSync(inHome('data/herdr-inbox/install.json'), 'utf8'));

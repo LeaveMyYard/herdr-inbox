@@ -113,6 +113,8 @@ def sweep(name, base, action, plugin, whole, expected_home, failures):
             failures.append(f'{where}: install after the crash left stale files')
         elif json.loads(Path(again, 'data/herdr-inbox/install.json').read_text())['previous']:
             failures.append(f'{where}: install after the crash left a journal')
+        elif any(name.startswith('.herdr-inbox-') for name in os.listdir(f'{again}/data/herdr-inbox')):
+            failures.append(f'{where}: install after the crash kept a staged file')
         else:
             status = run('uninstall', again)
             if status != 0 or snapshot(again) != expected_home:
@@ -123,6 +125,28 @@ def sweep(name, base, action, plugin, whole, expected_home, failures):
         if not only_empty_data(snapshot(again), expected_home):
             failures.append(f'{where}: uninstall after the crash exited {status} and left {sorted(set(snapshot(again)) - set(expected_home))}')
         point += 1
+
+
+def twice(base, expected_home, failures):
+    """Two upgrades crash in a row with the mods still at the first version: its digests must last."""
+    third = fresh(plugin_b, 'plugin-c')
+    Path(third, 'app/mods/herdr-inbox/third.js').write_text('// third\n')
+    record = Path('data/herdr-inbox/install.json')
+    point = 0
+    while True:
+        home = fresh(base, 'crashed')
+        if run('install', home, plugin_b, point) != CRASHED:
+            failures.append('twice: no point had the journal written and the mods not swapped')
+            return
+        if json.loads(Path(home, record).read_text())['previous'] and installed(home) == mod_files(plugin_a):
+            break
+        point += 1
+    if run('install', home, third, point) != CRASHED:
+        failures.append('twice: the second upgrade did not reach the same point')
+    elif run('install', home, third) != 0 or installed(home) != mod_files(third):
+        failures.append('twice: the install after two crashed upgrades failed')
+    elif run('uninstall', home) != 0 or snapshot(home) != expected_home:
+        failures.append('twice: the uninstall after two crashed upgrades did not restore the home')
 
 
 def lived(home):
@@ -148,6 +172,7 @@ def scenario(label, prepare, failures, points):
     runtime_files(one)
     whole = [mod_files(plugin_a), mod_files(plugin_b)]
     points[f'{label} upgrade'] = sweep(f'{label} upgrade', one, 'install', plugin_b, whole, before, failures)
+    twice(one, before, failures)
     point = 0
     while True:
         home = fresh(one, 'crashed')

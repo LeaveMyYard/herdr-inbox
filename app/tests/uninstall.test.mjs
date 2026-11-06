@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import test from 'node:test';
 import { lived, repo, sandbox, tree } from './support/world.mjs';
@@ -172,6 +173,55 @@ test('with no herdr-app at all there is no window to ask, and uninstall still wo
   assert.deepEqual(tree(s.home), {});
 });
 
+// A run that can't find herdr-app: the Python is named, so PATH can hold nothing.
+function noProgram(s, args = [], path = '/nonexistent') {
+  const python = spawnSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).stdout.trim();
+  return spawnSync(python, [join(repo, 'scripts/app-install'), 'uninstall', '--app-home', s.home, ...args], { env: { PATH: path }, encoding: 'utf8' });
+}
+
+test('--checker is what is asked when herdr-app is not on PATH', t => {
+  const s = shown(t);
+  writeFileSync(s.inHome('layouts/main.json'), USES);
+  const before = tree(s.home);
+  const result = noProgram(s, ['--checker', join(s.tools, 'herdr-app')], '/usr/bin:/bin'); // the stand-in needs cat
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /Layout main is showing herdr-inbox/);
+  assert.deepEqual(tree(s.home), before);
+});
+
+test('with no program, a window answering on its socket stops the uninstall', async t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  const window = createServer();
+  await new Promise(resolve => window.listen(s.inHome('herdr-app.sock'), resolve));
+  t.after(() => window.close());
+  const result = noProgram(s);
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /A window may be running and herdr-app was not found/);
+  assert.ok(existsSync(s.inHome('mods/herdr-inbox/main.js')));
+});
+
+test('with no program, a dead window\'s socket is no window', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  const code = `import socket, sys
+server = socket.socket(socket.AF_UNIX)
+server.bind(sys.argv[1])
+server.close()`;
+  assert.equal(spawnSync('python3', ['-c', code, s.inHome('herdr-app.sock')]).status, 0);
+  ok(noProgram(s));
+  assert.ok(!existsSync(s.inHome('mods/herdr-inbox')));
+});
+
+test('with no program, a socket that cannot be tried refuses', () => {
+  const code = `import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1])
+import layouts
+print(layouts.window_runs('/tmp/' + 'x' * 200))`;
+  assert.equal(spawnSync('python3', ['-c', code, join(repo, 'app/installer')], { encoding: 'utf8' }).stdout, 'True\n');
+});
+
 test('a layout not on screen is only named', t => {
   const s = shown(t);
   writeFileSync(s.inHome('layouts/project-alpha.json'), USES);
@@ -219,6 +269,22 @@ test('with no record, a folder of runtime files is cleared; one with anything el
   mkdirSync(s.inHome('data/herdr-inbox'), { recursive: true });
   writeFileSync(s.inHome('data/herdr-inbox/notes.txt'), 'Project Alpha\n');
   stopped(s, /Nothing is installed here/);
+});
+
+test('a lost or broken record says what to remove by hand', t => {
+  const s = sandbox(t);
+  ok(s.run('install'));
+  writeFileSync(s.inHome('data/herdr-inbox/install.json'), '{', { mode: 0o600 });
+  const before = tree(s.home);
+  for (const action of ['install', 'uninstall']) {
+    const result = s.run(action);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /remove mods\/herdr-inbox\* and data\/herdr-inbox by hand/);
+  }
+  assert.deepEqual(tree(s.home), before);
+  rmSync(s.inHome('data/herdr-inbox/install.json'));
+  assert.match(s.run('install').stderr, /remove it by hand/);
+  assert.match(s.run('uninstall').stderr, /remove it by hand/);
 });
 
 test('with no record, a mod folder is not ours to touch', t => {

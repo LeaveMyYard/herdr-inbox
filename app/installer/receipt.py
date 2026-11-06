@@ -51,9 +51,13 @@ def load(home):
     stored = home.read(RECEIPT, LIMIT)
     if stored is None:
         return None
-    if stored[1] != 0o600:
-        raise ValueError('The install record must have mode 0600')
-    return validate(json.loads(stored[0]))
+    try:
+        if stored[1] != 0o600:
+            raise ValueError('it must have mode 0600')
+        return validate(json.loads(stored[0]))
+    except (ValueError, TypeError) as error:
+        raise ValueError(f'{RECEIPT} cannot be used: {error}. Nothing changed. If it is lost, remove '
+                         f'mods/herdr-inbox* and {DATA} by hand and install again') from None
 
 
 def save(home, record):
