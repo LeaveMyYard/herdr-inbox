@@ -101,7 +101,8 @@ function questionBody(mod, t, v) {
   const column = v_flex().flex_1().min_w(0).min_h(0).gap(12).px(22).py(18).child(text).child(choices).child(noteField(t, v));
   const side = hasPreview(q) ? [v_flex().id('preview').w(300).flex_none().min_h(0).gap(10).p(18).bg(t.surface).border_l_1().border_color(t.border).overflow_y_scrollbar()
     .child(div().text_size(11).font_medium().text_color(t.dim).child(`PREVIEW · OPTION ${Math.min(v.cursor + 1, n)}`))
-    .child(div().rounded(8).p(12).bg(t.background).border_1().border_color(t.border).font_family(t.mono).text_size(12).text_color(t.foreground).child(preview ?? ''))] : [];
+    .child(div().rounded(8).p(12).bg(t.background).border_1().border_color(t.border).font_family(t.mono).text_size(12).text_color(t.foreground).child(preview ?? ''))
+    .child(div().text_size(12.5).text_color(t.muted).child('Shown when the agent attaches a preview to an option.'))] : [];
   return h_flex().flex_1().min_h(0).items_stretch().child(column).children(side);
 }
 
@@ -133,7 +134,7 @@ export function groupBody(mod, t) {
     ...(v.kind === 'question' ? [[`1-${Math.min(v.rows.filter(r => r !== 'submit').length, 9)}`, 'pick'], ['n', 'note']] : []),
     ...(allTabs(p).length > 1 ? [['tab', 'next question']] : []), ['g', 'go to agent'], ['d', 'dismiss'], ['esc', 'back'],
   ];
-  const action = v.kind === 'review' ? 'Choose' : p.single ? 'Send' : 'Next';
+  const action = v.kind === 'review' && v.cursor === 'submit' ? 'Submit' : p.single ? 'Send' : 'Next';
   const later = button(t, 'later', 'Later', false, (_e, cx) => mod.onButton('escape', cx));
   const enter = button(t, 'enter', `${action} ⏎`, true, (_e, cx) => mod.onButton('enter', cx));
   return [header(mod, t, qid), ...tabs(mod, t), main, footer(t, hint, p.mode === 'remote' ? [later] : [later, enter])];
