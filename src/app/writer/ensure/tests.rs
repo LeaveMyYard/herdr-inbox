@@ -4,6 +4,8 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use super::{ENSURE_WAIT, Ensured, ensure};
@@ -229,10 +231,20 @@ fn a_deferred_start_leaves_the_running_writer_alone() {
     let new = r.exe("new", &format!("{}printf 'READY v1\\n'", r.counts()));
     let _lock = r.hold_writer(&old);
     Ledger::default().count(&r.paths, now_ms()).unwrap();
+    let stop = r.paths.file("stop.request");
+    let done = Arc::new(AtomicBool::new(false));
+    let over = Arc::clone(&done);
+    let asked = std::thread::spawn(move || {
+        while !over.load(Ordering::SeqCst) {
+            if stop.exists() {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        false
+    });
     assert!(ensure(&r.paths, &new).is_err());
+    done.store(true, Ordering::SeqCst);
+    assert!(!asked.join().unwrap(), "it was asked to leave");
     assert_eq!(r.spawned(), 0);
-    assert!(
-        !r.paths.file("stop.request").exists(),
-        "it was never asked to leave"
-    );
 }
