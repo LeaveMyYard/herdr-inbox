@@ -159,6 +159,7 @@ test('a click while a verb runs does nothing', async () => {
   for (let i = 0; i < 5; i += 1) await new Promise(done => { setImmediate(done); });
   w.tick(700);
   w.view.onRow(1, w.cx);
+  assert.equal(w.popup.current, 'q:2', 'the click picked nothing');
   release();
   w.gate = null;
   await w.settle();
