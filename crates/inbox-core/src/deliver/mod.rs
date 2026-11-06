@@ -17,7 +17,7 @@ pub use decide::decide;
 pub use reasons::{
     BLOCKED_WAIT, BUSY_WAIT_IDLE, CHANGED, COMPOSER_DRAFT, COMPOSER_UNKNOWN, HOOK_WAIT, NO_AGENT,
     NO_PANE, NOT_IDLE, NOT_VERIFIED, OLDER, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT,
-    TERMINAL_UNREAD, WATCHER_WAIT, not_idle, older_error, terminal_unread,
+    STRANDED, TERMINAL_UNREAD, WATCHER_WAIT, not_idle, older_error, terminal_unread,
 };
 
 /// Busy-while-typing misses after which an answer waits for idle (Python

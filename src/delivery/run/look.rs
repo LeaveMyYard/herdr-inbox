@@ -133,9 +133,11 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
         self.read_failed()
     }
     fn moved_elsewhere(&mut self, id: i64) -> bool {
-        // no other host's seat is looked for: a hook still carries it there
-        if self.halted() || self.core {
+        if self.halted() {
             return false;
+        }
+        if self.core {
+            return self.moved_terminal(id);
         }
         if self.agents.is_none() {
             self.agents = Some(self.ctx.herdr.agents().unwrap_or_default());

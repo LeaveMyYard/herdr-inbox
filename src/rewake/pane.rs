@@ -36,9 +36,11 @@ pub fn pane_agent(
 /// The agent in core `terminal`, as [`pane_agent`] says it. One that cannot be
 /// read now names no session: the watch waits, and ends only after a long while.
 pub fn terminal_agent(core: &dyn Terminals, terminal: &str) -> Option<(Option<String>, Status)> {
-    match core.see(terminal) {
+    match core.see(terminal, &[]) {
         Seen::Here(seated) => Some((seated.agent.session, word(&seated.agent.status))),
         Seen::Gone => None,
+        // its own session, not at rest: the watch waits for one copy to end
+        Seen::Shared(session) => Some((Some(session), Status::Other)),
         Seen::Unread(_) => Some((None, Status::Other)),
     }
 }

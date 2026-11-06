@@ -20,6 +20,7 @@ use crate::store::hosts::CORE_SERVER;
 use crate::store::norm::normalize;
 use crate::store::question::normalize_options;
 use crate::store::questions::NewQuestion;
+use crate::store::sessions::record_session;
 use crate::text::py_isspace;
 
 /// AskUserQuestion's chip limit, in characters (Python `service.MAX_HEADER`).
@@ -68,6 +69,12 @@ pub fn ask_group(
         return Ok((receipts::unavailable(), Vec::new()));
     }
     let server = if seat.is_some() { CORE_SERVER } else { server };
+    if let (Some(_), Some(session)) = (seat, caller.session_id.as_deref()) {
+        // says which config directory this session's records are in: the core
+        // worker's may be another, and it reads no process's environment
+        let found = files.find(session, None).map(|p| p.display().to_string());
+        record_session(store.db(), session, found.as_deref())?;
+    }
     let owner = caller.owner();
     let (receipts, new, group_id, body) = store.immediate(|_| {
         let (mut receipts, mut new, mut group_id) = (Vec::new(), Vec::new(), None::<i64>);

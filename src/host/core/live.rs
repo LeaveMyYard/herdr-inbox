@@ -1,7 +1,7 @@
 //! The real [`Machine`]: this process's ancestors, herdr's panes, Claude
 //! Code's records and the transcripts.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use herdr_agent_kit::agent_procs::{Pid, SystemProcesses, parent_pid};
 use herdr_agent_kit::herdr_api::PaneId;
@@ -46,6 +46,14 @@ impl Machine for Live {
             Some(config) => record::others(config, pid),
             None => Vec::new(),
         }
+    }
+
+    fn recorded_in(&self, config: &Path, pid: Pid, start: &str) -> Record {
+        record::session(config, pid, start)
+    }
+
+    fn others_in(&self, config: &Path, pid: Pid) -> Vec<Other> {
+        record::others(config, pid)
     }
 
     fn pane_foreground(&self, pane: &str) -> Option<Vec<Pid>> {

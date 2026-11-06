@@ -51,6 +51,7 @@ impl World {
         py.args(["-c", PANE, &command.replace("EXE", &exe.to_string_lossy())])
             .arg(close)
             .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

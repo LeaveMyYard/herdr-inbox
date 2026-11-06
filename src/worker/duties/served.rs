@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use inbox_core::deliver::{
-    CHANGED, MAX_STALE_RETRIES, MAX_UNVERIFIED_ATTEMPTS, NO_AGENT, NOT_VERIFIED,
+    CHANGED, MAX_STALE_RETRIES, MAX_UNVERIFIED_ATTEMPTS, NO_AGENT, NOT_VERIFIED, STRANDED,
 };
 
 use super::Round;
@@ -19,10 +19,11 @@ use crate::store::hosts::CORE_SERVER;
 pub const LEGACY_RECHECK: Duration = Duration::from_secs(60);
 
 /// The errors given up after a number of tries (Python `worker.CAPS`).
-pub const CAPS: [(&str, i64); 3] = [
+pub const CAPS: [(&str, i64); 4] = [
     (NO_AGENT, MAX_STALE_RETRIES),
     (CHANGED, MAX_STALE_RETRIES),
     (NOT_VERIFIED, MAX_UNVERIFIED_ATTEMPTS),
+    (STRANDED, 1),
 ];
 
 /// The answers the core worker delivers: every core row of this machine, in one

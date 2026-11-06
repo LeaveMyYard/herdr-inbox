@@ -101,3 +101,32 @@ fn a_delivery_started_by_a_test_never_runs_hc_even_with_a_default_core_up() {
     let error = store.get(q.id).unwrap().unwrap().delivery_error.unwrap();
     assert!(error.contains("no core is running"), "{error}");
 }
+
+/// `env_clear` takes the guard away with everything else, and `hc`'s own rule would
+/// then find `/run/user/<uid>`. So each one names a socket of its own right after.
+#[test]
+fn a_test_that_clears_the_environment_names_its_own_core_socket() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let mut bare = Vec::new();
+    let mut files = vec![root];
+    while let Some(path) = files.pop() {
+        if path.is_dir() {
+            files.extend(fs::read_dir(&path).unwrap().map(|e| e.unwrap().path()));
+        } else if path.extension().is_some_and(|e| e == "rs")
+            && path.file_name().unwrap() != "no_real_core.rs"
+        {
+            let text = fs::read_to_string(&path).unwrap();
+            let lines: Vec<&str> = text.lines().collect();
+            for (n, line) in lines.iter().enumerate() {
+                let near = &lines[n..lines.len().min(n + 16)];
+                let named = near
+                    .iter()
+                    .any(|l| l.contains("HC_SOCKET") || l.contains("XDG_RUNTIME_DIR"));
+                if line.contains(".env_clear()") && !named {
+                    bare.push(format!("{}:{}", path.display(), n + 1));
+                }
+            }
+        }
+    }
+    assert!(bare.is_empty(), "{bare:#?}");
+}

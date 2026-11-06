@@ -76,7 +76,11 @@ impl Hc for FakeHc {
         self.screens.get(address).cloned().ok_or("hc read failed")
     }
 
-    fn send(&self, address: &str, text: &str) -> Sent {
+    fn list(&self) -> Vec<String> {
+        self.terminals.keys().cloned().collect()
+    }
+
+    fn send(&self, address: &str, text: &str, _: &str) -> Sent {
         self.note(format!("send {address} {text}"));
         let mut answers = self.answers.lock().unwrap();
         if answers.is_empty() {

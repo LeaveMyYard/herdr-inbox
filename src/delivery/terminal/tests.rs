@@ -5,6 +5,7 @@ use serde_json::json;
 
 use super::*;
 use crate::host::core::fake::{FakeHc, GET_17, GET_18};
+use crate::host::core::record::Other;
 
 mod table;
 
@@ -44,6 +45,9 @@ impl Machine for Box20 {
         assert_eq!((pid, start), (20, "s20"));
         self.record.lock().unwrap()[0].clone()
     }
+    fn other_records(&self, _: Pid) -> Vec<Other> {
+        Vec::new()
+    }
     fn live(&self, _: &str) -> String {
         panic!("a terminal's conversation is the record's: it is never followed")
     }
@@ -62,7 +66,7 @@ fn hosted(get: &str, record: Record) -> Hosted<FakeHc, Box20> {
 #[test]
 fn a_recorded_claude_is_seen_with_its_status_and_session() {
     let terminals = hosted(GET_17, Record::Names(SESSION.into()));
-    let Seen::Here(seated) = terminals.see("t2") else {
+    let Seen::Here(seated) = terminals.see("t2", &[]) else {
         panic!("not seen");
     };
     assert_eq!(seated.agent.status, "working");
@@ -90,7 +94,7 @@ fn the_status_word_is_read_from_every_recorded_shape() {
 fn a_process_at_that_pid_that_is_not_the_foreground_program_is_never_taken_for_it() {
     let mut terminals = hosted(GET_17, Record::Names(SESSION.into()));
     terminals.machine.claude = false;
-    assert_eq!(terminals.see("t2"), Seen::Unread(REPLACED.into()));
+    assert_eq!(terminals.see("t2", &[]), Seen::Unread(REPLACED.into()));
 }
 
 #[test]
@@ -101,7 +105,7 @@ fn an_answer_for_another_address_is_no_answer() {
         hc: fake,
         machine: Box20::new(Record::Missing),
     };
-    assert_eq!(terminals.see("t2"), Seen::Gone);
+    assert_eq!(terminals.see("t2", &[]), Seen::Gone);
     let read = json!({"address": "t9", "state": "live"});
     assert!(matches!(gone_or_other(&read, "t2"), Seen::Unread(_)));
 }
@@ -114,14 +118,39 @@ fn a_foreground_not_sampled_yet_says_nothing_about_the_terminal() {
         hc: fake,
         machine: Box20::new(Record::Missing),
     };
-    assert!(matches!(terminals.see("t2"), Seen::Unread(_)));
+    assert!(matches!(terminals.see("t2", &[]), Seen::Unread(_)));
 }
 
 #[test]
 fn no_core_reads_as_nothing_and_types_nothing() {
-    assert!(matches!(NoCore.see("t1"), Seen::Unread(_)));
+    assert!(matches!(NoCore.see("t1", &[]), Seen::Unread(_)));
     assert_eq!(NoCore.screen("t1"), None);
-    assert!(matches!(NoCore.send("t1", "x"), Sent::Unread(_)));
+    assert!(matches!(NoCore.send("t1", "x", "idle"), Sent::Unread(_)));
+}
+
+#[test]
+fn a_shared_session_keeps_the_watch_without_ever_being_at_rest() {
+    use crate::rewake::terminal_agent;
+    use inbox_core::rewake::Status;
+    struct Shared;
+    impl Terminals for Shared {
+        fn see(&self, _: &str, _: &[std::path::PathBuf]) -> Seen {
+            Seen::Shared(SESSION.into())
+        }
+        fn screen(&self, _: &str) -> Option<String> {
+            None
+        }
+        fn send(&self, _: &str, _: &str, _: &str) -> Sent {
+            panic!("no send")
+        }
+        fn list(&self) -> Vec<String> {
+            Vec::new()
+        }
+    }
+    assert_eq!(
+        terminal_agent(&Shared, "t2"),
+        Some((Some(SESSION.to_owned()), Status::Other))
+    );
 }
 
 #[test]

@@ -12,6 +12,11 @@ use super::family::{Continuations, family};
 use super::question::{COLUMNS, VIEW};
 use super::{MAX_HOOK_MISSES, Question, Store};
 
+/// An agent gone from its pane has no hook left. A core row's "gone" says only that
+/// its terminal is: the conversation can be resumed anywhere, and its hook is its
+/// own, so that row stays a candidate.
+const GONE: &str = "(agent_gone_at IS NOT NULL AND id NOT IN (SELECT id FROM question_host))";
+
 /// Is an answer of `session_id`'s family (see [`family`]) answered, neither
 /// delivered nor seen, not at the hook-miss cap and its agent not gone? The
 /// same filter as the hook's candidates, read-only and bounded by
@@ -28,7 +33,7 @@ pub fn has_candidates(path: &Path, session_id: &str, files: &impl Continuations)
         let sql = format!(
             "SELECT 1 FROM questions WHERE session_id IN ({marks}) AND status = 'answered' \
              AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext \
-             WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) LIMIT 1"
+             WHERE COALESCE(hook_misses, 0) >= ? OR {GONE}) LIMIT 1"
         );
         let mut args: Vec<Value> = fam.into_iter().map(Value::Text).collect();
         args.push(Value::Integer(MAX_HOOK_MISSES));
@@ -53,7 +58,7 @@ impl Store {
         let sql = format!(
             "SELECT {COLUMNS} FROM {VIEW} WHERE session_id IN ({marks}) AND status = 'answered' \
              AND delivered_at IS NULL AND acknowledged_at IS NULL AND id NOT IN (SELECT id FROM question_ext \
-             WHERE COALESCE(hook_misses, 0) >= ? OR agent_gone_at IS NOT NULL) ORDER BY id"
+             WHERE COALESCE(hook_misses, 0) >= ? OR {GONE}) ORDER BY id"
         );
         let mut args: Vec<Value> = fam.into_iter().map(Value::Text).collect();
         args.push(Value::Integer(max_misses));

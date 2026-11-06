@@ -162,7 +162,7 @@ fn an_install_gone_back_to_python_leaves_no_core_worker() {
     let mut worker = {
         let mut c = Command::new(&exe);
         c.args(command.get_args());
-        c.env_clear();
+        c.env_clear(); // HC_SOCKET and the rest come from `command`
         for (k, v) in command.get_envs() {
             if let Some(v) = v {
                 c.env(k, v);

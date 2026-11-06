@@ -114,6 +114,18 @@ const CASES: &[Case] = &[
         a_hook_with_no_host_never_runs_hc,
     ),
     (
+        "a_twins_hook_carries_nothing_until_one_copy_ends",
+        a_twins_hook_carries_nothing_until_one_copy_ends,
+    ),
+    (
+        "a_refused_claim_is_no_pane_for_a_hook",
+        a_refused_claim_is_no_pane_for_a_hook,
+    ),
+    (
+        "a_filed_question_says_where_its_records_are",
+        a_filed_question_says_where_its_records_are,
+    ),
+    (
         "two_live_copies_of_a_session_are_refused_until_one_ends",
         two_live_copies_of_a_session_are_refused_until_one_ends,
     ),
@@ -271,6 +283,16 @@ impl Rig {
     /// An answered core question of [`SESSION`], and a Stop hook of that session run in
     /// `claim`, with `foreground` as what `hc` reports. What the hook printed, and the answer's id.
     fn hook(&self, claim: Option<&str>, foreground: &str) -> (String, i64) {
+        self.hook_with(claim, foreground, &[])
+    }
+
+    /// [`Rig::hook`] with more variables.
+    fn hook_with(
+        &self,
+        claim: Option<&str>,
+        foreground: &str,
+        more: &[(&str, String)],
+    ) -> (String, i64) {
         let store = self.db();
         let q = store
             .insert(&NewQuestion {
@@ -290,10 +312,11 @@ impl Rig {
         std::fs::write(self.path("hook.sh"), HOOK).unwrap();
         let payload = json!({"session_id": SESSION, "hook_event_name": "Stop"});
         std::fs::write(self.path("payload"), payload.to_string()).unwrap();
-        let extra = [
+        let mut extra = vec![
             ("BIN", BIN.to_string()),
             ("CLAUDE", self.claude.display().to_string()),
         ];
+        extra.extend_from_slice(more);
         let argv = ["sh", "hook.sh", foreground];
         let _s = self.start_with(claim, &argv, &extra);
         (
@@ -765,4 +788,50 @@ fn a_hook_with_no_host_never_runs_hc() {
     assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
     let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
     assert_eq!(log, "", "no claim, no hc");
+}
+
+fn a_twins_hook_carries_nothing_until_one_copy_ends() {
+    // the review of #146, H3: `claude --resume <id>` of a live session in another terminal
+    let rig = Rig::new();
+    rig.install_hc();
+    let copy = rig.start(Some("t4"), &[BIN, "mcp"]);
+    rig.record(copy.pid, &|r| r["sessionId"] = json!(SESSION));
+    let (printed, id) = rig.hook(Some("t3"), "");
+    assert_eq!(printed, "", "one copy would take the other's answer");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+    let pid = copy.pid;
+    drop(copy);
+    gone(pid);
+    let (printed, _) = rig.hook(Some("t3"), "");
+    assert!(printed.contains(&format!("Q{id}")), "{printed}");
+}
+
+fn a_refused_claim_is_no_pane_for_a_hook() {
+    // a core hands its environment on: the pane variables prove nothing beside a claim
+    let rig = Rig::new();
+    let pane = [("HERDR_PANE_ID", "w1:p1".to_string())];
+    let (printed, id) = rig.hook_with(Some("t3"), "4242", &pane);
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+}
+
+fn a_filed_question_says_where_its_records_are() {
+    // a core worker of another config directory finds them through this
+    let rig = Rig::new();
+    let dir = rig.path("claude-config/projects/-r");
+    std::fs::create_dir_all(&dir).unwrap();
+    let transcript = dir.join(format!("{SESSION}.jsonl"));
+    std::fs::write(&transcript, "{}\n").unwrap();
+    let mut s = rig.proved();
+    assert_eq!(s.ask()["status"], "open");
+    let known: String = rig
+        .db()
+        .db()
+        .query_row(
+            "SELECT transcript_path FROM sessions WHERE session_id = ?",
+            [SESSION],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(Path::new(&known), transcript);
 }

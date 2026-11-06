@@ -86,6 +86,7 @@ impl Root {
         cmd.arg(self.root().join("scripts").join(script))
             .args(args)
             .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .env("PATH", path)
             .env("FAKE_RELEASES", self.releases())
             .env("FAKE_LOG", self.dir.path().join("tools.log"))

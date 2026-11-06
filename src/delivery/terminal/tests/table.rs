@@ -21,16 +21,19 @@ use serde_json::{Value, json};
 
 use crate::claude::Transcripts;
 use crate::delivery::run::{Ctx, Unreadable, deliver_batch};
-use crate::delivery::terminal::{Hosted, Terminals};
+use crate::delivery::terminal::{Hosted, Seen, Terminals};
 use crate::host::core::Machine;
 use crate::host::core::hc::{Hc, NO_TERMINAL, Sent};
-use crate::host::core::record::Record;
+use crate::host::core::record::{Other, Record};
+use crate::store::candidates::has_candidates;
 use crate::store::hosts::{CORE_SERVER, CoreSeat};
 use crate::store::liveness::{Stamp, touch};
 use crate::store::questions::NewQuestion;
 use crate::store::{Question, Store};
-use crate::worker::duties::Round;
+use crate::worker::duties::moved::revive_moved;
 use crate::worker::duties::retry::retry_round;
+use crate::worker::duties::served::CAPS;
+use crate::worker::duties::{Memory, Round};
 
 const TABLE: &str = include_str!("../../../../tests/fixtures/decisions-core.json");
 
@@ -57,10 +60,17 @@ struct Hc1 {
     transcript: PathBuf,
     typed: Mutex<Vec<String>>,
     tried: Mutex<usize>,
+    reads: Mutex<usize>,
 }
 
 impl Hc for Hc1 {
     fn get(&self, address: &str) -> Result<Value, &'static str> {
+        if address == "t4" {
+            return Ok(json!({
+                "address": "t4", "state": "live", "status": "idle",
+                "foreground": {"pid": 24, "name": "claude", "argv": ["claude"], "cwd": "/r"},
+            }));
+        }
         assert_eq!(address, "t3");
         match self.world["hc"].as_str().unwrap() {
             "gone" => return Err(NO_TERMINAL),
@@ -86,13 +96,24 @@ impl Hc for Hc1 {
 
     fn screen(&self, address: &str) -> Result<String, &'static str> {
         assert_eq!(address, "t3");
+        let mut reads = self.reads.lock().unwrap();
+        *reads += 1;
+        // the panel, the box, then the last read before the send
+        if *reads > 2 && self.world["at_send"] == "draft" {
+            return Ok(screen("draft"));
+        }
         self.world["screen"]
             .as_str()
             .map(screen)
             .ok_or("hc read failed")
     }
 
-    fn send(&self, address: &str, text: &str) -> Sent {
+    fn list(&self) -> Vec<String> {
+        let elsewhere = self.world["elsewhere"].as_str().map(str::to_owned);
+        std::iter::once("t3".to_owned()).chain(elsewhere).collect()
+    }
+
+    fn send(&self, address: &str, text: &str, _: &str) -> Sent {
         assert_eq!(address, "t3");
         *self.tried.lock().unwrap() += 1;
         match self.world["at_send"].as_str() {
@@ -126,12 +147,17 @@ impl Machine for Machine1 {
         t.insert(20, 19, "claude", "s20", &["claude"]);
         t.insert(21, 20, "cargo", "s21", &["cargo", "test"]);
         t.insert(22, 20, "claude", "s22", &["claude", "-p"]);
+        t.insert(23, 1, "claude", "s23", &["claude"]);
+        t.insert(24, 1, "claude", "s24", &["claude"]);
         t
     }
     fn parent(&self) -> Pid {
         1
     }
-    fn recorded_session(&self, _: Pid, _: &str) -> Record {
+    fn recorded_session(&self, pid: Pid, _: &str) -> Record {
+        if pid == 24 {
+            return Record::Names(ASKER.into());
+        }
         let mut looks = self.looks.lock().unwrap();
         *looks += 1;
         if *looks > 1 && self.world["at_send"] == "other_conversation" {
@@ -145,6 +171,13 @@ impl Machine for Machine1 {
             "missing" => Record::Missing,
             "unusable" => Record::Unusable,
             other => panic!("{other}"),
+        }
+    }
+    fn other_records(&self, _: Pid) -> Vec<Other> {
+        if self.world["twin"] == true {
+            vec![Other::Runs(23, "s23".into(), ASKER.into())]
+        } else {
+            Vec::new()
         }
     }
     fn live(&self, _: &str) -> String {
@@ -223,6 +256,14 @@ impl World {
     /// The row's stored state before the pass.
     fn prepare(&self, w: &Value) {
         let db = self.store.db();
+        if let Some(secs) = w["answered_ago"].as_u64().filter(|s| *s > 0) {
+            let at = crate::clock::now_minus(Duration::from_secs(secs));
+            db.execute(
+                "UPDATE questions SET answered_at = ? WHERE id = ?",
+                (at, self.id),
+            )
+            .unwrap();
+        }
         if let Some(secs) = w["pending_for"].as_i64() {
             let since = crate::clock::now_minus(Duration::from_secs(secs as u64));
             let error = "pending: busy: the agent is working";
@@ -270,6 +311,7 @@ impl World {
                 transcript: transcript(self.dir.path(), self.typed_into(w)),
                 typed: Mutex::default(),
                 tried: Mutex::default(),
+                reads: Mutex::default(),
             },
             machine: Machine1 {
                 world: w.clone(),
@@ -563,4 +605,126 @@ fn the_core_worker_raises_no_stuck_notice() {
         1,
         "still the herdr worker's to raise"
     );
+}
+
+fn world_of(name: &str) -> (Value, World) {
+    let row = rows().into_iter().find(|r| r["name"] == name).unwrap();
+    let world = World::new(&row["world"]);
+    (row, world)
+}
+
+#[test]
+fn a_moved_row_takes_its_new_terminal_and_is_typed_there_once_proved() {
+    let (row, world) = world_of("moved-to-another-terminal");
+    let hosted = world.hosted(&row["world"]);
+    world.pass(&hosted, mode_of(&row));
+    let seat = world.store.core_seat(world.id).unwrap().unwrap();
+    assert_eq!(seat.terminal, "t4");
+    assert_eq!(world.question().pane_id, None);
+}
+
+#[test]
+fn a_gone_core_row_stays_a_candidate_of_its_hook() {
+    let (_, world) = world_of("terminal-gone");
+    world.store.mark_agent_gone(world.id, "t3").unwrap();
+    let db = world.dir.path().join("inbox.db");
+    assert!(has_candidates(&db, ASKER, &world.files));
+    let rows = world.store.hook_candidates(ASKER, 2, &world.files).unwrap();
+    assert_eq!(rows.len(), 1);
+}
+
+#[test]
+fn a_gone_pane_row_does_not() {
+    let (_, world) = world_of("terminal-gone");
+    world
+        .store
+        .db()
+        .execute_batch("DELETE FROM question_host")
+        .unwrap();
+    world.store.mark_agent_gone(world.id, "w1:p1").unwrap();
+    let db = world.dir.path().join("inbox.db");
+    assert!(!has_candidates(&db, ASKER, &world.files));
+}
+
+#[test]
+fn a_gone_row_comes_back_when_its_conversation_is_found() {
+    let (row, world) = world_of("moved-to-another-terminal");
+    world.store.mark_agent_gone(world.id, "t3").unwrap();
+    let hosted = world.hosted(&row["world"]);
+    let mut notify = |_: &str, _: &str| {};
+    let mut unreadable = Unreadable::after(Duration::ZERO);
+    let mut ctx = world.ctx(&hosted, &mut notify, &mut unreadable);
+    let mut round = Round {
+        ctx: &mut ctx,
+        server: CORE_SERVER,
+    };
+    revive_moved(&mut round, &mut Memory::default()).unwrap();
+    assert_eq!(
+        world.store.core_seat(world.id).unwrap().unwrap().terminal,
+        "t4"
+    );
+    let error = world.question().delivery_error.unwrap();
+    assert!(error.starts_with("pending: moved"), "{error}");
+}
+
+#[test]
+fn a_stranded_row_shows_as_undelivered_and_stops_costing_hc_runs() {
+    let (row, world) = world_of("stranded-at-done");
+    let hosted = world.hosted(&row["world"]);
+    world.pass(&hosted, mode_of(&row));
+    let shown = world.store.failed_deliveries().unwrap();
+    assert_eq!(shown.len(), 1, "the popup and the feed list it");
+    let listed = world.store.undelivered_core(&CAPS).unwrap();
+    assert!(listed.is_empty(), "no worker retries it");
+    let db = world.dir.path().join("inbox.db");
+    assert!(has_candidates(&db, ASKER, &world.files), "a hook still can");
+}
+
+#[test]
+fn a_session_of_another_config_directory_is_read_there() {
+    let w = rows().remove(0)["world"].clone();
+    let world = World::new(&w);
+    let other = world.dir.path().join("elsewhere");
+    let terminals = Hosted {
+        hc: world.hosted(&w).hc,
+        machine: Elsewhere(other.clone()),
+    };
+    assert!(matches!(terminals.see("t3", &[]), Seen::Unread(_)));
+    let Seen::Here(seated) = terminals.see("t3", std::slice::from_ref(&other)) else {
+        panic!("not read in that directory");
+    };
+    assert_eq!(seated.config.as_ref(), Some(&other));
+    assert_eq!(seated.agent.session.as_deref(), Some(ASKER));
+}
+
+/// A machine whose Claude keeps its records in one other directory.
+struct Elsewhere(PathBuf);
+
+impl Machine for Elsewhere {
+    type Table = FakeProcesses;
+    fn table(&self) -> FakeProcesses {
+        let mut t = FakeProcesses::default();
+        t.insert(19, 1, "zsh", "s19", &["zsh"]);
+        t.insert(20, 19, "claude", "s20", &["claude"]);
+        t
+    }
+    fn parent(&self) -> Pid {
+        1
+    }
+    fn recorded_session(&self, _: Pid, _: &str) -> Record {
+        Record::Missing
+    }
+    fn recorded_in(&self, config: &Path, _: Pid, _: &str) -> Record {
+        assert_eq!(config, self.0);
+        Record::Names(ASKER.into())
+    }
+    fn other_records(&self, _: Pid) -> Vec<Other> {
+        Vec::new()
+    }
+    fn live(&self, _: &str) -> String {
+        panic!("never followed")
+    }
+    fn pane_foreground(&self, _: &str) -> Option<Vec<Pid>> {
+        None
+    }
 }

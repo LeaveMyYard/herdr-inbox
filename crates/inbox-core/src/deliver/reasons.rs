@@ -39,6 +39,10 @@ pub const NOT_VERIFIED: &str =
 pub const TERMINAL_UNREAD: &str = "waiting: cannot read the agent's terminal";
 /// Prefix of `waiting: the terminal reports <status>, and hc types only at idle`.
 pub const NOT_IDLE: &str = "waiting: the terminal reports";
+/// Prefix of an answer no core terminal could take for too long: shown as not
+/// delivered, and no longer retried by itself. A hook, the watcher or
+/// `check_answers` can still bring it.
+pub const STRANDED: &str = "not delivered: ";
 /// The prefix of an answer whose pane runs an older session of its
 /// conversation (Python `OLDER`).
 pub const OLDER: &str = "older conversation: ";

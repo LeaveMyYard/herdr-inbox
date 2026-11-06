@@ -25,8 +25,14 @@ use super::address;
 
 const MAX_BYTES: usize = 2 * 1024 * 1024;
 
+/// **The switch.** `true` types into a terminal at `done` with a plain `hc send`,
+/// which still refuses `blocked`. `false` keeps `--if idle` there, and the answer
+/// is left to the watcher, a hook or `check_answers`. Never `--force` either way.
+pub const PLAIN_SEND_AT_DONE: bool = false;
+
 /// How long a send may take. `hc send` waits for a person to pause and then
-/// for the turn to start, about 5 s when nobody types. Well under a claim's life.
+/// for the turn to start, under a second when nobody types (6 s and more when
+/// someone does). Well under a claim's life.
 pub const SEND_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// `hc`'s answer for a terminal it does not have, or one whose program ended.
@@ -61,9 +67,22 @@ pub trait Hc: Send + Sync {
     fn get(&self, address: &str) -> Result<Value, &'static str>;
     /// The visible screen: `hc read --json <address>`'s text.
     fn screen(&self, address: &str) -> Result<String, &'static str>;
-    /// `hc send --if idle <address> <text>`. There is no way to say `--force`
-    /// here: a core terminal never gets one, whoever asks.
-    fn send(&self, address: &str, text: &str) -> Sent;
+    /// `hc send` of `text` to a terminal last seen at `status`. There is no way
+    /// to say `--force` here: a core terminal never gets one, whoever asks.
+    fn send(&self, address: &str, text: &str, status: &str) -> Sent;
+    /// The live terminals of this machine: `hc ls --json`.
+    fn list(&self) -> Vec<String>;
+}
+
+/// The arguments of a send: `--if idle`, unless [`PLAIN_SEND_AT_DONE`] says
+/// otherwise for `done`.
+fn send_args<'a>(address: &'a str, text: &'a str, status: &str, plain: bool) -> Vec<&'a str> {
+    let mut args = vec!["send", "--json"];
+    if !(plain && status == "done") {
+        args.extend(["--if", "idle"]);
+    }
+    args.extend([address, "--", text]);
+    args
 }
 
 /// The real `hc`, from `PATH`.
@@ -157,7 +176,20 @@ impl Hc for Cli {
         Ok(text.to_owned())
     }
 
-    fn send(&self, address: &str, text: &str) -> Sent {
+    fn list(&self) -> Vec<String> {
+        let Ok(listed) = self.json(&["ls", "--json"]) else {
+            return Vec::new();
+        };
+        let terminals = listed["terminals"].as_array().into_iter().flatten();
+        let live = terminals.filter(|t| t["state"] == "live");
+        let addresses = live.filter_map(|t| t["address"].as_str());
+        addresses
+            .filter(|a| address::valid(a) && !address::remote(a))
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn send(&self, address: &str, text: &str, status: &str) -> Sent {
         if !address::valid(address) {
             return Sent::Unread("invalid core address");
         }
@@ -165,7 +197,7 @@ impl Hc for Cli {
             Ok(socket) => socket,
             Err(why) => return Sent::Unread(why),
         };
-        let args = ["send", "--json", "--if", "idle", address, "--", text];
+        let args = send_args(address, text, status, PLAIN_SEND_AT_DONE);
         let run = bounded::read(self.command(socket, &args), self.send_timeout, MAX_BYTES);
         match run {
             Err(why @ "hc unavailable") => Sent::Unread(why),

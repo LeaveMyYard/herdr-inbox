@@ -15,7 +15,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -44,7 +47,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": false,
@@ -73,7 +79,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -101,7 +110,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -129,7 +141,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -157,7 +172,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -185,7 +203,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -213,7 +234,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": "blocked",
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -241,7 +265,10 @@
     "pending_for": 0,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -269,7 +296,10 @@
     "pending_for": 60,
     "landed_before": false,
     "at_send": "not_idle",
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -297,7 +327,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -325,7 +358,10 @@
     "pending_for": 0,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": false,
@@ -353,7 +389,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": false,
@@ -381,7 +420,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": false,
@@ -409,7 +451,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": false,
@@ -437,7 +482,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -465,7 +513,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": "not_idle",
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -493,7 +544,10 @@
     "pending_for": 60,
     "landed_before": false,
     "at_send": "not_idle",
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -521,7 +575,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -549,7 +606,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -577,7 +637,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -605,7 +668,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": "gone",
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -633,7 +699,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -661,7 +730,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -689,7 +761,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -717,7 +792,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -745,7 +823,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -773,7 +854,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -801,7 +885,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -829,7 +916,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -858,7 +948,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": "other_conversation",
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -886,7 +979,10 @@
     "pending_for": null,
     "landed_before": true,
     "at_send": null,
-    "lands": true
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -915,7 +1011,10 @@
     "pending_for": null,
     "landed_before": false,
     "at_send": null,
-    "lands": false
+    "lands": false,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
    },
    "mode": {
     "retry": true,
@@ -927,6 +1026,285 @@
     "state": "failed",
     "error": "not verified: herdr accepted the text but it never reached the conversation",
     "attempts": 1
+   }
+  },
+  {
+   "name": "twin",
+   "about": "Another live process runs the session: neither copy gets the answer until one ends.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": true,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (another live process runs this session)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "draft-at-the-send",
+   "about": "A keystroke after the box was read and before the last look: nothing typed.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "draft",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "moved-to-another-terminal",
+   "about": "Its terminal is gone and its conversation runs in another, proved: the row goes there.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t4",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "moved: the asking agent is now in terminal t4",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "moved-while-the-terminal-lives",
+   "about": "Its terminal runs another conversation now and its own runs elsewhere.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "other",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t4",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "moved: the asking agent is now in terminal t4",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "stranded-at-done",
+   "about": "Refused for longer than the bound: shown as not delivered, out of the retry listing.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "failed",
+    "error": "not delivered: the terminal reports done, and hc types only at idle",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "stranded-at-error",
+   "about": "The same at `error`, which is neither a case of `--if` nor at rest.",
+   "world": {
+    "hc": "live",
+    "status": "error",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 60,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "failed",
+    "error": "not delivered: the terminal reports error, and hc types only at idle",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "stranded-unread",
+   "about": "Unreadable for longer than the bound.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "missing",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "not delivered: cannot read the agent's terminal (Claude Code keeps no record of this process)",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "working-is-not-stranded",
+   "about": "Working past the bound still has its Stop hook to come.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 600,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the terminal reports working, and hc types only at idle",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "draft-is-not-stranded",
+   "about": "A draft past the bound has a person to clear it.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "draft",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
    }
   }
  ],

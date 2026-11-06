@@ -3,10 +3,16 @@
 //! write under the pass's claim, or a verify-later job handed over right
 //! after its prompt. Once the pass is halted, nothing more is written.
 
-use inbox_core::deliver::{BUSY_WAIT_IDLE, Outcome};
+use std::time::Duration;
+
+use inbox_core::deliver::{BUSY_WAIT_IDLE, NOT_IDLE, Outcome, STRANDED, TERMINAL_UNREAD};
 
 use super::look::PaneLook;
+use crate::clock::now_minus;
 use crate::store::{Claim, Store};
+
+/// How long an answer may wait on a core terminal before it shows as not delivered.
+pub const STRAND_AFTER: Duration = Duration::from_secs(300);
 
 impl PaneLook<'_, '_> {
     /// Carries out answer `id`'s outcome; a failed write halts the pass.
@@ -25,13 +31,36 @@ impl PaneLook<'_, '_> {
             }
             return;
         }
+        let stranded = self.stranded(id, outcome);
         let Some(claim) = self.claims.get(&id) else {
             return;
         };
+        let outcome = stranded.as_ref().unwrap_or(outcome);
         if let Err(e) = write(self.ctx.store, id, claim, outcome) {
             self.error = Some(e);
         }
     }
+}
+
+impl PaneLook<'_, '_> {
+    /// A core terminal that has refused or been unreadable this long is no wait:
+    /// nothing says it will end. The row then shows as not delivered, and leaves
+    /// the retry listing, so it costs no more `hc` runs. A working terminal has
+    /// its Stop hook to come, and a draft or a dialog a person to clear them.
+    fn stranded(&self, id: i64, outcome: &Outcome) -> Option<Outcome> {
+        let Outcome::Pending(reason) = outcome else {
+            return None;
+        };
+        let working = self.agent.as_ref().is_some_and(|a| a.status == "working");
+        let waiting = reason.starts_with(TERMINAL_UNREAD) || reason.starts_with(NOT_IDLE);
+        let answered = self.q(id).answered_at.as_deref()?;
+        (self.core && waiting && !working && answered <= now_minus(STRAND_AFTER).as_str())
+            .then(|| Outcome::Failed(format!("{STRANDED}{}", plain(reason))))
+    }
+}
+
+fn plain(reason: &str) -> &str {
+    reason.strip_prefix("waiting: ").unwrap_or(reason)
 }
 
 /// The store write of one outcome, under the pass's claim.

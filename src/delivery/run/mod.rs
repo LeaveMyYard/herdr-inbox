@@ -25,7 +25,7 @@ use crate::delivery::terminal::Terminals;
 use crate::store::{Claim, Question, Store};
 
 pub use relocate::{MOVED, session_pane, tab_name};
-pub use seat::{Seat, by_seat, seat_of};
+pub use seat::{Seat, by_seat, seat_of, terminal_of};
 pub use unreadable::{UNREADABLE_NOTIFY_AFTER, Unreadable};
 
 /// How long a typed message is waited for (Python `VERIFY_SECONDS`).

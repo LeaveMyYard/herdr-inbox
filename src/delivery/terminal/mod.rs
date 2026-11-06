@@ -13,7 +13,18 @@
 //! it would take a resumed older conversation for the newer one it once continued
 //! into and type that one's answer here. Stale, it can only hold an answer back.
 //!
+//! **One session, one live process** (`host::core::twins`). A record says what a
+//! process runs, and another live record can say the same. Neither copy is served
+//! until one ends: [`Seen::Shared`].
+//!
+//! **A worker serves every config directory.** Claude Code's records live under the
+//! `CLAUDE_CONFIG_DIR` of the Claude that wrote them, and that is the terminal's
+//! process's, not this one's. Its environment is not read. `configs` names the
+//! directories the answers in hand came from (`sessions.transcript_path`).
+//!
 //! [`Hosted`] is the real thing, [`NoCore`] a process with no business in a core.
+
+use std::path::PathBuf;
 
 use herdr_agent_kit::agent_procs::claude::{claude_process, nested_claude};
 use herdr_agent_kit::agent_procs::{Pid, ProcessTable};
@@ -28,6 +39,7 @@ use crate::claude::Transcripts;
 use crate::host::core::hc::{Cli, Hc, NO_TERMINAL, Sent, socket};
 use crate::host::core::proof::{Refused, foreground};
 use crate::host::core::record::Record;
+use crate::host::core::twins;
 use crate::host::core::{self as core, Machine};
 
 /// Why a Claude that has the terminal cannot be read yet.
@@ -36,6 +48,8 @@ pub const NO_RECORD: &str = "Claude Code keeps no record of this process";
 pub const BAD_RECORD: &str = "Claude Code's record of this process is unusable";
 /// A tool of the Claude, or a Claude inside it, has the terminal.
 pub const NOT_FOREGROUND: &str = "another program has the terminal";
+/// Another live process runs the terminal's session.
+pub const SHARED: &str = "another live process runs this session";
 /// The foreground process is not the one `hc` named.
 pub const REPLACED: &str = "the terminal's foreground process just changed";
 
@@ -48,6 +62,8 @@ pub struct Seated {
     pub pid: Pid,
     /// That process's start token.
     pub start: String,
+    /// The config directory its record is in, when not this process's own.
+    pub config: Option<PathBuf>,
 }
 
 /// What one look at a terminal found.
@@ -57,32 +73,40 @@ pub enum Seen {
     Here(Box<Seated>),
     /// The terminal is gone, its program ended, or no Claude is left in it.
     Gone,
+    /// A Claude has it, and another live process runs that session too.
+    Shared(String),
     /// Nothing can be said now. Says why.
     Unread(String),
 }
 
 /// The terminals of this machine's core.
 pub trait Terminals: Send + Sync {
-    /// Who is in `terminal` now.
-    fn see(&self, terminal: &str) -> Seen;
+    /// Who is in `terminal` now; `configs`: config directories to look in, besides
+    /// this process's own.
+    fn see(&self, terminal: &str, configs: &[PathBuf]) -> Seen;
     /// Its visible screen.
     fn screen(&self, terminal: &str) -> Option<String>;
-    /// Types `text`, once `hc` finds it `idle`.
-    fn send(&self, terminal: &str, text: &str) -> Sent;
+    /// Types `text` into a terminal last seen at `status`, if `hc` agrees.
+    fn send(&self, terminal: &str, text: &str, status: &str) -> Sent;
+    /// This machine's live terminals.
+    fn list(&self) -> Vec<String>;
 }
 
 /// No core: for a process that delivers only to panes.
 pub struct NoCore;
 
 impl Terminals for NoCore {
-    fn see(&self, _: &str) -> Seen {
+    fn see(&self, _: &str, _: &[PathBuf]) -> Seen {
         Seen::Unread("this process has no core".into())
     }
     fn screen(&self, _: &str) -> Option<String> {
         None
     }
-    fn send(&self, _: &str, _: &str) -> Sent {
+    fn send(&self, _: &str, _: &str, _: &str) -> Sent {
         Sent::Unread("this process has no core")
+    }
+    fn list(&self) -> Vec<String> {
+        Vec::new()
     }
 }
 
@@ -105,7 +129,7 @@ fn status(terminal: &Value) -> String {
 }
 
 impl<H: Hc, M: Machine + Send + Sync> Hosted<H, M> {
-    fn seen(&self, terminal: &str, read: &Value) -> Seen {
+    fn seen(&self, terminal: &str, read: &Value, configs: &[PathBuf]) -> Seen {
         let found = match foreground(read, terminal) {
             Ok(found) => found,
             Err(Refused::NotThatTerminal) => return gone_or_other(read, terminal),
@@ -121,11 +145,19 @@ impl<H: Hc, M: Machine + Send + Sync> Hosted<H, M> {
         if pid != found.pid || nested_claude(&table, pid) {
             return Seen::Unread(NOT_FOREGROUND.into());
         }
-        let session = match self.machine.recorded_session(pid, &start) {
-            Record::Names(session) => session,
-            Record::Missing => return Seen::Unread(NO_RECORD.into()),
-            Record::Unusable => return Seen::Unread(BAD_RECORD.into()),
+        let (session, config) = match self.record(pid, &start, configs) {
+            Ok(found) => found,
+            Err(why) => return Seen::Unread(why.into()),
         };
+        let mut others = self.machine.other_records(pid);
+        for dir in configs {
+            others.extend(self.machine.others_in(dir, pid));
+        }
+        match twins::check(&self.machine.table(), &others, &[&session]) {
+            Err(Refused::Shared) => return Seen::Shared(session),
+            Err(why) => return Seen::Unread(why.to_string()),
+            Ok(()) => {}
+        }
         if self.machine.table().start(pid).as_deref() != Some(&start) {
             return Seen::Unread(REPLACED.into()); // a pid reused during the reads
         }
@@ -133,13 +165,38 @@ impl<H: Hc, M: Machine + Send + Sync> Hosted<H, M> {
             agent: Agent {
                 kind: Some("claude".into()),
                 status: status(read),
-                focused: false, // hc reports no viewer; its send waits for a person to pause
+                focused: false, // hc reports no viewer: see DESIGN on the draft race
                 session: Some(session.clone()),
                 reported_session: Some(session),
             },
             pid,
             start,
+            config,
         }))
+    }
+
+    /// The session process `pid` records, and the directory when not this
+    /// process's. Each process has one directory, so the first record wins.
+    fn record(
+        &self,
+        pid: Pid,
+        start: &str,
+        configs: &[PathBuf],
+    ) -> Result<(String, Option<PathBuf>), &'static str> {
+        let mut found = self.machine.recorded_session(pid, start);
+        let mut config = None;
+        for dir in configs {
+            if found != Record::Missing {
+                break;
+            }
+            found = self.machine.recorded_in(dir, pid, start);
+            config = Some(dir.clone());
+        }
+        match found {
+            Record::Names(session) => Ok((session, config)),
+            Record::Missing => Err(NO_RECORD),
+            Record::Unusable => Err(BAD_RECORD),
+        }
     }
 }
 
@@ -153,9 +210,9 @@ fn gone_or_other(read: &Value, terminal: &str) -> Seen {
 }
 
 impl<H: Hc, M: Machine + Send + Sync> Terminals for Hosted<H, M> {
-    fn see(&self, terminal: &str) -> Seen {
+    fn see(&self, terminal: &str, configs: &[PathBuf]) -> Seen {
         match self.hc.get(terminal) {
-            Ok(read) => self.seen(terminal, &read),
+            Ok(read) => self.seen(terminal, &read, configs),
             Err(NO_TERMINAL) => Seen::Gone,
             Err(why) => Seen::Unread(why.into()),
         }
@@ -165,8 +222,12 @@ impl<H: Hc, M: Machine + Send + Sync> Terminals for Hosted<H, M> {
         self.hc.screen(terminal).ok()
     }
 
-    fn send(&self, terminal: &str, text: &str) -> Sent {
-        self.hc.send(terminal, text)
+    fn send(&self, terminal: &str, text: &str, status: &str) -> Sent {
+        self.hc.send(terminal, text, status)
+    }
+
+    fn list(&self) -> Vec<String> {
+        self.hc.list()
     }
 }
 

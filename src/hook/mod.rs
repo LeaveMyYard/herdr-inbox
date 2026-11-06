@@ -2,8 +2,8 @@
 //!
 //! A hook must be fast and must never fail the session: anything unexpected
 //! means exit 0 with no output. Only a host's own agent gets the inbox: the
-//! agent of a proved core terminal (`host::core::hook`), or a pane's
-//! (`HERDR_PANE_ID` set), and never a Claude nested in another.
+//! agent of a proved core terminal, or a pane's (`host::core::hook`), and never a
+//! Claude nested in another.
 
 pub mod deliver;
 pub mod output;
@@ -18,6 +18,7 @@ use herdr_agent_kit::internal::plugin_paths::inbox;
 use herdr_agent_kit::plugin_env::PluginEnv;
 
 use crate::claude::Transcripts;
+use crate::host::core::hook::{Seat, seat};
 use crate::store::db_path;
 use output::hook_output;
 use payload::Payload;
@@ -45,14 +46,21 @@ impl Outcome {
 /// environment, and prints its output. The exit code to use is returned.
 pub fn main(event: &str) -> i32 {
     let env = PluginEnv::from_env();
-    let terminal = crate::host::core::hook::proved_terminal(&env);
-    if (env.pane_id().is_none() && terminal.is_none()) || nested_claude_here() {
+    let claim = env.var("HC_TERMINAL_ID").is_some_and(|c| !c.is_empty());
+    if (env.pane_id().is_none() && !claim) || nested_claude_here() {
         return 0; // no host's own agent: nobody watches the inbox for it
     }
     let mut raw = String::new();
     if std::io::stdin().read_to_string(&mut raw).is_err() {
         return 0;
     }
+    let session = Payload::parse(&raw).and_then(|p| p.session_id);
+    let carries = matches!(event, "post-tool-batch" | "stop" | "rewake-watch");
+    let terminal = match seat(&env, session.as_deref(), carries) {
+        Seat::Nobody => return 0,
+        Seat::Pane => None,
+        Seat::Terminal(terminal) => Some(terminal),
+    };
     let outcome = run_at(event, &raw, &env, &Transcripts::from_env(), terminal);
     if let Some(text) = &outcome.stdout {
         let mut out = std::io::stdout().lock();
