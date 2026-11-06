@@ -11,8 +11,10 @@
 //! and session on those variables alone. So with a claim present the pane
 //! path runs only if herdr itself lists this process's Claude in that pane's
 //! foreground ([`pane`]). Otherwise every tool answers `unavailable`, whether the
-//! reason is a forgery or a slow `hc`: [`Failure::Undecided`] when it may pass
-//! in a moment, which says to call again, else [`Failure::Unproved`].
+//! reason is a forgery or a slow `hc`, with [`Refused::receipt`]'s text.
+//!
+//! A proved agent is also refused while another live process runs its session
+//! ([`twins`]): ownership is the session, so the two would be one owner.
 //!
 //! The process table, the record and the transcripts are behind [`Machine`];
 //! `hc` is behind [`Hc`]. [`live`] is the real one.
@@ -25,6 +27,7 @@ pub mod live;
 pub mod pane;
 pub mod proof;
 pub mod record;
+pub mod twins;
 
 use std::io::Write;
 
@@ -37,7 +40,7 @@ use crate::store::hosts::CoreSeat;
 use crate::trace;
 use hc::Hc;
 use proof::{Proved, Refused};
-use record::Record;
+use record::{Other, Record};
 
 /// This machine, as the proof reads it.
 pub trait Machine: Send + Sync {
@@ -49,6 +52,8 @@ pub trait Machine: Send + Sync {
     fn parent(&self) -> Pid;
     /// Claude Code's record of process `pid` (start token `start`).
     fn recorded_session(&self, pid: Pid, start: &str) -> Record;
+    /// Claude Code's records of every process but `pid`.
+    fn other_records(&self, pid: Pid) -> Vec<Other>;
     /// The session `reported` runs now (`live_session`).
     fn live(&self, reported: &str) -> String;
     /// herdr's foreground processes of `pane`; `None` when herdr gives no list.
@@ -79,13 +84,15 @@ impl<H: Hc, M: Machine> Core<H, M> {
                 .filter(|s| !s.is_empty())
                 .ok_or(Refused::NoSession)?,
         };
+        let live = self.machine.live(&session);
+        let others = self.machine.other_records(pid);
+        twins::check(&self.machine.table(), &others, &[&session, &live])?;
         // a pid reused during the reads: their answers were about another process
         if self.machine.table().start(pid).as_deref() != Some(&start) {
             return Err(Refused::Replaced);
         }
-        let session = Some(self.machine.live(&session)).filter(|s| !s.is_empty());
         Ok(Caller {
-            session_id: session,
+            session_id: Some(live).filter(|s| !s.is_empty()),
             cwd: env.cwd.clone(),
             core: Some(CoreSeat {
                 terminal: claim.to_owned(),
@@ -107,10 +114,8 @@ impl<H: Hc, M: Machine> Host for Core<H, M> {
                 let _ = writeln!(std::io::stderr(), "herdr-inbox: core terminal: {why}");
                 if pane::proved(&self.machine, env) {
                     Ok(None) // really this pane's agent: the pane path answers
-                } else if why.temporary() {
-                    Err(Failure::Undecided)
                 } else {
-                    Err(Failure::Unproved)
+                    Err(Failure::Refused(why.receipt()))
                 }
             }
         }

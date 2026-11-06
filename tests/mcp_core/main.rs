@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use herdr_agent_kit::agent_procs::start_token;
 use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
-use herdr_inbox::mcp::receipts::{UNAVAILABLE, UNDECIDED};
+use herdr_inbox::mcp::receipts::{SHARED, UNDECIDED, UNPROVED};
 use herdr_inbox::store::Store;
 use serde_json::{Value, json};
 
@@ -99,6 +99,18 @@ const CASES: &[Case] = &[
         hc_never_gets_the_callers_pane,
     ),
     ("a_core_at_hc_socket_is_found", a_core_at_hc_socket_is_found),
+    (
+        "two_live_copies_of_a_session_are_refused_until_one_ends",
+        two_live_copies_of_a_session_are_refused_until_one_ends,
+    ),
+    (
+        "a_stale_record_refuses_nothing",
+        a_stale_record_refuses_nothing,
+    ),
+    (
+        "a_record_mid_rewrite_says_to_call_again",
+        a_record_mid_rewrite_says_to_call_again,
+    ),
 ];
 
 /// One stand-in session.
@@ -356,7 +368,7 @@ fn a_nested_claude_is_unavailable() {
     let receipt = s.ask();
     assert_eq!(receipt["status"], "unavailable", "{receipt}");
     assert_eq!(
-        receipt["message"], UNAVAILABLE,
+        receipt["message"], UNPROVED,
         "a nested agent must not wait for this"
     );
     assert_eq!(rig.count("questions"), 0);
@@ -563,6 +575,75 @@ fn a_core_at_hc_socket_is_found() {
     let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &extra);
     let claude = rig.claude.display().to_string();
     rig.hc_reports(s.pid, &[&claude, BIN, "mcp"]);
+    assert_eq!(s.ask()["status"], "open");
+}
+
+/// Waits until process `pid` is gone.
+fn gone(pid: u32) {
+    for _ in 0..500 {
+        if start_token(pid).is_none() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("{pid} is still there");
+}
+
+fn two_live_copies_of_a_session_are_refused_until_one_ends() {
+    // the final pass: `claude --resume <id>` of a session still live in another terminal
+    let rig = Rig::new();
+    let mut mine = rig.proved();
+    rig.record(mine.pid, &|_| {});
+    let copy = rig.start(Some("t4"), &[BIN, "mcp"]);
+    rig.record(copy.pid, &|_| {});
+    let store = rig.db();
+    store
+        .db()
+        .execute(
+            "INSERT INTO questions (created_at, session_id, question, norm, status, answer, \
+             answered_at) VALUES ('2026-11-06T10:00:00+00:00', ?, 'Question Title 123?', \
+             'question title 123', 'answered', 'Yes', '2026-11-06T10:01:00+00:00')",
+            [OTHER],
+        )
+        .unwrap();
+    let got = s_tool(&mut mine, "check_answers");
+    assert_eq!(got["message"], SHARED, "{got}");
+    assert_eq!(store.get(1).unwrap().unwrap().acknowledged_at, None);
+    assert_eq!(mine.ask()["message"], SHARED);
+    assert_eq!(rig.count("questions"), 1);
+    let pid = copy.pid;
+    drop(copy); // its server sees EOF and it ends; its record stays, as after a crash
+    gone(pid);
+    let got = s_tool(&mut mine, "check_answers");
+    assert_eq!(got["answers"][0]["answer"], "Yes", "{got}");
+}
+
+fn s_tool(s: &mut Session, name: &str) -> Value {
+    s.tool(name, json!({}))
+}
+
+fn a_stale_record_refuses_nothing() {
+    // the pid of a record whose process is gone, and a live pid with another start token
+    let rig = Rig::new();
+    let mut s = rig.proved();
+    rig.record(s.pid, &|_| {});
+    let dir = rig.path("claude-config/sessions");
+    let dead = json!({"pid": 999_999, "sessionId": OTHER, "kind": "interactive", "procStart": "1"});
+    std::fs::write(dir.join("999999.json"), dead.to_string()).unwrap();
+    let copy = rig.start(None, &[BIN, "mcp"]);
+    rig.record(copy.pid, &|r| r["procStart"] = json!("an earlier process"));
+    assert_eq!(s.ask()["status"], "open");
+}
+
+fn a_record_mid_rewrite_says_to_call_again() {
+    let rig = Rig::new();
+    let mut s = rig.proved();
+    rig.record(s.pid, &|_| {});
+    let copy = rig.start(None, &[BIN, "mcp"]);
+    let file = rig.path(&format!("claude-config/sessions/{}.json", copy.pid));
+    std::fs::write(&file, "").unwrap();
+    assert_eq!(s.ask()["message"], UNDECIDED);
+    rig.record(copy.pid, &|r| r["sessionId"] = json!(SESSION));
     assert_eq!(s.ask()["status"], "open");
 }
 
