@@ -24,7 +24,7 @@ export function windowed(t, rows, at, size) {
 }
 
 // How many rows of this height fit in what is left of the overlay.
-export const fit = (mod, used, row) => Math.max(Math.floor(((mod.size?.height ?? 620) - used) / row), 2);
+export const fit = (mod, used, row) => Math.max(Math.floor(((mod.size?.height ?? 620) - used - (mod.below ?? 0)) / row), 2);
 
 export function button(t, id, label, primary, click) {
   return h_flex().id(id).h(30).px(12).items_center().gap(8).rounded(7).border_1().cursor_pointer().text_size(12.5)
@@ -135,5 +135,8 @@ export function render(mod, t) {
     return root.children(plain(t, words.title, words.detail));
   }
   if (!s.popup) return root.children(waiting(mod, t, mod.wordsNow()));
-  return root.children(body(mod, t)).children(confirmBar(mod, t)).children(banners(mod, t));
+  const lines = banners(mod, t);
+  const confirm = confirmBar(mod, t);
+  mod.below = lines.length * 30 + confirm.length * 46; // what the rows must leave room for
+  return root.children(body(mod, t)).children(confirm).children(lines);
 }

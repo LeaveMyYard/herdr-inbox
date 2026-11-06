@@ -90,14 +90,14 @@ function questionBody(mod, t, v) {
   rows.push(plainRow(t, last, last === 'chat' ? String(n + 2) : '', last === 'chat' ? 'Chat about this' : v.last ? 'Submit' : 'Next', last === 'chat' ? 'Go to the agent' : null, v.cursor === n + 1));
   const preview = q.options[v.cursor]?.preview ?? q.options.find(o => o.preview)?.preview;
   const all = [...q.options.map((_, i) => optionRow(mod, t, v, q, i)), ...rows];
-  const text = v_flex().id('q').flex_1().min_h(0).overflow_y_scrollbar().gap(12)
+  const text = v_flex().id('q').flex_1().min_h(96).overflow_y_scrollbar().gap(12)
     .child(h_flex().gap(8).items_center()
       .when(Boolean(q.header), el => el.child(div().px(6).py(4).rounded(4).font_family(t.mono).text_size(10.5).font_semibold().text_color(t.ansi4).bg(t.surface).child(q.header.toUpperCase())))
       .child(div().font_family(t.mono).text_size(11.5).text_color(t.muted).child(v.multi_select ? 'pick any' : 'pick one')))
     .child(div().text_size(15).text_color(t.foreground).child(q.question))
     .when(Boolean(q.context), el => el.child(div().text_size(12.5).text_color(t.muted).child(q.context)))
     .when(q.cut === true, el => el.child(div().text_size(12).text_color(t.blocked).child('This text was cut to fit the feed. Press f to read the whole question.')));
-  const choices = v_flex().flex_none().gap(6).children(windowed(t, all, v.cursor, fit(mod, 330, 70)));
+  const choices = v_flex().flex_none().gap(6).children(windowed(t, all, v.cursor, fit(mod, 400, 70)));
   const column = v_flex().flex_1().min_w(0).min_h(0).gap(12).px(22).py(18).child(text).child(choices).child(noteField(t, v));
   const side = hasPreview(q) ? [v_flex().id('preview').w(300).flex_none().min_h(0).gap(10).p(18).bg(t.surface).border_l_1().border_color(t.border).overflow_y_scrollbar()
     .child(div().text_size(11).font_medium().text_color(t.dim).child(`PREVIEW · OPTION ${Math.min(v.cursor + 1, n)}`))
@@ -134,8 +134,7 @@ export function groupBody(mod, t) {
     ...(allTabs(p).length > 1 ? [['tab', 'next question']] : []), ['g', 'go to agent'], ['d', 'dismiss'], ['esc', 'back'],
   ];
   const action = v.kind === 'review' ? 'Choose' : p.single ? 'Send' : 'Next';
-  return [header(mod, t, qid), ...tabs(mod, t), main, footer(t, hint, [
-    button(t, 'later', 'Later', false, (_e, cx) => mod.press('escape', cx)),
-    button(t, 'enter', `${action} ⏎`, true, (_e, cx) => mod.press('enter', cx)),
-  ])];
+  const later = button(t, 'later', 'Later', false, (_e, cx) => mod.press('escape', cx));
+  const enter = button(t, 'enter', `${action} ⏎`, true, (_e, cx) => mod.press('enter', cx));
+  return [header(mod, t, qid), ...tabs(mod, t), main, footer(t, hint, p.mode === 'remote' ? [later] : [later, enter])];
 }

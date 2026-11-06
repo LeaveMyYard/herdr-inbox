@@ -7,6 +7,8 @@ import test from 'node:test';
 register('./support/loader.mjs', import.meta.url);
 const { deviations, golden, played, withDeviation } = await import('./support/golden.mjs');
 const data = await import('../mods/herdr-inbox/model/data.js');
+const { message } = await import('../mods/herdr-inbox/model/actions.js');
+const { Popup } = await import('../mods/herdr-inbox/model/popup.js');
 
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -33,4 +35,13 @@ test('the golden is whole: every scenario has steps, and every deviation names a
   assert.equal(golden.schema, 1);
   assert.equal(golden.scenarios.length, 149);
   for (const d of deviations.transitions) assert.ok(golden.scenarios.some(s => s.name === d.scenario), d.scenario);
+});
+
+test('an answer for a question that is not the one on screen does nothing', () => {
+  const q = id => ({ id, group: 1, status: 'open', pane_id: 'p', options: [{ label: 'A' }], multi_select: false, draft: null });
+  const popup = new Popup({ snapshot: { questions: [q(1), q(2)], open: [1, 2], failed: [], alerts: [], open_alerts: [] } }, 1000);
+  assert.equal(popup.current, 'q:1');
+  message(popup, { t: 'answered', qid: 2, detail: { choices: ['A'], notes: {}, text: null } });
+  assert.deepEqual(popup.take(), []);
+  assert.equal(popup.current, 'q:1');
 });

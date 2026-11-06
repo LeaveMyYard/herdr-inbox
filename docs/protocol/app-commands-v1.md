@@ -4,7 +4,8 @@ How the herdr-app mods act on the inbox. A mod writes nothing itself: no `writeT
 runs `herdr-inbox app <verb> --json` with `exec`. What it reads is the [feed](app-feed-v1.md). The
 examples are in `tests/fixtures/app-commands/commands.json`.
 
-**Status: nothing here is built yet.** B4 builds these verbs. `retry` needs B2's counter column.
+**Status: the verbs are not built yet.** B4 builds them. The overlay (B6) calls them as written here, tested against
+a stand-in that replays every fixture case (`app/tests/support/standin.mjs`). `retry` needs B2's counter column.
 
 ## Running a command
 

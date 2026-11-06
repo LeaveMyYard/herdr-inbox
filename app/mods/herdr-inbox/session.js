@@ -109,6 +109,11 @@ export class Session {
     this.run(fx, now, before);
   }
 
+  // A paste goes into an open text box, and nowhere else: its letters are no keys to act on.
+  paste(keys, now) {
+    if (this.popup?.view.box_focused) for (const key of keys) this.key(key, now);
+  }
+
   // Keys of the overlay that the model has no word for: the left-out list, and a cut question in full.
   sessionKey(name) {
     const p = this.popup;
@@ -159,7 +164,8 @@ export class Session {
 
   close() {
     this.closing = true;
-    this.toasts.push(...this.notices.filter(n => n.severity === 'warning'));
+    const told = new Set(this.toasts.map(n => n.text));
+    this.toasts.push(...this.notices.filter(n => n.severity === 'warning' && !told.has(n.text)));
   }
 
   // -- running commands
@@ -182,7 +188,7 @@ export class Session {
   // The exec result of what `next` gave.
   finish(step, result, now) {
     if (step.show) return this.finishShow(step.show, readResult(result, 'show', null), now);
-    if (step.go) return this.finishGo(step.go, result, now);
+    if (step.go) return this.finishGo(result, now);
     const read = readResult(result, step.verb.verb, step.verb.entry);
     if (read.kind !== 'done') return this.refuse(step.verb, read, now);
     const { verb, entry, detail, clear, wanted, sent } = step.verb;
@@ -194,14 +200,14 @@ export class Session {
   }
 
   // `result`: { error } when it could not go, { notice } when it should not, else it went.
-  finishGo({ pane }, { error = null, notice = null }, now) {
+  finishGo({ error = null, notice = null }, now) {
     if (notice) this.notice(notice);
     else {
       const fx = this.popup.handle({ focused: { pane: 'that agent', error } }, now);
       for (const e of fx) if (e.notify) this.notice(e.notify.text, e.notify.severity);
       if (fx.some(e => e.exit)) this.batch.close = true;
     }
-    this.advance(now, pane);
+    this.advance(now);
   }
 
   // On to the next command, or the batch is over.

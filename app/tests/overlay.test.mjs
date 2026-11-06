@@ -54,6 +54,24 @@ test('a home with no install says so too', async () => {
   assert.match(last[1], /install record/);
 });
 
+test('--ensure runs only after availability says ready, and nothing runs hc', async () => {
+  const calls = [];
+  installed({ code: 2, stdout: '', stderr: 'usage: inbox' });
+  const refuse = world.exec;
+  world.exec = async (command, args) => { calls.push([command, ...args]); return refuse(command, args); };
+  await open();
+  assert.equal(calls.some(c => c.includes('--ensure')), false, 'not ready: nothing is started');
+  installed({ code: 0, stdout: 'herdr-inbox app v1\n', stderr: '' });
+  const ready = world.exec;
+  calls.length = 0;
+  world.exec = async (command, args) => { calls.push([command, ...args]); return ready(command, args); };
+  await open();
+  const ensures = calls.filter(c => c.includes('--ensure'));
+  assert.deepEqual(ensures.map(c => c.slice(2)), [['cli', 'app-feed', '--ensure', '--app-home', world.appHome], ['cli', 'worker', '--ensure']]);
+  assert.ok(calls.findIndex(c => c.includes('--help')) < calls.findIndex(c => c.includes('--ensure')));
+  assert.equal(calls.some(c => c[0] === 'hc'), false);
+});
+
 test('every reason has its words: an unavailable inbox never renders blank', () => {
   for (const reason of ['not-installed', 'no-plugin', 'no-app']) {
     assert.ok(words({ state: 'unavailable', reason }).detail.length > 20, reason);

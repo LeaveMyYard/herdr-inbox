@@ -32,10 +32,15 @@ test('a row that arrived does not take Enter or a digit for its first second', (
 
 test('keys are dropped while a verb runs, so nothing queues behind it', () => {
   const r = new Rig(world([group(1, [1, 2])]));
-  const held = r.exec;
-  r.exec = () => { r.session.key('down', r.now); r.session.key('enter', r.now); return held(r.ran.length ? [] : []); };
-  r.press('enter'); // a group of two: Enter on the first option drafts it
-  assert.equal(r.verbs('draft').length, 1);
+  const real = r.exec;
+  r.exec = args => {
+    r.tick(1000);
+    r.session.key('enter', r.now); // while the draft runs
+    return real(args);
+  };
+  r.press('enter'); // the only group opened by itself: its first option drafts
+  assert.equal(r.ran.length, 1);
+  assert.equal(r.popup.current, 'q:2', 'the key in flight picked nothing on the next tab');
 });
 
 test('a verb carries the token of what was opened, not of a newer feed', () => {
@@ -143,7 +148,6 @@ test('a result naming another row is of unknown effect', () => {
 
 test('busy keeps the operator\'s input', () => {
   const r = new Rig(world([group(1)]));
-  r.press('other'); // ignored: the view is the lone question
   r.press('down', 'down', 'enter', 'T', 'x', 't');
   r.db.lock = 'busy';
   r.press('enter');
@@ -340,6 +344,23 @@ test('a detail too long for one argument is refused here, and nothing is sent', 
   r.press('enter');
   assert.equal(r.verbs('answer').length, 0);
   assert.match(r.said, /too long/);
+});
+
+test('a paste reaches an open text box and nothing else', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.tick();
+  r.session.paste(['d', 'y'], r.now);
+  assert.equal(r.popup.confirm, null);
+  assert.equal(r.ran.length, 0);
+  r.press('enter', 'down', 'down', 'enter');
+  r.session.paste(['d', 'y'], r.now);
+  assert.equal(r.popup.view.editing.box.chars.join(''), 'dy');
+});
+
+test('a warning already told is not told again when the overlay closes', () => {
+  const r = new Rig(world([group(1)]), { standin: { host: 'gone' } });
+  r.press('enter');
+  assert.equal(r.session.toasts.length, 1);
 });
 
 test('g goes by host: core by terminal, TUI by question, unknown nowhere', () => {

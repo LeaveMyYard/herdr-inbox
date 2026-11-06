@@ -157,7 +157,7 @@ export default class HerdrInbox extends View {
     const name = keyName(e);
     if (name === null) return;
     if (isPaste(name)) {
-      for (const key of pastedKeys(cx.read_from_clipboard() ?? '')) this.session.key(key, Date.now());
+      this.session.paste(pastedKeys(cx.read_from_clipboard() ?? ''), Date.now());
       cx.notify();
       return;
     }

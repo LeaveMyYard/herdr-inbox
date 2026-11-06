@@ -17,7 +17,8 @@ function publish() {
 }
 
 function save() {
-  writeFileSync(statePath, JSON.stringify({ ...state, feed: db.feed, rows: db.rows }));
+  const calls = [...(state.calls ?? []), ...db.calls];
+  writeFileSync(statePath, JSON.stringify({ ...state, feed: db.feed, rows: db.rows, calls }));
 }
 
 if (args[0] === 'app' && args[1] === '--help') {

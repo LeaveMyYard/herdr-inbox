@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The herdr-app inbox overlay (B6)**. The `herdr-inbox` mod now shows the open groups, answers
+  single and multi-select questions with notes, drafts and a Submit tab, shows ⚠ answers with
+  Retry and Stop showing, acknowledges alerts and goes to the agent. Its model replays the popup's
+  transition golden. Every verb carries the token of what was shown, a refused verb sends nothing
+  again, and a feed that left rows out never reads as an empty inbox. Until the Rust `app` commands
+  exist it says the inbox is unavailable. A crashed uninstall no longer leaves an emptied subfolder.
 - **The herdr-app mod scaffold (B5)**. `scripts/app-install` installs the `herdr-inbox` mod into an
   app home, upgrades it in place, and takes it out with no package at hand, leaving the home as it
   found it. It selects no layout and edits no key or setting. The mod finds the plugin again at
