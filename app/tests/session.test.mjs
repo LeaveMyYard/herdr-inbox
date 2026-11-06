@@ -125,7 +125,7 @@ test('a retry that comes out held says nothing could be sent', () => {
 });
 
 test('a result of unknown effect is said, reloaded and not repeated', () => {
-  for (const bad of [{ code: 9, stdout: '', stderr: '' }, { code: 0, stdout: '', stderr: '' }, null, { code: 1, stdout: '{"v":1,"ok":true,"verb":"answer","entry":"group:1"}', stderr: '' }]) {
+  for (const bad of [{ code: 9, stdout: '', stderr: '' }, { code: 0, stdout: '', stderr: '' }, null, { code: 1, stdout: JSON.stringify({ v: 1, ok: true, verb: 'answer', entry: 'group:1', token: null, done: [1], skipped: [], delivery: 'queued' }), stderr: '' }]) {
     const r = new Rig(twoGroups());
     r.press('enter');
     let n = 0;
@@ -246,7 +246,9 @@ test('a feed older than the mod\'s own write does not bring the row back', () =>
 
 test('a bad or missing feed keeps the last good one and marks it stale', () => {
   const r = new Rig(twoGroups());
-  for (const bad of [null, 'not json', '{"v":2}', '{"v":true}', JSON.stringify({ ...world([]), ok: false, errors: ['Question Text 345'] })]) {
+  const whole = world([]);
+  const { v, ...unversioned } = whole;
+  for (const bad of [null, 'not json', ...[{ ...whole, v: 2 }, { ...whole, v: true }, unversioned].map(f => JSON.stringify(f)), JSON.stringify({ ...world([]), ok: false, errors: ['Question Text 345'] })]) {
     r.read(bad);
     assert.equal(r.session.stale, true, String(bad));
     assert.equal(r.session.book.rows.size, 2);
@@ -276,7 +278,7 @@ test('an old feed is stale but stays', () => {
 test('a row whose key and contents disagree is refused as a whole feed', () => {
   const r = new Rig(twoGroups());
   const bad = structuredClone(r.db.feed);
-  bad.entries[0].key = 'group:5';
+  bad.entries[0].key = 'group:77';
   r.read(JSON.stringify(bad));
   assert.equal(r.session.problem, 'unreadable');
   assert.equal(r.session.book.rows.size, 2);
@@ -325,6 +327,10 @@ test('the confirmation keeps the token of the moment d was pressed', () => {
   r.press('y');
   assert.match(r.said, /look again/);
   assert.ok(r.db.find('group:1'), 'nothing was dismissed');
+  assert.equal(r.popup.confirm, null, 'a refused confirmation does not come back armed');
+  r.tick(1000);
+  r.press('y');
+  assert.equal(r.verbs('dismiss').length, 1, 'another y does not dismiss what changed');
 });
 
 test('drafts chain the tokens of their own results', () => {
