@@ -14,6 +14,7 @@ use super::files::Paths;
 use super::idle::{self, Idle};
 use super::record::{Record, sha256};
 use super::source::Source;
+use crate::worker::spawn::enter_own_session;
 
 /// How often the writer looks at the database, `control.json` and `stop.request`.
 pub const POLL: Duration = Duration::from_millis(250);
@@ -22,6 +23,7 @@ pub const PUBLISH_EVERY: Duration = Duration::from_secs(5);
 
 /// Runs a writer of `exe`, reading `db`, until something ends it. The exit code.
 pub fn serve(paths: &Paths, exe: &Path, db: &Path) -> i32 {
+    enter_own_session(); // it outlives a terminal that started it, as a worker does
     match start(paths, exe) {
         Ok(lock) => {
             run(paths, exe, db);

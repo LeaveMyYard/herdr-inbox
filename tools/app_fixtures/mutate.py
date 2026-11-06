@@ -9,6 +9,7 @@ def case(d, n): return next(c for c in d["cases"] if c["name"] == n)
 def swap(d, a, b):
     es = d["entries"]; i, j = es.index(ent(d, a)), es.index(ent(d, b)); es[i], es[j] = es[j], es[i]
 M = [
+ ("alerts by id", E, lambda d: swap(d, "alert:4", "alert:5")),
  ("groups out of order", E, lambda d: swap(d, "group:12", "group:14")),
  ("failed out of order", E, lambda d: swap(d, "failed:7", "failed:8")),
  ("question mark below a group", E, lambda d: d["new_since"].update(question_id=12)),
