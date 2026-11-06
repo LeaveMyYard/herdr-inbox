@@ -151,7 +151,8 @@ function realHost(t, { engine, uv, binary = false }) {
   chmodSync(join(s.temp, 'tools/uv'), 0o755);
   if (binary) {
     mkdirSync(join(s.plugin, 'bin'));
-    writeFileSync(join(s.plugin, 'bin/herdr-inbox'), '#!/bin/sh\n[ "$1" = contract ] && echo 2\n');
+    const app = binary === true ? '' : `[ "$1" = app ] && ${binary}\n`;
+    writeFileSync(join(s.plugin, 'bin/herdr-inbox'), `#!/bin/sh\n[ "$1" = contract ] && echo 2\n${app}`);
     chmodSync(join(s.plugin, 'bin/herdr-inbox'), 0o755);
   }
   const env = { PATH: `${join(s.temp, 'tools')}:/usr/bin:/bin`, HOME: s.temp, XDG_STATE_HOME: join(s.temp, 'state') };
@@ -176,12 +177,12 @@ test('after a rollback to Python the inbox says unavailable', async t => {
   assert.deepEqual(await availability(h), { state: 'unavailable', reason: 'no-app' });
 });
 
-test('a binary with no `app` falls to Python, which exits 2: unavailable', async t => {
-  const h = realHost(t, { engine: 'rust', binary: true, uv: 'echo "usage: inbox" >&2; exit 2' });
+test('a binary too old to have `app` says something else: unavailable, and Python is not started', async t => {
+  const h = realHost(t, { engine: 'rust', binary: 'echo "herdr-inbox 0.10.6"', uv: 'exit 99' });
   assert.deepEqual(await availability(h), { state: 'unavailable', reason: 'no-app' });
 });
 
 test('a real launcher that answers the probe is ready', async t => {
-  const h = realHost(t, { engine: 'rust', binary: true, uv: 'echo "herdr-inbox app v1"' });
+  const h = realHost(t, { engine: 'rust', binary: 'echo "herdr-inbox app v1"', uv: 'exit 99' });
   assert.equal((await availability(h)).state, 'ready');
 });

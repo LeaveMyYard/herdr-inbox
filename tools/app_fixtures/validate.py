@@ -235,8 +235,8 @@ def check_feed(f, name):
                 err(w, "reason")
             if d["state"] == "agent_gone" and d["auto_retry"]:
                 err(w, "gone retries")
-            if e["asker"]["pane"] is None and d["auto_retry"]:
-                err(w, "no pane, no worker retries")
+            if e["asker"]["host"] == "unknown" and d["auto_retry"]:
+                err(w, "no pane and no terminal, no worker retries")
         if k == "alert" and strict:
             if e["alert_kind"] not in ("agent", "blocked") or e["severity"] not in ("urgent", "warning", "info"):
                 err(w, "vocab")
@@ -382,7 +382,8 @@ for c in cmds["cases"]:
         err(w, "world")
     key = arg("--entry")
     ent = {e["key"]: e for e in feeds[c["world"]]["entries"]}.get(key)
-    grammar = "--json" in a and all(CANON.match(a[i + 1]) for i, x in enumerate(a) if x == "--question") \
+    detail_ok = "--detail" not in a or set(json.loads(arg("--detail"))) == set(T["Detail"])
+    grammar = detail_ok and "--json" in a and all(CANON.match(a[i + 1]) for i, x in enumerate(a) if x == "--question") \
         and (verb == "show" or re.fullmatch(r"(group|failed|alert):[1-9][0-9]*|remote:.+", key or "") is not None)
     if c["exit"] == 2:
         if out is not None or c["effects"] is not None:
@@ -442,8 +443,10 @@ for c in cmds["cases"]:
             err(w, "sender argv / force")
     else:
         obj(out, "_no", w)
-        if c["exit"] != 1 or c["effects"] is not None:
-            err(w, "a refusal exits 1 and starts nothing")
+        # only not_migrated starts anything: the worker that migrates, on the verb's own server
+        starts = {"ensure_worker": None, "sender": None, "sender_socket": None} if out["code"] == "not_migrated" else None
+        if c["exit"] != 1 or c["effects"] != starts:
+            err(w, "a refusal exits 1 and starts nothing but the worker that migrates")
         if out["code"] not in CODES:
             err(w, "code")
         seen_codes.add(out["code"])

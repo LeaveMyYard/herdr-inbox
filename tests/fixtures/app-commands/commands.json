@@ -1441,7 +1441,7 @@
     "verb": "answer",
     "entry": "group:12",
     "code": "invalid",
-    "message": "Q12 has no such option: Option Z",
+    "message": "Q12 has no such option",
     "closed": null
    },
    "effects": null,
@@ -1746,7 +1746,11 @@
     "message": "The inbox is being upgraded; try again in a few seconds",
     "closed": null
    },
-   "effects": null,
+   "effects": {
+    "ensure_worker": null,
+    "sender": null,
+    "sender_socket": null
+   },
    "replay_of": null
   },
   {
@@ -1976,6 +1980,33 @@
     "alert:05",
     "--token",
     "fc22c1bf485970291dff963289e4b6a3",
+    "--json"
+   ],
+   "exit": 2,
+   "stdout": null,
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "usage-unknown-detail-field",
+   "about": "A field a Detail does not have: dropping it could lose the operator's words.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null, \"comment\": \"Note Text 1\"}",
     "--json"
    ],
    "exit": 2,
