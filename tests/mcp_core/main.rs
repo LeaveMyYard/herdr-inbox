@@ -93,6 +93,10 @@ const CASES: &[Case] = &[
         "an_unusable_record_is_unavailable",
         an_unusable_record_is_unavailable,
     ),
+    (
+        "hc_never_gets_the_callers_pane",
+        hc_never_gets_the_callers_pane,
+    ),
 ];
 
 /// One stand-in session.
@@ -137,7 +141,7 @@ impl Rig {
     fn install_hc(&self) {
         exe::install(
             &self.path("hc"),
-            "#!/bin/sh\necho \"$@\" >> \"$0.log\"\n\
+            "#!/bin/sh\necho \"$@ pane=[$HERDR_PANE_ID]\" >> \"$0.log\"\n\
              case \"$1\" in get) cat \"$0.get\";; ls) cat \"$0.ls\";; *) exit 2;; esac\n",
         );
     }
@@ -526,6 +530,18 @@ fn an_unusable_record_is_unavailable() {
     let receipt = s.ask();
     assert_eq!(receipt["status"], "unavailable", "{receipt}");
     assert_eq!(rig.count("questions"), 0);
+}
+
+fn hc_never_gets_the_callers_pane() {
+    // a core that hc started in a race would hand these to every terminal
+    let rig = Rig::new();
+    let f = other_pane(1);
+    let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &inherited(&f));
+    let claude = rig.claude.display().to_string();
+    rig.hc_reports(s.pid, &[&claude, BIN, "mcp"]);
+    assert_eq!(s.ask()["status"], "open");
+    let log = std::fs::read_to_string(rig.path("hc.log")).unwrap();
+    assert!(log.contains("pane=[]") && !log.contains("w9:p9"), "{log}");
 }
 
 /// Run as `claude`: CMD as a child, as Claude Code runs an MCP server.
