@@ -25,6 +25,10 @@ use serde_json::{Value, json};
 const BIN: &str = env!("CARGO_BIN_EXE_herdr-inbox");
 const SESSION: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
 
+/// Starts `$0 "$@"` in the background and writes its pid. Through fd 3, because dash gives a
+/// background job /dev/null as stdin first, so `<&0` would read that.
+const ORPHAN: &str = "exec 3<&0; \"$0\" \"$@\" <&3 3<&- & echo $! > stand-in.pid";
+
 type Case = (&'static str, fn());
 
 const CASES: &[Case] = &[
@@ -101,7 +105,7 @@ impl Rig {
         let dir = self.dir.path();
         let mut cmd = Command::new("sh");
         cmd.env_clear()
-            .args(["-c", "\"$0\" \"$@\" <&0 & echo $! > stand-in.pid"])
+            .args(["-c", ORPHAN])
             .arg(&self.claude)
             .args(argv)
             .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
