@@ -1,0 +1,551 @@
+{
+ "source": "written by hand for docs/protocol/app-commands-v1.md (no code produces it yet)",
+ "feeds": "tests/fixtures/app-feed/",
+ "cases": [
+  {
+   "name": "answer-lone",
+   "about": "A lone open question, answered at once.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "a622fee93b375a262cc004dc8657351f",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:12",
+    "token": null,
+    "done": [
+     12
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   }
+  },
+  {
+   "name": "answer-submit",
+   "about": "The Submit tab: two of three questions; the group stays with a new token.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "51aca844aaa0993c50895c0b421ad072",
+    "done": [
+     14,
+     15
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   }
+  },
+  {
+   "name": "answer-skips-no-draft",
+   "about": "A named question with no draft is skipped, as Submit does.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--question",
+    "16",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "51aca844aaa0993c50895c0b421ad072",
+    "done": [
+     14,
+     15
+    ],
+    "skipped": [
+     16
+    ],
+    "delivery": "queued"
+   }
+  },
+  {
+   "name": "draft",
+   "about": "A draft changes the token: the result has the new one.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--question",
+    "16",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "draft",
+    "entry": "group:14",
+    "token": "81a78f2ac9d0c70bacdd4786a60e11df",
+    "done": [
+     16
+    ],
+    "skipped": [],
+    "delivery": null
+   }
+  },
+  {
+   "name": "draft-clear",
+   "about": "Clearing a draft changes the token too.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--question",
+    "14",
+    "--clear",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "draft",
+    "entry": "group:14",
+    "token": "a537a99f732103f7ea790b00d742f13a",
+    "done": [
+     14
+    ],
+    "skipped": [],
+    "delivery": null
+   }
+  },
+  {
+   "name": "dismiss-question",
+   "about": "One question of a group.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "dismiss",
+    "entry": "group:14",
+    "token": "590d81830d13b54e6fee5ce297ddbec6",
+    "done": [
+     15
+    ],
+    "skipped": [],
+    "delivery": null
+   }
+  },
+  {
+   "name": "dismiss-group",
+   "about": "The whole group: the row is gone.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "dismiss",
+    "entry": "group:14",
+    "token": null,
+    "done": [
+     14,
+     15,
+     16
+    ],
+    "skipped": [],
+    "delivery": null
+   }
+  },
+  {
+   "name": "retry",
+   "about": "Another attempt: the row stays until the answer lands.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:9",
+    "--token",
+    "834fc798aef4d178a7f4fd81e3f2dac6",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:9",
+    "token": "834fc798aef4d178a7f4fd81e3f2dac6",
+    "done": [
+     9
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   }
+  },
+  {
+   "name": "retry-already-sending",
+   "about": "Setup: another process took a live claim on Q8 after this feed was read.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "895d43b2b906482632eb5b6c7c08dbed",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "retry",
+    "entry": "failed:8",
+    "code": "already_sending",
+    "message": "Q8 is already being delivered",
+    "closed": null
+   }
+  },
+  {
+   "name": "stop-showing",
+   "about": "The ⚠ row goes; check_answers still has the answer.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "stop-showing",
+    "--entry",
+    "failed:10",
+    "--token",
+    "2371257452d3d2abd00e0237a9c3884e",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "stop-showing",
+    "entry": "failed:10",
+    "token": null,
+    "done": [
+     10
+    ],
+    "skipped": [],
+    "delivery": null
+   }
+  },
+  {
+   "name": "ack",
+   "about": "An alert acknowledged.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "238cd30c9c70782178c99d89d9ddb354",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "ack",
+    "entry": "alert:5",
+    "token": null,
+    "done": [
+     5
+    ],
+    "skipped": [],
+    "delivery": null
+   }
+  },
+  {
+   "name": "stale-token",
+   "about": "The feed was read before the agent withdrew Q16: the database is stale-token.json.",
+   "world": "stale-token.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4878c7e69d285dde23219bcfa99a188b",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:14",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": null
+   }
+  },
+  {
+   "name": "stale-already-answered",
+   "about": "Setup: the TUI popup answered Q12 after this feed was read.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "a622fee93b375a262cc004dc8657351f",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "answered"
+   }
+  },
+  {
+   "name": "invalid-choice",
+   "about": "A label the question does not have.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "a622fee93b375a262cc004dc8657351f",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option Z\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "invalid",
+    "message": "Q12 has no such option: Option Z",
+    "closed": null
+   }
+  },
+  {
+   "name": "invalid-two-choices",
+   "about": "Two choices on a question without multi_select.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "a622fee93b375a262cc004dc8657351f",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\", \"Option B\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "invalid",
+    "message": "Q12 takes one choice",
+    "closed": null
+   }
+  },
+  {
+   "name": "read-only-remote",
+   "about": "Remote rows take no verbs in v1; they have no token.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "remote:machine-alpha|db-alpha|4",
+    "--token",
+    "00000000000000000000000000000000",
+    "--question",
+    "4",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "remote:machine-alpha|db-alpha|4",
+    "code": "read_only",
+    "message": "Answer this in the herdr popup",
+    "closed": null
+   }
+  },
+  {
+   "name": "busy",
+   "about": "Setup: another process holds the write lock for the whole budget.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "238cd30c9c70782178c99d89d9ddb354",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:5",
+    "code": "busy",
+    "message": "The inbox database is busy; try again in a moment",
+    "closed": null
+   }
+  },
+  {
+   "name": "not-migrated",
+   "about": "Setup: the database is not at this code's revision.",
+   "world": "not-migrated.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "238cd30c9c70782178c99d89d9ddb354",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:5",
+    "code": "not_migrated",
+    "message": "The inbox is being upgraded; try again in a few seconds",
+    "closed": null
+   }
+  },
+  {
+   "name": "usage",
+   "about": "No --json: usage on stderr, nothing on stdout, no I/O.",
+   "world": "every-kind.json",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "238cd30c9c70782178c99d89d9ddb354"
+   ],
+   "exit": 2,
+   "stdout": null
+  }
+ ]
+}
