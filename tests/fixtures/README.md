@@ -20,8 +20,9 @@ an old Python process meets).
   still owns (`python`). Hand-written, because Python never delivered to a terminal and no run can
   record them. `delivery::terminal`'s tests replay `rows` over the real pass and store with a scripted
   `hc`, and `tests/test_core_rows.py` the `python` row. In `world`: `hc` (`live`, `gone`, `finished`,
-  `down`), `status`, `foreground`, `record`, `screen` (a `read-0.1.18` name), and `at_send`, what
-  happens after the last look. `tried` counts sends made and `typed` the ones `hc` took.
+  `down`), `status`, `foreground`, `record`, `screen` (a `read-0.1.18` name), `twin`, `elsewhere` (other
+  terminals: t4 and t5 run the asker's conversation, t6 another), `answered_ago` in seconds, and `at_send`,
+  what happens after the last look. `tried` counts sends made and `typed` the ones `hc` took.
 - `composer/*.ansi`: Claude Code input boxes as `herdr pane read` returns them (empty, drafts,
   chips, wrapped text), captured from real panes; the fake herdr in `tests/conftest.py` serves them.
 - `radar/*.block.toml`: herdr-radar's own output, produced by `radar/generate.js`
