@@ -170,3 +170,49 @@ fn the_stamp_is_read_without_writing() {
         .unwrap();
     assert_eq!(db_stamp(&db), Some(2));
 }
+
+/// Records the order of what the run loop asks of the duties.
+#[derive(Default)]
+struct Log(Vec<&'static str>);
+
+impl Duties for Log {
+    fn migrate(&mut self) {
+        self.0.push("migrate");
+    }
+    fn tick(&mut self) -> Ticked {
+        self.0.push("tick");
+        Ticked::default()
+    }
+    fn pending_now(&mut self) -> usize {
+        0
+    }
+}
+
+/// The remote thread starts in a tick and opens without migrating: the worker's
+/// `begin` has migrated by then, before anything else it does.
+#[test]
+fn the_worker_migrates_when_it_begins_before_any_tick() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = FakeHerdr::start();
+    lists(&fake, None);
+    let env = WorkerEnv {
+        db: dir.path().join("inbox.db"),
+        server: "/fake/herdr.sock".into(),
+        revision: 1,
+        version: "0.0.0".into(),
+        waits: crate::worker::Waits::default(),
+        spawn_env: Vec::new(),
+        no_worker: true,
+    };
+    let herdr = fake.blocking_client().with_bin("/nonexistent/herdr-cli");
+    let mut live = Live::new(
+        env,
+        herdr,
+        Install::new(None),
+        "/nonexistent/herdr-inbox".into(),
+        Log::default(),
+    );
+    live.begin();
+    live.tick();
+    assert_eq!(live.duties().0, ["migrate", "tick"]);
+}

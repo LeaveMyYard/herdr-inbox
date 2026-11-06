@@ -107,3 +107,56 @@ fn every_transactional_write_is_all_or_nothing() {
         );
     }
 }
+
+/// No other process may see delivered and acknowledged without `verified_at`
+/// (Python test_verified_delivery_is_written_in_one_transaction). The abort
+/// is on `verified_at` alone: a trigger on the whole table stops at the
+/// earlier `pending_since` update, and never reaches the write this is about.
+#[test]
+fn a_verified_delivery_is_never_visible_without_verified_at() {
+    let dir = tempfile::tempdir().unwrap();
+    let st = Store::open(&migrated(dir.path()), Duration::from_secs(5)).unwrap();
+    let new = NewQuestion {
+        question: "Atomic?",
+        session_id: Some("s1"),
+        pane_id: Some("w1:p1"),
+        ..NewQuestion::default()
+    };
+    let q = st.insert(&new).unwrap().id;
+    st.set_answer(q, "yes", None).unwrap();
+    let claim = claimed(&st, q);
+    let before = rows(&st);
+    st.db()
+        .execute_batch(
+            "CREATE TEMP TRIGGER abort_verified BEFORE UPDATE OF verified_at ON main.question_ext \
+             BEGIN SELECT RAISE(ABORT, 'no'); END;",
+        )
+        .unwrap();
+    assert!(
+        st.record_delivery(q, None, true, claim.as_ref(), true)
+            .is_err(),
+        "the aborted statement is the verified_at write"
+    );
+    assert_eq!(
+        rows(&st),
+        before,
+        "delivered_at and acknowledged_at went with it"
+    );
+    assert!(st.db().is_autocommit(), "no transaction left open");
+    st.db()
+        .execute_batch("DROP TRIGGER abort_verified;")
+        .unwrap();
+    st.record_delivery(q, None, true, claim.as_ref(), true)
+        .unwrap();
+    let got = st.get(q).unwrap().unwrap();
+    assert!(got.delivered_at.is_some() && got.acknowledged_at.is_some());
+    let verified: Option<String> = st
+        .db()
+        .query_row(
+            "SELECT verified_at FROM question_ext WHERE id = ?",
+            [q],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(verified.is_some());
+}

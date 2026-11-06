@@ -6,6 +6,7 @@ mod atomic;
 mod candidates;
 mod claims;
 mod common;
+mod compat;
 mod delivery_golden;
 mod family;
 mod golden;

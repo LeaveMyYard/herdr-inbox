@@ -3,6 +3,8 @@
 //! and test_hook_delivery.py, the worker's halves).
 
 use herdr_inbox::clock::{now, now_minus};
+use herdr_inbox::remote_api::apply::apply;
+use herdr_inbox::remote_api::keys::{db_id, qkey};
 use rusqlite::params;
 use serde_json::{Value, json};
 
@@ -156,6 +158,45 @@ fn the_worker_records_the_continuation_of_a_session_in_play() {
         w.store.get(q).unwrap().unwrap().session_id.as_deref(),
         Some(OLD)
     ); // never rewritten
+}
+
+/// Python `continued`, for a question of OLD: the worker records the continuation.
+fn continued_with_open_question() -> (World, i64) {
+    let mut w = World::new();
+    let q = w.filed("w9:p9", OLD, "Question Title 123", "x");
+    w.sql(
+        "UPDATE questions SET status = 'open', answer = NULL WHERE id = ?",
+        params![q],
+    );
+    w.write(
+        OLD,
+        &[json!({"type": "continued-in", "sessionId": OLD, "continuedInSessionId": NEW})],
+    );
+    w.write(NEW, &[json!({"type": "ai-title", "sessionId": NEW})]);
+    (w, q)
+}
+
+#[test]
+fn the_family_still_holds_while_the_continuation_stands() {
+    let (mut w, _) = continued_with_open_question();
+    w.full_tick();
+    let family = herdr_inbox::store::family::family(w.store.db(), NEW, &w.files).unwrap();
+    assert_eq!(family, [NEW, OLD]);
+}
+
+#[test]
+fn a_remote_answer_in_flight_survives_the_continuation() {
+    let (mut w, q) = continued_with_open_question();
+    let dbid = db_id(w.store.db()).unwrap();
+    let key = qkey(&dbid, &w.store.get(q).unwrap().unwrap());
+    w.full_tick(); // the remote's worker records the continuation
+    assert_eq!(qkey(&dbid, &w.store.get(q).unwrap().unwrap()), key);
+    let request = json!({"request_id": "r1", "db_id": dbid, "id": q, "qkey": key,
+                         "action": "answer", "detail": {"text": "Question Text 345"}});
+    let (reply, _) = apply(&w.store, request.as_object().unwrap()).unwrap();
+    assert_eq!(reply["outcome"], "applied");
+    let row = w.store.get(q).unwrap().unwrap();
+    assert_eq!(row.answer.as_deref(), Some("Question Text 345"));
 }
 
 impl World {

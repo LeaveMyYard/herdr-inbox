@@ -127,3 +127,29 @@ fn a_database_error_is_warned_about_never_raised() {
         "{warned:?}"
     );
 }
+
+#[test]
+fn an_open_alert_counts_in_the_panes_token_beside_its_questions() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, path) = store(dir.path()); // one open question in w1:p1
+    store
+        .db()
+        .execute_batch(
+            "INSERT INTO alerts (created_at, kind, severity, title, pane_id) \
+             VALUES ('2026-10-21T10:00:00+00:00', 'agent', 'urgent', 'Question Title 123', 'w1:p1')",
+        )
+        .unwrap();
+    let mut spy = Spy::default();
+    let mut config = ConfigFile::in_dir(dir.path().join("cfg"));
+    let mut warn = |m: &str| panic!("{m}");
+    Markers {
+        store: &store,
+        db_path: &path,
+        herdr: &mut spy,
+        config: &mut config,
+        lock_wait: Duration::from_millis(100),
+        warn: &mut warn,
+    }
+    .update(Some("w1:p1"));
+    assert_eq!(spy.calls[0], "token w1:p1 2");
+}

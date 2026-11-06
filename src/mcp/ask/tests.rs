@@ -320,3 +320,28 @@ fn a_parallel_identical_ask_files_one_question() {
         .unwrap();
     assert_eq!(n, 1);
 }
+
+#[test]
+fn a_dismissed_question_can_be_asked_again() {
+    let (_d, s) = store();
+    let c = caller();
+    let first = single(ask(&s, &c, &[item("Question Title 123")], None).0);
+    assert!(s.set_status(1, "dismissed", None).unwrap());
+    let again = single(ask(&s, &c, &[item("Question Title 123")], None).0);
+    assert_eq!(again["status"], json!("open"));
+    assert_ne!(again["id"], first["id"]);
+}
+
+#[test]
+fn the_pane_is_the_fallback_owner_without_a_session() {
+    let (_d, s) = store();
+    let mut c = caller();
+    c.session_id = None;
+    let first = single(ask(&s, &c, &[item("Question Title 123")], None).0);
+    let same_pane = single(ask(&s, &c, &[item("Question Title 123")], None).0);
+    assert_eq!(same_pane["status"], json!("already_open"));
+    assert_eq!(same_pane["id"], first["id"]);
+    c.pane_id = Some("w1:p2".into());
+    let other_pane = single(ask(&s, &c, &[item("Question Title 123")], None).0);
+    assert_eq!(other_pane["status"], json!("open"));
+}

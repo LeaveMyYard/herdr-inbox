@@ -99,3 +99,15 @@ fn a_cold_look_reads_only_the_tail_and_complete_lines() {
     assert_eq!(continued_in(&path), None);
     assert_eq!(continued_in(&dir.path().join("missing.jsonl")), None);
 }
+
+#[test]
+fn a_workflow_agents_transcript_is_a_subagents_too() {
+    let dir = tempfile::tempdir().unwrap();
+    let workflow = dir.path().join(OLD).join("subagents/workflows/run1");
+    fs::create_dir_all(&workflow).unwrap();
+    let lines = [continued(NEW, "2026-10-16T09:59:38Z")];
+    assert_eq!(
+        continued_in(&transcript(&workflow, "agent-a1", &lines)),
+        None
+    );
+}

@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use herdr_agent_kit::plugin_env::config::ConfigFile;
 use herdr_inbox::clock::now_minus;
+use herdr_inbox::store::revision::STAMP;
 use herdr_inbox::worker::duties::live::LiveDuties;
 use herdr_inbox::worker::live::Duties;
 use herdr_inbox::worker::remote::RemoteEnv;
@@ -163,4 +164,50 @@ fn the_open_re_checks_unverified_acknowledgements() {
     let mut d = w.duties("[]");
     d.pending_now(); // the only pass it gets is its open's
     assert!(w.store.get(qid).unwrap().unwrap().verified_at.is_some());
+}
+
+impl World {
+    /// A database a release before `column` existed migrated and stamped
+    /// (Python compat_prebridge.make_older_head).
+    fn older_head(&self, table: &str, column: &str) {
+        let db = rusqlite::Connection::open(&self.db).unwrap();
+        db.execute_batch(&format!(
+            "ALTER TABLE {table} DROP COLUMN {column}; PRAGMA user_version = 1668105336"
+        ))
+        .unwrap();
+    }
+
+    fn stamp(&self) -> i64 {
+        rusqlite::Connection::open(&self.db)
+            .unwrap()
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap()
+    }
+}
+
+#[test]
+fn the_worker_migrates_before_its_remote_thread_starts_and_each_tick_migrates_again() {
+    let w = World::new();
+    w.older_head("remote_outbox", "sending_at");
+    let machines = r#"[{"id": "m1", "label": "box", "target": "box.lan", "enabled": true}]"#;
+    let mut d = w.duties(machines);
+    d.migrate();
+    assert_eq!(w.stamp(), STAMP);
+    assert_eq!(
+        w.machine_lists(),
+        0,
+        "the remote thread starts only in a tick"
+    );
+    w.older_head("question_ext", "legacy_checked_at"); // an old server, meanwhile
+    d.tick();
+    assert_eq!(w.stamp(), STAMP);
+    let db = rusqlite::Connection::open(&w.db).unwrap();
+    let has: i64 = db
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('question_ext') WHERE name = 'legacy_checked_at'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(has, 1);
 }

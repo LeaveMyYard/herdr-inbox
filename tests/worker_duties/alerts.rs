@@ -10,7 +10,7 @@ use serde_json::json;
 use crate::World;
 
 impl World {
-    fn scan(&mut self, scan: &mut BlockedScan, t: f64) -> (usize, Vec<Option<String>>) {
+    pub fn scan(&mut self, scan: &mut BlockedScan, t: f64) -> (usize, Vec<Option<String>>) {
         let mut marked = Vec::new();
         let n = self.with_round(|round| {
             scan_blocked(round, scan, t, &mut |p: Option<&str>| {
@@ -86,7 +86,7 @@ fn an_agent_list_that_is_not_a_list_changes_nothing() {
 
 impl World {
     /// w1:p1's agent at a prompt, past BLOCKED_AFTER: one open alert.
-    fn blocked_alert(&mut self, scan: &mut BlockedScan) {
+    pub fn blocked_alert(&mut self, scan: &mut BlockedScan) {
         self.fake.set(|k| {
             k.agents = json!([{"pane_id": "w1:p1", "tab_id": "w1:t1", "agent": "claude", "agent_status": "blocked"}]);
         });
@@ -98,7 +98,7 @@ impl World {
         self.scan(scan, 1.0);
     }
 
-    fn open_alerts(&self) -> i64 {
+    pub fn open_alerts(&self) -> i64 {
         self.store
             .db()
             .query_row(

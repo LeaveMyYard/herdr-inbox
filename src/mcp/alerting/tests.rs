@@ -41,3 +41,50 @@ fn another_sessions_alert_cannot_be_withdrawn() {
     assert_eq!(r["status"], json!("withdrawn"));
     assert_eq!(fx, [Effect::Markers(Some("w1:p1".into()))]);
 }
+
+#[test]
+fn a_raised_alert_notifies_counts_in_the_badge_and_dedupes() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Store::open_migrating(&dir.path().join("inbox.db"), Duration::from_secs(3)).unwrap();
+    let files = Transcripts::new(None);
+    let c = Caller {
+        tab_id: Some("w1:t1".into()),
+        tab_label: Some("tab-A".into()),
+        ..caller(S)
+    };
+    let raise = Raise {
+        title: "Question Title 123",
+        message: Some("Question Text 345"),
+        severity: "urgent",
+        asked_by: Some("deployer"),
+    };
+    let (r, fx) = alert_operator(&s, &c, &raise, "/sock", &files).unwrap();
+    assert_eq!((&r["status"], &r["id"]), (&json!("open"), &json!(1)));
+    assert!(
+        r["message"]
+            .as_str()
+            .unwrap()
+            .contains("no answer comes back")
+    );
+    assert_eq!(
+        fx,
+        [
+            Effect::Notify {
+                title: "A1 · urgent · tab-A".into(),
+                body: "Question Title 123".into()
+            },
+            Effect::Markers(Some("w1:p1".into()))
+        ]
+    );
+    assert_eq!(s.open_counts().unwrap().get("w1:p1"), Some(&1));
+    let new = crate::store::questions::NewQuestion {
+        pane_id: Some("w1:p1"),
+        question: "Question Title 456",
+        ..Default::default()
+    };
+    s.insert(&new).unwrap();
+    assert_eq!(s.open_counts().unwrap().get("w1:p1"), Some(&2));
+    let (r, fx) = alert_operator(&s, &c, &raise, "/sock", &files).unwrap();
+    assert_eq!(r["status"], json!("already_open"));
+    assert!(fx.is_empty());
+}
