@@ -5,8 +5,8 @@ owns every decision and every write. A mod reads this one file and acts only thr
 [app-commands v1](app-commands-v1.md). The fixtures are in `tests/fixtures/app-feed/` and
 `tests/fixtures/app-commands/`.
 
-**Status: the [installer](#installing) is built (B5); the rest is not yet.** This is the document the writer
-(B4) and the mods (B5, B6) are built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
+**Status: the [installer](#installing) (B5) and the writer (B4) are built.** This is the document
+the mods (B5, B6) are built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
 a later slice.
 
 ## Delivery
@@ -119,6 +119,11 @@ context and no options.
 | `alerts` | integer | `alert` entries left out. |
 | `remote` | integer | Remote entries left out, of any kind. |
 | `question_ids` | [integer] | The left-out open questions' ids, oldest first, at most 1000. |
+
+`questions` goes on counting past 1000 and the ids stop, so the ids that fall off are the newest arrivals. The
+mod shows the count, which stays. Those rows have no `show` entry and no toast until older ones leave, so past
+the cap "a file the reader missed loses nothing" means they are announced late. Getting there takes over 1000
+open questions left out at once.
 
 ### NewSince
 
@@ -451,7 +456,8 @@ is stale. B5 may add optional arguments, such as Panorama's `--install-id`, with
 | `writer.json` | The writer's record: `{"v":1,"pid":…,"start":…,"binary_sha256":…}`. Diagnostics and busy proof, never a signal target. |
 | `control.json` | `{"v":1,"disabled":false}`. Disabled: no writer runs or starts. Absent: `--ensure` and a child refuse, as there is no install to serve. |
 | `stop.request` | Empty. A running writer that sees it exits. |
-| `start.json` | The restart ledger: `{"v":1,"failures":…,"retry_at_ms":…}`. Absent means no failures. |
+| `start.json` | The restart ledger: `{"v":1,"failures":…,"retry_at_ms":…}`. Absent means no failures. One that cannot be read stops starts until a reinstall. |
+| `.herdr-inbox-*.tmp` | Staging for `writer.json`, `start.json` and `control.json`. A crash can leave one, which the installer clears. |
 | `install.json` | The install record, mode 0600, see [Installing](#installing). The writer does not touch it. |
 | `stage/` | The installer's staging. The writer does not touch it. |
 

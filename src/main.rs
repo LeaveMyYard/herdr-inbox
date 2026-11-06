@@ -7,7 +7,8 @@
 //! no release has before P5-I), `contract` (the launcher contract,
 //! `scripts/launch`) and the CLI's `list`, `answer`, `dismiss`, `open`,
 //! `sync-tokens`, `radar-sidebar`, `export` and `apply`
-//! ([`herdr_inbox::cli`]).
+//! ([`herdr_inbox::cli`]), and `app-feed`, herdr-app's feed writer
+//! ([`herdr_inbox::app`]).
 //!
 //! A hook never fails the session: a panic, a bad argument or any error
 //! exits 0 (the rewake watcher's wake code is the only other exit).
@@ -28,6 +29,9 @@ fn main() -> ExitCode {
         }
         [cmd, rest @ ..] if cmd == "worker" => {
             ExitCode::from(u8::try_from(herdr_inbox::worker::process::main(rest)).unwrap_or(1))
+        }
+        [cmd, rest @ ..] if cmd == "app-feed" => {
+            ExitCode::from(u8::try_from(herdr_inbox::app::writer::cli::main(rest)).unwrap_or(1))
         }
         [cmd] if cmd == "mcp" => ExitCode::from(u8::try_from(herdr_inbox::mcp::run()).unwrap_or(1)),
         [cmd, rest @ ..] if herdr_inbox::cli::handles(cmd) => {

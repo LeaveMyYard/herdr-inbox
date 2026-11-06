@@ -134,7 +134,7 @@ cli)
 	# RUST_CLI: what the binary runs. Not here, so Python's until ported: redeliver, clean-venvs,
 	# remote, verify (and tui, the popup, until P6-E). tests/launch/cli.rs holds this to the binary.
 	case ${1:-} in
-	list | answer | dismiss | deliver | open | sync-tokens | radar-sidebar | export | apply | worker)
+	list | answer | dismiss | deliver | open | sync-tokens | radar-sidebar | export | apply | worker | app-feed)
 		bin=$(pick)
 		if [ -n "$bin" ]; then
 			exec "$bin" "$@"

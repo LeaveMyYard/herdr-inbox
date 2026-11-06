@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The herdr-app feed (B4)**. `herdr-inbox app-feed --ensure` starts one detached writer per app home,
+  which publishes the inbox as a file for the mods, proves its start, backs off a writer that crashes,
+  and leaves when the app does. It reads the database only, and a row it cannot read or fit is said out
+  loud, never dropped. `tools/app_fixtures/` now holds the contract's generator and validator.
 - **`ask_operator` and `alert_operator` work in a herdr-app terminal** (B2). The caller's
   `HC_TERMINAL_ID` is only a claim: the MCP server's own parent must be the only Claude above it, and
   that terminal's foreground process by `hc get`. A refused claim gets `unavailable` from every tool,

@@ -66,6 +66,28 @@ impl Store {
         Ok(self.ext::<i64>("hook_misses", qid)?.unwrap_or(0))
     }
 
+    /// How many `app retry` verbs were done on `qid` (NULL reads as 0).
+    pub fn retry_count(&self, qid: i64) -> rusqlite::Result<i64> {
+        Ok(self.ext::<i64>("retry_count", qid)?.unwrap_or(0))
+    }
+
+    /// One more `app retry` on `qid`. The caller's transaction carries it.
+    pub fn raise_retry_count(&self, qid: i64) -> rusqlite::Result<()> {
+        self.db().execute(
+            "INSERT INTO question_ext (id, group_id, retry_count) VALUES (?, ?, 1) \
+             ON CONFLICT(id) DO UPDATE SET retry_count = COALESCE(retry_count, 0) + 1",
+            params![qid, qid],
+        )?;
+        Ok(())
+    }
+
+    /// Whether `qid` was hidden from the ⚠ rows.
+    pub fn hidden(&self, qid: i64) -> rusqlite::Result<bool> {
+        Ok(self
+            .ext::<String>("hidden_at", qid)?
+            .is_some_and(|s| !s.is_empty()))
+    }
+
     /// Whether `qid`'s agent was marked gone.
     pub fn agent_gone(&self, qid: i64) -> rusqlite::Result<bool> {
         Ok(self
