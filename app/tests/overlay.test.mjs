@@ -10,10 +10,13 @@ const { world } = await import('./support/herdr.mjs');
 async function open() {
   const view = new HerdrInbox();
   const tasks = [];
-  view.init({}, { spawn: task => tasks.push(task), notify() {} });
+  const cx = { spawn: task => tasks.push(task), notify() {}, focus_handle: () => ({ focus() {} }), timer: { every() {} } };
+  view.init({}, cx);
   const first = view.render().texts;
-  const cx = { notify() {} };
-  for (const task of tasks) await task(cx);
+  // The feed watcher never ends: a task gets a moment, not a wait for its end.
+  const moment = () => new Promise(done => { setTimeout(done, 5); });
+  while (tasks.length > 0) await Promise.race([tasks.shift()(cx), moment()]);
+  await moment();
   return [first, view.render().texts];
 }
 
@@ -33,8 +36,8 @@ test('the overlay checks first, and then says what it found', async () => {
   installed({ code: 0, stdout: 'herdr-inbox app v1\n', stderr: '' });
   const [first, last] = await open();
   assert.deepEqual(first, ['Inbox', 'Looking for the inbox…']);
-  assert.equal(last[0], 'Inbox');
-  assert.match(last[1], /can be reached/);
+  assert.equal(last[0], 'Inbox unavailable');
+  assert.match(last[1], /no inbox feed/, 'no feed yet: never an empty inbox');
 });
 
 test('app exiting 2 shows that the inbox is unavailable, and why', async () => {

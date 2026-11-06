@@ -71,7 +71,9 @@ def erase_mod(home, record, mod):
     ours, others = scan(home, record, mod)
     for path in ours:
         home.remove(path)
-    for path in sorted({'/'.join(p.split('/')[:depth]) for p in ours for depth in range(3, p.count('/') + 1)},
+    # The record's paths too: a crash can leave a subfolder emptied, with no file of ours to name it.
+    named = [*ours, *(p for p in receipt.known(record) if p.startswith(f'mods/{mod}/'))]
+    for path in sorted({'/'.join(p.split('/')[:depth]) for p in named for depth in range(3, p.count('/') + 1)},
                        key=len, reverse=True):
         home.rmdir(path)
     home.rmdir(f'mods/{mod}')

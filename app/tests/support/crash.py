@@ -29,14 +29,15 @@ def snapshot(home):
 
 def mod_files(plugin):
     folder = Path(plugin, 'app/mods/herdr-inbox')
-    return {path.name: path.read_bytes().hex() for path in folder.iterdir()}
+    return {path.relative_to(folder).as_posix(): path.read_bytes().hex() for path in folder.rglob('*') if path.is_file()}
 
 
 def installed(home):
     folder = Path(home, 'mods/herdr-inbox')
     if not folder.exists():
         return None
-    return {path.name: path.read_bytes().hex() for path in folder.iterdir() if path.name not in ('gpui-kit.d.ts', 'jsconfig.json')}
+    return {path.relative_to(folder).as_posix(): path.read_bytes().hex() for path in folder.rglob('*')
+            if path.is_file() and path.name not in ('gpui-kit.d.ts', 'jsconfig.json')}
 
 
 def arm(crash_at):
