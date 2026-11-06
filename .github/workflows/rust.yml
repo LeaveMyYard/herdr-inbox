@@ -59,6 +59,8 @@ jobs:
               - 'tests/fixtures/decisions.json'  # replayed by crates/inbox-core/tests
               - 'tests/fixtures/design_empty_inbox.json'  # replayed by crates/inbox-core/tests
               - 'tests/fixtures/popup-transitions.json'  # replayed by crates/inbox-core/tests
+              - 'tests/fixtures/app-feed/**'  # reproduced by tests/app
+              - 'tests/fixtures/app-commands/**'  # replayed by tests/app
               - 'tests/fixtures/popup-deviations.json'  # replayed by crates/inbox-core/tests
               - 'tests/fixtures/screens/popup*.json'  # drawn by crates/inbox-core/tests
               - '.github/workflows/rust.yml'

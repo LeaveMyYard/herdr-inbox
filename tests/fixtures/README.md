@@ -21,9 +21,11 @@ an old Python process meets).
 ## herdr-app contract examples
 
 `app-feed/*.json` and `app-commands/commands.json` are examples of `docs/protocol/app-feed-v1.md` and
-`docs/protocol/app-commands-v1.md`, with fake data only. No code produces them yet: the mods are built
-against them, and the writer and the verbs must reproduce them. Their tokens are real, by the document's
-formula. Core rows are there before any code can file one.
+`docs/protocol/app-commands-v1.md`, with fake data only. They are the output of `tools/app_fixtures/gen.py`:
+change them there. `tools/app_fixtures/validate.py` checks them against the documents' tables and `mutate.py`
+checks the validator, in the App workflow. The mods are built against them, and `tests/app` holds the code to
+them: the feed of each world is that fixture, and every case does what it says. Their tokens are real, by the
+document's formula.
 
 - `every-kind.json`: every entry kind, both hosts and an old row with neither, every delivery state and
   `wait` word, two gone-agent answers (the popup's `gone` row), both alert kinds, a core alert, a group

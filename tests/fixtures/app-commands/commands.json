@@ -1,5 +1,5 @@
 {
- "source": "written by hand for docs/protocol/app-commands-v1.md (no code produces it yet)",
+ "source": "tools/app_fixtures/gen.py, for docs/protocol/app-commands-v1.md",
  "feeds": "tests/fixtures/app-feed/",
  "cases": [
   {

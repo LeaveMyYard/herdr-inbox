@@ -15,6 +15,22 @@ permissions:
   contents: read
 
 jobs:
+  contract-fixtures:
+    # The documents and their examples: every table against every fixture, the fixtures against
+    # their generator, and every mutation of them refused. The code against them is tests/app.
+    name: contract fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/app_fixtures/validate.py .
+      - name: The fixtures are their generator's output
+        run: |
+          mkdir -p "$RUNNER_TEMP/gen/app-feed" "$RUNNER_TEMP/gen/app-commands"
+          python3 tools/app_fixtures/gen.py "$RUNNER_TEMP/gen"
+          diff -r "$RUNNER_TEMP/gen/app-feed" tests/fixtures/app-feed
+          diff -r "$RUNNER_TEMP/gen/app-commands" tests/fixtures/app-commands
+      - run: python3 tools/app_fixtures/mutate.py .
+
   app-tests:
     name: app tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
