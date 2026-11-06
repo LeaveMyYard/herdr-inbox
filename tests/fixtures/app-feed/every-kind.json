@@ -1,0 +1,840 @@
+{
+ "v": 1,
+ "generated_at": 1767348000,
+ "ok": true,
+ "errors": [],
+ "omitted": {
+  "groups": 0,
+  "questions": 0,
+  "failed": 0,
+  "alerts": 0,
+  "remote": 0,
+  "question_ids": []
+ },
+ "new_since": {
+  "question_id": 41,
+  "alert_id": 6
+ },
+ "entries": [
+  {
+   "key": "alert:4",
+   "kind": "alert",
+   "id": 4,
+   "alert_kind": "agent",
+   "severity": "info",
+   "title": "Question Title 123",
+   "message": "Question Text 345",
+   "asked_by": "lane",
+   "created_at": "2026-01-02T10:00:00+00:00",
+   "asker": {
+    "host": "herdr-core",
+    "pane": null,
+    "terminal": "t6",
+    "tab_label": null,
+    "cwd": null
+   },
+   "actions": [
+    "ack"
+   ],
+   "token": "9516d29c2ca7433ad7468289c84132ca"
+  },
+  {
+   "key": "alert:5",
+   "kind": "alert",
+   "id": 5,
+   "alert_kind": "agent",
+   "severity": "urgent",
+   "title": "Question Title 123",
+   "message": "Question Text 345",
+   "asked_by": "lane",
+   "created_at": "2026-01-02T10:01:00+00:00",
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": null
+   },
+   "actions": [
+    "ack"
+   ],
+   "token": "fc22c1bf485970291dff963289e4b6a3"
+  },
+  {
+   "key": "alert:6",
+   "kind": "alert",
+   "id": 6,
+   "alert_kind": "blocked",
+   "severity": "warning",
+   "title": "Question Title 123",
+   "message": "Question Text 345",
+   "asked_by": "lane",
+   "created_at": "2026-01-02T10:02:00+00:00",
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p2",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": null
+   },
+   "actions": [
+    "ack"
+   ],
+   "token": "3a1ad3dd67aa6ed635169215e6b67cbc"
+  },
+  {
+   "key": "ralert:machine-alpha|2",
+   "kind": "remote_alert",
+   "machine": {
+    "id": "machine-alpha",
+    "label": "Machine Alpha",
+    "offline": null
+   },
+   "id": 2,
+   "alert_kind": "agent",
+   "severity": "info",
+   "title": "Question Title 123",
+   "message": null,
+   "tab_label": "Project Alpha",
+   "asked_by": "lane",
+   "created_at": "2026-01-02T10:03:00+00:00",
+   "actions": [],
+   "token": null
+  },
+  {
+   "key": "group:12",
+   "kind": "group",
+   "group": 12,
+   "title": null,
+   "created_at": "2026-01-02T10:10:00+00:00",
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "questions": [
+    {
+     "id": 12,
+     "header": "Header 1",
+     "question": "Question Text 345",
+     "options": [
+      {
+       "label": "Option A",
+       "description": "Option Description 1",
+       "preview": "Option Preview 1"
+      },
+      {
+       "label": "Option B",
+       "description": null,
+       "preview": null
+      }
+     ],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": false
+    }
+   ],
+   "actions": [
+    "answer",
+    "draft",
+    "dismiss"
+   ],
+   "token": "3d6d5818d9d02ba6b73412293df5c5c0"
+  },
+  {
+   "key": "group:14",
+   "kind": "group",
+   "group": 14,
+   "title": "Question Title 123",
+   "created_at": "2026-01-02T10:12:00+00:00",
+   "asker": {
+    "host": "herdr-core",
+    "pane": null,
+    "terminal": "t3",
+    "tab_label": null,
+    "cwd": "/work/project-alpha"
+   },
+   "questions": [
+    {
+     "id": 14,
+     "header": "Header 1",
+     "question": "Question Text 345",
+     "options": [
+      {
+       "label": "Option A",
+       "description": null,
+       "preview": null
+      },
+      {
+       "label": "Option B",
+       "description": null,
+       "preview": null
+      },
+      {
+       "label": "Option C",
+       "description": null,
+       "preview": null
+      }
+     ],
+     "multi_select": true,
+     "context": "Context Text 678",
+     "asked_by": "lane",
+     "draft": {
+      "choices": [
+       "Option A",
+       "Option C"
+      ],
+      "notes": {
+       "Option A": "Note Text 1"
+      },
+      "text": null
+     },
+     "cut": false
+    },
+    {
+     "id": 15,
+     "header": "Header 2",
+     "question": "Question Text 345",
+     "options": [],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": {
+      "choices": [],
+      "notes": {},
+      "text": "Answer Text 567"
+     },
+     "cut": false
+    },
+    {
+     "id": 16,
+     "header": "Header 3",
+     "question": "Question Text 345",
+     "options": [
+      {
+       "label": "Option A",
+       "description": null,
+       "preview": null
+      },
+      {
+       "label": "Option B",
+       "description": null,
+       "preview": null
+      }
+     ],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": false
+    }
+   ],
+   "actions": [
+    "answer",
+    "draft",
+    "dismiss"
+   ],
+   "token": "4acfb16955fb4b65de143ee0a481c308"
+  },
+  {
+   "key": "group:17",
+   "kind": "group",
+   "group": 17,
+   "title": null,
+   "created_at": "2026-01-02T10:14:00+00:00",
+   "asker": {
+    "host": "unknown",
+    "pane": null,
+    "terminal": null,
+    "tab_label": null,
+    "cwd": null
+   },
+   "questions": [
+    {
+     "id": 17,
+     "header": null,
+     "question": "Question Text 345",
+     "options": [],
+     "multi_select": false,
+     "context": null,
+     "asked_by": null,
+     "draft": null,
+     "cut": false
+    }
+   ],
+   "actions": [
+    "answer",
+    "draft",
+    "dismiss"
+   ],
+   "token": "662ffef925f57d8a15f6df858c53bbd1"
+  },
+  {
+   "key": "group:18",
+   "kind": "group",
+   "group": 18,
+   "title": "Question Title 123",
+   "created_at": "2026-01-02T10:15:00+00:00",
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p4",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "questions": [
+    {
+     "id": 19,
+     "header": "Header 2",
+     "question": "Question Text 345",
+     "options": [],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": false
+    }
+   ],
+   "actions": [
+    "answer",
+    "draft",
+    "dismiss"
+   ],
+   "token": "6d1f7e6b93deb2ec2ed0005682af8221"
+  },
+  {
+   "key": "failed:7",
+   "kind": "failed",
+   "question_id": 7,
+   "group": 7,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:20:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "claimed",
+    "reason": null,
+    "wait": null,
+    "attempts": 1,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "d7c8e533c744d50e64195f5edbc165b8"
+  },
+  {
+   "key": "failed:8",
+   "kind": "failed",
+   "question_id": 8,
+   "group": 8,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:21:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "busy: agent is working",
+    "wait": "busy",
+    "attempts": 0,
+    "pending_since": "2026-01-02T10:22:00+00:00",
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "fde79b4b2456ba93db3070117ed532ba"
+  },
+  {
+   "key": "failed:9",
+   "kind": "failed",
+   "question_id": 9,
+   "group": 9,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:22:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-core",
+    "pane": null,
+    "terminal": "t4",
+    "tab_label": null,
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "failed",
+    "reason": "no live agent in pane",
+    "wait": null,
+    "attempts": 3,
+    "pending_since": null,
+    "auto_retry": false
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "0de6ef35a25d6afa2245c22c9c9c0fb0"
+  },
+  {
+   "key": "failed:10",
+   "kind": "failed",
+   "question_id": 10,
+   "group": 10,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:23:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p3",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "agent_gone",
+    "reason": "no live agent in pane w1:p3",
+    "wait": null,
+    "attempts": 10,
+    "pending_since": null,
+    "auto_retry": false
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "54c833ee860289ca59ce3fbc32ce70b0"
+  },
+  {
+   "key": "failed:11",
+   "kind": "failed",
+   "question_id": 11,
+   "group": 11,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:24:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-core",
+    "pane": null,
+    "terminal": "t5",
+    "tab_label": null,
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "agent_gone",
+    "reason": "no live agent in pane w1:p3",
+    "wait": null,
+    "attempts": 10,
+    "pending_since": null,
+    "auto_retry": false
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "c197ae551b606f671d84522fb5e69e4f"
+  },
+  {
+   "key": "failed:13",
+   "kind": "failed",
+   "question_id": 13,
+   "group": 13,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:25:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "unattempted",
+    "reason": null,
+    "wait": null,
+    "attempts": 0,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "485a953c0f3570633f406b5790e2bdb1"
+  },
+  {
+   "key": "failed:30",
+   "kind": "failed",
+   "question_id": 30,
+   "group": 30,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:26:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "busy: typed while the agent was busy but never seen; waiting for it to be idle",
+    "wait": "busy_idle",
+    "attempts": 0,
+    "pending_since": "2026-01-02T10:27:00+00:00",
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "2fd2d15fcd1d486328071b1beae57489"
+  },
+  {
+   "key": "failed:31",
+   "kind": "failed",
+   "question_id": 31,
+   "group": 31,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:27:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "requeued: not delivered earlier",
+    "wait": "requeued",
+    "attempts": 0,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "8cf09a3c0220f1a469ea0754bf39c402"
+  },
+  {
+   "key": "failed:32",
+   "kind": "failed",
+   "question_id": 32,
+   "group": 32,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:28:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "blocked: panel: the agent's background-task panel has focus",
+    "wait": "panel",
+    "attempts": 0,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "0dae15475ef74a4cf9b3973eca160c4b"
+  },
+  {
+   "key": "failed:33",
+   "kind": "failed",
+   "question_id": 33,
+   "group": 33,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:29:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "blocked: agent is at a prompt",
+    "wait": "blocked",
+    "attempts": 0,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "5ad9938c4cc0e77a31113da320527ec3"
+  },
+  {
+   "key": "failed:34",
+   "kind": "failed",
+   "question_id": 34,
+   "group": 34,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:30:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "waiting: the operator is in that pane",
+    "wait": "operator_here",
+    "attempts": 0,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "aef21394a8813213bd02cfd7c11ae269"
+  },
+  {
+   "key": "failed:35",
+   "kind": "failed",
+   "question_id": 35,
+   "group": 35,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:31:00+00:00",
+   "retries": 0,
+   "cut": false,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "delivery": {
+    "state": "pending",
+    "reason": "unsent text in the input box",
+    "wait": "other",
+    "attempts": 0,
+    "pending_since": null,
+    "auto_retry": true
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "f2a4337b1404f118c0ade8e93df4464b"
+  },
+  {
+   "key": "failed:37",
+   "kind": "failed",
+   "question_id": 37,
+   "group": 37,
+   "header": null,
+   "question": "Question Text 345",
+   "asked_by": "lane",
+   "answer": "Answer Text 567",
+   "answered_at": "2026-01-02T10:32:00+00:00",
+   "retries": 1,
+   "cut": false,
+   "asker": {
+    "host": "unknown",
+    "pane": null,
+    "terminal": null,
+    "tab_label": null,
+    "cwd": null
+   },
+   "delivery": {
+    "state": "failed",
+    "reason": "no pane",
+    "wait": null,
+    "attempts": 1,
+    "pending_since": null,
+    "auto_retry": false
+   },
+   "actions": [
+    "retry",
+    "stop-showing"
+   ],
+   "token": "51d5df24be0cf12e974b909e430a1d90"
+  },
+  {
+   "key": "remote:machine-alpha|db-alpha|4",
+   "kind": "remote_group",
+   "machine": {
+    "id": "machine-alpha",
+    "label": "Machine Alpha",
+    "offline": null
+   },
+   "title": "Question Title 123",
+   "created_at": "2026-01-02T10:04:00+00:00",
+   "tab_label": "Project Alpha",
+   "questions": [
+    {
+     "id": 4,
+     "header": null,
+     "question": "Question Text 345",
+     "options": [
+      {
+       "label": "Option A",
+       "description": null,
+       "preview": null
+      },
+      {
+       "label": "Option B",
+       "description": null,
+       "preview": null
+      }
+     ],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": false
+    },
+    {
+     "id": 5,
+     "header": null,
+     "question": "Question Text 345",
+     "options": [],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": false
+    }
+   ],
+   "actions": [],
+   "token": null
+  },
+  {
+   "key": "routbox:request-alpha",
+   "kind": "remote_outbox",
+   "machine": {
+    "id": "machine-alpha",
+    "label": "Machine Alpha",
+    "offline": null
+   },
+   "action": "answer",
+   "remote_id": 7,
+   "state": "queued",
+   "result": null,
+   "sending": false,
+   "expired": false,
+   "expires_at": "2026-01-02T10:59:00+00:00",
+   "actions": [],
+   "token": null
+  },
+  {
+   "key": "routbox:request-beta",
+   "kind": "remote_outbox",
+   "machine": {
+    "id": "machine-beta",
+    "label": null,
+    "offline": "not reached yet"
+   },
+   "action": "dismiss",
+   "remote_id": 8,
+   "state": "rejected",
+   "result": "Question Text 345",
+   "sending": false,
+   "expired": false,
+   "expires_at": "2026-01-02T10:59:00+00:00",
+   "actions": [],
+   "token": null
+  },
+  {
+   "key": "rproblem:machine-alpha|9",
+   "kind": "remote_problem",
+   "machine": {
+    "id": "machine-alpha",
+    "label": "Machine Alpha",
+    "offline": null
+   },
+   "remote_id": 9,
+   "why": "agent closed — answer kept for check_answers",
+   "question": "Question Text 345",
+   "answer": "Answer Text 567",
+   "cut": false,
+   "actions": [],
+   "token": null
+  }
+ ]
+}

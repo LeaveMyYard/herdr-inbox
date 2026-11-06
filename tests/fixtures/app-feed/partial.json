@@ -1,0 +1,125 @@
+{
+ "v": 1,
+ "generated_at": 1767348000,
+ "ok": true,
+ "errors": [
+  "remote machines could not be read",
+  "3 entries left out to stay under 1 MiB"
+ ],
+ "omitted": {
+  "groups": 1,
+  "questions": 2,
+  "failed": 1,
+  "alerts": 0,
+  "remote": 1,
+  "question_ids": [
+   21,
+   22
+  ]
+ },
+ "new_since": {
+  "question_id": 41,
+  "alert_id": 6
+ },
+ "entries": [
+  {
+   "key": "alert:5",
+   "kind": "alert",
+   "id": 5,
+   "alert_kind": "agent",
+   "severity": "urgent",
+   "title": "Question Title 123",
+   "message": "Question Text 345",
+   "asked_by": "lane",
+   "created_at": "2026-01-02T10:01:00+00:00",
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": null
+   },
+   "actions": [
+    "ack"
+   ],
+   "token": "fc22c1bf485970291dff963289e4b6a3"
+  },
+  {
+   "key": "group:12",
+   "kind": "group",
+   "group": 12,
+   "title": null,
+   "created_at": "2026-01-02T10:10:00+00:00",
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   },
+   "questions": [
+    {
+     "id": 12,
+     "header": "Header 1",
+     "question": "Question Text 345",
+     "options": [
+      {
+       "label": "Option A",
+       "description": "Option Description 1",
+       "preview": "Option Preview 1"
+      },
+      {
+       "label": "Option B",
+       "description": null,
+       "preview": null
+      }
+     ],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": false
+    }
+   ],
+   "actions": [
+    "answer",
+    "draft",
+    "dismiss"
+   ],
+   "token": "3d6d5818d9d02ba6b73412293df5c5c0"
+  },
+  {
+   "key": "group:14",
+   "kind": "group",
+   "group": 14,
+   "title": null,
+   "created_at": "2026-01-02T10:12:00+00:00",
+   "asker": {
+    "host": "herdr-core",
+    "pane": null,
+    "terminal": "t3",
+    "tab_label": null,
+    "cwd": "/work/project-alpha"
+   },
+   "questions": [
+    {
+     "id": 14,
+     "header": null,
+     "question": "Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Ques",
+     "options": [],
+     "multi_select": false,
+     "context": null,
+     "asked_by": "lane",
+     "draft": null,
+     "cut": true
+    }
+   ],
+   "actions": [
+    "answer",
+    "draft",
+    "dismiss"
+   ],
+   "token": "7f50dd1f071a0dd1d4ba99cf3e6a4fd5"
+  }
+ ]
+}

@@ -1,0 +1,2013 @@
+{
+ "source": "written by hand for docs/protocol/app-commands-v1.md (no code produces it yet)",
+ "feeds": "tests/fixtures/app-feed/",
+ "cases": [
+  {
+   "name": "answer-lone",
+   "about": "A lone open question, answered at once.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:12",
+    "token": null,
+    "done": [
+     12
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-alpha.sock",
+    "sender": [
+     "deliver",
+     "12"
+    ],
+    "sender_socket": "/run/herdr-alpha.sock"
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-unproven",
+   "about": "Setup: the server timed out the probe. That proves nothing: the sender goes.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "unproven",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:12",
+    "token": null,
+    "done": [
+     12
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-alpha.sock",
+    "sender": [
+     "deliver",
+     "12"
+    ],
+    "sender_socket": "/run/herdr-alpha.sock"
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-submit",
+   "about": "The Submit tab on a core row: two of three questions, the group stays.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "up",
+   "session": true,
+   "needs": "B3",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "c1bd4f28f3d59fc7cf0e3514f3a91756",
+    "done": [
+     14,
+     15
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "herdr-core",
+    "sender": [
+     "deliver",
+     "14",
+     "15"
+    ],
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-held-core-before-b3",
+   "about": "A core row before B3: recorded, no worker, no sender. check_answers has it.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "gone",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "c1bd4f28f3d59fc7cf0e3514f3a91756",
+    "done": [
+     14,
+     15
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "answer-held-core-down",
+   "about": "Setup: hc proves herdr-core is not running. The core worker is ensured, no sender.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "gone",
+   "session": true,
+   "needs": "B3",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "c1bd4f28f3d59fc7cf0e3514f3a91756",
+    "done": [
+     14,
+     15
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": {
+    "ensure_worker": "herdr-core",
+    "sender": null,
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-skips-no-draft",
+   "about": "A named question with no draft is skipped, as Submit does.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "up",
+   "session": true,
+   "needs": "B3",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--question",
+    "16",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "c1bd4f28f3d59fc7cf0e3514f3a91756",
+    "done": [
+     14,
+     15
+    ],
+    "skipped": [
+     16
+    ],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "herdr-core",
+    "sender": [
+     "deliver",
+     "14",
+     "15"
+    ],
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-nothing-to-send",
+   "about": "Only a question with no draft: nothing changes, nothing starts.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "16",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:14",
+    "token": "4acfb16955fb4b65de143ee0a481c308",
+    "done": [],
+    "skipped": [
+     16
+    ],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "answer-first-question-closed",
+   "about": "A group whose first question closed earlier keeps its id.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:18",
+    "--token",
+    "6d1f7e6b93deb2ec2ed0005682af8221",
+    "--question",
+    "19",
+    "--detail",
+    "{\"choices\": [], \"notes\": {}, \"text\": \"Answer Text 567\"}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:18",
+    "token": null,
+    "done": [
+     19
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-alpha.sock",
+    "sender": [
+     "deliver",
+     "19"
+    ],
+    "sender_socket": "/run/herdr-alpha.sock"
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-held-no-server",
+   "about": "Setup: herdr says NotRunning on the stored socket. Recorded, the worker ensured, no sender.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "gone",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:12",
+    "token": null,
+    "done": [
+     12
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-alpha.sock",
+    "sender": null,
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "answer-held-no-pane",
+   "about": "A row with neither a pane nor a terminal: only check_answers can return it.",
+   "world": "every-kind.json",
+   "server": null,
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:17",
+    "--token",
+    "662ffef925f57d8a15f6df858c53bbd1",
+    "--question",
+    "17",
+    "--detail",
+    "{\"choices\": [], \"notes\": {}, \"text\": \"Answer Text 567\"}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "answer",
+    "entry": "group:17",
+    "token": null,
+    "done": [
+     17
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": {
+    "ensure_worker": null,
+    "sender": null,
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "draft",
+   "about": "A draft changes the token: the result has the new one.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "16",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "draft",
+    "entry": "group:14",
+    "token": "b6ccf6fb08e9e2615a664736b27f40e8",
+    "done": [
+     16
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "draft-clear",
+   "about": "Clearing a draft changes the token too.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--clear",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "draft",
+    "entry": "group:14",
+    "token": "3241935a98a57b303296ca98f44f5661",
+    "done": [
+     14
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "draft-normalises-to-nothing",
+   "about": "A detail that normalises to nothing clears the draft.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--detail",
+    "{\"choices\": [], \"notes\": {}, \"text\": \"   \"}",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "draft",
+    "entry": "group:14",
+    "token": "3241935a98a57b303296ca98f44f5661",
+    "done": [
+     14
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "dismiss-question",
+   "about": "One question of a group.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "dismiss",
+    "entry": "group:14",
+    "token": "e6299fd0a32d2d2de975a4f4fc9217cc",
+    "done": [
+     15
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "dismiss-group",
+   "about": "The whole group: the row is gone.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "dismiss",
+    "entry": "group:14",
+    "token": null,
+    "done": [
+     14,
+     15,
+     16
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "retry-tui",
+   "about": "A TUI row is forced. The row stays, with a new token.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:8",
+    "token": "381a8513cce99bbaea43d9839eefc90b",
+    "done": [
+     8
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-alpha.sock",
+    "sender": [
+     "deliver",
+     "8",
+     "--force"
+    ],
+    "sender_socket": "/run/herdr-alpha.sock"
+   },
+   "replay_of": null
+  },
+  {
+   "name": "retry-core",
+   "about": "A core row is never forced.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "up",
+   "session": true,
+   "needs": "B3",
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:9",
+    "--token",
+    "0de6ef35a25d6afa2245c22c9c9c0fb0",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:9",
+    "token": "86c761544dcd4f4421bc7be8263461c6",
+    "done": [
+     9
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "herdr-core",
+    "sender": [
+     "deliver",
+     "9"
+    ],
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "retry-held-core-before-b3",
+   "about": "A core row before B3: the counter moves, nothing starts.",
+   "world": "every-kind.json",
+   "server": "herdr-core",
+   "host": "gone",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:9",
+    "--token",
+    "0de6ef35a25d6afa2245c22c9c9c0fb0",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:9",
+    "token": "86c761544dcd4f4421bc7be8263461c6",
+    "done": [
+     9
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "retry-other-server",
+   "about": "The stored server goes to both the worker and the sender, not the default socket.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-beta.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:13",
+    "--token",
+    "485a953c0f3570633f406b5790e2bdb1",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:13",
+    "token": "af4065f4f04737912a4564a5575266bd",
+    "done": [
+     13
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-beta.sock",
+    "sender": [
+     "deliver",
+     "13",
+     "--force"
+    ],
+    "sender_socket": "/run/herdr-beta.sock"
+   },
+   "replay_of": null
+  },
+  {
+   "name": "retry-no-stored-server",
+   "about": "No stored server but a session: the verb's own default, under the conversation guard.",
+   "world": "every-kind.json",
+   "server": null,
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:7",
+    "--token",
+    "d7c8e533c744d50e64195f5edbc165b8",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:7",
+    "token": "8d75e7758cf881d40bb1b6cf89242042",
+    "done": [
+     7
+    ],
+    "skipped": [],
+    "delivery": "queued"
+   },
+   "effects": {
+    "ensure_worker": null,
+    "sender": [
+     "deliver",
+     "7",
+     "--force"
+    ],
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "retry-held-no-session",
+   "about": "No stored server and no session: the recipient rule beats retry.",
+   "world": "every-kind.json",
+   "server": null,
+   "host": "up",
+   "session": false,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:33",
+    "--token",
+    "5ad9938c4cc0e77a31113da320527ec3",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:33",
+    "token": "775a0b4adcba48578e79185c5b8ea8cd",
+    "done": [
+     33
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": {
+    "ensure_worker": null,
+    "sender": null,
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "retry-held",
+   "about": "Setup: herdr says NotRunning on the stored socket. The counter moves, the worker is ensured, no sender.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "gone",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:10",
+    "--token",
+    "54c833ee860289ca59ce3fbc32ce70b0",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "retry",
+    "entry": "failed:10",
+    "token": "70c90b09184a844f88e4f11d783ed423",
+    "done": [
+     10
+    ],
+    "skipped": [],
+    "delivery": "held"
+   },
+   "effects": {
+    "ensure_worker": "/run/herdr-alpha.sock",
+    "sender": null,
+    "sender_socket": null
+   },
+   "replay_of": null
+  },
+  {
+   "name": "retry-replay",
+   "about": "Setup: retry-tui ran and its result was lost. The same command again is refused.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "retry",
+    "entry": "failed:8",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": "retry-tui"
+  },
+  {
+   "name": "retry-already-sending",
+   "about": "Setup: another process took a live claim on Q8 after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "retry",
+    "entry": "failed:8",
+    "code": "already_sending",
+    "message": "Q8 is already being delivered",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stop-showing",
+   "about": "The ⚠ row goes; check_answers still has the answer.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "stop-showing",
+    "--entry",
+    "failed:10",
+    "--token",
+    "54c833ee860289ca59ce3fbc32ce70b0",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "stop-showing",
+    "entry": "failed:10",
+    "token": null,
+    "done": [
+     10
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stop-showing-during-claim",
+   "about": "Setup: a process holds a live claim on Q30. The row is hidden, the send goes on.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "stop-showing",
+    "--entry",
+    "failed:30",
+    "--token",
+    "2fd2d15fcd1d486328071b1beae57489",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "stop-showing",
+    "entry": "failed:30",
+    "token": null,
+    "done": [
+     30
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "ack",
+   "about": "An alert acknowledged.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "fc22c1bf485970291dff963289e4b6a3",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "ack",
+    "entry": "alert:5",
+    "token": null,
+    "done": [
+     5
+    ],
+    "skipped": [],
+    "delivery": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-token",
+   "about": "The feed was read before the agent withdrew Q16: the database is stale-token.json.",
+   "world": "stale-token.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--question",
+    "15",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:14",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-alert-token",
+   "about": "A token that does not match, on an open alert.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "00000000000000000000000000000000",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:5",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-answered",
+   "about": "Setup: the TUI popup answered Q12 after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "answered"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-dismissed",
+   "about": "Setup: the TUI popup dismissed Q12 after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "dismiss",
+    "entry": "group:12",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "dismissed"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-withdrawn",
+   "about": "Setup: the agent withdrew Q12 after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "dismiss",
+    "entry": "group:12",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "withdrawn"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-removed",
+   "about": "Setup: Q12 is no longer in the database after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "dismiss",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "dismiss",
+    "entry": "group:12",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "removed"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-delivered",
+   "about": "Setup: Q8 was delivered after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "retry",
+    "entry": "failed:8",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "delivered"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-fetched",
+   "about": "Setup: the agent fetched Q8 with check_answers after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "retry",
+    "entry": "failed:8",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "fetched"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-hidden",
+   "about": "Setup: the popup stopped showing Q8 after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "retry",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "retry",
+    "entry": "failed:8",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "hidden"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-acked",
+   "about": "Setup: the popup acknowledged A6 after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:6",
+    "--token",
+    "3a1ad3dd67aa6ed635169215e6b67cbc",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:6",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "acked"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "stale-cleared",
+   "about": "Setup: the agent is no longer waiting after this feed was read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:6",
+    "--token",
+    "3a1ad3dd67aa6ed635169215e6b67cbc",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:6",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "cleared"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "invalid-choice",
+   "about": "A label the question does not have.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option Z\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "invalid",
+    "message": "Q12 has no such option: Option Z",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "invalid-two-choices",
+   "about": "Two choices on a question without multi_select.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [\"Option A\", \"Option B\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "invalid",
+    "message": "Q12 takes one choice",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "invalid-repeated-choice",
+   "about": "One label twice.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--detail",
+    "{\"choices\": [\"Option A\", \"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "draft",
+    "entry": "group:14",
+    "code": "invalid",
+    "message": "Q14 has a choice twice",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "invalid-empty-answer",
+   "about": "A detail that normalises to nothing is no answer.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:12",
+    "--token",
+    "3d6d5818d9d02ba6b73412293df5c5c0",
+    "--question",
+    "12",
+    "--detail",
+    "{\"choices\": [], \"notes\": {}, \"text\": \"   \"}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:12",
+    "code": "invalid",
+    "message": "Q12 has no answer",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "invalid-other-group",
+   "about": "A --question of another group.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "12",
+    "--clear",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "draft",
+    "entry": "group:14",
+    "code": "invalid",
+    "message": "Q12 is not an open question of this group",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "invalid-detail-on-several-open",
+   "about": "--detail with answer needs a lone open question.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "14",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "group:14",
+    "code": "invalid",
+    "message": "This group has several open questions: use draft, then answer",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "read-only-remote",
+   "about": "Remote rows take no verbs in v1; they have no token.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "answer",
+    "--entry",
+    "remote:machine-alpha|db-alpha|4",
+    "--token",
+    null,
+    "--question",
+    "4",
+    "--detail",
+    "{\"choices\": [\"Option A\"], \"notes\": {}, \"text\": null}",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "answer",
+    "entry": "remote:machine-alpha|db-alpha|4",
+    "code": "read_only",
+    "message": "Answer this in the herdr popup",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "read-only-wrong-verb",
+   "about": "A verb the row's actions do not list.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "failed:8",
+    "--token",
+    "fde79b4b2456ba93db3070117ed532ba",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "failed:8",
+    "code": "read_only",
+    "message": "This row does not take that action",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "busy",
+   "about": "Setup: another process holds the write lock for the whole budget.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "fc22c1bf485970291dff963289e4b6a3",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:5",
+    "code": "busy",
+    "message": "The inbox database is busy; try again in a moment",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "not-migrated",
+   "about": "Setup: the database is not at this code's revision.",
+   "world": "not-migrated.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "fc22c1bf485970291dff963289e4b6a3",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:5",
+    "code": "not_migrated",
+    "message": "The inbox is being upgraded; try again in a few seconds",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "error",
+   "about": "Setup: the database file cannot be read.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "fc22c1bf485970291dff963289e4b6a3",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "ack",
+    "entry": "alert:5",
+    "code": "error",
+    "message": "The inbox database failed: unable to open database file",
+    "closed": null
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "show",
+   "about": "A cut question in full: the published token, no text cut.",
+   "world": "partial.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "show",
+    "--question",
+    "14",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "show",
+    "entry": "group:14",
+    "row": {
+     "key": "group:14",
+     "kind": "group",
+     "group": 14,
+     "title": null,
+     "created_at": "2026-01-02T10:12:00+00:00",
+     "asker": {
+      "host": "herdr-core",
+      "pane": null,
+      "terminal": "t3",
+      "tab_label": null,
+      "cwd": "/work/project-alpha"
+     },
+     "questions": [
+      {
+       "id": 14,
+       "header": null,
+       "question": "Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 Question Text 345 ",
+       "options": [],
+       "multi_select": false,
+       "context": null,
+       "asked_by": "lane",
+       "draft": null,
+       "cut": false
+      }
+     ],
+     "actions": [
+      "answer",
+      "draft",
+      "dismiss"
+     ],
+     "token": "7f50dd1f071a0dd1d4ba99cf3e6a4fd5"
+    }
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "show-left-out",
+   "about": "Q21 is in omitted.question_ids. The row and its token let the overlay answer it.",
+   "world": "omitted-only.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "show",
+    "--question",
+    "21",
+    "--json"
+   ],
+   "exit": 0,
+   "stdout": {
+    "v": 1,
+    "ok": true,
+    "verb": "show",
+    "entry": "group:21",
+    "row": {
+     "key": "group:21",
+     "kind": "group",
+     "group": 21,
+     "title": "Question Title 123",
+     "created_at": "2026-01-02T10:16:00+00:00",
+     "asker": {
+      "host": "herdr-tui",
+      "pane": "w1:p1",
+      "terminal": null,
+      "tab_label": "Project Alpha",
+      "cwd": "/work/project-alpha"
+     },
+     "questions": [
+      {
+       "id": 21,
+       "header": null,
+       "question": "Question Text 345",
+       "options": [],
+       "multi_select": false,
+       "context": null,
+       "asked_by": "lane",
+       "draft": null,
+       "cut": false
+      },
+      {
+       "id": 22,
+       "header": null,
+       "question": "Question Text 345",
+       "options": [],
+       "multi_select": false,
+       "context": null,
+       "asked_by": "lane",
+       "draft": null,
+       "cut": false
+      }
+     ],
+     "actions": [
+      "answer",
+      "draft",
+      "dismiss"
+     ],
+     "token": "38a735c1ee62eb0911cbc4bc0478abb9"
+    }
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "show-closed",
+   "about": "Setup: Q12 was answered. show only reads open questions.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "show",
+    "--question",
+    "12",
+    "--json"
+   ],
+   "exit": 1,
+   "stdout": {
+    "v": 1,
+    "ok": false,
+    "verb": "show",
+    "entry": "group:12",
+    "code": "stale",
+    "message": "This group changed; look again.",
+    "closed": "answered"
+   },
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "usage-no-json",
+   "about": "No --json: usage on stderr, nothing on stdout, no I/O.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:5",
+    "--token",
+    "fc22c1bf485970291dff963289e4b6a3"
+   ],
+   "exit": 2,
+   "stdout": null,
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "usage-bad-entry",
+   "about": "A malformed --entry needs no database to refuse.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "ack",
+    "--entry",
+    "alert:05",
+    "--token",
+    "fc22c1bf485970291dff963289e4b6a3",
+    "--json"
+   ],
+   "exit": 2,
+   "stdout": null,
+   "effects": null,
+   "replay_of": null
+  },
+  {
+   "name": "usage-bad-id",
+   "about": "A non-canonical id.",
+   "world": "every-kind.json",
+   "server": "/run/herdr-alpha.sock",
+   "host": "up",
+   "session": true,
+   "needs": null,
+   "argv": [
+    "herdr-inbox",
+    "app",
+    "draft",
+    "--entry",
+    "group:14",
+    "--token",
+    "4acfb16955fb4b65de143ee0a481c308",
+    "--question",
+    "Q14",
+    "--clear",
+    "--json"
+   ],
+   "exit": 2,
+   "stdout": null,
+   "effects": null,
+   "replay_of": null
+  }
+ ]
+}
