@@ -60,7 +60,9 @@ impl World {
                 py.env(k, v);
             }
         }
-        py.env("HERDR_INBOX_WORKER_IDLE_EXIT", "6");
+        // past the test's own steps with room to spare: a slow machine must not read as a
+        // worker that died with its pane
+        py.env("HERDR_INBOX_WORKER_IDLE_EXIT", "20");
         py.spawn().unwrap()
     }
 }
