@@ -1,5 +1,5 @@
 use herdr_inbox::store::readiness::{expected, missing};
-use herdr_inbox::store::revision::{MIGRATION_REVISION, REVISION_BASE};
+use herdr_inbox::store::revision::{BRIDGE_REVISION, MIGRATION_REVISION, REVISION_BASE};
 use herdr_inbox::store::{OpenError, Store};
 use rusqlite::Connection;
 
@@ -10,6 +10,32 @@ fn the_captured_schema_is_this_revisions() {
     assert_eq!(expected().revision, MIGRATION_REVISION);
     assert!(expected().tables["questions"].contains("delivery_error"));
     assert!(expected().others.contains("questions_v6"));
+}
+
+#[test]
+fn what_rust_added_is_required_and_named_after_pythons_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = migrated(dir.path());
+    let db = open(&path);
+    db.pragma_update(None, "user_version", REVISION_BASE + BRIDGE_REVISION)
+        .unwrap();
+    assert!(missing(&db).unwrap().is_empty(), "complete: nothing due");
+    db.execute_batch("DROP TABLE alert_host; ALTER TABLE question_ext DROP COLUMN retry_count")
+        .unwrap();
+    assert_eq!(
+        missing(&db).unwrap(),
+        [
+            "alert_host.host",
+            "alert_host.id",
+            "alert_host.machine",
+            "alert_host.terminal",
+            "question_ext.retry_count"
+        ]
+    );
+    let all = missing(&Connection::open_in_memory().unwrap()).unwrap();
+    let first_owned = all.iter().position(|m| m == "alert_host.host").unwrap();
+    assert!(all[..first_owned].contains(&"sessions.hook_seen_at".to_owned()));
+    assert!(!all[first_owned..].contains(&"alerts.acked_at".to_owned()));
 }
 
 #[test]

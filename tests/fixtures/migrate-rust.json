@@ -1,0 +1,33 @@
+{
+  "about": "What Rust added to the schema after the Python bridge's revision: applied after tests/fixtures/migrate.json by src/store/owned.rs, and by tests/test_core_rows.py to build the database an old Python process meets. Written by hand: Python never produces it. Additive only: Python ignores all of it.",
+  "revision": 2,
+  "statements": [
+    "CREATE TABLE IF NOT EXISTS question_host (\n    id       INTEGER PRIMARY KEY REFERENCES questions(id),\n    host     TEXT NOT NULL,\n    terminal TEXT,\n    machine  TEXT\n)",
+    "CREATE TABLE IF NOT EXISTS alert_host (\n    id       INTEGER PRIMARY KEY REFERENCES alerts(id),\n    host     TEXT NOT NULL,\n    terminal TEXT,\n    machine  TEXT\n)"
+  ],
+  "added_columns": [
+    [
+      "question_ext",
+      [
+        [
+          "retry_count",
+          "INTEGER"
+        ]
+      ]
+    ]
+  ],
+  "tables": {
+    "question_host": [
+      "host",
+      "id",
+      "machine",
+      "terminal"
+    ],
+    "alert_host": [
+      "host",
+      "id",
+      "machine",
+      "terminal"
+    ]
+  }
+}

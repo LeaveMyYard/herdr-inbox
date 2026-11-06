@@ -6,8 +6,12 @@
 //! migrating open (`migrate`, the worker and the popup) writes the stamp;
 //! the hooks never do.
 
-/// The schema revision this code uses: the Python bridge's (0.10.6).
-pub const MIGRATION_REVISION: i64 = 1;
+/// The schema revision of the Python bridge (0.10.6): what `tests/fixtures/schema.json`
+/// and `migrate.json` capture. Python stays there.
+pub const BRIDGE_REVISION: i64 = 1;
+
+/// The schema revision this code uses: the bridge's plus [`super::owned`].
+pub const MIGRATION_REVISION: i64 = 2;
 
 /// The sign bit marks a revision: `-(1 << 31)`.
 pub const REVISION_BASE: i64 = -(1 << 31);

@@ -10,6 +10,7 @@ mod blocked;
 mod claims;
 #[path = "../store/common.rs"]
 mod common;
+mod core_rows;
 #[path = "../support/exe.rs"]
 mod exe;
 mod failed;

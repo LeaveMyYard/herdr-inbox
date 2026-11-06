@@ -1097,6 +1097,49 @@ musl name.
 Not run: a real `claude` session (no credentials in the rig), a real release, macOS, and herdr 0.9.4
 itself.
 
+## Schema past the bridge: revision 2 (B2)
+
+Revision 2 is the first bump Rust owns. Python stays at revision 1, the bridge's, and its captured
+fixtures (`schema.json`, `migrate.json`) stay as they are. What comes on top is one hand-written
+file, `tests/fixtures/migrate-rust.json`, which `src/store/owned.rs` applies after Python's
+statements and which `tests/test_core_rows.py` applies to build the database an old Python meets.
+
+| Addition | For |
+|---|---|
+| `question_host(id, host, terminal, machine)` | Where a question from outside a herdr pane was asked. A pane question has no row. |
+| `alert_host(id, host, terminal, machine)` | The same for an agent's alert. The blocked scan stays herdr-only, so a `blocked` alert never has one. |
+| `question_ext.retry_count` | How many `app retry` verbs ran on the row. B4 writes it, in the verb's transaction, and the row's token covers it, so a replayed `retry` is refused. Nothing writes it yet. |
+
+**A core row keeps every old reader out, twice.** `pane_id` is NULL, so no reader can take `t3` for a
+herdr pane. `herdr_server` is `herdr-core`, which is no socket, so it is another server's row to
+every worker: `served`, `reconcile_failed`, `revive_moved` and `hook_unverified` skip it in both
+languages, and `deliver` claims nothing and writes nothing. Without that second word an answer
+from the popup would get `no pane` written as a failed attempt. The rows also stay out of
+`stuck_answers`, the `❓N` counts and the pane tokens, which ask for a pane.
+
+**Moving to revision 2.** The first Rust process of revision 2 finds revision 1 and is not ready:
+a hook does nothing and writes `revision-wanted`, an MCP tool answers "being upgraded", and the
+holding worker hands over to a revision 2 worker, which migrates. That is the #50 handover,
+exercised for real for the first time. A TUI hook is idle only for that window.
+
+**Rollback to `engine` python, exactly.** One line, and one worker restart, as ever (see "The switch
+to Rust"). The database is left as it is:
+
+- The stamp stays 2. Python's migrating open leaves a stamp at or above its own alone, so nothing is
+  lowered or dropped, and a later move forward migrates nothing.
+- Python never reads or writes the side tables or `retry_count`. Their rows stay, as they are.
+- **New core questions and alerts stop.** A Python MCP server in a core terminal has no pane and
+  answers `unavailable`. A Rust MCP server that outlived the rollback keeps filing them, and the
+  rows below apply to those too.
+- **Open core questions stay open and visible.** The popup lists them as `no pane`, and the operator
+  can answer or dismiss them. Nothing notifies, and they count towards no pane's `❓N`.
+- **An answered core question is held, not sent.** Python types nothing, claims nothing and records
+  no outcome: no error, no attempt, not marked gone. After 60 s it shows as an unattempted ⚠ row. Its
+  session can fetch the answer with `check_answers`, from either language's MCP server. The popup's
+  Retry does nothing to it. The one side effect: `deliver` asks for a worker for that "server", which
+  finds none and exits after `SERVER_GONE_EXIT`, under the usual spawn limit.
+- Back on Rust, these rows are as they were.
+
 ## Deep links: opening the popup on a target (0.6.0)
 
 The integration API for other plugins (e.g. herdr-panorama). It is

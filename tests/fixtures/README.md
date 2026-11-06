@@ -1,8 +1,10 @@
 # Test fixtures
 
 Every fixture here is captured, never written by hand, except `popup-deviations.json` (where the
-Rust popup deliberately differs from Python, no capture can produce it) and `ancestor-replay.json`
-(synthetic, see below).
+Rust popup deliberately differs from Python, no capture can produce it), `ancestor-replay.json`
+(synthetic, see below) and `migrate-rust.json` (what Rust added to the schema past Python's
+revision: compiled into the migration by `src/store/owned.rs`, and applied by
+`tests/test_core_rows.py` to build the database an old Python process meets).
 
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
