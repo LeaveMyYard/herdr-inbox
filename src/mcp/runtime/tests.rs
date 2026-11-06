@@ -410,3 +410,29 @@ fn an_ask_returns_the_open_receipt_when_the_markers_fail() {
     assert_eq!(s.list(false).unwrap().len(), 1, "filed once");
     assert_eq!(s.get(1).unwrap().unwrap().repeat_count, 0);
 }
+
+struct Unproved;
+
+impl crate::host::Host for Unproved {
+    fn caller(&self, _: &Env) -> Result<Option<Caller>, Failure> {
+        Err(Failure::Unproved)
+    }
+}
+
+#[test]
+fn an_unproved_claim_is_unavailable_from_every_tool() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
+    let mut rt = runtime(db, Arc::default());
+    rt.hosts.insert(0, Box::new(Unproved));
+    for call in [
+        ask("Question Title 123?"),
+        Call::CheckAnswers,
+        Call::ListMyQuestions {
+            include_closed: true,
+        },
+    ] {
+        assert_eq!(rt.call(call).unwrap(), receipts::unavailable());
+    }
+}

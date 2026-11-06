@@ -21,17 +21,13 @@ fn written(body: &str) -> tempfile::TempDir {
 #[test]
 fn the_record_of_this_exact_process_names_its_session() {
     let dir = written(&record().to_string());
-    assert_eq!(session(dir.path(), 20, "s20").as_deref(), Some(S));
+    assert_eq!(session(dir.path(), 20, "s20"), Record::Names(S.into()));
 }
 
 #[test]
-fn a_record_of_a_reused_pid_or_another_kind_is_no_record() {
+fn a_record_of_a_reused_pid_or_another_kind_is_unusable() {
     let dir = written(&record().to_string());
-    assert_eq!(
-        session(dir.path(), 20, "other"),
-        None,
-        "another start token"
-    );
+    assert_eq!(session(dir.path(), 20, "other"), Record::Unusable);
     for (key, value) in [
         ("pid", json!(21)),
         ("procStart", json!(1)),
@@ -41,21 +37,31 @@ fn a_record_of_a_reused_pid_or_another_kind_is_no_record() {
         let mut r = record();
         r[key] = value;
         let dir = written(&r.to_string());
-        assert_eq!(session(dir.path(), 20, "s20"), None, "{key}");
+        assert_eq!(session(dir.path(), 20, "s20"), Record::Unusable, "{key}");
     }
 }
 
 #[test]
-fn no_file_a_link_junk_or_a_large_file_is_no_record() {
+fn only_a_file_that_is_not_there_is_missing() {
     let dir = tempfile::tempdir().unwrap();
-    assert_eq!(session(dir.path(), 20, "s20"), None);
-    let dir = written("[1]");
-    assert_eq!(session(dir.path(), 20, "s20"), None);
-    let dir = written(&" ".repeat(MAX_BYTES as usize + 1));
-    assert_eq!(session(dir.path(), 20, "s20"), None);
+    assert_eq!(session(dir.path(), 20, "s20"), Record::Missing);
+    fs::create_dir(dir.path().join("sessions")).unwrap();
+    assert_eq!(session(dir.path(), 20, "s20"), Record::Missing);
+}
+
+#[test]
+fn an_empty_file_junk_a_large_file_or_a_link_is_unusable() {
+    for body in [
+        String::new(),
+        "[1]".into(),
+        " ".repeat(MAX_BYTES as usize + 1),
+    ] {
+        let dir = written(&body);
+        assert_eq!(session(dir.path(), 20, "s20"), Record::Unusable);
+    }
     let dir = written(&record().to_string());
     let real = dir.path().join("sessions/20.json");
     fs::rename(&real, dir.path().join("elsewhere.json")).unwrap();
     symlink(dir.path().join("elsewhere.json"), &real).unwrap();
-    assert_eq!(session(dir.path(), 20, "s20"), None);
+    assert_eq!(session(dir.path(), 20, "s20"), Record::Unusable);
 }

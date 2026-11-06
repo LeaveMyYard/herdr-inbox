@@ -2,11 +2,14 @@
 //! `docs/protocol/session-linking.md` §2, read from the caller's end.)
 //!
 //! The gate there starts from a terminal and looks for its session. Here the
-//! caller starts from itself: the nearest Claude above this process must be
-//! the terminal's foreground process, by pid, name and argv, and the only
-//! Claude above it. So a claim copied into another terminal or a pane, a
-//! child of the agent's tools and a nested Claude all fail. The process's
-//! own environment is not read: being its descendant is the stronger proof.
+//! caller starts from itself. [`own_claude`]: this process's direct parent is
+//! a Claude, and the only one above it. `scripts/launch` `exec`s the binary, so
+//! nothing sits between them. That refuses a server under an agent's tools and
+//! under any harness the kit does not know, which `claude_process` alone would
+//! walk past to the Claude above. Then the terminal's foreground must be that
+//! Claude, by pid, name and argv. So a claim copied into another terminal or a
+//! pane fails too. The process's own environment is not read: being its child
+//! is the stronger proof.
 //!
 //! A second herdr-core instance with the same `tN` and a colliding pid is
 //! the residual Panorama accepts too.
@@ -29,6 +32,8 @@ pub enum Refused {
     Remote,
     /// No Claude above this process.
     NoClaude,
+    /// Something other than the Claude started this process.
+    NotItsChild,
     /// A Claude inside a Claude.
     Nested,
     /// `hc` failed, or printed what it should not.
@@ -39,12 +44,12 @@ pub enum Refused {
     NotForeground,
     /// The foreground process has this pid but is not this Claude.
     NotThatProcess,
-    /// `hc ls` does not list it once, live.
-    NotListed,
     /// The process changed during the reads.
     Replaced,
     /// No session to file under.
     NoSession,
+    /// Claude Code's record of the process exists and cannot be used.
+    BadRecord,
 }
 
 impl fmt::Display for Refused {
@@ -53,14 +58,15 @@ impl fmt::Display for Refused {
             Refused::BadAddress => "not a core address",
             Refused::Remote => "another machine's terminal",
             Refused::NoClaude => "no Claude above this process",
+            Refused::NotItsChild => "this process is not its Claude's own child",
             Refused::Nested => "a nested Claude",
             Refused::Hc(why) => why,
             Refused::NotThatTerminal => "hc reports no such live terminal",
             Refused::NotForeground => "this Claude is not its foreground process",
             Refused::NotThatProcess => "its foreground process is another program",
-            Refused::NotListed => "hc ls does not list it once, live",
             Refused::Replaced => "the process changed during the proof",
             Refused::NoSession => "no session",
+            Refused::BadRecord => "Claude Code's record of the process is unusable",
         })
     }
 }
@@ -106,17 +112,16 @@ fn foreground(terminal: &Value, claim: &str) -> Result<(Pid, String, Vec<String>
     Ok((pid, name.to_owned(), words(&argv)))
 }
 
-/// `hc ls` lists `claim` exactly once, live. Its other fields differ between
-/// hc versions (`agent`, and `status` when null), so nothing else is read.
-fn listed(list: &Value, claim: &str) -> Result<(), Refused> {
-    let terminals = list["terminals"]
-        .as_array()
-        .ok_or(Refused::Hc("hc ls has no terminals"))?;
-    let mut mine = terminals.iter().filter(|t| t["address"] == claim);
-    match (mine.next(), mine.next()) {
-        (Some(t), None) if t["state"] == "live" => Ok(()),
-        _ => Err(Refused::NotListed),
+/// The Claude this process serves: its direct parent, with no other Claude above.
+pub fn own_claude(table: &impl ProcessTable, parent: Pid) -> Result<Proved, Refused> {
+    let (pid, start) = claude_process(table, parent).ok_or(Refused::NoClaude)?;
+    if pid != parent {
+        return Err(Refused::NotItsChild);
     }
+    if nested_claude(table, parent) {
+        return Err(Refused::Nested);
+    }
+    Ok(Proved { pid, start })
 }
 
 /// Proves `claim` for the process whose parent is `parent`.
@@ -132,20 +137,16 @@ pub fn prove(
     if address::remote(claim) {
         return Err(Refused::Remote);
     }
-    let (pid, start) = claude_process(table, parent).ok_or(Refused::NoClaude)?;
-    if nested_claude(table, parent) {
-        return Err(Refused::Nested);
-    }
+    let proved = own_claude(table, parent)?;
     let (foreground_pid, name, argv) = foreground(&hc.get(claim).map_err(Refused::Hc)?, claim)?;
-    if foreground_pid != pid {
+    if foreground_pid != proved.pid {
         return Err(Refused::NotForeground);
     }
-    let comm = table.stat(pid).map(|s| s.comm);
-    if comm.as_deref() != Some(&name) || words(&table.cmdline(pid)) != argv {
+    let comm = table.stat(proved.pid).map(|s| s.comm);
+    if comm.as_deref() != Some(&name) || words(&table.cmdline(proved.pid)) != argv {
         return Err(Refused::NotThatProcess);
     }
-    listed(&hc.ls().map_err(Refused::Hc)?, claim)?;
-    Ok(Proved { pid, start })
+    Ok(proved)
 }
 
 #[cfg(test)]

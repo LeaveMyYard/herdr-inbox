@@ -4,11 +4,14 @@
 //! on exit. In a pane herdr says which session runs; in a core terminal this
 //! is what does, since `CLAUDE_CODE_SESSION_ID` stays as it was at start.
 //!
-//! Every check that fails means no record. A record left by an earlier
-//! process with the pid has another start token.
+//! A file that is not there says nothing: the concurrent-sessions gate may be
+//! off. A file that is there and fails any check is [`Record::Unusable`], and
+//! the caller refuses: it may be mid-rewrite, a leftover of a reused pid, or
+//! a kind this design does not reason about, and after `/clear` the
+//! environment would name the wrong conversation.
 
 use std::fs::File;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
@@ -19,11 +22,30 @@ use serde_json::Value;
 
 const MAX_BYTES: u64 = 16 * 1024;
 
-/// The session `<config>/sessions/<pid>.json` names for this exact process.
-pub fn session(config: &Path, pid: Pid, start: &str) -> Option<String> {
+/// What the record of a process says.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Record {
+    /// There is none.
+    Missing,
+    /// There is one, and it cannot be used.
+    Unusable,
+    /// It names this session.
+    Names(String),
+}
+
+/// The record `<config>/sessions/<pid>.json` of this exact process.
+pub fn session(config: &Path, pid: Pid, start: &str) -> Record {
     let path = config.join("sessions").join(format!("{pid}.json"));
     let flags = OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC;
-    let file = File::from(rustix::fs::open(&path, flags, Mode::empty()).ok()?);
+    let fd = match rustix::fs::open(&path, flags, Mode::empty()) {
+        Ok(fd) => fd,
+        Err(e) if std::io::Error::from(e).kind() == ErrorKind::NotFound => return Record::Missing,
+        Err(_) => return Record::Unusable,
+    };
+    read(File::from(fd), pid, start).map_or(Record::Unusable, Record::Names)
+}
+
+fn read(file: File, pid: Pid, start: &str) -> Option<String> {
     let meta = file.metadata().ok()?;
     let ours = meta.uid() == rustix::process::getuid().as_raw();
     if !meta.file_type().is_file() || !ours || meta.nlink() != 1 || meta.len() > MAX_BYTES {

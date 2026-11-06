@@ -13,17 +13,21 @@
 mod exe;
 
 use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixListener;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{ChildStdin, Command, ExitCode, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use herdr_agent_kit::agent_procs::start_token;
+use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
 use herdr_inbox::store::Store;
 use serde_json::{Value, json};
 
 const BIN: &str = env!("CARGO_BIN_EXE_herdr-inbox");
 const SESSION: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
+const OTHER: &str = "bbbbbbbb-0000-4000-8000-00000000000b";
 
 /// Starts `$0 "$@"` in the background and writes its pid. Through fd 3, because dash gives a
 /// background job /dev/null as stdin first, so `<&0` would read that.
@@ -57,12 +61,47 @@ const CASES: &[Case] = &[
         "a_session_with_no_claim_never_runs_hc",
         a_session_with_no_claim_never_runs_hc,
     ),
+    (
+        "with_no_core_running_hc_is_never_run",
+        with_no_core_running_hc_is_never_run,
+    ),
+    (
+        "a_process_between_claude_and_the_server_is_refused",
+        a_process_between_claude_and_the_server_is_refused,
+    ),
+    (
+        "a_slow_first_second_never_takes_an_inherited_pane",
+        a_slow_first_second_never_takes_an_inherited_pane,
+    ),
+    (
+        "a_hanging_hc_never_takes_an_inherited_pane",
+        a_hanging_hc_never_takes_an_inherited_pane,
+    ),
+    (
+        "check_answers_cannot_read_the_inherited_panes_answer",
+        check_answers_cannot_read_the_inherited_panes_answer,
+    ),
+    (
+        "a_pane_that_holds_this_claude_stays_a_pane",
+        a_pane_that_holds_this_claude_stays_a_pane,
+    ),
+    (
+        "claude_codes_record_names_the_session",
+        claude_codes_record_names_the_session,
+    ),
+    (
+        "an_unusable_record_is_unavailable",
+        an_unusable_record_is_unavailable,
+    ),
 ];
 
 /// One stand-in session.
 struct Rig {
     dir: tempfile::TempDir,
     claude: PathBuf,
+    /// Listens where a core's socket would be, so that `hc` may run. Never a real core: every
+    /// process here has `XDG_RUNTIME_DIR` under this rig.
+    core: Option<UnixListener>,
 }
 
 /// A running `claude` with its MCP server under it.
@@ -84,7 +123,10 @@ impl Rig {
             &dir.path().join("herdr-cli"),
             "#!/bin/sh\necho \"$@\" >> \"$0.log\"\nexit 1\n",
         );
-        Rig { dir, claude }
+        let socket = dir.path().join("run/herdr-core/default.sock");
+        std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
+        let core = Some(UnixListener::bind(socket).unwrap());
+        Rig { dir, claude, core }
     }
 
     fn path(&self, name: &str) -> PathBuf {
@@ -102,6 +144,11 @@ impl Rig {
 
     /// `claude <argv>`, with `HC_TERMINAL_ID` set to `claim`.
     fn start(&self, claim: Option<&str>, argv: &[&str]) -> Session {
+        self.start_with(claim, argv, &[])
+    }
+
+    /// [`Rig::start`] with more variables.
+    fn start_with(&self, claim: Option<&str>, argv: &[&str], extra: &[(&str, String)]) -> Session {
         let dir = self.dir.path();
         let mut cmd = Command::new("sh");
         cmd.env_clear()
@@ -112,6 +159,7 @@ impl Rig {
             .env("HOME", dir)
             .env("XDG_STATE_HOME", dir)
             .env("XDG_CONFIG_HOME", dir)
+            .env("XDG_RUNTIME_DIR", dir.join("run"))
             .env("CLAUDE_CONFIG_DIR", dir.join("claude-config"))
             .env("CLAUDE_CODE_SESSION_ID", SESSION)
             .env("HERDR_INBOX_DB", dir.join("inbox.db"))
@@ -123,6 +171,9 @@ impl Rig {
             .stderr(Stdio::null());
         if let Some(claim) = claim {
             cmd.env("HC_TERMINAL_ID", claim);
+        }
+        for (name, value) in extra {
+            cmd.env(name, value);
         }
         let mut starter = cmd.spawn().unwrap();
         let stdin = starter.stdin.take().unwrap();
@@ -315,6 +366,166 @@ fn a_session_with_no_claim_never_runs_hc() {
     let receipt = s.ask();
     assert_eq!(receipt["status"], "unavailable", "{receipt}");
     assert!(!rig.path("hc.log").exists());
+}
+
+fn with_no_core_running_hc_is_never_run() {
+    // any hc command would start a core, and the core would keep this process's variables
+    let mut rig = Rig::new();
+    rig.core = None;
+    let mut s = rig.start(Some("t3"), &[BIN, "mcp"]);
+    let claude = rig.claude.display().to_string();
+    rig.hc_reports(s.pid, &[&claude, BIN, "mcp"]);
+    let receipt = s.ask();
+    assert_eq!(receipt["status"], "unavailable", "{receipt}");
+    assert!(!rig.path("hc.log").exists());
+}
+
+fn a_process_between_claude_and_the_server_is_refused() {
+    // an unrecognised harness or a tool: any descendant in the terminal is not its agent
+    let rig = Rig::new();
+    let script = format!("{BIN} mcp; true");
+    let mut s = rig.start(Some("t3"), &["/bin/sh", "-c", &script]);
+    let claude = rig.claude.display().to_string();
+    rig.hc_reports(s.pid, &[&claude, "/bin/sh", "-c", &script]);
+    let receipt = s.ask();
+    assert_eq!(receipt["status"], "unavailable", "{receipt}");
+    assert_eq!(rig.count("questions"), 0);
+}
+
+/// `pane.process_info` with `foreground` the pane's one foreground process.
+fn foreground_is(foreground: u32) -> Reply {
+    Reply::Result(json!({"process_info": {"pane_id": "w9:p9",
+        "foreground_processes": [{"pid": foreground, "name": "claude", "argv": ["claude"]}]},
+        "type": "process_info"}))
+}
+
+/// herdr with pane w9:p9, whose agent runs `OTHER` and whose foreground is `foreground`.
+fn other_pane(foreground: u32) -> FakeHerdr {
+    let f = FakeHerdr::start();
+    let pane = json!({"pane_id": "w9:p9", "tab_id": "w9:t9", "workspace_id": "w9", "agent": "claude",
+        "agent_session": {"agent": "claude", "kind": "id", "source": "herdr:claude", "value": OTHER}});
+    let tab = json!({"tab_id": "w9:t9", "label": "other-tab", "workspace_id": "w9"});
+    f.on(
+        "pane.get",
+        Reply::Result(json!({"pane": pane, "type": "pane_info"})),
+    )
+    .on(
+        "tab.get",
+        Reply::Result(json!({"tab": tab, "type": "tab_info"})),
+    )
+    .on("pane.process_info", foreground_is(foreground));
+    f
+}
+
+/// What a core started from that pane hands to every terminal.
+fn inherited(f: &FakeHerdr) -> Vec<(&'static str, String)> {
+    vec![
+        ("HERDR_PANE_ID", "w9:p9".to_owned()),
+        (
+            "HERDR_SOCKET_PATH",
+            f.socket().to_string_lossy().into_owned(),
+        ),
+    ]
+}
+
+impl Rig {
+    /// The terminal's first second: live, and hc has no foreground for it yet.
+    fn hc_has_no_foreground(&self) {
+        self.install_hc();
+        let get = json!({"address": "t3", "state": "live", "foreground": null});
+        std::fs::write(self.path("hc.get"), get.to_string()).unwrap();
+    }
+
+    /// `hc` past its budget.
+    fn hc_hangs(&self) {
+        exe::install(&self.path("hc"), "#!/bin/sh\nexec sleep 30\n");
+    }
+
+    /// Claude Code's record of process `pid`, with `change` applied.
+    fn record(&self, pid: u32, change: &dyn Fn(&mut Value)) {
+        let dir = self.path("claude-config/sessions");
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut record = json!({"pid": pid, "sessionId": OTHER, "kind": "interactive",
+            "procStart": start_token(pid).unwrap(), "cwd": "/fixture", "startedAt": 0});
+        change(&mut record);
+        std::fs::write(dir.join(format!("{pid}.json")), record.to_string()).unwrap();
+    }
+}
+
+fn a_slow_first_second_never_takes_an_inherited_pane() {
+    // the review's Q6
+    let rig = Rig::new();
+    let f = other_pane(1234);
+    rig.hc_has_no_foreground();
+    let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &inherited(&f));
+    let receipt = s.ask();
+    assert_eq!(receipt["status"], "unavailable", "{receipt}");
+    assert_eq!(rig.count("questions"), 0);
+}
+
+fn a_hanging_hc_never_takes_an_inherited_pane() {
+    // the review's Q8
+    let rig = Rig::new();
+    let f = other_pane(1234);
+    rig.hc_hangs();
+    let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &inherited(&f));
+    let receipt = s.ask();
+    assert_eq!(receipt["status"], "unavailable", "{receipt}");
+    assert_eq!(rig.count("questions"), 0);
+}
+
+fn check_answers_cannot_read_the_inherited_panes_answer() {
+    let rig = Rig::new();
+    let f = other_pane(1234);
+    rig.hc_hangs();
+    let store = rig.db();
+    store
+        .db()
+        .execute(
+            "INSERT INTO questions (created_at, pane_id, session_id, question, norm, status, answer, \
+             answered_at) VALUES ('2026-11-06T10:00:00+00:00', 'w9:p9', ?, 'Question Title 123?', \
+             'question title 123', 'answered', 'Yes', '2026-11-06T10:01:00+00:00')",
+            [OTHER],
+        )
+        .unwrap();
+    let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &inherited(&f));
+    let got = s.tool("check_answers", json!({}));
+    assert_eq!(got["status"], "unavailable", "{got}");
+    assert_eq!(store.get(1).unwrap().unwrap().acknowledged_at, None);
+}
+
+fn a_pane_that_holds_this_claude_stays_a_pane() {
+    // a herdr TUI started inside a core terminal: herdr itself lists this Claude
+    let rig = Rig::new();
+    rig.hc_has_no_foreground();
+    let f = other_pane(1);
+    let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &inherited(&f));
+    f.on("pane.process_info", foreground_is(s.pid));
+    let receipt = s.ask();
+    assert_eq!(receipt["status"], "open", "{receipt}");
+    let q = rig.db().get(1).unwrap().unwrap();
+    assert_eq!(q.pane_id.as_deref(), Some("w9:p9"));
+    assert_eq!(q.session_id.as_deref(), Some(OTHER));
+    assert_eq!(rig.count("question_host"), 0);
+}
+
+fn claude_codes_record_names_the_session() {
+    // after `/clear` the environment still names the session the process started with
+    let rig = Rig::new();
+    let mut s = rig.proved();
+    rig.record(s.pid, &|_| {});
+    assert_eq!(s.ask()["status"], "open");
+    let q = rig.db().get(1).unwrap().unwrap();
+    assert_eq!(q.session_id.as_deref(), Some(OTHER));
+}
+
+fn an_unusable_record_is_unavailable() {
+    let rig = Rig::new();
+    let mut s = rig.proved();
+    rig.record(s.pid, &|r| r["kind"] = json!("background"));
+    let receipt = s.ask();
+    assert_eq!(receipt["status"], "unavailable", "{receipt}");
+    assert_eq!(rig.count("questions"), 0);
 }
 
 /// Run as `claude`: CMD as a child, as Claude Code runs an MCP server.

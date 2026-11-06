@@ -19,6 +19,9 @@ pub enum Failure {
     NotReady,
     /// SQLite reported the database busy or locked, in these words.
     Busy(String),
+    /// This process says it runs in a core terminal and that could not be
+    /// proved: it has no identity, so every tool answers `unavailable`.
+    Unproved,
     /// Anything else: the call fails with this text (Python's exception).
     Error(String),
 }
@@ -70,6 +73,7 @@ pub fn busy_safe(
     loop {
         match attempt() {
             Ok(v) => return Ok(v),
+            Err(Failure::Unproved) => return Ok(receipts::unavailable()),
             Err(Failure::Error(e)) => return Err(e),
             Err(Failure::Busy(_)) => match busy.next() {
                 Some(d) => sleep(*d),
@@ -81,6 +85,7 @@ pub fn busy_safe(
                     sleep(*wait);
                     match attempt() {
                         Ok(v) => return Ok(v),
+                        Err(Failure::Unproved) => return Ok(receipts::unavailable()),
                         Err(Failure::NotReady) => ensure_worker(),
                         Err(Failure::Busy(e)) => return Err(e),
                         Err(Failure::Error(e)) => return Err(e),

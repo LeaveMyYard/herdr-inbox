@@ -13,7 +13,7 @@ use rusqlite::Row;
 
 pub use agent::{Asker, WithdrawOutcome};
 pub use blocked::{BLOCKED_AFTER, BlockedScan, CLEAR_AFTER};
-pub use raise::RaiseOutcome;
+pub use raise::{Raise, RaiseOutcome};
 pub use seen::SeenAgent;
 
 /// Severities an agent may give (Python `SEVERITIES`); anything else is `warning`.

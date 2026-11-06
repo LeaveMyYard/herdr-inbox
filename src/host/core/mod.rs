@@ -3,9 +3,15 @@
 //! `HC_TERMINAL_ID` is a claim. Any process can set it, and a child inherits
 //! it from whatever started it. The caller is the terminal's agent only when
 //! [`proof`] says so; the session then comes from Claude Code's own record of
-//! that process ([`record`]), else from `CLAUDE_CODE_SESSION_ID`. A caller with
-//! no session has nothing to deliver to and no questions to own, so it is
-//! refused too.
+//! that process ([`record`]), else from `CLAUDE_CODE_SESSION_ID`.
+//!
+//! **A refused claim is never a guess at another identity.** A core gives its
+//! own environment to every terminal, so a process here can carry a pane's
+//! `HERDR_PANE_ID` and socket, and the pane path would take that pane's agent
+//! and session on those variables alone. So with a claim present the pane
+//! path runs only if herdr itself lists this process's Claude in that pane's
+//! foreground ([`pane`]). Otherwise the call fails as [`Failure::Unproved`],
+//! `unavailable` from every tool, whether the reason is a forgery or a slow `hc`.
 //!
 //! The process table, the record and the transcripts are behind [`Machine`];
 //! `hc` is behind [`Hc`]. [`live`] is the real one.
@@ -15,6 +21,7 @@ pub mod address;
 pub mod fake;
 pub mod hc;
 pub mod live;
+pub mod pane;
 pub mod proof;
 pub mod record;
 
@@ -29,6 +36,7 @@ use crate::store::hosts::CoreSeat;
 use crate::trace;
 use hc::Hc;
 use proof::{Proved, Refused};
+use record::Record;
 
 /// This machine, as the proof reads it.
 pub trait Machine: Send + Sync {
@@ -38,10 +46,12 @@ pub trait Machine: Send + Sync {
     fn table(&self) -> Self::Table;
     /// This process's parent, where the walk up starts.
     fn parent(&self) -> Pid;
-    /// The session Claude Code's record of process `pid` (start token `start`) names.
-    fn recorded_session(&self, pid: Pid, start: &str) -> Option<String>;
+    /// Claude Code's record of process `pid` (start token `start`).
+    fn recorded_session(&self, pid: Pid, start: &str) -> Record;
     /// The session `reported` runs now (`live_session`).
     fn live(&self, reported: &str) -> String;
+    /// herdr's foreground processes of `pane`; `None` when herdr gives no list.
+    fn pane_foreground(&self, pane: &str) -> Option<Vec<Pid>>;
 }
 
 /// herdr-core.
@@ -59,11 +69,15 @@ impl<H: Hc, M: Machine> Core<H, M> {
         let table = self.machine.table();
         let parent = self.machine.parent();
         let Proved { pid, start } = proof::prove(&self.hc, &table, parent, claim)?;
-        let session = self
-            .machine
-            .recorded_session(pid, &start)
-            .or_else(|| env.session_id.clone().filter(|s| !s.is_empty()))
-            .ok_or(Refused::NoSession)?;
+        let session = match self.machine.recorded_session(pid, &start) {
+            Record::Names(session) => session,
+            Record::Unusable => return Err(Refused::BadRecord),
+            Record::Missing => env
+                .session_id
+                .clone()
+                .filter(|s| !s.is_empty())
+                .ok_or(Refused::NoSession)?,
+        };
         // a pid reused during the reads: their answers were about another process
         if self.machine.table().start(pid).as_deref() != Some(&start) {
             return Err(Refused::Replaced);
@@ -90,7 +104,11 @@ impl<H: Hc, M: Machine> Host for Core<H, M> {
             Ok(caller) => Ok(Some(caller)),
             Err(why) => {
                 let _ = writeln!(std::io::stderr(), "herdr-inbox: core terminal: {why}");
-                Ok(None)
+                if pane::proved(&self.machine, env) {
+                    Ok(None) // really this pane's agent: the pane path answers
+                } else {
+                    Err(Failure::Unproved)
+                }
             }
         }
     }

@@ -54,7 +54,8 @@ use herdr_agent_kit::plugin_env::PluginEnv;
 use serde_json::Value;
 
 use crate::claude::Transcripts;
-use crate::host::core::{self, Core, hc::Cli};
+use crate::host::core::hc::{Cli, socket};
+use crate::host::core::{self, Core};
 use crate::host::tui::Tui;
 use crate::worker::process::{ensure_worker_in, own_exe};
 use args::Call;
@@ -87,12 +88,13 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
         hosts: vec![
             Box::new(Core {
                 claim: env.var("HC_TERMINAL_ID").map(str::to_owned),
-                hc: Cli::default(),
+                hc: Cli::on_path(socket::from_env(env)),
                 machine: core::live::Live {
                     config: ProjectsRoot::from_env()
                         .and_then(|r| r.path().parent().map(ToOwned::to_owned)),
                     files: Transcripts::from_env(),
                     state_dir: inbox::state_dir(env),
+                    herdr: herdr(),
                 },
             }),
             Box::new(Tui {

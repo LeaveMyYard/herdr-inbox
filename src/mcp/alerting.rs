@@ -10,13 +10,7 @@ use crate::mcp::receipts;
 use crate::store::Store;
 use crate::store::alerts::{Asker, Effect, RaiseOutcome, WithdrawOutcome};
 
-/// What `alert_operator` asks for.
-pub struct Raise<'a> {
-    pub title: &'a str,
-    pub message: Option<&'a str>,
-    pub severity: &'a str,
-    pub asked_by: Option<&'a str>,
-}
+pub use crate::store::alerts::Raise;
 
 /// `alert_operator`: the receipt and the effects (a notification, the markers).
 pub fn alert_operator(
@@ -31,13 +25,17 @@ pub fn alert_operator(
         tab_id: caller.tab_id.as_deref(),
         tab_label: caller.tab_label.as_deref(),
     };
-    let (title, message, severity, asked_by) =
-        (raise.title, raise.message, raise.severity, raise.asked_by);
     let outcome = match &caller.core {
-        Some(seat) => {
-            store.raise_core_alert(asker, seat, title, message, severity, asked_by, files)
-        }
-        None => store.raise_alert(asker, title, message, severity, asked_by, server, files),
+        Some(seat) => store.raise_core_alert(asker, seat, raise, files),
+        None => store.raise_alert(
+            asker,
+            raise.title,
+            raise.message,
+            raise.severity,
+            raise.asked_by,
+            server,
+            files,
+        ),
     }?;
     Ok(match outcome {
         RaiseOutcome::Unavailable => (receipts::unavailable(), Vec::new()),

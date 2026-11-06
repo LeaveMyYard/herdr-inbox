@@ -26,6 +26,19 @@ pub enum RaiseOutcome {
     Unavailable,
 }
 
+/// What `alert_operator` asks for.
+#[derive(Clone, Copy, Debug)]
+pub struct Raise<'a> {
+    /// Its title.
+    pub title: &'a str,
+    /// Its message.
+    pub message: Option<&'a str>,
+    /// Its severity.
+    pub severity: &'a str,
+    /// The agent's role.
+    pub asked_by: Option<&'a str>,
+}
+
 /// Where an alert is raised from.
 #[derive(Clone, Copy)]
 enum Seat<'a> {
@@ -52,38 +65,40 @@ impl Store {
         let Some(pane) = asker.owner.pane_id.filter(|p| !p.is_empty()) else {
             return Ok(RaiseOutcome::Unavailable);
         };
-        let seat = Seat::Pane(pane, server);
-        self.raise(asker, title, message, severity, asked_by, seat, files)
+        let raise = Raise {
+            title,
+            message,
+            severity,
+            asked_by,
+        };
+        self.raise(asker, &raise, Seat::Pane(pane, server), files)
     }
 
     /// [`Store::raise_alert`] for an agent proved to run in core terminal
     /// `seat`: no pane, no herdr server, and nothing done to herdr afterwards.
-    #[allow(clippy::too_many_arguments)]
     pub fn raise_core_alert(
         &self,
         asker: Asker<'_>,
         seat: &CoreSeat,
-        title: &str,
-        message: Option<&str>,
-        severity: &str,
-        asked_by: Option<&str>,
+        raise: &Raise<'_>,
         files: &impl Continuations,
     ) -> rusqlite::Result<RaiseOutcome> {
-        let seat = Seat::Core(seat);
-        self.raise(asker, title, message, severity, asked_by, seat, files)
+        self.raise(asker, raise, Seat::Core(seat), files)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn raise(
         &self,
         asker: Asker<'_>,
-        title: &str,
-        message: Option<&str>,
-        severity: &str,
-        asked_by: Option<&str>,
+        raise: &Raise<'_>,
         seat: Seat<'_>,
         files: &impl Continuations,
     ) -> rusqlite::Result<RaiseOutcome> {
+        let Raise {
+            title,
+            message,
+            severity,
+            asked_by,
+        } = *raise;
         let (pane, server) = match seat {
             Seat::Pane(pane, server) => (Some(pane), server),
             Seat::Core(_) => (None, CORE_SERVER),

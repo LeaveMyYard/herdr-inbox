@@ -2,7 +2,7 @@ use herdr_agent_kit::agent_procs::fake::FakeProcesses;
 use serde_json::json;
 
 use super::*;
-use crate::host::core::fake::{FakeHc, GET_17, GET_18, LS_17, LS_18};
+use crate::host::core::fake::{FakeHc, GET_17, GET_18};
 
 const MCP: Pid = 30;
 
@@ -16,7 +16,7 @@ fn table() -> FakeProcesses {
 }
 
 fn hc() -> FakeHc {
-    FakeHc::recorded(GET_17, LS_17)
+    FakeHc::recorded(GET_17)
 }
 
 fn refused(hc: &FakeHc, t: &FakeProcesses, claim: &str) -> Refused {
@@ -39,15 +39,32 @@ fn the_terminals_foreground_claude_is_proved() {
 fn the_0_1_18_recording_is_proved_too() {
     let mut t = FakeProcesses::default();
     t.insert(4242, 1, "claude", "s", &["/bin/sh", "/fixture/bin/claude"]);
-    let fake = FakeHc::recorded(GET_18, LS_18);
+    let fake = FakeHc::recorded(GET_18);
     assert_eq!(prove(&fake, &t, 4242, "t1").unwrap().pid, 4242);
 }
 
 #[test]
-fn a_walk_through_a_launcher_finds_the_same_claude() {
+fn only_the_claudes_own_child_is_its_agent() {
+    // `scripts/launch` execs the binary, so nothing sits between a real server and its Claude
     let mut t = table();
-    t.insert(25, 20, "sh", "s25", &["sh", "scripts/launch", "mcp"]);
-    assert_eq!(prove(&hc(), &t, 25, "t2").unwrap().pid, 20);
+    t.insert(25, 20, "sh", "s25", &["sh", "-c", "herdr-inbox mcp"]);
+    assert_eq!(
+        prove(&hc(), &t, 25, "t2").unwrap_err(),
+        Refused::NotItsChild
+    );
+}
+
+#[test]
+fn a_harness_the_kit_does_not_know_is_not_proved_as_its_parent() {
+    // node with two options before the entry script is no Claude to the kit
+    let entry = "/fixture/@anthropic-ai/claude-code/cli.js";
+    let mut t = table();
+    t.insert(50, 20, "node", "s50", &["node", "--a", "--b", entry]);
+    assert_eq!(
+        prove(&hc(), &t, 50, "t2").unwrap_err(),
+        Refused::NotItsChild
+    );
+    assert!(hc().asked.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -173,26 +190,6 @@ fn argv_compares_by_words() {
     let mut fake = hc();
     fake.terminal("t2")["foreground"]["argv"] = json!(["claude", "--model", "x", "y", ""]);
     assert!(prove(&fake, &t, 20, "t2").is_ok());
-}
-
-#[test]
-fn hc_ls_must_list_it_once_and_live() {
-    for terminals in [
-        json!([]),
-        json!([{"address": "t3", "state": "live"}]),
-        json!([{"address": "t2", "state": "finished"}]),
-        json!([{"address": "t2", "state": "live"}, {"address": "t2", "state": "live"}]),
-    ] {
-        let mut fake = hc();
-        fake.set_list(json!({ "terminals": terminals }));
-        assert_eq!(refused(&fake, &table(), "t2"), Refused::NotListed);
-    }
-    let mut fake = hc();
-    fake.set_list(json!({"rows": []}));
-    assert_eq!(
-        refused(&fake, &table(), "t2"),
-        Refused::Hc("hc ls has no terminals")
-    );
 }
 
 #[test]
