@@ -411,53 +411,46 @@ fn an_ask_returns_the_open_receipt_when_the_markers_fail() {
     assert_eq!(s.get(1).unwrap().unwrap().repeat_count, 0);
 }
 
-struct Unproved;
+struct Refuses(Value);
 
-impl crate::host::Host for Unproved {
+impl crate::host::Host for Refuses {
     fn caller(&self, _: &Env) -> Result<Option<Caller>, Failure> {
-        Err(Failure::Unproved)
+        Err(Failure::Refused(self.0.clone()))
     }
 }
 
 #[test]
-fn an_unproved_claim_is_unavailable_from_every_tool() {
+fn a_refused_claim_answers_every_tool_with_its_receipt() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("inbox.db");
     Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
-    let mut rt = runtime(db, Arc::default());
-    rt.hosts.insert(0, Box::new(Unproved));
-    for call in [
-        ask("Question Title 123?"),
-        Call::CheckAnswers,
-        Call::ListMyQuestions {
-            include_closed: true,
-        },
+    for receipt in [
+        receipts::unproved(),
+        receipts::undecided(),
+        receipts::shared(),
     ] {
-        assert_eq!(rt.call(call).unwrap(), receipts::unavailable());
-    }
-}
-
-struct Undecided;
-
-impl crate::host::Host for Undecided {
-    fn caller(&self, _: &Env) -> Result<Option<Caller>, Failure> {
-        Err(Failure::Undecided)
+        let mut rt = runtime(db.clone(), Arc::default());
+        rt.hosts.insert(0, Box::new(Refuses(receipt.clone())));
+        for call in [
+            ask("Question Title 123?"),
+            Call::CheckAnswers,
+            Call::ListMyQuestions {
+                include_closed: true,
+            },
+        ] {
+            assert_eq!(rt.call(call).unwrap(), receipt);
+        }
+        assert_eq!(receipt["status"], json!("unavailable"));
     }
 }
 
 #[test]
-fn a_moment_that_may_pass_tells_the_agent_to_call_again() {
-    let dir = tempfile::tempdir().unwrap();
-    let db = dir.path().join("inbox.db");
-    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
-    let mut rt = runtime(db, Arc::default());
-    rt.hosts.insert(0, Box::new(Undecided));
-    for call in [ask("Question Title 123?"), Call::CheckAnswers] {
-        let receipt = rt.call(call).unwrap();
-        assert_eq!(receipt, receipts::undecided());
-        assert_eq!(receipt["status"], json!("unavailable"));
-        let message = receipt["message"].as_str().unwrap();
-        assert!(message.contains("again"), "{message}");
-        assert!(!message.contains("top-level"), "{message}");
+fn only_a_moment_says_to_call_soon_and_no_refusal_says_not_in_herdr() {
+    let moment = receipts::UNDECIDED;
+    assert!(moment.contains("again in a few seconds"), "{moment}");
+    assert!(receipts::SHARED.contains("will not help while both run"));
+    assert!(receipts::SHARED.contains("close one copy"));
+    for text in [receipts::UNDECIDED, receipts::SHARED, receipts::UNPROVED] {
+        assert!(!text.contains("not in herdr"), "{text}");
     }
 }

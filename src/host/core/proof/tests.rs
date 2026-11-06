@@ -208,6 +208,7 @@ fn what_may_pass_in_a_moment_and_what_stays() {
         Refused::BadRecord,
     ] {
         assert!(why.temporary(), "{why}");
+        assert_eq!(why.receipt(), receipts::undecided());
     }
     for why in [
         Refused::BadAddress,
@@ -220,7 +221,9 @@ fn what_may_pass_in_a_moment_and_what_stays() {
         Refused::NoSession,
     ] {
         assert!(!why.temporary(), "{why}");
+        assert_eq!(why.receipt(), receipts::unproved());
     }
+    assert_eq!(Refused::Shared.receipt(), receipts::shared());
 }
 
 #[test]

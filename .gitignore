@@ -7,3 +7,7 @@ __pycache__/
 # Rust
 /target/
 /bin/
+
+# herdr-app writes these next to a mod it checks
+app/mods/*/gpui-kit.d.ts
+app/mods/*/jsconfig.json

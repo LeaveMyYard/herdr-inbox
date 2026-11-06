@@ -8,7 +8,7 @@ use herdr_agent_kit::herdr_api::PaneId;
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 
 use super::Machine;
-use super::record::{self, Record};
+use super::record::{self, Other, Record};
 use crate::claude::{Transcripts, live_session};
 
 /// This machine as this process finds it.
@@ -38,6 +38,13 @@ impl Machine for Live {
         match self.config.as_deref() {
             Some(config) => record::session(config, pid, start),
             None => Record::Missing,
+        }
+    }
+
+    fn other_records(&self, pid: Pid) -> Vec<Other> {
+        match self.config.as_deref() {
+            Some(config) => record::others(config, pid),
+            None => Vec::new(),
         }
     }
 

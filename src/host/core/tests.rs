@@ -6,6 +6,7 @@ use super::fake::{FakeHc, GET_17};
 use super::*;
 use crate::host::tui::Tui;
 use crate::mcp::caller::{Pane as HerdrPane, World};
+use crate::mcp::receipts;
 
 const ENV_SESSION: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
 const RECORDED: &str = "bbbbbbbb-0000-4000-8000-00000000000b";
@@ -16,6 +17,8 @@ struct Fake {
     record: Record,
     /// herdr's foreground of the pane.
     pane: Option<Vec<Pid>>,
+    /// The other records.
+    others: Vec<Other>,
 }
 
 impl Fake {
@@ -24,6 +27,7 @@ impl Fake {
             starts: Mutex::new(vec!["s20", "s20"]),
             record: Record::Missing,
             pane: None,
+            others: Vec::new(),
         }
     }
 }
@@ -51,6 +55,10 @@ impl Machine for Fake {
     }
     fn pane_foreground(&self, _: &str) -> Option<Vec<Pid>> {
         self.pane.clone()
+    }
+    fn other_records(&self, pid: Pid) -> Vec<Other> {
+        assert_eq!(pid, 20);
+        self.others.clone()
     }
     fn live(&self, reported: &str) -> String {
         format!("live {reported}")
@@ -103,24 +111,25 @@ fn claude_codes_own_record_beats_the_environment() {
 }
 
 fn unproved(result: Result<Option<Caller>, Failure>) -> bool {
-    matches!(result, Err(Failure::Unproved | Failure::Undecided))
+    matches!(result, Err(Failure::Refused(_)))
 }
 
-fn undecided(result: Result<Option<Caller>, Failure>) -> bool {
-    matches!(result, Err(Failure::Undecided))
+fn says(result: Result<Option<Caller>, Failure>, receipt: serde_json::Value) -> bool {
+    matches!(result, Err(Failure::Refused(r)) if r == receipt)
 }
 
 #[test]
 fn a_moment_that_may_pass_says_so_and_a_lasting_refusal_does_not() {
-    assert!(undecided(core(Some("t9"), Fake::new()).caller(&env())));
+    let moment = core(Some("t9"), Fake::new()).caller(&env());
+    assert!(says(moment, receipts::undecided()));
     let lasting = core(Some("vps/t7"), Fake::new()).caller(&env());
-    assert!(matches!(lasting, Err(Failure::Unproved)));
+    assert!(says(lasting, receipts::unproved()));
     let no_session = Env {
         session_id: None,
         ..env()
     };
     let lasting = core(Some("t2"), Fake::new()).caller(&no_session);
-    assert!(matches!(lasting, Err(Failure::Unproved)));
+    assert!(says(lasting, receipts::unproved()));
 }
 
 #[test]
@@ -141,6 +150,17 @@ fn a_record_that_cannot_be_used_refuses_with_no_fallback_to_the_environment() {
         ..Fake::new()
     };
     assert!(unproved(core(Some("t2"), machine).caller(&env())));
+}
+
+#[test]
+fn a_second_live_process_on_the_session_is_refused_with_its_own_receipt() {
+    // pid 19, live with that start token, stands in for the other copy
+    let machine = Fake {
+        others: vec![Other::Runs(19, "s19".into(), format!("live {ENV_SESSION}"))],
+        ..Fake::new()
+    };
+    let got = core(Some("t2"), machine).caller(&env());
+    assert!(says(got, receipts::shared()));
 }
 
 #[test]
@@ -206,7 +226,7 @@ fn a_refused_claim_never_takes_the_pane_it_inherited() {
             ..Fake::new()
         };
         let got = crate::host::caller(&hosts("t9", machine), &env());
-        assert!(matches!(got, Err(Failure::Undecided)), "{got:?}");
+        assert!(says(got.map(Some), receipts::undecided()));
     }
 }
 

@@ -65,3 +65,36 @@ fn an_empty_file_junk_a_large_file_or_a_link_is_unusable() {
     symlink(dir.path().join("elsewhere.json"), &real).unwrap();
     assert_eq!(session(dir.path(), 20, "s20"), Record::Unusable);
 }
+
+#[test]
+fn others_lists_every_record_but_this_process() {
+    let dir = written(&record().to_string());
+    let sessions = dir.path().join("sessions");
+    let mut other = record();
+    other["pid"] = json!(21);
+    fs::write(sessions.join("21.json"), other.to_string()).unwrap();
+    let mut daemon = record();
+    daemon["pid"] = json!(22);
+    daemon["kind"] = json!("bg");
+    fs::write(sessions.join("22.json"), daemon.to_string()).unwrap();
+    fs::write(sessions.join("23.json"), "").unwrap();
+    fs::write(sessions.join("24.json"), record().to_string()).unwrap(); // says pid 20
+    fs::write(sessions.join("notes.txt"), "x").unwrap();
+    let mut got = others(dir.path(), 20);
+    got.sort_by_key(|o| format!("{o:?}"));
+    assert_eq!(
+        got,
+        [
+            Other::Elsewhere,
+            Other::Runs(21, "s20".into(), S.into()),
+            Other::Unreadable(23),
+            Other::Unreadable(24),
+        ]
+    );
+}
+
+#[test]
+fn no_sessions_directory_is_no_others() {
+    let dir = tempfile::tempdir().unwrap();
+    assert!(others(dir.path(), 20).is_empty());
+}

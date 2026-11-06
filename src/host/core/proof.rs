@@ -22,6 +22,7 @@ use serde_json::Value;
 
 use super::address;
 use super::hc::Hc;
+use crate::mcp::receipts;
 
 /// Why a claim was not proved. Never shown to the agent: it gets `unavailable`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +51,8 @@ pub enum Refused {
     NoSession,
     /// Claude Code's record of the process exists and cannot be used.
     BadRecord,
+    /// Another live process runs this session.
+    Shared,
 }
 
 impl Refused {
@@ -60,6 +63,17 @@ impl Refused {
             self,
             Refused::Hc(_) | Refused::NotForeground | Refused::Replaced | Refused::BadRecord
         )
+    }
+}
+
+impl Refused {
+    /// What the agent reads, from every tool.
+    pub fn receipt(self) -> Value {
+        match self {
+            Refused::Shared => receipts::shared(),
+            why if why.temporary() => receipts::undecided(),
+            _ => receipts::unproved(),
+        }
     }
 }
 
@@ -77,7 +91,8 @@ impl fmt::Display for Refused {
             Refused::NotThatProcess => "its foreground process is another program",
             Refused::Replaced => "the process changed during the proof",
             Refused::NoSession => "no session",
-            Refused::BadRecord => "Claude Code's record of the process is unusable",
+            Refused::BadRecord => "Claude Code's record of a process is unusable",
+            Refused::Shared => "another live process runs this session",
         })
     }
 }

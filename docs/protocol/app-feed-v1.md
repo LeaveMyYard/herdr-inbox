@@ -5,8 +5,8 @@ owns every decision and every write. A mod reads this one file and acts only thr
 [app-commands v1](app-commands-v1.md). The fixtures are in `tests/fixtures/app-feed/` and
 `tests/fixtures/app-commands/`.
 
-**Status: nothing here is built yet.** This is the document the writer (B4) and the mods (B5, B6) are
-built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
+**Status: the [installer](#installing) is built (B5); the rest is not yet.** This is the document the writer
+(B4) and the mods (B5, B6) are built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
 a later slice.
 
 ## Delivery
@@ -446,12 +446,14 @@ is stale. B5 may add optional arguments, such as Panorama's `--install-id`, with
 |---|---|
 | `feed.json` | The feed. It stays after the writer exits, and readers see it age. |
 | `.feed.tmp` | Staging. Only the lock holder touches it, so a leftover is replaced. Fsynced before the rename. |
-| `ensure.lock` | Empty. `--ensure` holds `flock` on it from its check until the start is proven, so two mods starting together wait for one another, and the second finds the writer running. No failure is counted. It waits at most 7 s. |
+| `ensure.lock` | Empty. `--ensure` holds `flock` on it from its check until the start is proven, so two mods starting together wait for one another, and the second finds the writer running. No failure is counted. It waits at most 7 s; past that it exits 1, spawns nothing and counts nothing. |
 | `writer.lock` | Empty. The writer holds `flock` on it for its whole life, so there is one writer per app home. |
 | `writer.json` | The writer's record: `{"v":1,"pid":…,"start":…,"binary_sha256":…}`. Diagnostics and busy proof, never a signal target. |
-| `control.json` | `{"v":1,"disabled":false}`. Disabled: no writer runs or starts. |
+| `control.json` | `{"v":1,"disabled":false}`. Disabled: no writer runs or starts. Absent: `--ensure` and a child refuse, as there is no install to serve. |
 | `stop.request` | Empty. A running writer that sees it exits. |
 | `start.json` | The restart ledger: `{"v":1,"failures":…,"retry_at_ms":…}`. Absent means no failures. |
+| `install.json` | The install record, mode 0600, see [Installing](#installing). The writer does not touch it. |
+| `stage/` | The installer's staging. The writer does not touch it. |
 
 The writer:
 
@@ -478,9 +480,10 @@ sets `disabled`, which only a reinstall clears. So a writer that crashes at star
 every 5 s by every mod.
 
 **Stopping.** Nothing is ever killed. A writer checks `control.json` and `stop.request` at each poll,
-at most 1 s apart. An uninstall sets `disabled` and waits at most 2 s for `writer.lock` to come free. If it
-does not, it refuses and leaves everything in place. `--ensure` refuses while `disabled`, so a late call
-cannot restart a writer behind an uninstall.
+at most 1 s apart. An uninstall takes `ensure.lock`, sets `disabled` and waits at most 2 s for `writer.lock`
+to come free. If it does not, it refuses and leaves everything else in place, with `disabled` set. It holds
+`ensure.lock` throughout, so an `--ensure` that has read `disabled: false` finishes first or not at all, and
+`--ensure` refuses while `disabled`, so a late call cannot restart a writer behind an uninstall.
 
 **A changed binary.** `--ensure` hashes its own binary. A writer whose `writer.json` has another hash gets a
 `stop.request`; `--ensure` waits at most 2 s for the lock, removes the request and starts its own. A writer
@@ -492,7 +495,38 @@ also exits by itself when its executable file changes on disk, checked at each p
 says nothing and restarts the count. After 30 s of confirmed absence the writer exits. `control.json` and
 the ledger stay, so the next app start ensures again.
 
-Installing and uninstalling these paths belong to B5.
+### Installing
+
+`scripts/app-install install --app-home ABSOLUTE_HOME [--plugin-root ROOT]` installs the mods, and upgrades them
+when run again. `scripts/app-install uninstall --app-home ABSOLUTE_HOME` takes them out. It needs no package:
+`install.json` alone says what it may remove, and it must name only `mods/herdr-inbox*` paths.
+
+An install creates `control.json`, `ensure.lock` and `writer.lock`, and this folder at 0700. Running it again
+also clears `disabled` and removes `start.json`. It keeps the feed.
+
+An uninstall removes every path in the table. A file there it does not know stays, and is reported.
+
+The record is written before anything else that matters and removed last, so after a crash at any point
+either command can be run again. With no record, a folder holding only these paths is what a crash left:
+`install` takes it over and `uninstall` clears it.
+
+An uninstall asks `herdr-app status` what the window shows. It refuses when the shown layout names a mod, when
+that layout's file can't be read, and when the answer is anything but exit 0 with a layout or exit 2 for no
+window. It asks `--checker` or the `herdr-app` on `PATH`. With neither, it tries to connect to
+`<appHome>/herdr-app.sock`: an absent or refused socket means no window, and anything else refuses. With no
+window nothing is showing the mods, so it goes ahead and names any layout that still uses them. A mod open in a tab or as an overlay can't be seen this way: the window reports it
+missing until that closes.
+
+`install.json` records what the mods need to find the plugin:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `plugin_root` | string | The root the install ran from. |
+| `plugin_moves` | bool | False only for the operator's own git checkout. A herdr install is a git checkout too, but each update makes a new generation under `plugins/github-installations/` and deletes the old one. |
+| `claude_config` | ?string | `CLAUDE_CONFIG_DIR` at install, when it was an absolute path. |
+
+The other fields are the installer's own. [app-commands v1](app-commands-v1.md#running-a-command) says how the
+mods use these.
 
 ### The worker
 
