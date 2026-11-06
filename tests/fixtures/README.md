@@ -2,11 +2,17 @@
 
 Every fixture here is captured, never written by hand, except `popup-deviations.json` (where the
 Rust popup deliberately differs from Python, no capture can produce it), `ancestor-replay.json`
-(synthetic, see below) and `app-feed/` and `app-commands/` (contract examples, see below).
+(synthetic, see below), `app-feed/` and `app-commands/` (contract examples, see below) and
+`migrate-rust.json` (what Rust added to the schema past Python's revision: compiled into the
+migration by `src/store/owned.rs`, and applied by `tests/test_core_rows.py` to build the database
+an old Python process meets).
 
 - `templates.json`: transcript record templates, copied verbatim from herdr-panorama's
   `tests/fixtures/templates.json` (see its README there); `tests/bridge_scenario.py` builds
   transcripts only from them.
+- `hc/get-*.json`: what `hc get --json` prints, per hc version.
+  0.1.17 is herdr-panorama's recording. 0.1.18 was recorded on an isolated server with a stand-in
+  `claude`, paths neutralised.
 - `composer/*.ansi`: Claude Code input boxes as `herdr pane read` returns them (empty, drafts,
   chips, wrapped text), captured from real panes; the fake herdr in `tests/conftest.py` serves them.
 - `radar/*.block.toml`: herdr-radar's own output, produced by `radar/generate.js`

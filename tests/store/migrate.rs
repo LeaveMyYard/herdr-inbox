@@ -12,7 +12,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use herdr_inbox::store::migrate::switch_to_wal;
-use herdr_inbox::store::revision::STAMP;
+use herdr_inbox::store::owned::owned;
+use herdr_inbox::store::revision::{BRIDGE_REVISION, REVISION_BASE, STAMP};
 use herdr_inbox::store::{OpenError, Store};
 use rusqlite::Connection;
 use serde_json::{Value, json};
@@ -91,6 +92,29 @@ fn describe(path: &Path) -> Value {
            "objects": objects.into_iter().map(|(k, (kind, sql))| (k, json!([kind, sql]))).collect::<BTreeMap<_, _>>()})
 }
 
+/// [`describe`], as Python's migration would have left it: what Rust added past the bridge
+/// removed, and where Python stamps the bridge's revision, Rust's stamp checked and read as it.
+fn as_bridge(path: &Path, python: &Value) -> Value {
+    let mut got = describe(path);
+    let own = owned();
+    for table in own.tables.keys() {
+        got["columns"].as_object_mut().unwrap().remove(table);
+        got["objects"].as_object_mut().unwrap().remove(table);
+    }
+    for (table, added) in &own.added_columns {
+        got["columns"][table]
+            .as_array_mut()
+            .unwrap()
+            .retain(|c| !added.iter().any(|(name, _)| c[0] == name.as_str()));
+    }
+    let bridge = json!(REVISION_BASE + BRIDGE_REVISION);
+    if python["user_version"] == bridge {
+        assert_eq!(got["user_version"], STAMP);
+        got["user_version"] = bridge;
+    }
+    got
+}
+
 fn has_column(path: &Path, table: &str, column: &str) -> bool {
     let db = open(path);
     let mut stmt = db.prepare(&format!("PRAGMA table_info({table})")).unwrap();
@@ -141,7 +165,7 @@ fn every_captured_case_migrates_as_python_does() {
         );
         drop(Store::open_migrating(&path, TIMEOUT).unwrap());
         assert_eq!(
-            describe(&path),
+            as_bridge(&path, &case["after"]),
             case["after"],
             "{name}: migrated as Python does"
         );
@@ -266,7 +290,7 @@ fn the_migrating_open_creates_the_directory_and_the_database() {
     assert_eq!(mode, "wal");
     let fresh = &doc()["cases"][0];
     assert_eq!(fresh["name"], "fresh");
-    assert_eq!(describe(&path), fresh["after"]);
+    assert_eq!(as_bridge(&path, &fresh["after"]), fresh["after"]);
 }
 
 #[test]
@@ -353,4 +377,97 @@ fn the_switch_to_wal_returns_any_other_error_at_once() {
     let err = switch_to_wal(&db, TIMEOUT).unwrap_err();
     assert!(!herdr_inbox::store::busy::is_busy(&err), "{err}");
     assert!(started.elapsed() < TIMEOUT / 2, "not retried");
+}
+
+/// The database a release at the bridge's revision left: every row of Python's schema,
+/// nothing of Rust's, its stamp.
+fn at_the_bridge(dir: &Path) -> std::path::PathBuf {
+    let path = dir.join("inbox.db");
+    drop(Store::open_migrating(&path, TIMEOUT).unwrap());
+    let db = open(&path);
+    db.execute_batch(
+        "DROP TABLE question_host; DROP TABLE alert_host; \
+         ALTER TABLE question_ext DROP COLUMN retry_count",
+    )
+    .unwrap();
+    db.execute_batch(&format!(
+        "PRAGMA user_version = {}",
+        REVISION_BASE + BRIDGE_REVISION
+    ))
+    .unwrap();
+    path
+}
+
+#[test]
+fn a_bridge_database_gains_rusts_additions_and_keeps_every_row() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = at_the_bridge(dir.path());
+    open(&path)
+        .execute_batch(
+            "INSERT INTO questions (created_at, question, norm) VALUES ('t', 'Kept?', 'kept'); \
+             INSERT INTO question_ext (id, group_id, herdr_server) VALUES (1, 1, '/sock')",
+        )
+        .unwrap();
+    let store = Store::open_migrating(&path, TIMEOUT).unwrap();
+    assert_eq!(stamp_of(&path), STAMP);
+    let (server, count): (String, Option<i64>) = store
+        .db()
+        .query_row(
+            "SELECT herdr_server, retry_count FROM question_ext WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((server.as_str(), count), ("/sock", None));
+    for table in ["question_host", "alert_host"] {
+        let rows: i64 = store
+            .db()
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0, "{table}");
+    }
+}
+
+#[test]
+fn rusts_additions_are_all_named_and_all_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    drop(Store::open_migrating(&path, TIMEOUT).unwrap());
+    let own = owned();
+    for (table, columns) in &own.tables {
+        for column in columns {
+            assert!(has_column(&path, table, column), "{table}.{column}");
+        }
+    }
+    let described = describe(&path);
+    for (table, columns) in &own.tables {
+        assert_eq!(
+            described["columns"][table].as_array().unwrap().len(),
+            columns.len(),
+            "{table} has only the columns named"
+        );
+    }
+    assert!(has_column(&path, "question_ext", "retry_count"));
+}
+
+#[test]
+fn raising_the_retry_count_is_a_change_a_reader_sees() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    let store = Store::open_migrating(&path, TIMEOUT).unwrap();
+    store
+        .db()
+        .execute_batch(
+            "INSERT INTO questions (created_at, question, norm) VALUES ('t', 'Q', 'q'); \
+             INSERT INTO question_ext (id, group_id) VALUES (1, 1); DELETE FROM changes; \
+             UPDATE question_ext SET retry_count = COALESCE(retry_count, 0) + 1 WHERE id = 1",
+        )
+        .unwrap();
+    let seen: i64 = store
+        .db()
+        .query_row("SELECT COUNT(*) FROM changes WHERE qid = 1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(seen, 1, "the question_ext trigger covers the column");
 }

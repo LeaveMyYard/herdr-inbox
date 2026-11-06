@@ -4,8 +4,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use serde_json::json;
 
 use super::*;
+use crate::host::tui::Tui;
 use crate::mcp::args::Item;
-use crate::mcp::caller::Pane;
+use crate::mcp::caller::{Pane, World};
 use crate::mcp::effects::Herald;
 use crate::mcp::receipts;
 use crate::store::Store;
@@ -60,7 +61,9 @@ fn with_starts(db: PathBuf, log: Arc<Log>, starts: Arc<AtomicUsize>) -> Runtime 
             pane_id: Some("w1:p1".into()),
             ..Env::default()
         },
-        world: Box::new(OnePane),
+        hosts: vec![Box::new(Tui {
+            world: Box::new(OnePane),
+        })],
         files: Transcripts::new(None),
         db,
         server: "/sock".into(),
@@ -271,7 +274,9 @@ fn the_session_is_resolved_on_every_call() {
     Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
     let session = Arc::new(Mutex::new("aaaa".to_owned()));
     let mut rt = runtime(db, Arc::default());
-    rt.world = Box::new(Clearable(Arc::clone(&session)));
+    rt.hosts = vec![Box::new(Tui {
+        world: Box::new(Clearable(Arc::clone(&session))),
+    })];
     assert_eq!(rt.call(ask("Which bucket?")).unwrap()["id"], json!(1));
     assert_eq!(
         rt.call(ask("Which bucket?")).unwrap()["status"],
@@ -372,7 +377,9 @@ fn each_tool_opens_the_store_or_resolves_the_caller_first_as_python_does() {
     for (call, caller_first) in cases {
         let asked = Arc::new(AtomicUsize::new(0));
         let mut rt = runtime(dir.path().join("missing.db"), Arc::default());
-        rt.world = Box::new(Counted(Arc::clone(&asked)));
+        rt.hosts = vec![Box::new(Tui {
+            world: Box::new(Counted(Arc::clone(&asked))),
+        })];
         let name = format!("{call:?}");
         assert_eq!(rt.call(call), Ok(receipts::not_migrated()), "{name}");
         assert_eq!(asked.load(Ordering::SeqCst) > 0, caller_first, "{name}");
@@ -402,4 +409,48 @@ fn an_ask_returns_the_open_receipt_when_the_markers_fail() {
     let s = Store::open(&db, Duration::from_secs(3)).unwrap();
     assert_eq!(s.list(false).unwrap().len(), 1, "filed once");
     assert_eq!(s.get(1).unwrap().unwrap().repeat_count, 0);
+}
+
+struct Refuses(Value);
+
+impl crate::host::Host for Refuses {
+    fn caller(&self, _: &Env) -> Result<Option<Caller>, Failure> {
+        Err(Failure::Refused(self.0.clone()))
+    }
+}
+
+#[test]
+fn a_refused_claim_answers_every_tool_with_its_receipt() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
+    for receipt in [
+        receipts::unproved(),
+        receipts::undecided(),
+        receipts::shared(),
+    ] {
+        let mut rt = runtime(db.clone(), Arc::default());
+        rt.hosts.insert(0, Box::new(Refuses(receipt.clone())));
+        for call in [
+            ask("Question Title 123?"),
+            Call::CheckAnswers,
+            Call::ListMyQuestions {
+                include_closed: true,
+            },
+        ] {
+            assert_eq!(rt.call(call).unwrap(), receipt);
+        }
+        assert_eq!(receipt["status"], json!("unavailable"));
+    }
+}
+
+#[test]
+fn only_a_moment_says_to_call_soon_and_no_refusal_says_not_in_herdr() {
+    let moment = receipts::UNDECIDED;
+    assert!(moment.contains("again in a few seconds"), "{moment}");
+    assert!(receipts::SHARED.contains("will not help while both run"));
+    assert!(receipts::SHARED.contains("close one copy"));
+    for text in [receipts::UNDECIDED, receipts::SHARED, receipts::UNPROVED] {
+        assert!(!text.contains("not in herdr"), "{text}");
+    }
 }

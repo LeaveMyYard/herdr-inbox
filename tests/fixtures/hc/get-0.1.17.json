@@ -1,0 +1,17 @@
+{
+  "address": "t2",
+  "argv": ["claude"],
+  "cwd": "/fixture/project",
+  "foreground": {"argv": ["claude"], "cwd": "/fixture/project", "name": "claude", "pid": 20},
+  "identity": "fixture-terminal",
+  "labels": {"where": "Fixture / 1"},
+  "name": null,
+  "parent": null,
+  "pid": 19,
+  "records": {"agent-fixture": {"app": "claude-code", "state": "working", "title": "fixture"}},
+  "reported": true,
+  "state": "live",
+  "status": "working",
+  "title": "fixture",
+  "turn": 1
+}

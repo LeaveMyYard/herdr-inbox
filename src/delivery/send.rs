@@ -1,8 +1,11 @@
 //! What a delivery does before its pass (Python `deliver_batch`'s preamble):
 //! a fresh send makes sure the worker runs (it retries whatever the send
 //! leaves pending), and an answer asked on another herdr server is left to
-//! that server's worker, which is made sure of too.
+//! that server's worker, which is made sure of too. A core terminal's answer
+//! has no herdr server and no worker yet: it is left as it is, for
+//! `check_answers`, until core delivery (plan herdr-app-inbox, B3).
 
+use crate::store::hosts::CORE_SERVER;
 use crate::store::{Question, Store};
 
 /// The answers among `qs` this process delivers: those owned by no server
@@ -23,6 +26,7 @@ pub fn local_answers(
     let mut foreign: Vec<String> = Vec::new();
     for q in qs {
         match store.server_of(q.id)? {
+            Some(server) if server == CORE_SERVER => {}
             Some(server) if server != mine => {
                 if !foreign.contains(&server) {
                     foreign.push(server);

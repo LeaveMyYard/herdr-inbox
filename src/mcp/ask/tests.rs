@@ -75,6 +75,7 @@ use crate::claude::Transcripts;
 use crate::mcp::caller::Caller;
 use crate::store::Store;
 use crate::store::alerts::Effect;
+use crate::store::hosts::{CORE_SERVER, CoreSeat};
 
 fn store() -> (tempfile::TempDir, Store) {
     let dir = tempfile::tempdir().unwrap();
@@ -89,6 +90,7 @@ fn caller() -> Caller {
         tab_label: Some("my-tab".into()),
         session_id: Some("aaaaaaaa-0000-4000-8000-00000000000a".into()),
         cwd: Some("/r".into()),
+        core: None,
     }
 }
 
@@ -344,4 +346,69 @@ fn the_pane_is_the_fallback_owner_without_a_session() {
     c.pane_id = Some("w1:p2".into());
     let other_pane = single(ask(&s, &c, &[item("Question Title 123")], None).0);
     assert_eq!(other_pane["status"], json!("open"));
+}
+
+fn core_caller() -> Caller {
+    Caller {
+        session_id: Some("aaaaaaaa-0000-4000-8000-00000000000a".into()),
+        cwd: Some("/r".into()),
+        core: Some(CoreSeat {
+            terminal: "t3".into(),
+            machine: None,
+        }),
+        ..Caller::default()
+    }
+}
+
+#[test]
+fn a_core_caller_is_filed_with_no_pane_and_a_seat() {
+    let (_d, s) = store();
+    let (r, fx) = ask(&s, &core_caller(), &[item("Question Title 123?")], None);
+    let r = single(r);
+    assert_eq!(r["status"], json!("open"));
+    assert!(fx.is_empty(), "nothing is done to herdr for a core row");
+    let q = s.get(1).unwrap().unwrap();
+    assert_eq!((q.pane_id, q.tab_id, q.tab_label), (None, None, None));
+    assert_eq!(s.server_of(1).unwrap().as_deref(), Some(CORE_SERVER));
+    let (host, terminal): (String, String) = s
+        .db()
+        .query_row(
+            "SELECT host, terminal FROM question_host WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((host.as_str(), terminal.as_str()), ("herdr-core", "t3"));
+}
+
+#[test]
+fn a_core_receipt_promises_no_inbox_message() {
+    let (_d, s) = store();
+    let (group, _) = ask(&s, &core_caller(), &[item("q1?"), item("q2?")], None);
+    for message in [&group["message"], &group["questions"][0]["message"]] {
+        let message = message.as_str().unwrap();
+        assert!(message.contains("check_answers"), "{message}");
+        assert!(!message.contains("[inbox]"), "{message}");
+    }
+}
+
+#[test]
+fn a_pane_caller_gets_no_seat() {
+    let (_d, s) = store();
+    ask(&s, &caller(), &[item("q?")], None);
+    let seats: i64 = s
+        .db()
+        .query_row("SELECT COUNT(*) FROM question_host", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(seats, 0);
+    assert_eq!(s.server_of(1).unwrap().as_deref(), Some("/sock"));
+}
+
+#[test]
+fn a_core_repeat_is_the_same_question() {
+    let (_d, s) = store();
+    ask(&s, &core_caller(), &[item("q?")], None);
+    let (r, fx) = ask(&s, &core_caller(), &[item("q?")], None);
+    assert_eq!(single(r)["status"], json!("already_open"));
+    assert!(fx.is_empty());
 }

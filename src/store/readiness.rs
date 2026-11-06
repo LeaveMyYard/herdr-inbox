@@ -5,7 +5,7 @@
 //! is. Any other (a legacy crc32 stamp, 0, a lower revision) is checked,
 //! read-only, against the schema this revision's migration produces: the
 //! `tests/fixtures/schema.json` golden, captured from the Python migration
-//! (`tools/capture_goldens.py --only schema`).
+//! (`tools/capture_goldens.py --only schema`), plus [`super::owned`].
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
@@ -13,9 +13,10 @@ use std::sync::OnceLock;
 use rusqlite::Connection;
 use serde::Deserialize;
 
-use super::revision::{MIGRATION_REVISION, stamped_revision};
+use super::owned::owned;
+use super::revision::{BRIDGE_REVISION, MIGRATION_REVISION, stamped_revision};
 
-/// The captured schema of [`MIGRATION_REVISION`].
+/// The captured schema of [`BRIDGE_REVISION`].
 const SCHEMA_JSON: &str = include_str!("../../tests/fixtures/schema.json");
 
 /// The schema a migration to one revision produces.
@@ -35,9 +36,34 @@ pub struct Expected {
 pub fn expected() -> &'static Expected {
     static EXPECTED: OnceLock<Expected> = OnceLock::new();
     EXPECTED.get_or_init(|| {
-        serde_json::from_str(SCHEMA_JSON)
-            .expect("tests/fixtures/schema.json is the captured schema")
+        let bridge: Expected = serde_json::from_str(SCHEMA_JSON)
+            .expect("tests/fixtures/schema.json is the captured schema");
+        assert_eq!(
+            bridge.revision, BRIDGE_REVISION,
+            "schema.json is another revision's"
+        );
+        with_owned(bridge)
     })
+}
+
+/// The bridge's schema with what Rust added since.
+fn with_owned(mut want: Expected) -> Expected {
+    let own = owned();
+    want.revision = MIGRATION_REVISION;
+    want.sql.extend(own.statements.iter().cloned());
+    for (table, columns) in &own.tables {
+        want.tables
+            .insert(table.clone(), columns.iter().cloned().collect());
+    }
+    for (table, added) in &own.added_columns {
+        let columns = want.tables.entry(table.clone()).or_default();
+        for (name, decl) in added {
+            columns.insert(name.clone());
+            want.sql
+                .push(format!("ALTER TABLE {table} ADD COLUMN {name} {decl}"));
+        }
+    }
+    want
 }
 
 /// What of this code's schema the database lacks, `table.column` first, then
@@ -68,14 +94,17 @@ pub fn missing_from(db: &Connection, want: &Expected) -> rusqlite::Result<Vec<St
         .query_map([], |r| r.get::<_, String>(0))?
         .collect::<rusqlite::Result<BTreeSet<String>>>()?;
     let none = BTreeSet::new();
-    let mut out: Vec<String> = want
+    let mut out: Vec<(bool, String)> = want
         .tables
         .iter()
         .flat_map(|(table, cols)| {
             let got = have.get(table).unwrap_or(&none);
-            cols.difference(got).map(move |c| format!("{table}.{c}"))
+            cols.difference(got)
+                .map(move |c| (owned().has(table, c), format!("{table}.{c}")))
         })
         .collect();
+    out.sort(); // Python's names first: the message shows only the first few, as it does there
+    let mut out: Vec<String> = out.into_iter().map(|(_, name)| name).collect();
     out.extend(want.others.difference(&names).cloned());
     Ok(out)
 }
