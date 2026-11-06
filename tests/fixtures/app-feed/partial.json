@@ -11,7 +11,11 @@
   "questions": 2,
   "failed": 1,
   "alerts": 0,
-  "remote": 1
+  "remote": 1,
+  "question_ids": [
+   21,
+   22
+  ]
  },
  "new_since": {
   "question_id": 41,

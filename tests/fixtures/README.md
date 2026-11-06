@@ -28,12 +28,14 @@ formula. Core rows are there before any code can file one.
   `omitted-only.json`: no entries, and not an empty inbox. `not-migrated.json`: `ok: false`.
 - `unknown-vocabulary.json`: a newer writer's words and fields, which a v1 reader must survive. The tokens
   ignore the extra fields.
-- `commands.json`: `{"source", "feeds", "cases": [{name, about, world, server, host_up, argv, exit, stdout,
-  effects, replay_of}]}`, covering every verb, refusal code and `closed` word. `world` is the feed the
-  database matches, unless `about` starts `Setup:`, which names what changed after that feed was read.
-  `server` is the question's stored herdr server and `host_up` whether it answers. `effects` is what starts
-  after the commit, in order: `ensure_worker` (a server), then `sender` (arguments) with `sender_socket`.
-  `replay_of` names a case that ran first with the same arguments.
+- `commands.json`: `{"source", "feeds", "cases": [{name, about, world, server, host, session, needs, argv,
+  exit, stdout, effects, replay_of}]}`, covering every verb, refusal code and `closed` word. `world` is the
+  feed the database matches, unless `about` starts `Setup:`, which names what changed after that feed was
+  read. `server` is the question's stored `herdr_server`, `session` whether it has a session, and `host` what
+  the probe says: `up`, `gone` (proven) or `unproven`. `needs: "B3"` marks a case that holds only once core
+  delivery exists. `effects` is what starts after the commit, in order: `ensure_worker` (a server), then
+  `sender` (arguments, or null) with `sender_socket`. `replay_of` names a case that ran first with the same
+  arguments.
 
 ## Behaviour goldens (rust-rewrite plan §5.2)
 

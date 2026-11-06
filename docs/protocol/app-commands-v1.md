@@ -54,6 +54,7 @@ inbox is unavailable. It never types with a binary the rollback meant to stop.
 | `retry` | `--entry failed:Q --token T` | Asks for another delivery attempt, see [below](#retry-and-force). There is no `--force`. |
 | `stop-showing` | `--entry failed:Q --token T` | Hides the ⚠ row. The agent can still fetch the answer with `check_answers`. |
 | `ack` | `--entry alert:A --token T` | Acknowledges the alert. |
+| `show` | `--question Q` | Reads one question in full, see [below](#showing-one-question-in-full). Writes nothing. |
 
 Every verb also takes `--json`, which is required. Arguments may come in any order, and each except
 `--question` may come once.
@@ -67,7 +68,8 @@ it as the popup does (`Detail::make`): notes only for picked labels, stripped, e
 text is none. It also puts `choices` in option order, which `Detail::make` does not do. It is `invalid` when
 a choice is not one of the question's labels, is given twice, or when a question without `multi_select` gets
 more than one. A detail that normalises to nothing is `invalid` for `answer`, and clears the draft for
-`draft`.
+`draft`. Real data can hold two options with one label (`normalize_options` does not dedupe); a label then
+means the first such option, as in the popup.
 
 `exec` has no stdin and the mod writes no files, so the answer is on the command line while the verb runs,
 for up to the 5 s budget. On a default system any local user can read that from the process list, although
@@ -124,6 +126,23 @@ on the same group would be refused against the mod's own previous write.
 | `not_migrated` | The database is not at this code's revision. The verb started a worker, which migrates it. | Says "try again in a few seconds". |
 | `error` | Anything else. | Shows `message`. |
 
+### Showing one question in full
+
+`app show --question Q --json` is read-only: no transaction, no token, no write. It is the way out for a
+question the feed [cut or left out](app-feed-v1.md#an-incomplete-feed). Its result has these fields, and a
+refusal is as above: `stale` with `closed` when the question is not open.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `v` | integer | Exactly 1. |
+| `ok` | bool | True. |
+| `verb` | string | `show`. |
+| `entry` | string | The row's `key`. |
+| `row` | Entry | The `group` entry as the feed would publish it, but with no text cut and every `cut` false. Its `token` is the published one, computed on the cut text, so the other verbs take it. |
+
+For a terminal, the same command without `--json` prints the question, its context and its options as plain
+text. A mod that names it prints the real launcher command, as `herdr-inbox` is not on `PATH`. B4 builds it.
+
 ### The state a verb checks
 
 Inside the transaction, in this order:
@@ -158,30 +177,47 @@ two deliberate presses, in two UIs.
 `answer` and `retry` do this, in this order:
 
 1. **Commit** the transaction, and `retry`'s counter with it. The sender skips a row that is not answered yet.
-2. **Look at the host.** For a TUI question, ask the herdr server on the question's stored socket, within
-   the budget. A server that does not answer ends here, with `delivery: held`. Nothing else starts: a sender
-   there would burn a counted `no live agent` attempt for each press, towards marking the agent gone.
-3. **Ensure the worker** of that server (`ensure_worker(Some(server))`), first, so that a sender lost after
-   this point is retried.
+2. **Ensure the worker** of the row's stored server (`ensure_worker(Some(server))`), first, so that a sender
+   lost after this point is retried. This holds even if step 3 stops the sender: on a dead server the worker
+   exits in about 10 s and uses no attempt, and it is what brings the answer once the host is back.
+3. **Decide whether a sender can go,** by the table below.
 4. **Start the detached sender,** the popup's: `deliver <ids> [--force]`, with `HERDR_SOCKET_PATH` set to the
    stored server. The result is `delivery: queued`.
 
 The verb's own process never types and never waits for the sender. The sender works under the delivery
 claim, like every other send.
 
+| Row | Step 3 | Route if `held` |
+|---|---|---|
+| TUI, stored server | Ask that server, within the budget. Only `HerdrError::NotRunning` proves it gone, as for the worker (`server_gone`), and that gives `held`. Any other failure is no proof, and the sender goes. | That server's worker, when it is back. |
+| TUI, no stored server (asked before 0.6.1), with a session | The same, on the verb's default socket. `deliver` treats the row as local, and its `conversation_changed` guard checks the session. | The worker's own proof of the conversation. |
+| TUI, no stored server, no session | Always `held`, for `retry` too. The recipient rule beats retry: that guard is false with no session, so a forced send could reach another agent in a pane with the same id. | `check_answers` only. |
+| No pane and no host record (`unknown`) | Always `held`. | `check_answers` only: the worker's listing never takes such a row. |
+| Core, before B3 | Always `held`, and step 2 is skipped too: there is no core worker. | `check_answers` only. |
+| Core, from B3 | Ask `hc`. Only a proven absence of herdr-core gives `held`. | The core worker, when herdr-core is back. |
+
+A `held` result says that no sender started, for one of these reasons. A sender started there would burn a counted
+attempt for each press, towards marking the agent gone.
+
 **The server travels with the answer.** A worker serves only its own server's rows, and `deliver` leaves an
 answer of another server to that server's worker, dropping any `--force` silently. `exec` has no env option, so
 the verb's environment names the default socket. B4 therefore adds a server parameter to `start_sender`,
-passed to `spawn_env` as `ensure` does. A row with no stored server (asked before 0.6.1) uses the verb's own
-default for both: `deliver` treats it as local, and the worker takes it only after proving the conversation
-in that pane.
+passed to `spawn_env` as `ensure` does.
+
+**A core row's server is `herdr-core`.** B2 stores that reserved word in `question_ext.herdr_server`, not a
+socket and not NULL (`CORE_SERVER`). It is no herdr server's id, so every herdr worker and `deliver`, in both
+languages, treat the row as another server's. B3's worker is keyed on the same word: one core worker per
+machine, with the lock `worker-<sha1("herdr-core")[:12]>.lock`, alive while herdr-core is up. So step 2 is
+`ensure_worker(Some("herdr-core"))`. Step 4 sets no socket variable: B3's `deliver` takes `herdr-core` rows as
+its own, replacing B2's rule that leaves them alone.
 
 | `delivery` | Meaning |
 |---|---|
-| `queued` | The host was there, the worker is ensured and the sender started. A sender that failed to start leaves the answer to that worker. |
-| `held` | The answer is recorded, and nothing can send it now: no herdr server on its socket, a core row before B3, or a row with no pane. `check_answers` can still return it, and a worker delivers it when the host is back. |
+| `queued` | A sender started, or failed to start and left the answer to the worker just ensured. |
+| `held` | The answer is recorded and no sender started. The table above says what can still bring it. |
 
 A `retry` that comes out `held` is still done: its counter moved, and the mod says that nothing could be sent.
+That is what stops a replay forcing a send once the server is back.
 
 Marks are cosmetic. For a TUI question a verb may refresh the pane's `$inbox_q` and `❓N` after its commit.
 That is bounded by the budget and a failure never fails the verb.
@@ -198,11 +234,18 @@ From here the mod reads progress from the feed: the row leaves when the answer i
 | `herdr-tui` | `deliver <id> --force` | The popup's Retry / Send now. It goes past the watcher, hook, requeue and panel waits, the busy grace and the focus rule. It does not go past `blocked`, an unsent draft in the input box, or the conversation checks. |
 | `herdr-core` | `deliver <id>` | Another attempt under the normal rules. |
 
-**The rule lives in the core send path, not in the verb.** A core row reaches the TUI popup too, because
-`failed_deliveries` has no pane rule, and the popup's Retry runs `deliver --force`. So in B3, `Mode.force` has
-no effect on a core row, and the `hc send` adapter has no way to express force: it always passes `--if idle`.
-The verb has no `--force` argument and takes the host from the database inside its transaction, never from
-the mod. It starts core senders without `--force` so that its intent is plain, but it is not the safeguard.
+**The rule lives in the core send path, not in the verb.** A core row reaches every popup too, because
+`failed_deliveries` has no pane rule. So in B3, `Mode.force` has no effect on a core row, and the `hc send`
+adapter has no way to express force: it always passes `--if idle`. That covers the Rust popup from P6-E. The
+verb has no `--force` argument and takes the host from the database inside its transaction, never from the
+mod. It starts core senders without `--force` so that its intent is plain, but it is not the safeguard.
+
+The popup is Python until P6-E whatever `engine` says, and its Retry runs Python's `deliver`, which never
+reaches that code. That is safe because Python has no way to type to a core row, and because of
+`herdr-core`: it is another server's row there, so Python claims nothing and writes nothing. Without that word
+Python would record `no pane: answer available through check_answers` and count an attempt, on an answer given
+in the popup as well as on Retry. B3's decision table needs a row for this path, so that it stays pinned until
+P6-E: Python `deliver` on a core row leaves it deliverable.
 
 The mod does not call `retry` "Send now" on a core row.
 

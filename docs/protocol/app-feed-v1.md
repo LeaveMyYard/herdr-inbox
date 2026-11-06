@@ -33,10 +33,14 @@ UTF-8 bytes and at a character boundary, and sets `cut` on the question or row:
 | `preview` | 4 KiB |
 | `description` | 1 KiB |
 
-Labels and drafts are never cut: an answer depends on them exactly. With at most 4 questions of 9 options,
-an entry is then about 308 KiB at worst, plus its labels and drafts, so one large question cannot crowd
-the others out. A cut question can still be answered: on a machine with only herdr-app there may be no
-other way. The mod must show that the text was cut. The whole text is in `herdr-inbox list`.
+Labels, drafts, `asked_by`, `cwd` and `tab_label` are never cut, the first two because an answer depends
+on them exactly. With at most 4 questions of 9 options, the cut fields come to about 308 KiB per entry
+before JSON escaping, which can grow them, so one large question rarely crowds out the others. That is a
+guide, not a bound: anything larger is left out and counted, as below.
+
+A cut question can still be answered: on a machine with only herdr-app there may be no other way. The mod
+must show that the text was cut, and offers the whole question through
+[`app show`](app-commands-v1.md#showing-one-question-in-full).
 
 *Rows that still do not fit are left out, by need.* The writer fits entries in this order, which is not
 the display order:
@@ -84,8 +88,12 @@ This rule is required of every mod that shows the inbox. Whenever `errors` is no
 
 - shows it, with the counts, for as long as it lasts;
 - never shows its empty state while `omitted` has a count above 0;
-- says how to reach the rest: `herdr-inbox list` and `herdr-inbox answer` work from any terminal, and the
-  TUI popup where a herdr server runs.
+- offers the rest: each id in `omitted.question_ids` opens with
+  [`app show`](app-commands-v1.md#showing-one-question-in-full), which gives the row in full and its token,
+  so the overlay can answer it like any other. Where a herdr server runs, the TUI popup has it too.
+
+`herdr-inbox list` is no way out: it prints the first line of each question, at most 100 characters, with no
+context and no options.
 
 `entries: []` means an empty inbox only when `ok` is true and every count in `omitted` is 0.
 
@@ -110,6 +118,7 @@ This rule is required of every mod that shows the inbox. Whenever `errors` is no
 | `failed` | integer | `failed` entries left out. |
 | `alerts` | integer | `alert` entries left out. |
 | `remote` | integer | Remote entries left out, of any kind. |
+| `question_ids` | [integer] | The left-out open questions' ids, oldest first, at most 1000. |
 
 ### NewSince
 
@@ -120,20 +129,19 @@ The highest ids filed so far, open or not.
 | `question_id` | integer | The highest question id. 0 if there is none. |
 | `alert_id` | integer | The highest alert id. 0 if there is none. |
 
-The toast mod keeps the marks in memory:
+The toast mod keeps the marks in memory, with the ids it has seen in `omitted.question_ids`:
 
 - Its first good feed sets them, and nothing is announced. That is what keeps a restart or a hot reload
   from announcing old rows.
-- From then on, it announces each `group` entry whose `group` is above `question_id`, and each `alert`
-  entry whose `id` is above `alert_id`. Then it takes the new marks.
+- From then on, it announces each `group` entry whose `group` is above `question_id`, each `alert` entry
+  whose `id` is above `alert_id`, and each id in `omitted.question_ids` it has not seen. Then it takes the
+  new marks and ids.
+- A row announced as left out gets no second toast if it fits later: its id is below the mark.
 
-- When `omitted.questions` rises, it announces that many more questions, because those rows are not in
-  the file. Such a row does not get a toast of its own if it fits later: its id is below the mark.
-
-A file the reader missed loses nothing: the comparison is against ids and counts, not against the previous
-file. A group's id is its first question's id, and every `ask_operator` call that files anything starts a
-new one, so an arrival always has a higher id. Remote machines' rows have no ids that compare, and v1 does
-not announce them.
+A file the reader missed loses nothing: the comparison is against ids, not against the previous file. A
+group's id is its first question's id, and every `ask_operator` call that files anything starts a new one,
+so an arrival always has a higher id. Remote machines' rows have no ids that compare, and v1 does not
+announce them.
 
 ## Entries
 
@@ -379,7 +387,8 @@ token = first 32 hex digits of sha256( canonical( the token fields of the entry 
 Inside those, only these count: `asker` by `host`, `pane`, `terminal`, `tab_label`, `cwd`; each question by
 `id`, `header`, `question`, `options`, `multi_select`, `context`, `asked_by`, `draft`; each option by
 `label`, `description`, `preview`; a draft by `choices`, `notes`, `text`. Text is hashed as published, cut
-or not.
+or not, so the cut limits are part of this frozen input. The cut hides no change: nothing writes `question`,
+`context`, `options` or a stored answer after filing.
 
 **This list is frozen for v1.** A field added later stays out of it. The writer is long-lived and a verb
 starts from whatever binary is current, so after an update the two can differ; a token over "the whole
@@ -437,6 +446,7 @@ is stale. B5 may add optional arguments, such as Panorama's `--install-id`, with
 |---|---|
 | `feed.json` | The feed. It stays after the writer exits, and readers see it age. |
 | `.feed.tmp` | Staging. Only the lock holder touches it, so a leftover is replaced. Fsynced before the rename. |
+| `ensure.lock` | Empty. `--ensure` holds `flock` on it from its check until the start is proven, so two mods starting together wait for one another, and the second finds the writer running. No failure is counted. It waits at most 7 s. |
 | `writer.lock` | Empty. The writer holds `flock` on it for its whole life, so there is one writer per app home. |
 | `writer.json` | The writer's record: `{"v":1,"pid":…,"start":…,"binary_sha256":…}`. Diagnostics and busy proof, never a signal target. |
 | `control.json` | `{"v":1,"disabled":false}`. Disabled: no writer runs or starts. |
@@ -501,7 +511,7 @@ harmless.
 |---|---|
 | `group`, `failed`, `alert` with `host: herdr-tui` or `unknown` | From B4. Every row the inbox can hold today is one of these. |
 | `retries` and `retry` | From B2 and B4. The counter is a `question_ext` column in B2's revision bump, so B4 needs B2. |
-| Answering a TUI-hosted question from the overlay | From B4. With no herdr server running on the question's socket, the answer is recorded and the result says `held`, not `queued`: nothing is sent, so no attempt is used up. It becomes a ⚠ `unattempted` row after 60 s, `check_answers` can still return it, and a worker delivers it once that server is back. |
-| `host: herdr-core` rows | From B2, with `question_host` and `alert_host` in one `MIGRATION_REVISION` bump, the same one as the `retry` counter. Until then `ask_operator` and `alert_operator` answer `unavailable` in a core terminal, which has no `HERDR_PANE_ID`, so no such row exists. The fixtures carry them so that the mods can be built first. |
-| Delivery to a core terminal | From B3. The worker's retry loop reads only rows with a pane, so before B3 a core answer is `held`. It still shows as a ⚠ row, because `failed_deliveries` has no pane rule. |
+| Answering a TUI-hosted question from the overlay | From B4. If herdr proves no server runs on the question's socket, the answer is recorded and the result says `held`, not `queued`: no sender runs, so no attempt is used up. It becomes a ⚠ `unattempted` row after 60 s, `check_answers` can still return it, and that server's worker delivers it once the server is back. |
+| `host: herdr-core` rows | From B2, with `question_host`, `alert_host` and `retry_count` in one `MIGRATION_REVISION` bump. A core row has `pane_id` NULL and `herdr_server` `herdr-core`. Until B2, `ask_operator` and `alert_operator` answer `unavailable` in a core terminal, which has no `HERDR_PANE_ID`, so no such row exists. The fixtures carry them so that the mods can be built first. |
+| Delivery to a core terminal | From B3. Before it, B4 gives every core answer `held`, and `check_answers` is its only route. It shows as a ⚠ `unattempted` row after 60 s, because `failed_deliveries` has no pane rule. The fixture cases marked `needs: B3` wait for it. |
 | A worker with no herdr server | From B3, which extends liveness to herdr-core. |
