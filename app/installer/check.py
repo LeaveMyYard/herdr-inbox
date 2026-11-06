@@ -42,14 +42,14 @@ def check_payload(payload, checker):
         raise ValueError('herdr-app is required: --checker must name an absolute executable')
     # Unix socket paths are short, and macOS's default temporary folder is already deep.
     scratch = tempfile.mkdtemp(prefix='hi-', dir='/tmp')
-    env = private_env(scratch)
-    for name in ('app', 'config', 'state', 'data', 'cache', 'runtime'):
-        Path(scratch, name).mkdir(mode=0o700)
-    for path, data in payload.items():
-        target = Path(scratch, path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
     try:
+        env = private_env(scratch)
+        for name in ('app', 'config', 'state', 'data', 'cache', 'runtime'):
+            Path(scratch, name).mkdir(mode=0o700)
+        for path, data in payload.items():
+            target = Path(scratch, path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
         for mod in mods(payload):
             result = subprocess.run([checker, 'check', f'{scratch}/mods/{mod}'], env=env, capture_output=True, timeout=30)
             if result.returncode:
