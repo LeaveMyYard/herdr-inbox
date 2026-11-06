@@ -31,15 +31,14 @@ pub fn alert_operator(
         tab_id: caller.tab_id.as_deref(),
         tab_label: caller.tab_label.as_deref(),
     };
-    let outcome = store.raise_alert(
-        asker,
-        raise.title,
-        raise.message,
-        raise.severity,
-        raise.asked_by,
-        server,
-        files,
-    )?;
+    let (title, message, severity, asked_by) =
+        (raise.title, raise.message, raise.severity, raise.asked_by);
+    let outcome = match &caller.core {
+        Some(seat) => {
+            store.raise_core_alert(asker, seat, title, message, severity, asked_by, files)
+        }
+        None => store.raise_alert(asker, title, message, severity, asked_by, server, files),
+    }?;
     Ok(match outcome {
         RaiseOutcome::Unavailable => (receipts::unavailable(), Vec::new()),
         RaiseOutcome::NoTitle => (receipts::error("An alert needs a short title."), Vec::new()),

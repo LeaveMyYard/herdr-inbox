@@ -1056,9 +1056,8 @@ answer pending (a crash, a `kill`) waits for the next of those starts, as in Pyt
 
 **With no herdr server.** The worker needs a herdr server to deliver through: with none it exits
 after `SERVER_GONE_EXIT` (10 s), in both languages, so nothing is left running. An agent outside a
-herdr pane gets `unavailable` from `ask_operator`. So on a machine where only herdr-app runs, the
-switch changes which code answers `unavailable`, and delivers nothing either way, until Part B
-(B2/B3) gives that host its own seam.
+herdr pane and outside a proved core terminal gets `unavailable` from `ask_operator`. On a machine
+where only herdr-app runs, nothing is delivered until B3.
 
 **What it does not do.** Neither language's worker watches `engine` while it runs, and two workers
 of one revision never hand over. A running worker keeps running until it exits, so the switch
@@ -1139,6 +1138,67 @@ to Rust"). The database is left as it is:
   Retry does nothing to it. The one side effect: `deliver` asks for a worker for that "server", which
   finds none and exits after `SERVER_GONE_EXIT`, under the usual spawn limit.
 - Back on Rust, these rows are as they were.
+
+## The host seam: agents in a herdr-core terminal (B2)
+
+`src/host/` says who is asking. `Host` has two implementations, asked in order: `Core`, then `Tui`,
+which is `mcp::caller::resolve` as it was. Every tool goes through it. B3 adds delivery to the same
+seam.
+
+**`HC_TERMINAL_ID` is a claim.** It is an environment variable: anyone can set it, and a child
+inherits it. With none set, `hc` is never run and nothing has changed. With one set, the claim is
+proved on every tool call (`host::core::proof`), and every step must hold:
+
+1. The address is a local `tN`. Another machine's is refused before anything is read.
+2. There is a Claude above this process, and only one. `nested_claude` is the rule the pane path has.
+3. `hc get --json tN` answers for exactly that address, `state: live`, with a foreground process.
+4. That foreground pid is the nearest Claude, and its `comm` and argv match the process table.
+   Argv is compared by words, because `ps` has no argument boundaries.
+5. `hc ls --json` lists the address once, live. It reads nothing else: `agent` and `status` differ
+   between hc versions (`tests/fixtures/hc/`).
+6. A session is known, and the start token read before the reads still holds after them.
+
+Panorama's gate (`session-linking.md` §2) starts from a terminal and looks for its process, so it
+reads `HC_TERMINAL_ID` from `/proc/P/environ`. Here the caller starts from itself. Being a
+descendant of the foreground process is the stronger proof, so no other process's environment is
+read. Panorama's cross-terminal uniqueness is not needed for the same reason: it cannot be fooled
+by a second terminal, since the claim must name the terminal this very process runs under. The
+residual is Panorama's too: a second herdr-core with the same `tN` and a colliding pid, name and argv.
+
+**A refused claim falls through.** It is not an error. A process with a pane stays exactly what it
+was, and one with neither gets the old `unavailable`. So a herdr TUI started inside a core terminal
+keeps working, and a TUI agent pays one bounded `hc get` at most. The reason goes to the server's
+stderr, never to the agent. A proved terminal goes before a pane: a daemon started from a pane would
+hand `HERDR_PANE_ID` to every terminal.
+
+**The session.** herdr says which session a pane runs. Nothing says so for a core terminal, and
+`CLAUDE_CODE_SESSION_ID` stays as it was at start, so after `/clear` it is stale. So the session
+comes from Claude Code's own record of the proved process (`<config>/sessions/<pid>.json`, the same
+checks as Panorama's), then `CLAUDE_CODE_SESSION_ID`, then through `live_session`. No session means
+no caller. The fallback can only mislabel a session after `/clear` where the record is absent, and
+B3's forward-family rule then refuses to type: the answer waits for `check_answers`.
+
+**What a core row gets.** `pane_id`, `tab_id` and `tab_label` NULL, `herdr_server` `herdr-core`, a
+`question_host` or `alert_host` row, in the filing transaction. No notification and no marks: the
+app has its own (plan §3.2). Everything keyed on the session works as it does for a pane:
+`check_answers`, `list_my_questions`, withdrawing, and repeats.
+
+**Until B3.** Nothing delivers to a core terminal, so its receipt says to call `check_answers` and
+does not mention `[inbox]`. A hook still carries an answer if the conversation is resumed in a herdr
+pane, because that is its forward family; the worker of that server then does not verify the hook
+send, since the row is no server's.
+
+Exit test, on an isolated `hc` 0.1.18 server (own HOME and XDG dirs). A stand-in `claude` in a real
+terminal ran the real `herdr-inbox mcp` as its child:
+
+| Check | Result |
+|---|---|
+| The terminal's foreground, a tool call 4 s after it started | `ask_operator` and `alert_operator` receipts `open`; rows with no pane, `herdr-core`, `t3` |
+| The same stand-in, called within about a second of the terminal starting | `unavailable`: hc reports `foreground: null` until it has sampled. Safe, and a real Claude takes longer than that to start |
+| `HC_TERMINAL_ID` naming another live terminal | `unavailable`: "not its foreground process"; nothing filed |
+| A stand-in under a stand-in, the outer one the foreground | `unavailable`: "a nested Claude"; nothing filed |
+
+Not run: a real `claude` session (no credentials in the rig), macOS with a real `hc`.
 
 ## Deep links: opening the popup on a target (0.6.0)
 

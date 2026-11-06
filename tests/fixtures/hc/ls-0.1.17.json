@@ -1,0 +1,11 @@
+{
+  "hidden_finished": 1,
+  "terminals": [
+    {"address":"t2","agent":"codex","cwd":"/fixture/repo","state":"live","status":"working","turn":8,"where":"Fixture / Codex"},
+    {"address":"t3","agent":"claude-code","cwd":"/fixture/repo","state":"live","status":"blocked","turn":3,"where":"Fixture / Claude"},
+    {"address":"t4","agent":"claude-code","cwd":"/fixture/other","state":"live","status":"done","turn":4,"where":"Fixture / Done"},
+    {"address":"vps/t7","agent":"codex","cwd":"/fixture/repo","state":"live","status":"idle","turn":0,"where":"Remote / Codex"},
+    {"address":"t8","agent":"gemini","cwd":"/fixture/repo","state":"live","status":"working","turn":0,"where":"Fixture / Unsupported"},
+    {"address":"t9","agent":"zsh","cwd":"/fixture/repo","state":"live","status":null,"turn":0,"where":"Fixture / Shell"}
+  ]
+}

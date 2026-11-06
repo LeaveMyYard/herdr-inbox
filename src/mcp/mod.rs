@@ -9,7 +9,8 @@
 //! - [`ask`]: `ask_operator`, its checks so far.
 //! - [`server`]: the rmcp adapter; nothing else sees rmcp.
 //!
-//! - [`caller`]: who is asking, per call.
+//! - [`caller`]: who is asking from a herdr pane, per call; `crate::host` says
+//!   which host answers for the caller.
 //! - [`answers`]: the `check_answers` tool; [`mine`]: `list_my_questions`
 //!   and `withdraw_question`; [`alerting`]: `alert_operator` and `withdraw_alert`.
 //! - [`runtime`](mod@runtime): the bodies as the server runs them; [`effects`] and
@@ -47,11 +48,14 @@ pub mod tools;
 
 use std::sync::Arc;
 
+use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 use herdr_agent_kit::plugin_env::PluginEnv;
 use serde_json::Value;
 
 use crate::claude::Transcripts;
+use crate::host::core::{self, Core, hc::Cli};
+use crate::host::tui::Tui;
 use crate::worker::process::{ensure_worker_in, own_exe};
 use args::Call;
 
@@ -80,12 +84,26 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
                 .ok()
                 .map(|d| d.to_string_lossy().into_owned()),
         },
-        world: Box::new(caller::live::Live {
-            herdr: herdr(),
-            files: Transcripts::from_env(),
-            state_dir: inbox::state_dir(env),
-            db: inbox::db_path(env),
-        }),
+        hosts: vec![
+            Box::new(Core {
+                claim: env.var("HC_TERMINAL_ID").map(str::to_owned),
+                hc: Cli::default(),
+                machine: core::live::Live {
+                    config: ProjectsRoot::from_env()
+                        .and_then(|r| r.path().parent().map(ToOwned::to_owned)),
+                    files: Transcripts::from_env(),
+                    state_dir: inbox::state_dir(env),
+                },
+            }),
+            Box::new(Tui {
+                world: Box::new(caller::live::Live {
+                    herdr: herdr(),
+                    files: Transcripts::from_env(),
+                    state_dir: inbox::state_dir(env),
+                    db: inbox::db_path(env),
+                }),
+            }),
+        ],
         files: Transcripts::from_env(),
         db: inbox::db_path(env),
         server: inbox::server_id(env).to_string_lossy().into_owned(),

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`ask_operator` and `alert_operator` work in a herdr-app terminal** (B2). The caller's
+  `HC_TERMINAL_ID` is only a claim: the nearest Claude above the MCP server must be that terminal's
+  foreground process by `hc get` and `hc ls`, and not nested. A refused claim gets `unavailable`,
+  and a process with a pane stays what it was. Delivery to these terminals is B3: until then the
+  receipt says to fetch the answer with `check_answers`.
 - **Schema revision 2, the first Rust owns** (B2). Two side tables, `question_host` and
   `alert_host`, and `question_ext.retry_count`. All additive: Python stays at revision 1, reads a
   higher stamp as it always has, and never touches them. Going back to `engine` python needs nothing

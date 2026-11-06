@@ -46,7 +46,7 @@ unicode-general-category = "1.1.0"
 regex = "1"
 tempfile = "3"
 # Killing the process group of a successor this worker spawned (src/worker/spawn/child.rs).
-rustix = { version = "1", features = ["process"] }
+rustix = { version = "1", features = ["fs", "process"] }
 # The popup renderer draws into ratatui's cell buffer (plan D5: ratatui 0.30, whose
 # `Buffer` is ratatui-core's); the pure crate needs only the core, no terminal.
 ratatui-core = { version = "0.1", features = ["std"] }
@@ -110,6 +110,13 @@ unicode-width.workspace = true
 # FakeHerdr for the watcher's tests
 herdr-agent-kit = { workspace = true, features = ["internal", "test-support"] }
 tempfile.workspace = true
+
+# `ask_operator` from a core terminal with real processes: its own `main`, so the same
+# executable also runs as the stand-in `claude`.
+[[test]]
+name = "mcp_core"
+path = "tests/mcp_core/main.rs"
+harness = false
 
 # Worker processes against each other and against the Python worker: its
 # own `main`, so the same executable also runs as a worker (`<exe> worker`).

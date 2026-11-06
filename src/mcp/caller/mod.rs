@@ -16,6 +16,7 @@
 pub mod live;
 
 use crate::mcp::retry::Failure;
+use crate::store::hosts::CoreSeat;
 use crate::store::questions::Owner;
 use crate::trace;
 
@@ -27,6 +28,8 @@ pub struct Caller {
     pub tab_label: Option<String>,
     pub session_id: Option<String>,
     pub cwd: Option<String>,
+    /// The core terminal it is proved to run in (`crate::host::core`). It then has no pane.
+    pub core: Option<CoreSeat>,
 }
 
 impl Caller {
@@ -150,6 +153,7 @@ pub fn resolve(world: &dyn World, env: &Env) -> Result<Caller, Failure> {
         tab_label,
         session_id,
         cwd: env.cwd.clone(),
+        core: None,
     })
 }
 

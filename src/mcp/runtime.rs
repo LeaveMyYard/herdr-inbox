@@ -17,12 +17,13 @@ use super::alerting::{self, Raise};
 use super::answers::check_answers;
 use super::args::{Ask, Call};
 use super::ask::{checks, file};
-use super::caller::{self, Caller, Env, World};
+use super::caller::{Caller, Env};
 use super::effects::Effects;
 use super::mine;
 use super::open::{failure, open};
 use super::retry::{Backoff, Failure, busy_safe};
 use crate::claude::Transcripts;
+use crate::host::{self, Host};
 use crate::store::Store;
 use crate::store::alerts::Effect;
 use crate::trace;
@@ -30,7 +31,8 @@ use crate::trace;
 /// Everything a call needs.
 pub struct Runtime {
     pub env: Env,
-    pub world: Box<dyn World + Send + Sync>,
+    /// Where the caller may run, in the order they are asked (`crate::host`).
+    pub hosts: Vec<Box<dyn Host>>,
     pub files: Transcripts,
     /// The inbox database.
     pub db: PathBuf,
@@ -59,7 +61,7 @@ impl Runtime {
             trace::timed("mcp.tool_store", || open(&self.db, self.backoff.attempt))
         })?;
         let _body = trace::step("mcp.ask_operator.body");
-        let caller = caller::resolve(&*self.world, &self.env)?;
+        let caller = self.caller()?;
         let call = file::Call {
             items: &items,
             context: a.context.as_deref(),
@@ -79,15 +81,20 @@ impl Runtime {
         })
     }
 
+    /// Who is asking, now.
+    fn caller(&self) -> Result<Caller, Failure> {
+        host::caller(&self.hosts, &self.env)
+    }
+
     /// The store, then the caller (Python `with tool_store() as store: ...(resolve_caller())`).
     fn store_then_caller(&self) -> Result<(Store, Caller), Failure> {
         let store = open(&self.db, self.backoff.attempt)?;
-        Ok((store, caller::resolve(&*self.world, &self.env)?))
+        Ok((store, self.caller()?))
     }
 
     /// The caller, then the store (Python `caller = resolve_caller(); with tool_store()`).
     fn caller_then_store(&self) -> Result<(Store, Caller), Failure> {
-        let caller = caller::resolve(&*self.world, &self.env)?;
+        let caller = self.caller()?;
         Ok((open(&self.db, self.backoff.attempt)?, caller))
     }
 
