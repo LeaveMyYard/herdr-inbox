@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Schema revision 2, the first Rust owns** (B2). Two side tables, `question_host` and
+  `alert_host`, and `question_ext.retry_count`. All additive: Python stays at revision 1, reads a
+  higher stamp as it always has, and never touches them. Going back to `engine` python needs nothing
+  done to the database. docs/DESIGN.md, "Schema past the bridge".
 - **The herdr-app mod scaffold (B5)**. `scripts/app-install` installs the `herdr-inbox` mod into an
   app home, upgrades it in place, and takes it out with no package at hand, leaving the home as it
   found it. It selects no layout and edits no key or setting. The mod finds the plugin again at

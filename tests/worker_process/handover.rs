@@ -3,6 +3,7 @@
 //! to a newer revision (herdr-inbox #50: a standby, and the revision-wanted
 //! marker the Rust hooks write).
 
+use herdr_inbox::store::revision::MIGRATION_REVISION;
 use herdr_inbox::store::revision_wanted::{unix_now, want};
 use herdr_inbox::worker::handover::standby_path;
 use herdr_inbox::worker::live::db_stamp;
@@ -31,7 +32,7 @@ pub fn python_hands_over_to_rust_on_an_update() {
     assert!(serves, "the Rust worker serves\n{}", rig.logs());
     let rust = rig.ticked()[0];
     assert!(
-        rig.held_by(1, rust),
+        rig.held_by(MIGRATION_REVISION, rust),
         "{:?}: the Rust worker holds it",
         rig.holder()
     );

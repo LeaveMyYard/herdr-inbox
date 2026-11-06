@@ -3,6 +3,7 @@
 //! wrote them, times masked the same way, and the raw-SQL setup step.
 
 use herdr_inbox::store::Store;
+use herdr_inbox::store::owned::owned;
 use herdr_inbox::store::question::{QOption, Question};
 use rusqlite::types::ValueRef;
 use serde_json::{Map, Value, json};
@@ -96,6 +97,11 @@ pub fn tables(store: &Store, names: &[&str]) -> Value {
             .query_map([], |r| {
                 let mut row = Map::new();
                 for (i, name) in names.iter().enumerate() {
+                    if owned().has(table, name) {
+                        // past the bridge, so not in Python's rows; nothing here writes it
+                        assert!(matches!(r.get_ref(i)?, ValueRef::Null), "{name}");
+                        continue;
+                    }
                     let v = match r.get_ref(i)? {
                         ValueRef::Null => Value::Null,
                         ValueRef::Integer(n) => json!(n),

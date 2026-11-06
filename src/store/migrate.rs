@@ -12,7 +12,8 @@
 //!
 //! The statements are Python's own, in Python's order, captured into
 //! `tests/fixtures/migrate.json` (`tools/capture_goldens.py --only schema`):
-//! the SQL a migration leaves in `sqlite_master` is then byte-identical.
+//! the SQL a migration leaves in `sqlite_master` is then byte-identical. What
+//! Rust added since comes after them ([`super::owned`]).
 //!
 //! A hook that finds the database not migrated writes the revision it wants
 //! (`revision_wanted`, #75); the worker reads that marker and hands over to
@@ -30,9 +31,10 @@ use serde::Deserialize;
 
 use super::busy::{BUSY_STEP, is_busy};
 use super::connect::{Store, with_flags};
-use super::revision::{MIGRATION_REVISION, STAMP, stamped_revision};
+use super::owned::owned;
+use super::revision::{BRIDGE_REVISION, MIGRATION_REVISION, STAMP, stamped_revision};
 
-/// The captured migration of [`MIGRATION_REVISION`].
+/// The captured migration of [`BRIDGE_REVISION`].
 const MIGRATE_JSON: &str = include_str!("../../tests/fixtures/migrate.json");
 
 /// Python's migration statements, in the order `_apply_schema` runs them.
@@ -62,7 +64,7 @@ pub fn migration() -> &'static Migration {
         let doc: Captured = serde_json::from_str(MIGRATE_JSON)
             .expect("tests/fixtures/migrate.json is the captured migration");
         assert_eq!(
-            doc.revision, MIGRATION_REVISION,
+            doc.revision, BRIDGE_REVISION,
             "migrate.json is another revision's"
         );
         doc.migration
@@ -87,7 +89,8 @@ fn add_missing(db: &Connection, table: &str, added: &[(String, String)]) -> rusq
 }
 
 /// Every statement that brings a database to this revision's schema (Python
-/// `_apply_schema`), idempotent. The caller holds the transaction.
+/// `_apply_schema`, then what Rust added), idempotent. The caller holds the
+/// transaction.
 pub fn apply_schema(db: &Connection) -> rusqlite::Result<()> {
     let m = migration();
     for statement in &m.schema {
@@ -109,6 +112,13 @@ pub fn apply_schema(db: &Connection) -> rusqlite::Result<()> {
         if table == "questions" {
             add_missing(db, table, added)?;
         }
+    }
+    let own = owned();
+    for statement in &own.statements {
+        db.execute_batch(statement)?;
+    }
+    for (table, added) in &own.added_columns {
+        add_missing(db, table, added)?;
     }
     Ok(())
 }
