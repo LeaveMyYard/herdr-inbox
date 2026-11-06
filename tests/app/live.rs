@@ -5,14 +5,16 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use herdr_agent_kit::internal::plugin_paths::inbox::server_key;
 use herdr_inbox::app::feed::group;
 use herdr_inbox::app::feed::text::Text;
 use herdr_inbox::store::hosts::CoreSeat;
 use herdr_inbox::store::questions::NewQuestion;
+use herdr_inbox::worker::lock::is_running;
 use serde_json::{Value, json};
 
 use crate::rig::{BINARY, Rig, exe, wait_for};
@@ -132,21 +134,23 @@ impl Live {
 
     /// The real verb, from `exe`.
     fn answer(&self, exe: &Path, id: i64, token: &str) -> Output {
+        self.verb(exe, id, token).output().unwrap()
+    }
+
+    fn verb(&self, exe: &Path, id: i64, token: &str) -> Command {
         let id = id.to_string();
-        self.rig
-            .command(exe, &self.world.db)
-            .args([
-                "app",
-                "answer",
-                "--entry",
-                &format!("group:{id}"),
-                "--token",
-                token,
-            ])
-            .args(["--question", &id, "--json", "--detail"])
-            .arg(r#"{"choices":[],"notes":{},"text":"Answer Text 567"}"#)
-            .output()
-            .unwrap()
+        let mut cmd = self.rig.command(exe, &self.world.db);
+        cmd.args([
+            "app",
+            "answer",
+            "--entry",
+            &format!("group:{id}"),
+            "--token",
+            token,
+        ])
+        .args(["--question", &id, "--json", "--detail"])
+        .arg(r#"{"choices":[],"notes":{},"text":"Answer Text 567"}"#);
+        cmd
     }
 
     fn delivered(&self, id: i64) -> bool {
@@ -156,6 +160,12 @@ impl Live {
             .unwrap()
             .is_some_and(|q| q.delivered_at.is_some())
     }
+}
+
+/// The lock of the worker of `server`, beside `db`.
+fn worker_lock(db: &Path, server: &Path) -> PathBuf {
+    let name = format!("worker-{}.lock", server_key(server.as_os_str()));
+    db.with_file_name(name)
 }
 
 fn reply(out: &Output) -> Value {
@@ -195,8 +205,8 @@ fn answer_never_types_from_its_own_process() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(
         reply(&out)["delivery"],
-        "queued",
-        "a sender that cannot start leaves it to the worker"
+        "held",
+        "no sender started and no worker runs"
     );
     assert_eq!(herdr.count("workspace.list"), 1, "the verb did look");
     assert_eq!(herdr.count("agent.prompt"), 0, "the verb typed");
@@ -213,6 +223,45 @@ fn answer_never_types_from_its_own_process() {
         "answered"
     );
     assert!(!live.delivered(id));
+}
+
+/// The other half of "the server travels with the answer". The binary goes after the worker
+/// started and before the sender could, and the verb's own default socket is dead: only a worker
+/// of the question's own server can bring this answer.
+#[test]
+fn the_worker_a_verb_ensures_is_the_questions_own_servers_and_it_delivers() {
+    let live = Live::new();
+    let bin = live.rig.dir.path().join("herdr-inbox");
+    exe::link_or_copy(Path::new(BINARY), &bin);
+    let gone = bin.clone();
+    let herdr = Herdr::start(live.rig.dir.path(), live.transcript.clone(), move || {
+        let _ = fs::remove_file(&gone);
+    });
+    let (id, token) = live.question(Some(&herdr.socket));
+    let lock = worker_lock(&live.world.db, &herdr.socket);
+    let mut verb = live.verb(&bin, id, &token);
+    let out = verb
+        .env_remove("HERDR_INBOX_NO_WORKER")
+        .env("HERDR_INBOX_WORKER_TICK", "0.1")
+        .env("HERDR_INBOX_WORKER_IDLE_EXIT", "1")
+        .output()
+        .unwrap();
+    assert_eq!(reply(&out)["delivery"], "queued", "{out:?}");
+    assert_eq!(herdr.count("agent.prompt"), 0);
+    // past the 60 s a never-attempted answer waits for its worker
+    let store = &live.world.store;
+    let sql = "UPDATE questions SET answered_at = '2026-01-02T10:00:00+00:00' WHERE id = ?";
+    store.db().execute(sql, [id]).unwrap();
+    assert!(
+        wait_for(Duration::from_secs(30), || live.delivered(id)),
+        "{:?}",
+        herdr.seen.lock().unwrap()
+    );
+    assert_eq!(herdr.count("agent.prompt"), 1);
+    assert!(
+        wait_for(Duration::from_secs(30), || !is_running(&lock)),
+        "the worker left"
+    );
 }
 
 #[test]

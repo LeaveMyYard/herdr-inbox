@@ -20,7 +20,7 @@ use crate::surface::live::Live as Surface;
 use crate::surface::markers::Markers;
 use crate::tabs::settings::PLUGIN_ID;
 use crate::worker::live::server_gone;
-use crate::worker::process::{ensure_worker, own_exe};
+use crate::worker::process::{own_exe, worker_runs};
 use crate::worker::spawn::start_sender;
 
 /// The whole command's budget, well inside `exec`'s 30 s.
@@ -54,9 +54,14 @@ pub fn main(argv: &[String]) -> i32 {
 }
 
 /// Core delivery exists. Off until B3 lands: then every core answer here is
-/// `held`, and no worker is asked for. To turn it on, set this and have
-/// [`World::core_gone`] ask `hc`.
+/// `held`, and no worker is asked for. Whichever of the two lands second turns
+/// it on, and a test fails until it does. [`World::core_gone`] then connects to
+/// the core's socket (`worker::live::absent`). **Never by running `hc`: any `hc`
+/// command starts a core.** A socket with no known place is no proof.
 pub const CORE_DELIVERY: bool = false;
+
+#[cfg(test)]
+mod tests;
 
 struct World {
     deadline: Instant,
@@ -83,8 +88,8 @@ impl World {
 fn warn(_: &str) {} // marks are cosmetic: nothing to say to a mod
 
 impl Effects for World {
-    fn ensure_worker(&mut self, server: Option<&str>) {
-        ensure_worker(server);
+    fn ensure_worker(&mut self, server: Option<&str>) -> bool {
+        worker_runs(server)
     }
 
     fn server_gone(&mut self, server: Option<&str>) -> bool {
@@ -93,18 +98,18 @@ impl Effects for World {
     }
 
     fn core_gone(&mut self) -> bool {
-        false // not reached while CORE_DELIVERY is off
+        false // not reached while CORE_DELIVERY is off: see there
     }
 
-    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) {
-        // the answers are recorded and the worker is ensured: it retries them
-        let _ = start_sender(
+    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) -> bool {
+        start_sender(
             Some(&self.exe),
             &self.state_dir,
             questions,
             force,
             socket.map(OsStr::new),
-        );
+        )
+        .is_ok()
     }
 
     fn refresh_marks(&mut self, marks: &[Mark]) {

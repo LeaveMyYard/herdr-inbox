@@ -156,7 +156,7 @@ def every_kind():
         group(18, 15, tui("w1:p4"), [q(19, "Header 2")], TITLE),  # Q18 is closed: the group keeps its id
         failed(7, 20, tui(), delivery("claimed", attempts=1)),
         failed(8, 21, tui(), pending("busy: agent is working", "busy", T % 22)),
-        failed(9, 22, core("t4"), delivery("failed", "no live agent in pane", None, 3, auto=False)),
+        failed(9, 22, core("t4"), delivery("failed", "no live agent in pane", None, 10, auto=False)),
         failed(10, 23, tui("w1:p3"), GONE),
         failed(11, 24, core("t5"), GONE),
         failed(13, 25, tui(), delivery("unattempted")),
@@ -365,7 +365,7 @@ def commands():
           no(rest[0], key, "stale", changed, word))
     C("invalid-choice", "A label the question does not have.",
       verb("answer", "group:12", "--question", "12", "--detail", d("Option Z")), 1,
-      no("answer", "group:12", "invalid", "Q12 has no such option: Option Z"))
+      no("answer", "group:12", "invalid", "Q12 has no such option"))
     C("invalid-two-choices", "Two choices on a question without multi_select.",
       verb("answer", "group:12", "--question", "12", "--detail", d("Option A", "Option B")), 1,
       no("answer", "group:12", "invalid", "Q12 takes one choice"))
@@ -391,6 +391,7 @@ def commands():
       no("ack", "alert:5", "busy", "The inbox database is busy; try again in a moment"))
     C("not-migrated", "Setup: the database is not at this code's revision.", verb("ack", "alert:5"), 1,
       no("ack", "alert:5", "not_migrated", "The inbox is being upgraded; try again in a few seconds"),
+      effects=fx(None),
       world="not-migrated.json")
     C("error", "Setup: the database file cannot be read.", verb("ack", "alert:5"), 1,
       no("ack", "alert:5", "error", "The inbox database failed: unable to open database file"))
@@ -407,6 +408,9 @@ def commands():
       ["ack", "--entry", "alert:5", "--token", t("alert:5")], 2, None)
     C("usage-bad-entry", "A malformed --entry needs no database to refuse.",
       ["ack", "--entry", "alert:05", "--token", t("alert:5"), "--json"], 2, None)
+    C("usage-unknown-detail-field", "A field a Detail does not have: dropping it could lose the operator's words.",
+      ["answer", "--entry", "group:12", "--token", t("group:12"), "--question", "12", "--detail",
+       json.dumps({"choices": ["Option A"], "notes": {}, "text": None, "comment": "Note Text 1"}), "--json"], 2, None)
     C("usage-bad-id", "A non-canonical id.",
       ["draft", "--entry", "group:14", "--token", t("group:14"), "--question", "Q14", "--clear", "--json"], 2, None)
     return {"source": "tools/app_fixtures/gen.py, for docs/protocol/app-commands-v1.md",

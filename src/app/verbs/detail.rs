@@ -53,7 +53,8 @@ pub fn normalise(q: &Question, detail: &Value) -> Result<Option<Value>, Unfit> {
         .collect();
     for (i, choice) in picked.iter().enumerate() {
         if !labels.contains(choice) {
-            return Err(Unfit(format!("Q{} has no such option: {choice}", q.id)));
+            // never its words: this is by definition no label, so it can be anything
+            return Err(Unfit(format!("Q{} has no such option", q.id)));
         }
         if picked[..i].contains(choice) {
             return Err(Unfit(format!("Q{} has a choice twice", q.id)));

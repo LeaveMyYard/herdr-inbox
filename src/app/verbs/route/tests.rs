@@ -3,12 +3,15 @@ use super::{Effects, Mark, Route, Send, deliver};
 #[derive(Default)]
 struct Log {
     gone: bool,
+    no_worker: bool,
+    no_sender: bool,
     calls: Vec<String>,
 }
 
 impl Effects for Log {
-    fn ensure_worker(&mut self, server: Option<&str>) {
+    fn ensure_worker(&mut self, server: Option<&str>) -> bool {
         self.calls.push(format!("worker {server:?}"));
+        !self.no_worker
     }
     fn server_gone(&mut self, server: Option<&str>) -> bool {
         self.calls.push(format!("ask {server:?}"));
@@ -18,9 +21,10 @@ impl Effects for Log {
         self.calls.push("ask core".to_string());
         self.gone
     }
-    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) {
+    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) -> bool {
         self.calls
             .push(format!("send {questions:?} {force} {socket:?}"));
+        !self.no_sender
     }
     fn refresh_marks(&mut self, _: &[Mark]) {}
 }
@@ -147,4 +151,33 @@ fn one_answer_with_no_sender_makes_the_whole_result_held_and_every_worker_goes_f
             r#"send [1] false Some("/a")"#
         ]
     );
+}
+
+fn with(no_worker: bool, no_sender: bool, route: Route) -> Option<&'static str> {
+    let mut log = Log {
+        no_worker,
+        no_sender,
+        ..Log::default()
+    };
+    deliver(&send(route), false, true, &mut log)
+}
+
+/// `queued` is a claim that something will carry the answer: never true with neither.
+#[test]
+fn queued_needs_a_sender_that_started_or_a_worker_that_runs() {
+    let pane = || tui(Some("/s"), true);
+    assert_eq!(with(false, false, pane()), Some("queued"));
+    assert_eq!(
+        with(true, false, pane()),
+        Some("queued"),
+        "the sender started"
+    );
+    assert_eq!(
+        with(false, true, pane()),
+        Some("queued"),
+        "the worker has it"
+    );
+    assert_eq!(with(true, true, pane()), Some("held"), "nobody has it");
+    assert_eq!(with(true, true, Route::Core), Some("held"));
+    assert_eq!(with(false, true, Route::Core), Some("queued"));
 }

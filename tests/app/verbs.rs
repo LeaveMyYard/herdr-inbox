@@ -450,29 +450,37 @@ fn a_draft_that_cannot_be_submitted_refuses_the_whole_verb() {
     assert!(fx.order.is_empty());
 }
 
+/// A choice that is no label can be anything: text in the wrong field, say.
 #[test]
-fn no_message_repeats_the_operators_text() {
-    let w = world();
-    let t = token("group:14");
-    let detail = r#"{"choices":[],"notes":{},"text":"Answer Text 567"}"#;
-    let (reply, _) = verb(
-        &w,
-        &[
-            "answer",
-            "--entry",
-            "group:14",
-            "--token",
-            &t,
-            "--question",
-            "14",
-            "--detail",
-            detail,
-            "--json",
-        ],
-    );
-    assert_eq!(reply.exit, 1);
-    assert!(!reply.stdout.contains("Answer Text 567"));
-    assert!(reply.stderr.is_empty());
+fn no_message_repeats_any_part_of_the_detail() {
+    let words = "Answer Text 567";
+    let t = token("group:12");
+    for detail in [
+        json!({"choices": [words], "notes": {}, "text": null}),
+        json!({"choices": ["Option A", words], "notes": {}, "text": null}),
+        json!({"choices": ["Option A", "Option A"], "notes": {words: words}, "text": words}),
+    ] {
+        let w = world();
+        let detail = detail.to_string();
+        let (reply, _) = verb(
+            &w,
+            &[
+                "answer",
+                "--entry",
+                "group:12",
+                "--token",
+                &t,
+                "--question",
+                "12",
+                "--detail",
+                &detail,
+                "--json",
+            ],
+        );
+        assert_eq!(reply.exit, 1, "{detail}");
+        assert!(!reply.stdout.contains(words), "{}", reply.stdout);
+        assert!(reply.stderr.is_empty());
+    }
 }
 
 mod show {

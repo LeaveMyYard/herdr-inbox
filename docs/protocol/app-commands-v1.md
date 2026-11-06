@@ -93,7 +93,7 @@ One JSON object on stdout. Empty stdout never means success.
 |---|---|---|
 | 0 | Success | It was done. |
 | 1 | Refusal | Nothing was changed. |
-| 2 | Empty | Bad arguments: usage on stderr, no I/O. That covers anything wrong without reading the database: a malformed `--entry` or id, a `--detail` that is no JSON object or is over 64 KiB. |
+| 2 | Empty | Bad arguments: usage on stderr, no I/O. That covers anything wrong without reading the database: a malformed `--entry` or id, a `--detail` that is no Detail, with a field missing, of another type or unknown, or is over 64 KiB. An unknown field is refused because dropping it could lose the operator's words. |
 
 Any other exit, or a stdout that is not one such object, is a failure of unknown effect: the mod says so,
 reloads the feed and does not repeat the verb by itself.
@@ -140,7 +140,8 @@ absence means nothing while its id is in `omitted.question_ids`, so an open over
 
 ### Showing one question in full
 
-`app show --question Q --json` is read-only: one read transaction, no token, no write. It is the way out for a
+`app show --question Q --json` is read-only: one read transaction, no token, no database write. On a database
+not at this code's revision it starts the worker, as a verb does. It is the way out for a
 question the feed [cut or left out](app-feed-v1.md#an-incomplete-feed). Its result has these fields, and a
 refusal is as above: `stale` with `closed` when the question is not open, and `error` when the result is over
 the 8 MiB `exec` reads, with a message that points to the terminal form. After `stale` the mod calls it again
@@ -204,15 +205,16 @@ claim, like every other send.
 
 | Row | Step 3 | Route if `held` |
 |---|---|---|
-| TUI, stored server | Ask that server, within the budget. Only `HerdrError::NotRunning` proves it gone, as for the worker (`server_gone`), and that gives `held`. Any other failure is no proof, and the sender goes. | That server's worker, when it is back. |
+| TUI, stored server | Ask that server, within the budget. Only `HerdrError::NotRunning` proves it gone, as for the worker (`server_gone`), and that gives `held`. Any other failure is no proof, and the sender goes. With no session too, deliberately: the worker and the popup's Retry already type to such a row. | That server's worker, when it is back. |
 | TUI, no stored server (asked before 0.6.1), with a session | The same, on the verb's default socket. `deliver` treats the row as local, and its `conversation_changed` guard checks the session. | The worker's own proof of the conversation. |
 | TUI, no stored server, no session | Always `held`, for `retry` too. The recipient rule beats retry: that guard is false with no session, so a forced send could reach another agent in a pane with the same id. | `check_answers` only. |
 | No pane and no host record (`unknown`) | Always `held`. | `check_answers` only: the worker's listing never takes such a row. |
 | Core, before B3 | Always `held`, and step 2 is skipped too: there is no core worker. | `check_answers` only. |
-| Core, from B3 | Ask `hc`. Only a proven absence of herdr-core gives `held`. | The core worker, when herdr-core is back. |
+| Core, from B3 | Connect to its socket (`worker::live::absent`), and never run `hc`: any `hc` command starts a core. Only a missing or refusing socket gives `held`. A socket with no known place is no proof. | The core worker, when herdr-core is back. |
 
-A `held` result says that no sender started, for one of these reasons. A sender started there would burn a counted
-attempt for each press, towards marking the agent gone.
+A `held` result says that no sender started, for one of these reasons, or that one could not start and no worker
+runs, as when an update has just removed this binary. A sender started there would burn a counted attempt for each
+press, towards marking the agent gone.
 
 **The server travels with the answer.** A worker serves only its own server's rows, and `deliver` leaves an
 answer of another server to that server's worker, dropping any `--force` silently. `exec` has no env option, so
@@ -228,8 +230,8 @@ its own, replacing B2's rule that leaves them alone.
 
 | `delivery` | Meaning |
 |---|---|
-| `queued` | A sender started, or failed to start and left the answer to the worker just ensured. |
-| `held` | The answer is recorded and no sender started. The table above says what can still bring it. |
+| `queued` | A sender started, or failed to start and a worker of that server runs. Never with neither. |
+| `held` | The answer is recorded and neither a sender nor, where one failed, a worker has it. The table above says what can still bring it. |
 
 A `retry` that comes out `held` is still done: its counter moved, and the mod says that nothing could be sent.
 That is what stops a replay forcing a send once the server is back.

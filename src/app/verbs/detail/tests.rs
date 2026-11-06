@@ -60,7 +60,7 @@ fn a_choice_must_be_a_label_once_and_one_without_multi_select() {
     let refused = |d: Value| normalise(&q, &d).unwrap_err();
     assert_eq!(
         refused(detail(&["Z"], json!({}), json!(null))),
-        Unfit("Q7 has no such option: Z".to_string())
+        Unfit("Q7 has no such option".to_string())
     );
     assert_eq!(
         refused(detail(&["A", "B"], json!({}), json!(null))),

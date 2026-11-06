@@ -102,7 +102,7 @@ impl Early {
 /// that migrates it.
 fn open(ctx: &mut Ctx<'_>) -> Result<Store, Early> {
     let not_ready = |ctx: &mut Ctx<'_>| {
-        ctx.fx.ensure_worker(None);
+        let _ = ctx.fx.ensure_worker(None);
         Early {
             code: Code::NotMigrated,
             message: "The inbox is being upgraded; try again in a few seconds".to_string(),

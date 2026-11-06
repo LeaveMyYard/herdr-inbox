@@ -12,17 +12,17 @@ use crate::store::question::Question;
 /// What starts after a commit. There is no way to send here: a verb's process
 /// starts the sender and leaves.
 pub trait Effects {
-    /// Makes sure the worker of `server` runs (`None`: the verb's own).
-    fn ensure_worker(&mut self, server: Option<&str>);
+    /// Makes sure the worker of `server` runs (`None`: the verb's own). False
+    /// when none could be started and none runs.
+    fn ensure_worker(&mut self, server: Option<&str>) -> bool;
     /// herdr proves `server` is not running. Only `HerdrError::NotRunning`
     /// does: any other failure is no proof.
     fn server_gone(&mut self, server: Option<&str>) -> bool;
     /// A proven absence of herdr-core.
     fn core_gone(&mut self) -> bool;
     /// Starts `deliver <questions> [--force]` detached, with `socket` as its
-    /// `HERDR_SOCKET_PATH` (`None`: the inherited one). One that fails to start
-    /// leaves the answers to the worker just ensured.
-    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>);
+    /// `HERDR_SOCKET_PATH` (`None`: the inherited one). False when it could not start.
+    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) -> bool;
     /// Refreshes the panes' `$inbox_q` and `❓N`. Cosmetic: it never fails a verb.
     fn refresh_marks(&mut self, marks: &[Mark]);
 }
@@ -115,19 +115,21 @@ impl Mark {
     }
 
     /// The pane of alert `a`.
-    pub fn of_alert(_store: &Store, a: &Alert) -> rusqlite::Result<Vec<Mark>> {
+    pub fn of_alert(a: &Alert) -> Vec<Mark> {
         let server = a
             .herdr_server
             .clone()
             .filter(|s| !s.is_empty() && s != CORE_SERVER);
         let pane = a.pane_id.clone().filter(|p| !p.is_empty());
-        Ok(pane.map(|pane| Mark { server, pane }).into_iter().collect())
+        pane.map(|pane| Mark { server, pane }).into_iter().collect()
     }
 }
 
 /// Starts what `send` needs, after the commit: every worker first, so a sender
-/// lost after this is retried. `delivery`: `held` if any answer has no sender,
-/// `None` when nothing waits. `retry` forces a pane's sender, never a core's.
+/// lost after this is retried. `delivery` is `queued` only when something will
+/// carry every answer: a sender that started, or the worker of a sender that
+/// could not. Otherwise `held`, and `None` when nothing waits. `retry` forces a
+/// pane's sender, never a core's.
 pub fn deliver(
     send: &[Send],
     retry: bool,
@@ -137,31 +139,33 @@ pub fn deliver(
     if send.is_empty() {
         return None;
     }
+    let mut workers = Vec::with_capacity(send.len());
     for s in send {
-        match &s.route {
+        workers.push(match &s.route {
             Route::Tui { server, .. } | Route::Nowhere { server } => {
-                fx.ensure_worker(server.as_deref());
+                fx.ensure_worker(server.as_deref())
             }
             Route::Core if core_delivery => fx.ensure_worker(Some(CORE_SERVER)),
-            Route::Core => {}
-        }
+            Route::Core => false,
+        });
     }
     let mut held = false;
-    for s in send {
-        match &s.route {
+    for (s, worker) in send.iter().zip(workers) {
+        let started = match &s.route {
             Route::Tui { server, session } => {
                 let recipient_known = server.is_some() || *session;
-                if recipient_known && !fx.server_gone(server.as_deref()) {
-                    fx.start_sender(&s.questions, retry, server.as_deref());
-                } else {
-                    held = true;
-                }
+                (recipient_known && !fx.server_gone(server.as_deref()))
+                    .then(|| fx.start_sender(&s.questions, retry, server.as_deref()))
             }
             Route::Core if core_delivery && !fx.core_gone() => {
-                fx.start_sender(&s.questions, false, None);
+                Some(fx.start_sender(&s.questions, false, None))
             }
-            Route::Core | Route::Nowhere { .. } => held = true,
-        }
+            Route::Core | Route::Nowhere { .. } => None,
+        };
+        held |= match started {
+            Some(ok) => !ok && !worker, // a sender that could not start leaves it to the worker
+            None => true,
+        };
     }
     Some(if held { "held" } else { "queued" })
 }

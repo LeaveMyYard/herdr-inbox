@@ -26,9 +26,10 @@ pub struct Started {
 }
 
 impl Effects for Started {
-    fn ensure_worker(&mut self, server: Option<&str>) {
+    fn ensure_worker(&mut self, server: Option<&str>) -> bool {
         self.workers.push(server.map(str::to_string));
         self.order.push("worker");
+        true
     }
     fn server_gone(&mut self, _: Option<&str>) -> bool {
         self.order.push("ask");
@@ -38,7 +39,7 @@ impl Effects for Started {
         self.order.push("ask");
         self.gone
     }
-    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) {
+    fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) -> bool {
         let mut args = vec!["deliver".to_string()];
         args.extend(questions.iter().map(i64::to_string));
         if force {
@@ -46,6 +47,7 @@ impl Effects for Started {
         }
         self.senders.push((args, socket.map(str::to_string)));
         self.order.push("sender");
+        true
     }
     fn refresh_marks(&mut self, _: &[Mark]) {}
 }
@@ -320,11 +322,7 @@ fn a_database_not_at_this_revision_starts_the_worker_that_migrates_it() {
         fx: &mut fx,
     };
     let reply = run(&words(&c), &mut ctx);
-    assert_eq!(reply.exit, 1);
-    let got: Value = serde_json::from_str(&reply.stdout).unwrap();
-    assert_eq!(got, c["stdout"]);
-    assert_eq!(fx.workers, [None]);
-    assert!(fx.senders.is_empty());
+    expect(&c, &reply, &fx);
 }
 
 #[test]

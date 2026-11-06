@@ -288,7 +288,7 @@ fn on_alert(store: &Store, request: &Request, id: i64) -> rusqlite::Result<Outco
     )?;
     Ok(Outcome::Done(Done {
         done: vec![id],
-        marks: Mark::of_alert(store, &a)?,
+        marks: Mark::of_alert(&a),
         ..Done::default()
     }))
 }

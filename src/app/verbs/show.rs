@@ -13,6 +13,8 @@ use super::reply::{Code, Reply, Target};
 use super::{Ctx, failed};
 use crate::app::feed::group;
 use crate::app::feed::text::Text;
+use crate::store::revision::MIGRATION_REVISION;
+use crate::store::revision_wanted::{unix_now, want};
 use crate::store::{OpenError, Store};
 
 /// `exec` reads no more of a command's output than this.
@@ -41,14 +43,15 @@ fn in_json(question: i64, ctx: &mut Ctx<'_>) -> Reply {
         Err(OpenError::Sqlite(_)) if !ctx.db.exists() => return not_ready(ctx, &unknown),
         Err(OpenError::Sqlite(e)) => return failed(&e).at(&unknown),
     };
-    match read(&store, question) {
+    match read(&store, question, || {}) {
         Ok(reply) => reply,
         Err(e) => failed(&e).at(&unknown),
     }
 }
 
 fn not_ready(ctx: &mut Ctx<'_>, target: &Target) -> Reply {
-    ctx.fx.ensure_worker(None);
+    want(ctx.db, MIGRATION_REVISION, unix_now()); // a worker holding the lock hands over
+    let _ = ctx.fx.ensure_worker(None);
     target.refuse(
         Code::NotMigrated,
         "The inbox is being upgraded; try again in a few seconds",
@@ -56,7 +59,8 @@ fn not_ready(ctx: &mut Ctx<'_>, target: &Target) -> Reply {
     )
 }
 
-fn read(store: &Store, question: i64) -> rusqlite::Result<Reply> {
+/// The row, with `between` run after the question is read and before its group.
+fn read(store: &Store, question: i64, between: impl FnOnce()) -> rusqlite::Result<Reply> {
     // rolled back on drop: the row and its token come from one moment
     let tx = store.db().unchecked_transaction()?;
     let stale = "This group changed; look again.";
@@ -69,6 +73,7 @@ fn read(store: &Store, question: i64) -> rusqlite::Result<Reply> {
     if q.status != "open" {
         return Ok(target.refuse(Code::Stale, stale, question_word(&q)));
     }
+    between();
     let open = store.group(q.group(), false)?;
     let row = group::entry(store, q.group(), &open, Text::Whole)?;
     tx.commit()?;
@@ -76,6 +81,9 @@ fn read(store: &Store, question: i64) -> rusqlite::Result<Reply> {
         &json!({"v": 1, "ok": true, "verb": "show", "entry": key, "row": row}),
     ))
 }
+
+#[cfg(test)]
+mod tests;
 
 /// The same for a terminal: the group's questions as plain text.
 fn as_text(reply: Reply) -> Reply {
