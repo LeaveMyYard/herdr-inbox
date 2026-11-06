@@ -2,7 +2,7 @@
 // switch tabs even under the confirmation; the confirmation takes every other key; the empty view
 // closes on any key but the navigation keys; otherwise the view's own keys, then the app's.
 
-import { RELEASE, ROW_ARM, hasPreview, isAlert } from './data.js';
+import { RELEASE, ROW_ARM, digit, hasPreview, isAlert } from './data.js';
 import { confirmed, dismiss, goTo, writeDraft } from './actions.js';
 import { back, navigate, showList, allTabs } from './groups.js';
 import { questionKey } from './question.js';
@@ -10,16 +10,6 @@ import { dropTarget, reloadReview, reviewKey } from './review.js';
 import { purgeClosed } from './rows.js';
 import { alertKey, failedKey, goneKey } from './views.js';
 import { viewQuestion } from './remote.js';
-
-const WORDS = new Set(['enter', 'escape', 'tab', 'shift+tab', 'up', 'down', 'left', 'right', 'home', 'end', 'backspace', 'delete', 'space']);
-
-export function printable(key) {
-  if (key === 'space') return ' ';
-  if (WORDS.has(key)) return null;
-  return Array.from(key).length === 1 && !/\p{Cc}/u.test(key) ? key : null;
-}
-
-export const digit = key => (/^[1-9]$/.test(key) ? Number(key) : null);
 
 // Where the keys go first. Inside an open box Tab moves the focus off it while it stays open.
 export function focusOf(p) {

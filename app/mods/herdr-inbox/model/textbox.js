@@ -2,7 +2,7 @@
 // the cursor, ←/→/Home/End move it, Backspace/Delete remove, Enter submits. A box opened on existing
 // text starts with all of it selected: typing or deleting replaces it, ← and → go to its ends.
 
-import { printable } from './keys.js';
+import { printable } from './data.js';
 
 export function textBox(value) {
   const chars = Array.from(value);

@@ -76,6 +76,7 @@ export class Book {
   words = new Map(); // question id, or `alert:<id>`: the status a verb said it closed with
   lost = new Map(); // question id → its last model question
   lostAlerts = new Map();
+  last = new Map(); // key → the row as it last was, for the words on a closed row
 
   row(key) {
     return this.rows.get(key);
@@ -109,7 +110,13 @@ export class Book {
     return { ...row, questions: row.questions.filter(q => ids.includes(q.id)) };
   }
 
+  // The row, or what it last was.
+  shown(key) {
+    return this.rows.get(key) ?? this.last.get(key);
+  }
+
   forget(row) {
+    if (!this.last.has(row.key) || row.questions?.length > 0) this.last.set(row.key, row);
     if (row.kind === 'group') for (const q of row.questions) this.lost.set(q.id, modelQuestion(q, row));
     else if (row.kind === 'failed') this.lost.set(row.question_id, failedQuestion(row));
     else if (row.kind === 'alert') this.lostAlerts.set(row.id, modelAlert(row));
@@ -124,6 +131,7 @@ export class Book {
   applied(key, { token, done, verb, detail, cleared }) {
     const row = this.rows.get(key);
     if (!row) return;
+    this.last.set(key, { ...row });
     if (verb === 'draft') {
       const q = row.questions.find(x => x.id === done[0]);
       if (q) q.draft = cleared ? null : detail;
@@ -143,7 +151,17 @@ export class Book {
     }
   }
 
-  // A verb said this row or question closed: `closed` is its word for why.
+  // A verb said one question of a row closed; the others are still open.
+  questionClosed(key, qid, word) {
+    const row = this.rows.get(key);
+    const q = row?.questions.find(x => x.id === qid);
+    if (!q) return;
+    this.words.set(qid, word);
+    this.lost.set(qid, modelQuestion(q, row));
+    row.questions = row.questions.filter(x => x.id !== qid);
+  }
+
+  // A verb said this row closed: `closed` is its word for why.
   closed(key, word) {
     const row = this.rows.get(key);
     if (!row) return;

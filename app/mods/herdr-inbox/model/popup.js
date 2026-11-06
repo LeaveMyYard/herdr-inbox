@@ -5,9 +5,10 @@
 
 import { message } from './actions.js';
 import { GRACE, VIEW_ARM, copied, emptyRemote, isAlert, kindOf } from './data.js';
-import { backToList, openEntry, showEmpty, showList } from './groups.js';
+import { backToList, openEntry, show, showEmpty, showList } from './groups.js';
 import { takeKey } from './keys.js';
 import { focused, poll, sent } from './poll.js';
+import { pickRow } from './question.js';
 import { currentEntries } from './rows.js';
 
 export class Popup {
@@ -132,6 +133,34 @@ export class Popup {
     this.timers.grace_until = now + GRACE;
     if ('armed_at' in this.view) this.view.armed_at = now + VIEW_ARM;
     this.drain();
+    return this.take();
+  }
+
+  // A click on a row of the question on screen. It acts on exactly that row, or not at all: not under
+  // a confirmation, not with a box open, not while the view is unarmed or held, not in the grace.
+  pick(row, now) {
+    this.now = now;
+    this.undo = null;
+    const v = this.view;
+    const grace = this.timers.grace_until;
+    const plain = v.kind === 'question' && !v.editing && !this.confirm && !this.held && now >= v.armed_at;
+    if (!this.running || !plain || (grace !== null && now < grace)) return [];
+    this.timers.prev_key_at = this.timers.last_key_at;
+    this.timers.last_key_at = now;
+    pickRow(v, row, this.out);
+    this.drain();
+    return this.take();
+  }
+
+  // What a row placeholder says, once the verb's result is known.
+  relabel(entry, reason) {
+    if (this.closed.has(entry)) this.closed.set(entry, reason);
+  }
+
+  // Shows the tab on screen again from the data: what a `stale` does if typed text is not kept.
+  remount(now) {
+    this.now = now;
+    if (this.mode === 'group') show(this, this.current);
     return this.take();
   }
 

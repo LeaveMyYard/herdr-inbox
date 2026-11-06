@@ -2,8 +2,7 @@
 // "Submit" (multi-select); notes under options; a text box for each. Its rows are fixed for the
 // view's life (a question's options never change), so here alone a cursor may be an index.
 
-import { makeDetail, strip } from './data.js';
-import { digit } from './keys.js';
+import { digit, makeDetail, strip } from './data.js';
 import { boxKey, boxValue, textBox } from './textbox.js';
 
 const numeric = (a, b) => a - b;
@@ -96,6 +95,13 @@ function submitBox(v, out) {
     v.text = value;
     answer(v, out);
   }
+}
+
+// A click on a row: that row and no other, as Enter on it would be.
+export function pickRow(v, row, out) {
+  if (row < 0 || row >= v.rows.length) return;
+  v.cursor = row;
+  select(v, out);
 }
 
 // Takes a key; false if the view does not bind it (the app may).

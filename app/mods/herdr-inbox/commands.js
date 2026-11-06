@@ -61,7 +61,7 @@ function success(value, verb) {
 // so, reloads, and does not repeat the verb. `entry` is null for `show`, which names its own row.
 export function readResult(result, verb, entry) {
   if (result === null) return unknown('it could not be started');
-  if (result.code === 2) return unknown(result.stderr?.trim() || 'it refused its arguments');
+  if (result.code === 2) return { kind: 'refused', code: 'error', closed: null, message: 'The inbox did not take the command: nothing was done.' };
   if (result.code !== 0 && result.code !== 1) return unknown(`it exited ${result.code}`);
   const value = parsed(result.stdout);
   if (value === null || value.v !== 1 || value.verb !== verb) return unknown('its output was not a result');

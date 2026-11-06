@@ -26,7 +26,7 @@ const goodMachine = m => isObject(m) && isText(m.id);
 
 // The fields a decision reads, and that the key says what the fields say: a verb's `--entry` and
 // `--question` come from here, so a row whose name and contents disagree is no row to act on.
-function goodEntry(e) {
+export function goodEntry(e) {
   if (!isObject(e) || !isText(e.key) || !isText(e.kind) || !Array.isArray(e.actions) || !e.actions.every(isText)) return false;
   if (e.actions.length > 0 ? !isText(e.token) : e.token !== null) return false;
   switch (e.kind) {

@@ -10,7 +10,7 @@ const { world } = await import('./support/herdr.mjs');
 async function open() {
   const view = new HerdrInbox();
   const tasks = [];
-  const cx = { spawn: task => tasks.push(task), notify() {}, focus_handle: () => ({ focus() {} }), timer: { every() {} } };
+  const cx = { spawn: task => tasks.push(task), notify() {}, focus_handle: () => ({ focus() {} }), timer: { every() {} }, bind_keys() {} };
   view.init({}, cx);
   const first = view.render().texts;
   // The feed watcher never ends: a task gets a moment, not a wait for its end.

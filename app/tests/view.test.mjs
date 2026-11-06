@@ -106,3 +106,44 @@ test('host keys become the model\'s names', () => {
   assert.equal(key('shift', { shift: true }), null);
   assert.deepEqual(pastedKeys('a b\nc'), ['a', 'space', 'b', 'space', 'c']);
 });
+
+test('the gone row counts the gone answers, not every ⚠ row', () => {
+  const gone = id => failed(id, { state: 'agent_gone', reason: 'Question Text 345' });
+  const r = new Rig(world([gone(1), gone(2), failed(3), group(9), group(10)]));
+  assert.match(drawn(r), /2 answers whose agents are gone/);
+});
+
+test('a closed row keeps its words, and only a finished one a tick', () => {
+  const r = new Rig(world([group(1), group(5)]), { standin: { host: 'gone' } });
+  r.press('enter', 'enter');
+  const text = drawn(r);
+  assert.match(text, /Question Title 123 · recorded, nothing sent/);
+  assert.equal(/✓/.test(text), false);
+  assert.equal(/sending/.test(text), false);
+});
+
+test('a change under an open row is on screen before any send', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.press('enter');
+  r.db.find('group:1').questions[0].draft = { choices: ['Option B'], notes: {}, text: null };
+  r.published();
+  assert.match(drawn(r), /changed since you opened it/);
+});
+
+test('Press f shows only where f works', () => {
+  const feed = fixture('every-kind');
+  const g = feed.entries.find(e => e.kind === 'remote_group');
+  g.questions[0].cut = true;
+  const r = new Rig(feed);
+  r.session.popup.view.cursor = g.key;
+  r.press('enter');
+  assert.equal(r.popup.mode, 'remote');
+  assert.equal(/Press f/.test(drawn(r)), false);
+});
+
+test('the pick hint counts only what digits reach', () => {
+  const g = group(1, [1]);
+  g.questions[0].multi_select = true;
+  const r = new Rig(world([g]));
+  assert.match(drawn(r), /1-3/); // two options and Something else; digits skip Submit
+});

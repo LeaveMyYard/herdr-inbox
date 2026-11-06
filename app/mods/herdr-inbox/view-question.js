@@ -7,7 +7,7 @@ import { allTabs } from './model/groups.js';
 import { boxValue } from './model/textbox.js';
 import { viewQuestion } from './model/remote.js';
 import { targets } from './model/review.js';
-import { button, fit, footer, windowed } from './view.js';
+import { button, fit, footer, windowed } from './view-parts.js';
 import { askerLabel } from './view-text.js';
 import { age } from './words.js';
 
@@ -36,7 +36,7 @@ function tabs(mod, t) {
     const q = tab === 'submit' ? null : question(p.data, tabId(tab));
     const closed = p.gone.has(tab);
     const text = tab === 'submit' ? 'Submit' : q?.header ?? `Q${tabId(tab)}`;
-    const color = on ? t.foreground : closed ? t.dim : q?.draft ? t.done : t.muted;
+    const color = on ? t.foreground : closed ? t.dim : q?.draft ? t.ansi2 : t.muted;
     return div().id(`tab-${tab}`).px(12).py(9).text_size(13).text_color(color).border_b_2().border_color(on ? t.accent : t.popover).child(closed ? `${text} (closed)` : text);
   };
   return [h_flex().flex_none().gap(4).px(22).border_b_1().border_color(t.border).children(all.map(chip))];
@@ -49,17 +49,17 @@ function optionRow(mod, t, v, q, i) {
   const rec = RECOMMENDED.test(o.label);
   const note = v.notes.get(i);
   return h_flex().id(`opt-${i}`).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
-    .cursor_pointer().on_click((_e, cx) => { mod.press(String(i + 1), cx); mod.press('enter', cx); })
+    .cursor_pointer().on_click((_e, cx) => mod.onRow(i, cx))
     .child(div().w(22).flex_none().font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(v.multi_select ? (picked ? '[x]' : '[ ]') : String(i + 1)))
     .child(v_flex().flex_1().min_w(0).gap(2)
       .child(h_flex().gap(8).items_center().text_size(13.5).text_color(t.foreground).child(o.label.replace(RECOMMENDED, ''))
-        .when(rec, el => el.child(div().px(5).py(3).rounded(4).font_family(t.mono).text_size(10).font_semibold().text_color(t.done).bg(t.surface).child('recommended'))))
+        .when(rec, el => el.child(div().px(5).py(3).rounded(4).font_family(t.mono).text_size(10).font_semibold().text_color(t.ansi2).bg(t.surface).child('recommended'))))
       .when(Boolean(o.description), el => el.child(div().text_size(12.5).text_color(t.muted).child(o.description)))
       .when(Boolean(note), el => el.child(div().text_size(12.5).text_color(t.accent).child(`Note: ${note}`))));
 }
 
-function plainRow(t, id, n, label, detail, on) {
-  return h_flex().id(id).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
+function plainRow(t, id, n, label, detail, on, click = null) {
+  return h_flex().id(id).when(click !== null, el => el.cursor_pointer().on_click(click)).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
     .child(div().w(22).flex_none().font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(n))
     .child(v_flex().flex_1().min_w(0).gap(2).child(div().text_size(13.5).text_color(t.foreground).child(label))
       .when(Boolean(detail), el => el.child(div().text_size(12.5).text_color(t.muted).child(detail))));
@@ -85,9 +85,9 @@ function questionBody(mod, t, v) {
   const whole = full.get(v.qid);
   const q = whole ? { ...shown, ...whole } : shown;
   const n = q.options.length;
-  const rows = [plainRow(t, 'other', String(n + 1), 'Something else…', v.text ?? 'Type your own answer.', v.cursor === n)];
+  const rows = [plainRow(t, 'other', String(n + 1), 'Something else…', v.text ?? 'Type your own answer.', v.cursor === n, (_e, cx) => mod.onRow(n, cx))];
   const last = v.rows[n + 1];
-  rows.push(plainRow(t, last, last === 'chat' ? String(n + 2) : '', last === 'chat' ? 'Chat about this' : v.last ? 'Submit' : 'Next', last === 'chat' ? 'Go to the agent' : null, v.cursor === n + 1));
+  rows.push(plainRow(t, last, last === 'chat' ? String(n + 2) : '', last === 'chat' ? 'Chat about this' : v.last ? 'Submit' : 'Next', last === 'chat' ? 'Go to the agent' : null, v.cursor === n + 1, (_e, cx) => mod.onRow(n + 1, cx)));
   const preview = q.options[v.cursor]?.preview ?? q.options.find(o => o.preview)?.preview;
   const all = [...q.options.map((_, i) => optionRow(mod, t, v, q, i)), ...rows];
   const text = v_flex().id('q').flex_1().min_h(96).overflow_y_scrollbar().gap(12)
@@ -96,8 +96,8 @@ function questionBody(mod, t, v) {
       .child(div().font_family(t.mono).text_size(11.5).text_color(t.muted).child(v.multi_select ? 'pick any' : 'pick one')))
     .child(div().text_size(15).text_color(t.foreground).child(q.question))
     .when(Boolean(q.context), el => el.child(div().text_size(12.5).text_color(t.muted).child(q.context)))
-    .when(q.cut === true, el => el.child(div().text_size(12).text_color(t.blocked).child('This text was cut to fit the feed. Press f to read the whole question.')));
-  const choices = v_flex().flex_none().gap(6).children(windowed(t, all, v.cursor, fit(mod, 400, 70)));
+    .when(q.cut === true && p.mode === 'group', el => el.child(div().text_size(12).text_color(t.blocked).child('This text was cut to fit the feed. Press f to read the whole question.')));
+  const choices = v_flex().flex_none().gap(6).children(windowed(t, all, v.cursor, fit(mod, 400, q.options.some(o => o.description) ? 70 : 48)));
   const column = v_flex().flex_1().min_w(0).min_h(0).gap(12).px(22).py(18).child(text).child(choices).child(noteField(t, v));
   const side = hasPreview(q) ? [v_flex().id('preview').w(300).flex_none().min_h(0).gap(10).p(18).bg(t.surface).border_l_1().border_color(t.border).overflow_y_scrollbar()
     .child(div().text_size(11).font_medium().text_color(t.dim).child(`PREVIEW · OPTION ${Math.min(v.cursor + 1, n)}`))
@@ -128,13 +128,13 @@ export function groupBody(mod, t) {
   const main = v.kind === 'question' ? questionBody(mod, t, v) : v.kind === 'review' ? reviewBody(mod, t, v)
     : v_flex().flex_1().items_center().justify_center().gap(6)
       .child(div().text_size(15).text_color(t.foreground).child(`${v.ref} was closed (${v.reason})`))
-      .child(div().text_color(t.muted).child('Nothing here takes Enter: Esc goes back, or Tab moves on.'));
+      .child(div().text_color(t.muted).child('Esc goes back, Tab moves on.'));
   const hint = p.mode === 'remote' ? [['esc', 'back (read-only here)']] : [
-    ...(v.kind === 'question' ? [[`1-${Math.min(v.rows.length, 9)}`, 'pick'], ['n', 'note']] : []),
+    ...(v.kind === 'question' ? [[`1-${Math.min(v.rows.filter(r => r !== 'submit').length, 9)}`, 'pick'], ['n', 'note']] : []),
     ...(allTabs(p).length > 1 ? [['tab', 'next question']] : []), ['g', 'go to agent'], ['d', 'dismiss'], ['esc', 'back'],
   ];
   const action = v.kind === 'review' ? 'Choose' : p.single ? 'Send' : 'Next';
-  const later = button(t, 'later', 'Later', false, (_e, cx) => mod.press('escape', cx));
-  const enter = button(t, 'enter', `${action} ⏎`, true, (_e, cx) => mod.press('enter', cx));
+  const later = button(t, 'later', 'Later', false, (_e, cx) => mod.onButton('escape', cx));
+  const enter = button(t, 'enter', `${action} ⏎`, true, (_e, cx) => mod.onButton('enter', cx));
   return [header(mod, t, qid), ...tabs(mod, t), main, footer(t, hint, p.mode === 'remote' ? [later] : [later, enter])];
 }

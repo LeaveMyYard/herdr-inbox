@@ -1,5 +1,6 @@
 // The words on a list row, from the book. Unknown vocabulary keeps the row visible with its fallback.
 
+import { goneBatchLive } from './model/rows.js';
 import { alertKind, age, deliveryWords, severity } from './words.js';
 
 export function askerLabel(mod, asker) {
@@ -23,9 +24,9 @@ const questions = n => `${n} ${n === 1 ? 'question' : 'questions'}`;
 
 export function describe(mod, entry, now) {
   const { book, popup } = mod.session;
-  const row = book.row(entry);
+  const row = book.shown(entry);
   if (entry === 'gone') {
-    const n = popup.data.failed.length;
+    const n = goneBatchLive(popup).length;
     return { mark: '⚠', warn: true, title: `${n} answers whose agents are gone`, meta: '', sub: 'd hides them; check_answers still has them' };
   }
   if (!row) return { title: entry, meta: '', sub: '' };

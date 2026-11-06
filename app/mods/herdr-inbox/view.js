@@ -5,32 +5,8 @@ import { h_flex, v_flex } from 'gpui-base';
 import { fresh } from './model/keys.js';
 import { alertBody, failedBody, goneBody, pickerBody } from './view-rows.js';
 import { groupBody } from './view-question.js';
-import { describe, windowOf } from './view-text.js';
-
-export function keys(t, pairs) {
-  return pairs.map(([key, what]) => h_flex().gap(4).child(div().text_color(t.accent).child(key)).child(div().child(what)));
-}
-
-export function footer(t, pairs, buttons = []) {
-  return h_flex().flex_none().items_center().gap(14).px(22).py(12).border_t_1().border_color(t.border).text_size(11.5).text_color(t.muted)
-    .child(h_flex().gap(14).font_family(t.mono).children(keys(t, pairs))).child(div().flex_1()).children(buttons);
-}
-
-// Rows with their window, and how many are out of sight on each side.
-export function windowed(t, rows, at, size) {
-  const { from, to } = windowOf(Math.max(at, 0), rows.length, size);
-  const more = (id, n, mark) => (n > 0 ? [div().id(id).px(16).py(2).font_family(t.mono).text_size(11.5).text_color(t.muted).child(`${mark} ${n} more`)] : []);
-  return [...more('above', from, '↑'), ...rows.slice(from, to), ...more('below', rows.length - to, '↓')];
-}
-
-// How many rows of this height fit in what is left of the overlay.
-export const fit = (mod, used, row) => Math.max(Math.floor(((mod.size?.height ?? 620) - used - (mod.below ?? 0)) / row), 2);
-
-export function button(t, id, label, primary, click) {
-  return h_flex().id(id).h(30).px(12).items_center().gap(8).rounded(7).border_1().cursor_pointer().text_size(12.5)
-    .border_color(primary ? t.solid : t.input).bg(primary ? t.solid : t.raised)
-    .text_color(primary ? t.solid_foreground : t.foreground).on_click(click).child(label);
-}
+import { button, fit, footer, keys, windowed } from './view-parts.js';
+import { describe } from './view-text.js';
 
 // Every line the operator must not miss: stale or unreadable feeds, left-out rows, what just happened.
 function banners(mod, t) {
@@ -45,12 +21,15 @@ function banners(mod, t) {
     line('b-left', `Left out of this list: ${inc.counts.join(', ')}.${how}`);
     if (inc.unlisted > 0) line('b-unlisted', `${inc.unlisted} of those have no id here: the herdr popup has them.`);
   }
-  if (s.pins.changed) line('b-changed', 'This changed since you opened it: a send will be refused. Esc, then open it again.');
+  if (s.pins.changed) line('b-changed', 'This changed since you opened it: a send will be refused. Go back and open it again.');
   if (s.change) line('b-look', s.change);
   for (const [i, n] of s.notices.entries()) line(`b-note-${i}`, n.text, n.severity === 'warning' ? t.blocked : t.muted);
   if (s.terminalHint !== null && mod.status.root) line('b-term', `In a terminal: sh ${mod.status.root}/scripts/launch cli app show --question ${s.terminalHint}`, t.muted);
   return lines;
 }
+
+// The closed rows that really are finished. "sending…" and a held answer get no tick.
+const DONE = new Set(['answered', 'dismissed', 'acknowledged', 'hidden', 'delivered', 'cleared']);
 
 function rowLine(t, mod, entry, n) {
   const p = mod.session.popup;
@@ -58,11 +37,12 @@ function rowLine(t, mod, entry, n) {
   const selected = p.view.cursor === entry;
   const closed = p.closed.get(entry);
   const color = closed !== undefined ? t.dim : d.warn ? t.blocked : t.foreground;
+  const done = DONE.has(closed) ? '✓ ' : '';
   return v_flex().id(`row-${entry}`).gap(4).px(16).py(10).border_t_1().border_color(t.border).when(selected, el => el.bg(t.selected))
     .child(h_flex().items_center().gap(8).text_size(13.5).text_color(color)
       .child(div().w(12).font_family(t.mono).text_size(12).text_color(t.accent).child(selected ? '❯' : ''))
       .child(div().font_family(t.mono).text_size(12).text_color(t.muted).child(d.mark ?? n))
-      .child(div().flex_1().truncate().child(closed === undefined ? d.title : `✓ ${d.title} · ${closed}`))
+      .child(div().flex_1().truncate().child(closed === undefined ? d.title : `${done}${d.title} · ${closed}`))
       .when(fresh(p, entry), el => el.child(div().text_size(11.5).text_color(t.accent).child('new')))
       .child(div().flex_none().font_family(t.mono).text_size(11.5).text_color(t.muted).child(d.meta)))
     .child(div().pl(20).truncate().text_size(12).text_color(t.muted).child(d.sub));
@@ -84,14 +64,15 @@ function listBody(mod, t) {
       .child(div().flex_1().child('Open questions'))
       .child(div().font_family(t.mono).text_size(11.5).font_normal().text_color(t.muted).child(`${count} ${count === 1 ? 'group' : 'groups'}`)),
     v_flex().id('rows').flex_1().min_h(0).overflow_y_scrollbar().children(windowed(t, rows, entries.indexOf(s.popup.view.cursor), fit(mod, 150, 66))).children(others),
-    footer(t, [['⏎', 'open'], ['g', 'go to agent'], ['d', 'dismiss'], ['esc', 'close'], ...(s.incomplete?.ids.length ? [['o', 'left out']] : [])]),
+    footer(t, [['⏎', 'open'], ['g', 'go to agent'], ['d', 'dismiss'], ['r', 'retry delivery'], ...(s.incomplete?.ids.length ? [['o', 'left out']] : [])]),
   ];
 }
 
 function emptyBody(mod, t) {
   const whole = mod.session.empty;
-  const title = whole ? 'No open questions' : 'Nothing listed here, but the inbox is not empty';
-  return [v_flex().flex_1().items_center().justify_center().gap(6).child(div().text_size(15).text_color(whole ? t.muted : t.blocked).child(title))
+  const arrived = mod.session.popup.entries.length > 0;
+  const title = arrived ? 'New questions arrived. Tab shows them.' : whole ? 'No open questions' : 'Nothing listed here, but the inbox is not empty';
+  return [v_flex().flex_1().items_center().justify_center().gap(6).child(div().text_size(15).text_color(whole || arrived ? t.muted : t.blocked).child(title))
     .when(!whole && mod.session.book.unknown().length > 0, el => el.children(mod.session.book.unknown().map(r => div().text_color(t.muted).child(r.key))))];
 }
 
@@ -127,9 +108,12 @@ function body(mod, t) {
   return groupBody(mod, t);
 }
 
+export const CONTEXT = 'HerdrInbox';
+export const ESCAPE = 'herdr_inbox_escape';
+
 export function render(mod, t) {
   const s = mod.session;
-  const root = v_flex().id('herdr-inbox').track_focus(mod.handle).on_key_down((e, cx) => mod.onKey(e, cx)).on_size_change((size, cx) => { mod.size = size; cx.notify(); }).size_full().min_h(0).bg(t.popover).text_size(13);
+  const root = v_flex().id('herdr-inbox').key_context(CONTEXT).on_action(ESCAPE, (_a, cx) => mod.onEscape(cx)).track_focus(mod.handle).on_key_down((e, cx) => mod.onKey(e, cx)).on_size_change((size, cx) => { mod.size = size; cx.notify(); }).size_full().min_h(0).bg(t.popover).text_size(13);
   if (mod.status.state !== 'ready') {
     const words = mod.wordsNow();
     return root.children(plain(t, words.title, words.detail));

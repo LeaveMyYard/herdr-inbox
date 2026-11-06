@@ -37,6 +37,8 @@ export const skippedWords = skipped => `${list(skipped)} had no stored answer an
 export const closedWords = n => `${n} answered question(s) had closed meanwhile and were not sent.`;
 export const noneOpenWords = 'Nothing sent: those questions are no longer open.';
 
+export const leftOutWords = counts => `Still open, and not listed here: ${counts.join(', ')}.`;
+
 const WAIT = {
   busy_idle: 'It sends when the agent is idle.',
   requeued: 'Not delivered earlier; it resends when the agent is idle.',
@@ -58,6 +60,11 @@ export function deliveryWords(row) {
     default: return { warn: true, line: d.reason ?? 'Its state is not known here.' };
   }
 }
+
+const DELIVERY = new Set(['unattempted', 'claimed', 'pending', 'agent_gone', 'failed']);
+
+// A word the reader does not know stays visible, with no action on it.
+export const knownDelivery = row => DELIVERY.has(row.delivery.state);
 
 // `retry` is "Send now" only on a TUI row that waits for a busy agent: a core row is never forced.
 export function retryLabel(row) {

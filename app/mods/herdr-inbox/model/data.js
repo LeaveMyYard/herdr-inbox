@@ -9,6 +9,16 @@ export const GO_PAUSE = 500; // `g` to an agent at a prompt needs this pause
 
 const AGENT_GONE = 'agent gone: ';
 
+const WORDS = new Set(['enter', 'escape', 'tab', 'shift+tab', 'up', 'down', 'left', 'right', 'home', 'end', 'backspace', 'delete', 'space']);
+
+export function printable(key) {
+  if (key === 'space') return ' ';
+  if (WORDS.has(key)) return null;
+  return Array.from(key).length === 1 && !/\p{Cc}/u.test(key) ? key : null;
+}
+
+export const digit = key => (/^[1-9]$/.test(key) ? Number(key) : null);
+
 export const isAlert = entry => entry.startsWith('alert:') || entry.startsWith('ralert:');
 export const isRemote = entry => /^(remote|routbox|rproblem|ralert):/.test(entry);
 export const kindOf = entry => (entry === 'gone' ? 'gone' : entry.slice(0, entry.indexOf(':')));

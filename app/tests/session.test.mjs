@@ -411,3 +411,237 @@ test('both hosts answer with the same verbs', () => {
   r.press('down', 'enter', 'enter');
   assert.deepEqual(r.db.delivered.map(d => d.id), [1, 14]);
 });
+
+test('a held row never reads as sending: its placeholder says nothing was sent', () => {
+  const r = new Rig(world([group(1), group(5)]), { standin: { host: 'gone' } });
+  r.press('enter', 'enter');
+  assert.equal(r.popup.closed.get('group:1'), 'recorded, nothing sent');
+});
+
+test('a retry that is held has no sending… either', () => {
+  const r = new Rig(world([group(1), group(2), failed(8)]), { standin: { host: 'gone' } });
+  r.press('down', 'down', 'enter', 'enter');
+  assert.equal(r.popup.closed.get('failed:8'), 'recorded, nothing sent');
+});
+
+test('a Submit where every question was skipped says nothing was sent, on the row too', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.press('enter', 'enter');
+  r.db.find('group:1').questions.forEach(q => { q.draft = null; });
+  r.db.retoken(r.db.find('group:1'));
+  r.session.pins.moved('group:1', r.db.find('group:1').token);
+  r.press('enter');
+  assert.notEqual(r.popup.closed.get('group:1'), 'sending…');
+});
+
+test('a core answer before B3 is held, as the contract says', () => {
+  const core = group(1, [1], { asker: asker({ host: 'herdr-core', pane: null, terminal: 't3', tab_label: null }) });
+  const r = new Rig(world([core, group(5)]), { standin: { server: 'herdr-core' } });
+  r.press('enter', 'enter');
+  assert.match(r.said, /nothing was sent/);
+});
+
+test('stale closed on one question leaves its siblings open and reachable', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.press('enter');
+  r.db.find('group:1').questions.shift();
+  r.exec = () => ({ code: 1, stdout: JSON.stringify({ v: 1, ok: false, verb: 'draft', entry: 'group:1', code: 'stale', message: '', closed: 'withdrawn' }), stderr: '' });
+  r.press('enter');
+  assert.deepEqual(r.session.book.row('group:1').questions.map(q => q.id), [2]);
+  assert.equal(r.popup.closed.has('group:1'), false);
+});
+
+test('stale closed on a Submit of several says nothing of which one: the feed will', () => {
+  const r = new Rig(world([group(1, [1, 2, 3])]));
+  r.press('enter', 'enter', 'enter');
+  assert.equal(r.popup.view.kind, 'review');
+  r.exec = () => ({ code: 1, stdout: JSON.stringify({ v: 1, ok: false, verb: 'answer', entry: 'group:1', code: 'stale', message: '', closed: 'answered' }), stderr: '' });
+  r.press('enter');
+  assert.equal(r.session.book.row('group:1').questions.length, 3);
+});
+
+test('a deep link past the id cap asks show before it says closed', () => {
+  const feed = world([], { omitted: { ...noOmissions(), groups: 1500, questions: 1500, question_ids: [1] } });
+  const r = new Rig(feed, { link: { question: 5000 }, rows: [group(5000, [5000])] });
+  r.db.retoken(r.db.rows[0]);
+  assert.equal(r.verbs('show').length, 1);
+  assert.equal(r.popup.entry, 'group:5000');
+  assert.equal(/no longer open/.test(r.said), false);
+});
+
+test('a publish while a deep link\'s show runs does not answer for it', () => {
+  const feed = world([], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const s = new Rig(world([]));
+  s.session.link = { qid: 21, hold: true };
+  s.session.popup = null;
+  s.session.showing = { qid: 21, then: 'open' };
+  s.session.read(JSON.stringify({ ...feed, generated_at: s.now / 1000 }), s.now);
+  assert.equal(s.popup, null, 'it waits for the answer');
+});
+
+test('a deep link whose show failed does not say the question closed', () => {
+  const feed = world([], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const r = new Rig(world([]));
+  r.session.link = { qid: 21, hold: true, tried: true, unread: true };
+  r.session.popup = null;
+  r.session.feed = feed;
+  r.session.start(r.now);
+  assert.match(r.said, /could not be read/);
+});
+
+test('show answering for another question is of unknown effect, and nothing moves', () => {
+  const feed = world([group(1), group(2)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [9] } });
+  const r = new Rig(feed);
+  r.exec = () => ({ code: 0, stdout: JSON.stringify({ v: 1, ok: true, verb: 'show', entry: 'group:2', row: r.db.find('group:2') }), stderr: '' });
+  r.press('o', 'enter');
+  assert.match(r.said, /unknown/);
+  assert.equal(r.popup.view.cursor, 'group:1');
+});
+
+test('show with no questions in its row does not throw', () => {
+  const feed = world([group(1), group(2)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [9] } });
+  const r = new Rig(feed);
+  r.exec = () => ({ code: 0, stdout: JSON.stringify({ v: 1, ok: true, verb: 'show', entry: 'group:9', row: { key: 'group:9', kind: 'group' } }), stderr: '' });
+  r.press('o', 'enter');
+  assert.match(r.said, /unknown/);
+});
+
+test('a read owed to a left-out row ends when its view does', () => {
+  const feed = world([group(1)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const r = new Rig(feed, { rows: [group(21, [21])] });
+  r.db.retoken(r.db.rows[0]);
+  r.press('escape');
+  assert.equal(r.popup.running, false);
+  const s = new Rig(world([group(1), group(2)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } }), { rows: [group(21, [21])] });
+  s.db.retoken(s.db.rows[0]);
+  s.press('o', 'enter');
+  s.tick(1100);
+  s.session.popup.view.cursor = 'group:21';
+  s.press('enter');
+  s.db.rows[0].questions[0].draft = { choices: ['Option B'], notes: {}, text: null };
+  s.press('enter');
+  assert.ok(s.session.reshow);
+  s.tick(1000);
+  s.press('escape'); // Esc skips the read and leaves the row
+  assert.equal(s.session.reshow, null);
+  s.press('down');
+  assert.equal(s.verbs('show').length, 1, 'a key elsewhere is that key');
+});
+
+test('arrivals into an empty view are reached with Tab, on an incomplete feed too', () => {
+  const r = new Rig(world([], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } }));
+  r.db.feed.entries.push(group(1));
+  r.published();
+  r.press('tab');
+  assert.equal(r.popup.mode, 'list');
+});
+
+test('what was said goes once the next key is taken', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.db.lock = 'busy';
+  r.press('enter', 'enter');
+  assert.match(r.said, /busy/);
+  r.db.lock = null;
+  r.tick(1000);
+  r.press('down');
+  assert.equal(r.said, '');
+});
+
+test('a row with no token and an answer too long are told apart', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.press('enter');
+  r.session.pins.open.token = null;
+  r.press('enter');
+  assert.match(r.said, /does not take that action now/);
+  assert.equal(/too long/.test(r.said), false);
+});
+
+test('exit 2 says nothing was done: the contract says no I/O', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.press('enter');
+  r.exec = () => ({ code: 2, stdout: '', stderr: 'usage' });
+  r.press('enter');
+  assert.match(r.said, /nothing was done/);
+  assert.equal(/may or may not/.test(r.said), false);
+});
+
+test('an unknown delivery state offers no action', () => {
+  const r = new Rig(world([failed(8, { state: 'future_state' }), group(1), group(2)]));
+  r.session.popup.view.cursor = 'failed:8';
+  r.press('enter', 'enter');
+  assert.equal(r.verbs('retry').length, 0);
+});
+
+test('r on a ⚠ row opens it and sends nothing', () => {
+  const r = new Rig(world([group(1), group(2), failed(8)]));
+  r.press('r');
+  assert.equal(r.popup.mode, 'list');
+  r.session.popup.view.cursor = 'failed:8';
+  r.press('r');
+  assert.equal(r.popup.mode, 'failed');
+  assert.equal(r.ran.length, 0);
+});
+
+test('reads wait while a verb runs', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.press('enter');
+  r.session.key('enter', r.now + 700);
+  const before = r.session.feed;
+  r.session.read(r.db.published(), r.now + 800);
+  assert.equal(r.session.feed, before);
+  assert.ok(r.session.waiting);
+});
+
+test('f never moves the token on, even when show has a newer one', () => {
+  const cut = group(1, [1]);
+  cut.questions[0].cut = true;
+  const r = new Rig(world([cut, group(2)]));
+  r.press('enter');
+  const pinned = r.session.pins.open.token;
+  const newer = structuredClone(r.db.find('group:1'));
+  newer.token = 'f'.repeat(32);
+  r.db.full = new Map([['group:1', newer]]);
+  r.press('f');
+  assert.equal(r.session.pins.open.token, pinned);
+  assert.equal(r.session.book.row('group:1').token, pinned);
+});
+
+test('a left-out ⚠ row or alert is not closed by its absence', () => {
+  const alert = { key: 'alert:3', kind: 'alert', id: 3, alert_kind: 'agent', severity: 'info', title: 'Question Title 123', message: null, asked_by: 'lane', created_at: '2026-01-02T10:01:00+00:00', asker: asker(), actions: ['ack'], token: 'x' };
+  const r = new Rig(world([group(1), failed(8), alert]));
+  r.db.feed.entries = [group(1)];
+  r.db.feed.omitted = { ...noOmissions(), failed: 1, alerts: 1 };
+  r.published();
+  assert.equal(r.popup.closed.has('failed:8'), false);
+  assert.equal(r.popup.closed.has('alert:3'), false);
+  assert.ok(r.session.book.row('failed:8') && r.session.book.row('alert:3'));
+});
+
+test('a kept group holds only the questions the feed still names', () => {
+  const r = new Rig(world([group(1), group(21, [21, 22])]));
+  r.db.feed.entries = [group(1)];
+  r.db.feed.omitted = { ...noOmissions(), groups: 1, questions: 1, question_ids: [22] };
+  r.published();
+  assert.deepEqual(r.session.book.row('group:21').questions.map(q => q.id), [22]);
+});
+
+test('errors alone make a feed incomplete', () => {
+  const r = new Rig(world([], { errors: ['Question Text 345'] }));
+  assert.equal(r.session.empty, false);
+});
+
+test('a delivery word it does not know is of unknown effect', () => {
+  const r = new Rig(world([group(1), group(5)]));
+  r.press('enter');
+  r.exec = () => ({ code: 0, stdout: JSON.stringify({ v: 1, ok: true, verb: 'answer', entry: 'group:1', token: null, done: [1], skipped: [], delivery: 'arrived' }), stderr: '' });
+  r.press('enter');
+  assert.match(r.said, /unknown/);
+});
+
+test('dismissing all at once is one verb only when the row holds just those', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.press('d');
+  r.session.book.row('group:1').questions.push({ ...r.session.book.row('group:1').questions[0], id: 3 });
+  r.press('y');
+  assert.equal(r.verbs('dismiss')[0].includes('--question'), true);
+});

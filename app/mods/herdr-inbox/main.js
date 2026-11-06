@@ -3,10 +3,10 @@
 
 import { View } from 'gpui-kit';
 import { agents, appHome, closeOverlay, exec, home, notify, props, readTextFile, run, settings, theme, watchFolder } from 'herdr';
-import { isPaste, keyName, pastedKeys } from './keymap.js';
+import { acting, isPaste, keyName, pastedKeys } from './keymap.js';
 import { availability, ensure, launcher } from './plugin.js';
 import { Session } from './session.js';
-import { render } from './view.js';
+import { CONTEXT, ESCAPE, render } from './view.js';
 
 const RELOAD_MS = 2000;
 const ENSURE_MS = 5000;
@@ -39,10 +39,17 @@ export default class HerdrInbox extends View {
     this.ensuredAt = 0;
     this.handle = cx.focus_handle();
     this.handle.focus();
+    // Esc is the app's, which closes the dialog before a key handler sees it: a binding deeper in comes first.
+    try {
+      cx.bind_keys([{ keystroke: 'escape', action: ESCAPE, context: CONTEXT }]);
+    } catch {
+      // already bound by an earlier copy: the keymap is the application's
+    }
     cx.spawn(async cx => {
       this.status = await availability({ appHome, exec, home, readTextFile });
       cx.notify();
       if (this.status.state !== 'ready') return;
+      await this.reload(cx); // a readable feed waits for nothing
       await this.ensureRuns();
       await this.reload(cx);
       cx.timer.every(RELOAD_MS, cx => this.tick(cx));
@@ -97,12 +104,17 @@ export default class HerdrInbox extends View {
     try {
       for (let step = this.session.next(Date.now()); step; step = this.session.next(Date.now())) {
         cx.notify();
-        this.session.finish(step, await this.carry(step), Date.now());
+        const result = await this.carry(step);
+        try {
+          this.session.finish(step, result, Date.now());
+        } catch {
+          this.session.failed(step, 'its result could not be read', Date.now());
+        }
       }
     } finally {
       this.running = false;
     }
-    this.settle();
+    this.tell();
     cx.notify();
     if (this.session.reload) {
       this.session.reload = false;
@@ -139,15 +151,16 @@ export default class HerdrInbox extends View {
     }
   }
 
-  settle() {
+  // What must outlive the overlay goes to the host, then the overlay closes if it is done.
+  tell() {
     for (const { text, severity } of this.session.toasts.splice(0)) {
       notify({ title: 'Inbox', body: text, level: severity === 'warning' ? 'warning' : 'info' });
     }
     if (this.session.closing) closeOverlay(props().overlay);
   }
 
-  press(name, cx) {
-    this.session.key(name, Date.now());
+  // After anything the operator did: run what it asked for, and draw.
+  after(cx) {
     cx.spawn(cx => this.pump(cx));
     cx.notify();
   }
@@ -157,11 +170,34 @@ export default class HerdrInbox extends View {
     const name = keyName(e);
     if (name === null) return;
     if (isPaste(name)) {
-      this.session.paste(pastedKeys(cx.read_from_clipboard() ?? ''), Date.now());
-      cx.notify();
-      return;
+      if (!e.is_held) this.session.paste(pastedKeys(cx.read_from_clipboard() ?? ''), Date.now());
+    } else {
+      this.session.key(name, Date.now(), { held: e.is_held === true, acting: acting(e, name) });
     }
-    this.press(name, cx);
+    this.after(cx);
+  }
+
+  onEscape(cx) {
+    this.session.escape(Date.now());
+    this.after(cx);
+  }
+
+  onRow(row, cx) {
+    this.session.click(row, Date.now());
+    this.after(cx);
+  }
+
+  onButton(name, cx) {
+    this.session.button(name, Date.now());
+    this.after(cx);
+  }
+
+  // The host closes the overlay from outside: a verb still running has nobody left to report to.
+  async close() {
+    if (this.session.batch || this.session.showing) {
+      notify({ title: 'Inbox', body: 'The inbox closed before a command finished. Open it again to see what happened.', level: 'warning' });
+    }
+    for (const { text, severity } of this.session.toasts.splice(0)) notify({ title: 'Inbox', body: text, level: severity === 'warning' ? 'warning' : 'info' });
   }
 
   wordsNow() {

@@ -1,8 +1,10 @@
 // A host key event as the model names keys. The model's key names are its golden's.
 
+import { latinKey } from './input.js';
+
 const NAMED = new Set(['enter', 'escape', 'tab', 'up', 'down', 'left', 'right', 'home', 'end', 'backspace', 'delete', 'space']);
 
-// The model's name for this event, or null for a key on its own (a modifier, a held repeat of nothing).
+// The model's name for this event, or null for a key on its own (a modifier).
 export function keyName(e) {
   const m = e.modifiers ?? {};
   const mods = [m.control && 'ctrl', m.alt && 'alt', m.platform && 'super'].filter(Boolean);
@@ -12,6 +14,17 @@ export function keyName(e) {
   const typed = e.key_char;
   if (typeof typed === 'string' && Array.from(typed).length === 1) return typed === ' ' ? 'space' : typed;
   return Array.from(e.key).length === 1 ? e.key : null;
+}
+
+const isAscii = name => /^[\x20-\x7e]$/.test(name);
+
+// What a key means outside a text box: its place on the keyboard. The host's `key` is the Latin letter
+// of the key on a Cyrillic layout, where `key_char` is the letter it types, so `d` dismisses on either.
+// Where `key` isn't Latin either (macOS may give the layout's letter), the letter's place is looked up.
+export function acting(e, typed) {
+  if (typed === null || Array.from(typed).length !== 1 || isAscii(typed)) return typed;
+  const key = Array.from(e.key).length === 1 ? e.key : typed;
+  return latinKey(e.modifiers?.shift ? key.toUpperCase() : key);
 }
 
 export const isPaste = name => name === 'ctrl+v' || name === 'super+v';

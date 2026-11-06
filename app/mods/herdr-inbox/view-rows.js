@@ -2,9 +2,9 @@
 
 import { div } from 'gpui-kit';
 import { h_flex, v_flex } from 'gpui-base';
-import { fit, footer, windowed } from './view.js';
+import { fit, footer, windowed } from './view-parts.js';
 import { askerLabel } from './view-text.js';
-import { age, deliveryWords, retryLabel, severity } from './words.js';
+import { age, deliveryWords, knownDelivery, retryLabel, severity } from './words.js';
 
 const seconds = () => Date.now() / 1000;
 
@@ -32,9 +32,9 @@ export function failedBody(mod, t) {
       .child(div().text_size(13).text_color(t.muted).child(`Your answer: ${row.answer ?? '(not shown)'}`))
       .child(div().text_size(13).text_color(d.warn ? t.blocked : t.muted).child(d.line))
       .when(row.cut, el => el.child(div().text_size(12).text_color(t.blocked).child('This text was cut to fit the feed.')))
-      .child(choice(t, 'retry', 1, retryLabel(row), v.cursor === 0))
-      .child(choice(t, 'hide', 2, 'Stop showing it here', v.cursor === 1)),
-    footer(t, [['1-2', 'pick'], ['⏎', 'do it'], ['g', 'go to agent'], ['esc', 'back']]),
+      .when(knownDelivery(row), el => el.child(choice(t, 'retry', 1, retryLabel(row), v.cursor === 0))
+        .child(choice(t, 'hide', 2, 'Stop showing it here', v.cursor === 1))),
+    footer(t, [...(knownDelivery(row) ? [['1-2', 'pick'], ['⏎', 'do it']] : []), ['g', 'go to agent'], ['esc', 'back']]),
   ];
 }
 
@@ -56,7 +56,7 @@ export function alertBody(mod, t) {
 function goneText(t, ref, reason) {
   return [v_flex().flex_1().items_center().justify_center().gap(6)
     .child(div().text_size(15).text_color(t.foreground).child(`${ref} was closed (${reason})`))
-    .child(div().text_color(t.muted).child('Nothing here takes a key: Esc goes back.'))];
+    .child(div().text_color(t.muted).child('Esc goes back.'))];
 }
 
 export function goneBody(mod, t) {
