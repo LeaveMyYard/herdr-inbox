@@ -44,6 +44,38 @@ pub fn answer_text(d: &Value) -> String {
     })
 }
 
+/// What submitting `qid` would write: its answer and its detail as JSON text,
+/// from the draft as stored, read once. Python writes `dumps(loads(raw))` back.
+/// `None`: no draft, or one that reads as none. A draft that cannot be read
+/// without loss (a lone surrogate, see [`lossless`]) is an error, as Python's
+/// write raises there, and so is a draft that is no JSON object.
+pub fn stored_answer(store: &Store, qid: i64) -> rusqlite::Result<Option<(String, String)>> {
+    let Some(raw) = store.draft_text(qid)? else {
+        return Ok(None);
+    };
+    let Ok(draft) = loads(&raw) else {
+        return Ok(None);
+    };
+    if !py_truthy(&draft) {
+        return Ok(None);
+    }
+    if !draft.is_object() {
+        // Python's `d.get(...)` raises (AttributeError) on a draft that is no
+        // object: the question stays open, nothing after it is answered
+        return Err(rusqlite::Error::ToSqlConversionFailure(
+            format!("Q{qid}'s draft is not an object: not answerable").into(),
+        ));
+    }
+    if !lossless(&raw) {
+        // a lone surrogate: Python's SQLite write raises (UnicodeEncodeError), the
+        // question stays open and nothing after it is answered, delivered or marked
+        return Err(rusqlite::Error::ToSqlConversionFailure(
+            format!("Q{qid}'s draft holds a lone surrogate: not answerable").into(),
+        ));
+    }
+    Ok(Some((answer_text(&draft), dumps(&draft))))
+}
+
 /// Sends the drafted answers among `qids` (Python `submit`); questions not
 /// open or without a draft are skipped. Each answer is its draft, formatted,
 /// and the draft goes into `answer_json` as Python writes it back. A draft
@@ -81,29 +113,10 @@ pub fn submit_marking(
         if q.status != "open" {
             continue;
         }
-        // the draft as stored, read once; Python writes dumps(loads(raw)) back
-        let Some(raw) = store.draft_text(qid)? else {
+        let Some((answer, detail)) = stored_answer(store, qid)? else {
             continue;
         };
-        let Ok(draft) = loads(&raw) else { continue };
-        if !py_truthy(&draft) {
-            continue;
-        }
-        if !draft.is_object() {
-            // Python's `d.get(...)` raises (AttributeError) on a draft that is no
-            // object: the question stays open, nothing after it is answered
-            return Err(rusqlite::Error::ToSqlConversionFailure(
-                format!("Q{qid}'s draft is not an object: not answerable").into(),
-            ));
-        }
-        if !lossless(&raw) {
-            // a lone surrogate: Python's SQLite write raises (UnicodeEncodeError), the
-            // question stays open and nothing after it is answered, delivered or marked
-            return Err(rusqlite::Error::ToSqlConversionFailure(
-                format!("Q{qid}'s draft holds a lone surrogate: not answerable").into(),
-            ));
-        }
-        if store.set_answer_text(qid, &answer_text(&draft), Some(&dumps(&draft)))? {
+        if store.set_answer_text(qid, &answer, Some(&detail))? {
             answered.extend(store.get(qid)?);
         }
     }

@@ -2,10 +2,13 @@
 
 ## Unreleased
 
-- **The herdr-app feed (B4)**. `herdr-inbox app-feed --ensure` starts one detached writer per app home,
-  which publishes the inbox as a file for the mods, proves its start, backs off a writer that crashes,
-  and leaves when the app does. It reads the database only, and a row it cannot read or fit is said out
-  loud, never dropped. `tools/app_fixtures/` now holds the contract's generator and validator.
+- **The herdr-app feed and verbs (B4)**. `herdr-inbox app-feed --ensure` starts one detached writer per
+  app home, which publishes the inbox as a file for the mods, proves its start, backs off a writer that
+  crashes, and leaves when the app does. `herdr-inbox app <verb> --json` answers, drafts, dismisses,
+  retries, hides and acknowledges for a mod: the token check and the write are one transaction, a stale
+  token changes nothing, and the verb's own process never types. It starts the same detached sender as
+  the popup, on the question's own server, and says `held` when none can go. Core answers are `held`
+  until core delivery lands. `tools/app_fixtures/` now holds the contract's generator and validator.
 - **`ask_operator` and `alert_operator` work in a herdr-app terminal** (B2). The caller's
   `HC_TERMINAL_ID` is only a claim: the MCP server's own parent must be the only Claude above it, and
   that terminal's foreground process by `hc get`. A refused claim gets `unavailable` from every tool,
@@ -235,6 +238,13 @@ and hooks are ready to be shared with a Rust worker.
 
 ## Unreleased
 
+- **The herdr-app feed and verbs (B4)**. `herdr-inbox app-feed --ensure` starts one detached writer per
+  app home, which publishes the inbox as a file for the mods, proves its start, backs off a writer that
+  crashes, and leaves when the app does. `herdr-inbox app <verb> --json` answers, drafts, dismisses,
+  retries, hides and acknowledges for a mod: the token check and the write are one transaction, a stale
+  token changes nothing, and the verb's own process never types. It starts the same detached sender as
+  the popup, on the question's own server, and says `held` when none can go. Core answers are `held`
+  until core delivery lands. `tools/app_fixtures/` now holds the contract's generator and validator.
 - **herdr-inbox-ui 0.2.0: answers on every path, quieter, without `[inbox]`.** An answer is
   now a compact block, `✓ Operator answered Q12 — <question>` in green with the answer under
   it, instead of a bordered box. It is drawn for typed and pasted answers and for an idle
@@ -270,6 +280,13 @@ and hooks are ready to be shared with a Rust worker.
 
 ## Unreleased
 
+- **The herdr-app feed and verbs (B4)**. `herdr-inbox app-feed --ensure` starts one detached writer per
+  app home, which publishes the inbox as a file for the mods, proves its start, backs off a writer that
+  crashes, and leaves when the app does. `herdr-inbox app <verb> --json` answers, drafts, dismisses,
+  retries, hides and acknowledges for a mod: the token check and the write are one transaction, a stale
+  token changes nothing, and the verb's own process never types. It starts the same detached sender as
+  the popup, on the question's own server, and says `held` when none can go. Core answers are `held`
+  until core delivery lands. `tools/app_fixtures/` now holds the contract's generator and validator.
 - **New optional plugin `herdr-inbox-ui`** (`plugins/herdr-inbox-ui`, same marketplace:
   `claude plugin install herdr-inbox-ui@herdr-inbox`). A Claude Code mod (early-access mods API,
   2.1.301+) that draws `ask_operator` and `alert_operator` calls as cards (severity colours),

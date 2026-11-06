@@ -4,7 +4,7 @@ How the herdr-app mods act on the inbox. A mod writes nothing itself: no `writeT
 runs `herdr-inbox app <verb> --json` with `exec`. What it reads is the [feed](app-feed-v1.md). The
 examples are in `tests/fixtures/app-commands/commands.json`.
 
-**Status: the verbs are not built yet.** B4 builds them, stacked on the writer.
+**Status: built (B4).** Core delivery is B3's: until it lands every core answer is `held`, as below.
 
 ## Running a command
 
