@@ -15,8 +15,17 @@ written `herdr-inbox`:
 sh <root>/scripts/launch cli app <verb> ... --json
 ```
 
-`<root>` is the inbox plugin's root. B5 records it and resolves it again at `init`, because an update can
-move it. B4 adds `app` and `app-feed` to the launcher's `RUST_CLI`, and `tests/launch/cli.rs` holds that
+`<root>` is the inbox plugin's root. The [install record](app-feed-v1.md#installing) holds it, and a mod resolves
+it again at `init`, because an update can move it and on a herdr-app-only machine no herdr server can be asked:
+
+- **A git checkout** stays where it is: a pull updates it. A mod uses the recorded root or none, so an app home
+  installed from a checkout never reaches another install.
+- **A copy** moves on every update, and the old one can stay on disk with an `engine` a rollback never reaches.
+  So a mod takes the first of these that holds this plugin's `herdr-plugin.toml` and `scripts/launch`: `plugin_root`
+  from `herdr plugin list --json`, then the user-scope `installPath` in Claude Code's `installed_plugins.json`,
+  then the recorded root.
+
+With no such root the overlay says the inbox is unavailable. B4 adds `app` and `app-feed` to the launcher's `RUST_CLI`, and `tests/launch/cli.rs` holds that
 list to the binary. So the `engine` file and the launcher's contract check apply to every verb, every
 writer start and every sender a verb starts.
 

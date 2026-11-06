@@ -1,0 +1,33 @@
+# The herdr-app mods and their installer. Every push and PR runs this: `app/` is small, and with no
+# path filter a change can't slip past it. macOS is in the matrix for the installer's rename calls.
+#
+# herdr-app is a native local dependency, so `herdr-app check` runs by hand (scripts/app-check).
+# Here a stand-in checker tests that the check is private and that a failure stops the install.
+
+name: App
+
+on:
+  push:
+    branches: [main]
+  pull_request:  # any base: stacked PRs target feature branches
+
+permissions:
+  contents: read
+
+jobs:
+  app-tests:
+    name: app tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"  # pyproject's requires-python
+      - run: node --test app/tests/*.test.mjs

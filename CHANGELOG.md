@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **The herdr-app mod scaffold (B5)**. `scripts/app-install` installs the `herdr-inbox` mod into an
+  app home, upgrades it in place, and takes it out with no package at hand, leaving the home as it
+  found it. It selects no layout and edits no key or setting. The mod finds the plugin again at
+  each start and says the inbox is unavailable until the Rust `app` commands exist. `scripts/app-check`
+  runs `herdr-app check` in a private home, and a new App workflow runs the Node tests.
 - **The `engine` file and the launcher's CLI (P5-I)**. `engine` at the plugin root says which code
   runs, in one line. herdr's actions and startup now go through `scripts/launch cli`, which runs
   the binary for the commands it has and Python for the rest (`redeliver`, `clean-venvs`, `remote`,
