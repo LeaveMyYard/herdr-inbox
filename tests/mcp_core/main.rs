@@ -134,6 +134,18 @@ const CASES: &[Case] = &[
         a_resume_in_a_proved_terminal_is_marked_with_the_terminal,
     ),
     (
+        "a_watcher_goes_by_the_terminal_before_inherited_pane_variables",
+        a_watcher_goes_by_the_terminal_before_inherited_pane_variables,
+    ),
+    (
+        "the_core_worker_types_through_hc",
+        the_core_worker_types_through_hc,
+    ),
+    (
+        "a_core_terminals_server_starts_the_core_worker",
+        a_core_terminals_server_starts_the_core_worker,
+    ),
+    (
         "a_filed_question_says_where_its_records_are",
         a_filed_question_says_where_its_records_are,
     ),
@@ -209,7 +221,7 @@ impl Rig {
         exe::install(
             &self.path("hc"),
             "#!/bin/sh\necho \"$@ pane=[$HERDR_PANE_ID]\" >> \"$0.log\"\n\
-             case \"$1\" in get) cat \"$0.get\";; ls) cat \"$0.ls\";; *) exit 2;; esac\n",
+             case \"$1\" in get) cat \"$0.get\";; ls) cat \"$0.ls\";; read) cat \"$0.read\";; send) echo '{}';; *) exit 2;; esac\n",
         );
     }
 
@@ -245,6 +257,9 @@ impl Rig {
         }
         for (name, value) in extra {
             cmd.env(name, value);
+        }
+        if extra.iter().any(|(k, _)| *k == "WORKERS") {
+            cmd.env_remove("HERDR_INBOX_NO_WORKER");
         }
         let mut starter = cmd.spawn().unwrap();
         let stdin = starter.stdin.take().unwrap();
@@ -894,4 +909,101 @@ fn a_resume_in_a_proved_terminal_is_marked_with_the_terminal() {
         .find(|p| p.exists())
         .expect("no marker");
     assert_eq!(std::fs::read_to_string(marker).unwrap(), "t3");
+}
+
+fn a_watcher_goes_by_the_terminal_before_inherited_pane_variables() {
+    let rig = Rig::new();
+    let more = [
+        ("WATCH", "1".to_string()),
+        ("HERDR_PANE_ID", "w1:p1".to_string()),
+    ];
+    let (printed, id) = rig.hook_with(Some("t3"), "", &more);
+    assert!(printed.contains(&format!("Q{id}")), "{printed:?}");
+}
+
+/// The real worker, keyed on the core, over a real proof of a stand-in Claude.
+fn the_core_worker_types_through_hc() {
+    let rig = Rig::new();
+    let s = rig.proved();
+    rig.record(s.pid, &|r| r["sessionId"] = json!(SESSION));
+    let box_ = "\u{2500}".repeat(20);
+    let read =
+        json!({"complete": true, "how": "screen", "text": format!("{box_}\n\u{276f} \n{box_}\n")});
+    std::fs::write(rig.path("hc.read"), read.to_string()).unwrap();
+    let get = std::fs::read_to_string(rig.path("hc.get")).unwrap();
+    let mut get: Value = serde_json::from_str(&get).unwrap();
+    get["status"] = json!({"app": "claude-code", "state": "idle"});
+    std::fs::write(rig.path("hc.get"), get.to_string()).unwrap();
+    let store = rig.db();
+    let q = store
+        .insert(&NewQuestion {
+            session_id: Some(SESSION),
+            question: "Merge it?",
+            ..NewQuestion::default()
+        })
+        .unwrap();
+    store.set_server(q.id, Some(CORE_SERVER)).unwrap();
+    let seat = CoreSeat {
+        terminal: "t3".into(),
+        machine: None,
+    };
+    store.set_question_host(q.id, &seat).unwrap();
+    store.set_answer(q.id, "yes", None).unwrap();
+    store
+        .db()
+        .execute_batch("UPDATE questions SET answered_at = '2020-01-01T00:00:00+00:00'")
+        .unwrap();
+    let dir = rig.dir.path();
+    let mut worker = Command::new(BIN)
+        .arg("worker")
+        .env_clear()
+        .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
+        .env("HOME", dir)
+        .env("XDG_STATE_HOME", dir)
+        .env("XDG_CONFIG_HOME", dir)
+        .env("XDG_RUNTIME_DIR", dir.join("run"))
+        .env("CLAUDE_CONFIG_DIR", dir.join("claude-config"))
+        .env("HERDR_INBOX_DB", dir.join("inbox.db"))
+        .env("HERDR_BIN_PATH", dir.join("herdr-cli"))
+        .env("HERDR_SOCKET_PATH", "herdr-core")
+        .env("HERDR_INBOX_WORKER_TICK", "0.1")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut sends = 0;
+    for _ in 0..200 {
+        let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
+        sends = log.lines().filter(|l| l.starts_with("send ")).count();
+        if sends > 0 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let _ = worker.kill(); // this test's own child
+    let _ = worker.wait();
+    assert_eq!(sends, 1, "typed once, through hc");
+    let q = rig.db().get(q.id).unwrap().unwrap();
+    assert!(q.delivered_at.is_some());
+}
+
+fn a_core_terminals_server_starts_the_core_worker() {
+    let rig = Rig::new();
+    let lock = rig.path(&format!("worker-{}.lock", "0fd11ed85d43"));
+    rig.install_hc();
+    let more = [
+        ("WORKERS", "1".to_string()),
+        ("HERDR_INBOX_WORKER_TICK", "0.1".to_string()),
+    ];
+    let _s = rig.start_with(Some("t3"), &[BIN, "mcp"], &more);
+    let mut held = false;
+    for _ in 0..100 {
+        held = herdr_agent_kit::plugin_env::LockFile::new(&lock).held_elsewhere();
+        if held {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(held, "no core worker");
+    // detached, so no child of this test: it ends by its own rule, the core gone
 }

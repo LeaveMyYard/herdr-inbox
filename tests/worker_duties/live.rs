@@ -210,3 +210,19 @@ fn the_worker_migrates_before_its_remote_thread_starts_and_each_tick_migrates_ag
         .unwrap();
     assert_eq!(has, 1);
 }
+
+/// The core worker lives with the core, and a herdr worker's duties are not its own.
+#[test]
+fn the_core_worker_stays_up_and_asks_herdr_nothing() {
+    let mut w = World::new();
+    w.server = "herdr-core".into();
+    let mut d = w.duties(r#"{"machines": [{"name": "m1", "enabled": true}]}"#);
+    d.migrate();
+    let t = d.tick();
+    assert_eq!((t.pending, t.keep_alive), (0, true));
+    assert_eq!(w.machine_lists(), 0, "no remote machines");
+    assert!(
+        w.fake.stub.params_of("agent.list").is_empty(),
+        "no blocked scan"
+    );
+}
