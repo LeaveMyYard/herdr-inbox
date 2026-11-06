@@ -1,7 +1,7 @@
 //! A question from a herdr-core terminal, as a herdr server's worker meets
 //! it (plan herdr-app-inbox §3.2): no pane, another "server", so nothing of a
-//! tick claims, types, settles or notifies it. Core delivery is B3. The same
-//! for Python is pinned in tests/test_core_rows.py.
+//! tick claims, types, settles or notifies it. It is the core worker's
+//! (`delivery::terminal`'s tests). The same for Python is pinned in tests/test_core_rows.py.
 
 use herdr_inbox::clock::now_minus;
 use herdr_inbox::store::hosts::{CORE_SERVER, CoreSeat};

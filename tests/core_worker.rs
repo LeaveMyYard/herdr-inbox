@@ -12,6 +12,9 @@ use std::time::{Duration, Instant};
 use herdr_agent_kit::internal::plugin_paths::inbox::server_key;
 use herdr_agent_kit::plugin_env::LockFile;
 
+#[path = "support/exe.rs"]
+mod exe;
+
 const BIN: &str = env!("CARGO_BIN_EXE_herdr-inbox");
 
 struct Rig {
@@ -152,7 +155,7 @@ fn an_install_gone_back_to_python_leaves_no_core_worker() {
     fs::write(root.join("pyproject.toml"), "version = \"0\"\n").unwrap();
     fs::write(root.join("engine"), "rust\n").unwrap();
     let exe = root.join("bin/herdr-inbox");
-    fs::hard_link(BIN, &exe).unwrap_or_else(|_| drop(fs::copy(BIN, &exe)));
+    exe::link_or_copy(Path::new(BIN), &exe);
     let core = UnixListener::bind(rig.socket()).unwrap();
     let mut command = rig.command(&["worker"]);
     command.env("HERDR_SOCKET_PATH", "herdr-core");

@@ -14,6 +14,7 @@ use herdr_agent_kit::agent_procs::fake::FakeProcesses;
 use herdr_agent_kit::agent_session::claude::io::ProjectsRoot;
 use herdr_agent_kit::herdr_api::ServerId;
 use herdr_agent_kit::herdr_api::blocking::Herdr;
+use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
 use herdr_agent_kit::plugin_env::LockFile;
 use inbox_core::deliver::{MAX_STALE_RETRIES, Mode};
 use serde_json::{Value, json};
@@ -486,8 +487,80 @@ fn another_machines_terminal_is_left_untouched() {
         .db()
         .execute_batch("UPDATE question_host SET machine = 'vps'")
         .unwrap();
+    world
+        .store
+        .db()
+        .execute_batch("UPDATE questions SET answered_at = '2020-01-01T00:00:00+00:00'")
+        .unwrap();
     world.pass(&hosted, Mode::default());
     assert_eq!(*hosted.hc.tried.lock().unwrap(), 0);
     assert_eq!(world.question().delivery_error, None);
     assert_eq!(world.store.undelivered_core(&[]).unwrap().len(), 0);
+    world
+        .store
+        .db()
+        .execute_batch("UPDATE question_host SET machine = NULL")
+        .unwrap();
+    assert_eq!(
+        world.store.undelivered_core(&[]).unwrap().len(),
+        1,
+        "aged past the grace"
+    );
+}
+
+/// herdr lists the asker in a pane. A core row is not moved there: no worker
+/// would serve it, its server being the core's. A hook there still carries it.
+#[test]
+fn a_core_row_is_never_moved_into_a_pane() {
+    let row = rows()
+        .into_iter()
+        .find(|r| r["name"] == "terminal-gone")
+        .unwrap();
+    let w = &row["world"];
+    let mut world = World::new(w);
+    let fake = FakeHerdr::start();
+    let agent = json!({"pane_id": "w1:p9", "tab_id": "w1:t9", "agent": "claude", "agent_status": "idle",
+                       "agent_session": {"kind": "id", "value": ASKER}});
+    fake.on("agent.list", Reply::Result(json!({"agents": [agent]})));
+    world.herdr = fake.blocking_client().with_bin("/nonexistent/herdr-cli");
+    let hosted = world.hosted(w);
+    world.pass(&hosted, mode_of(&row));
+    assert_eq!(world.question().pane_id, None);
+    assert_eq!(world.state(), row["after"]);
+}
+
+/// herdr's stuck notice is a herdr worker's: a row of no server shows on the
+/// core worker's tick too, and it must not use up that row's one notice.
+#[test]
+fn the_core_worker_raises_no_stuck_notice() {
+    let w = rows().remove(0)["world"].clone();
+    let world = World::new(&w);
+    let hosted = world.hosted(&w);
+    world
+        .store
+        .db()
+        .execute_batch(
+            "INSERT INTO questions (id, created_at, pane_id, session_id, question, norm, status, answer, \
+             answered_at, delivery_error, delivery_attempts) VALUES (50, '2020-01-01T00:00:00+00:00', 'w1:p1', \
+             'x', 'q', 'q', 'answered', 'a', '2020-01-01T00:00:00+00:00', 'no live agent in pane w1:p1', 10); \
+             INSERT INTO question_ext (id, group_id) VALUES (50, 50);",
+        )
+        .unwrap();
+    let notes = Mutex::new(0);
+    let mut notify = |_: &str, _: &str| *notes.lock().unwrap() += 1;
+    let mut unreadable = Unreadable::after(Duration::ZERO);
+    let mut ctx = world.ctx(&hosted, &mut notify, &mut unreadable);
+    let mut round = Round {
+        ctx: &mut ctx,
+        server: CORE_SERVER,
+    };
+    retry_round(&mut round).unwrap();
+    assert_eq!(*notes.lock().unwrap(), 0);
+    round.server = "/srv/herdr.sock";
+    retry_round(&mut round).unwrap();
+    assert_eq!(
+        *notes.lock().unwrap(),
+        1,
+        "still the herdr worker's to raise"
+    );
 }

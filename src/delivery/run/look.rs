@@ -10,9 +10,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use herdr_agent_kit::agent_session::SessionId;
 use herdr_agent_kit::herdr_api::AgentInfo;
-use herdr_agent_kit::plugin_env::LockFile;
 use inbox_core::deliver::{Agent, Mode, Prompted};
 use serde_json::Value;
 
@@ -109,26 +107,6 @@ impl<'c, 'a> PaneLook<'c, 'a> {
         let known = session_transcript(self.ctx.store.db(), s);
         let known = self.ok(known.map(Some))?;
         self.ctx.files.find(s, known.as_deref())
-    }
-
-    /// Python `_watched`: the idle session's asyncRewake watcher stamped
-    /// itself recently and holds its lock.
-    fn watched_now(&mut self) -> bool {
-        let session = self.session().map(String::from);
-        let live = self.ctx.store.watch_live(session.as_deref(), HOOK_LIVE);
-        if !self.ok(live) {
-            return false;
-        }
-        let Some(sid) = session.as_deref().and_then(SessionId::parse) else {
-            return false;
-        };
-        LockFile::new(
-            self.ctx
-                .state_dir
-                .join("rewake")
-                .join(format!("{sid}.lock")),
-        )
-        .held_elsewhere_if_exists()
     }
 }
 

@@ -10,6 +10,7 @@ mod relocate;
 mod seat;
 mod typed;
 mod unreadable;
+mod watched;
 
 use std::collections::BTreeMap;
 use std::path::Path;

@@ -24,6 +24,8 @@ use herdr_agent_kit::agent_procs::start_token;
 use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
 use herdr_inbox::mcp::receipts::{UNAVAILABLE, UNDECIDED};
 use herdr_inbox::store::Store;
+use herdr_inbox::store::hosts::{CORE_SERVER, CoreSeat};
+use herdr_inbox::store::questions::NewQuestion;
 use serde_json::{Value, json};
 
 const BIN: &str = env!("CARGO_BIN_EXE_herdr-inbox");
@@ -99,7 +101,30 @@ const CASES: &[Case] = &[
         hc_never_gets_the_callers_pane,
     ),
     ("a_core_at_hc_socket_is_found", a_core_at_hc_socket_is_found),
+    (
+        "a_proved_terminals_hook_carries_its_answer",
+        a_proved_terminals_hook_carries_its_answer,
+    ),
+    (
+        "a_hook_with_a_copied_claim_carries_nothing",
+        a_hook_with_a_copied_claim_carries_nothing,
+    ),
+    (
+        "a_hook_with_no_host_never_runs_hc",
+        a_hook_with_no_host_never_runs_hc,
+    ),
 ];
+
+/// Runs under the stand-in, as Claude Code runs a hook. `hc get` reports `$1` as the terminal's
+/// foreground, or the stand-in (`$PPID`) when that is empty. The server comes after, only so
+/// that [`Rig::start`] finds one.
+const HOOK: &str = r#"
+fg=${1:-$PPID}
+printf '{"address":"t3","state":"live","foreground":{"pid":%s,"name":"claude","argv":["%s","sh","hook.sh"],"cwd":"/f"}}' \
+  "$fg" "$CLAUDE" > hc.get
+"$BIN" hook stop < payload > hook.out
+exec "$BIN" mcp
+"#;
 
 /// One stand-in session.
 struct Rig {
@@ -229,6 +254,40 @@ impl Rig {
 
     fn db(&self) -> Store {
         Store::open(&self.path("inbox.db"), Duration::from_secs(5)).unwrap()
+    }
+
+    /// An answered core question of [`SESSION`], and a Stop hook of that session run in
+    /// `claim`, with `foreground` as what `hc` reports. What the hook printed, and the answer's id.
+    fn hook(&self, claim: Option<&str>, foreground: &str) -> (String, i64) {
+        let store = self.db();
+        let q = store
+            .insert(&NewQuestion {
+                session_id: Some(SESSION),
+                question: "Merge it?",
+                ..NewQuestion::default()
+            })
+            .unwrap();
+        store.set_server(q.id, Some(CORE_SERVER)).unwrap();
+        let seat = CoreSeat {
+            terminal: "t3".into(),
+            machine: None,
+        };
+        store.set_question_host(q.id, &seat).unwrap();
+        store.set_answer(q.id, "yes", None).unwrap();
+        self.install_hc();
+        std::fs::write(self.path("hook.sh"), HOOK).unwrap();
+        let payload = json!({"session_id": SESSION, "hook_event_name": "Stop"});
+        std::fs::write(self.path("payload"), payload.to_string()).unwrap();
+        let extra = [
+            ("BIN", BIN.to_string()),
+            ("CLAUDE", self.claude.display().to_string()),
+        ];
+        let argv = ["sh", "hook.sh", foreground];
+        let _s = self.start_with(claim, &argv, &extra);
+        (
+            std::fs::read_to_string(self.path("hook.out")).unwrap(),
+            q.id,
+        )
     }
 
     fn count(&self, table: &str) -> i64 {
@@ -599,4 +658,30 @@ fn main() -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+fn a_proved_terminals_hook_carries_its_answer() {
+    let rig = Rig::new();
+    let (printed, id) = rig.hook(Some("t3"), "");
+    assert!(printed.contains("[inbox]"), "{printed}");
+    assert!(printed.contains(&format!("Q{id}")), "{printed}");
+    let q = rig.db().get(id).unwrap().unwrap();
+    assert!(q.delivered_at.is_some(), "recorded before it was printed");
+}
+
+fn a_hook_with_a_copied_claim_carries_nothing() {
+    let rig = Rig::new();
+    // another terminal's claim: its foreground is somebody else
+    let (printed, id) = rig.hook(Some("t3"), "4242");
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+}
+
+fn a_hook_with_no_host_never_runs_hc() {
+    let rig = Rig::new();
+    let (printed, id) = rig.hook(None, "");
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+    let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
+    assert_eq!(log, "", "no claim, no hc");
 }

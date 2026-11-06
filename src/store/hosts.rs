@@ -4,7 +4,8 @@
 //! A core row has `pane_id` NULL, so no reader can take `t3` for a herdr pane,
 //! and [`CORE_SERVER`] as its `herdr_server`, so no herdr server's worker takes
 //! it for its own: `served`, `reconcile_failed`, `revive_moved` and
-//! `hook_unverified` all skip a row of another server, in both languages.
+//! `hook_unverified` all skip a row of another server, in both languages. It
+//! is the core worker's, whose server is that word.
 //! A pane row has no side-table row at all.
 
 use rusqlite::{OptionalExtension, params};

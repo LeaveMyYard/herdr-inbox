@@ -1362,7 +1362,20 @@ because no Python ever made them, and replayed over the real pass and store.
 
 Exit test, on an isolated `hc` 0.1.18 server in a mount and pid namespace with `/run/user` hidden. A
 stand-in Claude in a real terminal drew an input box, reported 7501 statuses and ran the real `herdr-inbox
-mcp` as its child: see the PR for the run. Not run: a real Claude session. It needs a login.
+mcp` as its child, with the real worker, `answer`, hooks and watcher around it:
+
+| Check | Result |
+|---|---|
+| Asked, answered, at `idle` | The MCP server started the core worker; `[inbox] Q1 ...` typed once, verified, seen, still once after more ticks |
+| A draft in the box | `pending`, nothing typed; box cleared, typed once |
+| `blocked` | `pending`, nothing typed; at `idle`, typed once |
+| `done`, no watcher | `hc` refused, no attempt; nothing typed |
+| Then the Stop hook | Gate passed; carried once, verified, nothing typed |
+| `done` with a live `rewake-watch` | The worker left it to the watcher; exit 3 with the `[inbox]` text, verified, nothing typed |
+| The record names an older session | `older conversation: ...`, nothing typed into it; back on the asker, typed once |
+| The core killed by pid | The core worker exited; a TERM alone is not that, because a holder starts a new core and the worker stays with it |
+
+Not run: a real Claude session, which needs a login.
 
 **Known gap, older than this seam.** With no `HC_TERMINAL_ID` nothing here runs, so `HERDR_PANE_ID` is
 still taken at its word. A core that holds a pane's variables runs `hc exec claude ...` with that
