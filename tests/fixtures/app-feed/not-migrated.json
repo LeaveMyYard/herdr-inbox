@@ -5,7 +5,13 @@
  "errors": [
   "the inbox database is not migrated to this version yet"
  ],
- "omitted": 0,
+ "omitted": {
+  "groups": 0,
+  "questions": 0,
+  "failed": 0,
+  "alerts": 0,
+  "remote": 0
+ },
  "new_since": {
   "question_id": 0,
   "alert_id": 0

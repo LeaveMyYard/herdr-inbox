@@ -1,0 +1,20 @@
+{
+ "v": 1,
+ "generated_at": 1767348000,
+ "ok": true,
+ "errors": [
+  "1 entry left out to stay under 1 MiB"
+ ],
+ "omitted": {
+  "groups": 1,
+  "questions": 2,
+  "failed": 0,
+  "alerts": 0,
+  "remote": 0
+ },
+ "new_since": {
+  "question_id": 41,
+  "alert_id": 6
+ },
+ "entries": []
+}

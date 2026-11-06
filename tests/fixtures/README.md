@@ -17,17 +17,23 @@ Rust popup deliberately differs from Python, no capture can produce it), `ancest
 `app-feed/*.json` and `app-commands/commands.json` are examples of `docs/protocol/app-feed-v1.md` and
 `docs/protocol/app-commands-v1.md`, with fake data only. No code produces them yet: the mods are built
 against them, and the writer and the verbs must reproduce them. Their tokens are real, by the document's
-formula. `core` rows are there before any code can file one.
+formula. Core rows are there before any code can file one.
 
-- `every-kind.json`: every entry kind, both hosts and an old row with neither, every delivery state,
-  two gone-agent answers (the popup's `gone` row), both alert kinds.
+- `every-kind.json`: every entry kind, both hosts and an old row with neither, every delivery state and
+  `wait` word, two gone-agent answers (the popup's `gone` row), both alert kinds, a core alert, a group
+  whose first question has closed.
 - `stale-token.json`: the same world after an agent withdrew a question of group 14. That group's token
   differs, and `commands.json`'s `stale-token` case sends the old one.
-- `empty.json`: nothing open. `partial.json`: `ok` with `errors` and `omitted`. `not-migrated.json`:
-  `ok: false`.
-- `commands.json`: `{"cases": [{name, about, world, argv, exit, stdout}]}`, one case per verb and per
-  refusal. `world` is the feed the database matches, unless `about` starts `Setup:`, which names what
-  changed after that feed was read.
+- `empty.json`: nothing open. `partial.json`: `ok` with `errors`, `omitted` and a cut question.
+  `omitted-only.json`: no entries, and not an empty inbox. `not-migrated.json`: `ok: false`.
+- `unknown-vocabulary.json`: a newer writer's words and fields, which a v1 reader must survive. The tokens
+  ignore the extra fields.
+- `commands.json`: `{"source", "feeds", "cases": [{name, about, world, server, host_up, argv, exit, stdout,
+  effects, replay_of}]}`, covering every verb, refusal code and `closed` word. `world` is the feed the
+  database matches, unless `about` starts `Setup:`, which names what changed after that feed was read.
+  `server` is the question's stored herdr server and `host_up` whether it answers. `effects` is what starts
+  after the commit, in order: `ensure_worker` (a server), then `sender` (arguments) with `sender_socket`.
+  `replay_of` names a case that ran first with the same arguments.
 
 ## Behaviour goldens (rust-rewrite plan §5.2)
 

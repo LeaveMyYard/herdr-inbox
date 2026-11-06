@@ -7,7 +7,7 @@ owns every decision and every write. A mod reads this one file and acts only thr
 
 **Status: nothing here is built yet.** This is the document the writer (B4) and the mods (B5, B6) are
 built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
-a later slice. [Not settled](#not-settled) lists what this version leaves open.
+a later slice.
 
 ## Delivery
 
@@ -21,11 +21,34 @@ question text, which the TUI popup also shows, and mods are trusted code.
 A mod reloads on `watchFolder(<appHome>/data/herdr-inbox)`, with a slow timer as the fallback, and
 reads with `readTextFile`.
 
-**The feed is at most 1 MiB.** `readTextFile` reads no more than 1 MiB (1048576 bytes), so the writer
-never publishes a larger file. When the entries do not fit, it keeps them in order, drops whole entries
-from the end, counts them in `omitted` and adds a line to `errors`. An entry is never cut short: its
-token covers all of it, and an answer must not be given to text the operator only partly saw. An entry
-that alone cannot fit is dropped the same way.
+**The feed is at most 1 MiB,** because `readTextFile` reads no more (1048576 bytes). Two rules keep it
+there, and [a reader rule](#an-incomplete-feed) keeps what they leave out from going unseen.
+
+*Long text is cut.* Questions have no size limit when filed, so the writer cuts these fields, counted in
+UTF-8 bytes and at a character boundary, and sets `cut` on the question or row:
+
+| Field | At most |
+|---|---|
+| `question`, `context`, `answer` | 16 KiB |
+| `preview` | 4 KiB |
+| `description` | 1 KiB |
+
+Labels and drafts are never cut: an answer depends on them exactly. With at most 4 questions of 9 options,
+an entry is then about 308 KiB at worst, plus its labels and drafts, so one large question cannot crowd
+the others out. A cut question can still be answered: on a machine with only herdr-app there may be no
+other way. The mod must show that the text was cut. The whole text is in `herdr-inbox list`.
+
+*Rows that still do not fit are left out, by need.* The writer fits entries in this order, which is not
+the display order:
+
+1. local groups, oldest first;
+2. local alerts;
+3. `failed` rows;
+4. remote rows.
+
+An entry that does not fit in what is left is skipped, and the walk goes on with the next one, so one
+huge entry never takes the rows behind it with it. Each skipped entry is counted in `omitted` and the
+feed gets an `errors` line. The entries that fit are then published in [display order](#order).
 
 ## Reading
 
@@ -48,9 +71,23 @@ On a missing, unreadable or unsupported file, or one with `ok: false`, the reade
 feed, marks it stale and keeps its age. With no last feed it shows that the inbox is unavailable. A read
 error never becomes an empty inbox.
 
+The writer reads `entries` and `new_since` in one read transaction, so a mark never runs ahead of its row.
+
 A feed is stale when `generated_at` is missing, in the future, or more than 15 s old. That is a view
 rule, not proof the writer died. A stale feed stays on screen. Its tokens still protect every action,
 because a verb checks them against the database and not against the file.
+
+### An incomplete feed
+
+This rule is required of every mod that shows the inbox. Whenever `errors` is non-empty or any count in
+`omitted` is above 0, the mod:
+
+- shows it, with the counts, for as long as it lasts;
+- never shows its empty state while `omitted` has a count above 0;
+- says how to reach the rest: `herdr-inbox list` and `herdr-inbox answer` work from any terminal, and the
+  TUI popup where a herdr server runs.
+
+`entries: []` means an empty inbox only when `ok` is true and every count in `omitted` is 0.
 
 ## Feed
 
@@ -60,9 +97,19 @@ because a verb checks them against the database and not against the file.
 | `generated_at` | number | When this snapshot was read. |
 | `ok` | bool | The local questions and alerts were read. False: `entries` is empty and says nothing about the inbox. |
 | `errors` | [string] | What went wrong, as plain text. May be non-empty while `ok` is true: the entries then still hold every local row, and a remote machine's rows or the ones counted in `omitted` are what is missing. |
-| `omitted` | integer | Entries dropped to stay under 1 MiB. 0 normally. |
+| `omitted` | Omitted | What was left out to stay under 1 MiB. All 0 normally. |
 | `new_since` | NewSince | Where arrivals stand. |
 | `entries` | [Entry] | Every row the inbox shows, in the [order below](#order). |
+
+### Omitted
+
+| Field | Type | Meaning |
+|---|---|---|
+| `groups` | integer | `group` entries left out. |
+| `questions` | integer | The open questions in them. |
+| `failed` | integer | `failed` entries left out. |
+| `alerts` | integer | `alert` entries left out. |
+| `remote` | integer | Remote entries left out, of any kind. |
 
 ### NewSince
 
@@ -80,9 +127,12 @@ The toast mod keeps the marks in memory:
 - From then on, it announces each `group` entry whose `group` is above `question_id`, and each `alert`
   entry whose `id` is above `alert_id`. Then it takes the new marks.
 
-A file the reader missed loses nothing: the comparison is against ids, not against the previous file.
-A group's id is its first question's id, and every `ask_operator` call that files anything starts a new
-one, so an arrival always has a higher id. Remote machines' rows have no ids that compare, and v1 does
+- When `omitted.questions` rises, it announces that many more questions, because those rows are not in
+  the file. Such a row does not get a toast of its own if it fits later: its id is below the mark.
+
+A file the reader missed loses nothing: the comparison is against ids and counts, not against the previous
+file. A group's id is its first question's id, and every `ask_operator` call that files anything starts a
+new one, so an arrival always has a higher id. Remote machines' rows have no ids that compare, and v1 does
 not announce them.
 
 ## Entries
@@ -119,7 +169,7 @@ rule.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `group` | integer | The group id. |
+| `group` | integer | The group id: its first question's, whether or not that one is still open. |
 | `title` | ?string | The group's title, if the agent gave one. |
 | `created_at` | time | When its first open question was asked. There is no age field: the reader works it out, so the file does not change every second. |
 | `asker` | Asker | Who asked. One call has one asker. |
@@ -137,6 +187,7 @@ rule.
 | `context` | ?string | Its context lines. |
 | `asked_by` | ?string | The agent's role. |
 | `draft` | ?Detail | The operator's unsent answer. |
+| `cut` | bool | Some text of this question was [cut](#delivery). |
 
 ### Option
 
@@ -152,7 +203,7 @@ An answer in parts, draft or final. The verbs take the same object.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `choices` | [string] | Picked labels, in option order. |
+| `choices` | [string] | Picked labels, in option order, no label twice. |
 | `notes` | object | A string per picked label that has a note. |
 | `text` | ?string | Typed text. |
 
@@ -176,7 +227,11 @@ tab membership are not in the feed: herdr-app already knows them, through `termi
 
 An answer the agent has not had. The rule is `Store::failed_deliveries`: answered, not delivered, not
 fetched by `check_answers`, not hidden, and either with a delivery error or never attempted for 60 s.
-An answer a process holds a live claim on is being sent, so it is no row at all.
+An answer a process holds a live claim on is being sent, so it is no row in the feed.
+
+Only a NULL `delivery_error` waits those 60 s. An answer that is `pending`, which is the usual busy case,
+is a row at once, seconds after it was given. So a `failed` row is not in itself a failure: `pending` with
+`auto_retry` true is delivery at work, and the mod says that, not ⚠ "failed".
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -187,6 +242,8 @@ An answer a process holds a live claim on is being sent, so it is no row at all.
 | `asked_by` | ?string | The agent's role. |
 | `answer` | ?string | The answer as it will be sent. |
 | `answered_at` | time | When the operator answered. |
+| `retries` | integer | How many `retry` verbs were done on it. The token covers it, so a replayed `retry` is refused. |
+| `cut` | bool | `question` or `answer` was [cut](#delivery). |
 | `asker` | Asker | Who asked. |
 | `delivery` | Delivery | Where delivery stands. |
 
@@ -199,7 +256,7 @@ An answer a process holds a live claim on is being sent, so it is no row at all.
 | `wait` | ?string | For `pending`, why it waits. Null otherwise. |
 | `attempts` | integer | Failed attempts so far. |
 | `pending_since` | ?time | Since when it waits for a busy agent. |
-| `auto_retry` | bool | The worker of its host will try again by itself. False when the agent is gone, or when `no agent` / `conversation changed` / `not verified` has used up its tries. |
+| `auto_retry` | bool | The row is in the worker's retry listing (`Store::undelivered`), so it will try again by itself. False when the agent is gone, when `no live agent` / `conversation changed` / `not verified` has used up its tries, and for a row with no pane, which before B3 means every core row. |
 
 | `state` | Stored `delivery_error` | Meaning |
 |---|---|---|
@@ -218,12 +275,13 @@ The first row that fits decides:
 | `busy_idle` | `BUSY_WAIT_IDLE` | It sends when the agent is idle. |
 | `requeued` | starts `requeued:` | Not delivered earlier; it resends when the agent is idle. |
 | `panel` | `PANEL` | The agent's task panel has focus. |
-| `busy` | starts `busy:` | The agent is busy; it sends when the grace ends. Count it from `pending_since`. |
+| `busy` | starts `busy:` | The agent is busy; it sends when the grace ends, 20 s (`BUSY_GRACE`) after `pending_since`. |
 | `blocked` | starts `blocked:` | The agent is at a prompt or dialog. |
 | `operator_here` | `waiting: the operator is in that pane` | It waits for the operator to leave that pane. |
 | `other` | anything else | Show `reason`. |
 
-The mod writes its own wording from these words and does not parse `reason`.
+The mod writes its own wording from these words and does not parse `reason`. It calls `retry` "Send now"
+only on a `herdr-tui` row with `wait` `busy` or `busy_idle`: a core row is [never forced](app-commands-v1.md#retry-and-force).
 
 ### `alert`
 
@@ -237,6 +295,9 @@ The mod writes its own wording from these words and does not parse `reason`.
 | `asked_by` | ?string | Who raised it. |
 | `created_at` | time | When it was raised. |
 | `asker` | Asker | Its agent. `cwd` is always null: alerts do not store one. |
+
+`alert_kind: blocked` is always `herdr-tui` in v1, because the blocked scan reads herdr's agents only. An
+agent in a core terminal can raise an `agent` alert from B2, through the `alert_host` side table.
 
 ### Remote rows
 
@@ -259,7 +320,7 @@ Machine:
 | `title` | ?string | The group's title. |
 | `created_at` | ?time | When its first question was asked. |
 | `tab_label` | ?string | Its tab over there. |
-| `questions` | [Question] | Its open questions. Every `draft` is null. |
+| `questions` | [Question] | Its open questions. Every `draft` is null. Cut like local ones. |
 
 `remote_outbox`:
 
@@ -283,6 +344,7 @@ Machine:
 | `why` | string | Why it cannot be delivered. |
 | `question` | string | Its text. |
 | `answer` | ?string | The answer. |
+| `cut` | bool | `question` or `answer` was cut. |
 
 `remote_alert`:
 
@@ -305,17 +367,33 @@ matches is refused: this is the JS counterpart of the popup's rule that no backg
 what the next key does.
 
 ```
-token = first 32 hex digits of sha256( canonical( entry without token, actions and delivery ) )
+token = first 32 hex digits of sha256( canonical( the token fields of the entry ) )
 ```
 
-`canonical` is the entry's JSON with object keys sorted by code point at every level, no whitespace,
-UTF-8, and non-ASCII characters written as themselves (Python's
+| `kind` | Token fields |
+|---|---|
+| `group` | `key`, `group`, `title`, `created_at`, `asker`, `questions` |
+| `failed` | `key`, `question_id`, `group`, `header`, `question`, `asked_by`, `answer`, `answered_at`, `retries`, `asker` |
+| `alert` | `key`, `id`, `alert_kind`, `severity`, `title`, `message`, `asked_by`, `created_at`, `asker` |
+
+Inside those, only these count: `asker` by `host`, `pane`, `terminal`, `tab_label`, `cwd`; each question by
+`id`, `header`, `question`, `options`, `multi_select`, `context`, `asked_by`, `draft`; each option by
+`label`, `description`, `preview`; a draft by `choices`, `notes`, `text`. Text is hashed as published, cut
+or not.
+
+**This list is frozen for v1.** A field added later stays out of it. The writer is long-lived and a verb
+starts from whatever binary is current, so after an update the two can differ; a token over "the whole
+entry" would then make every action `stale` until the app closed. Anything that must change a token needs
+a new version.
+
+`canonical` is that object as JSON with keys sorted by code point at every level, no whitespace, UTF-8, and
+non-ASCII characters written as themselves (Python's
 `json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`).
 
 A verb builds the entry from the database and computes this again, in the same transaction as its
 write. So a token changes when an open question leaves a group, when any text, option or asker changes,
-and when anyone's draft changes. It does not change when `delivery` moves, which happens all the time
-behind a ⚠ row without changing what Retry means; the verb checks that state on its own.
+when anyone's draft changes, and when a `retry` is done. It does not change when `delivery` moves, which
+happens all the time behind a ⚠ row; the [verb checks that state itself](app-commands-v1.md#the-state-a-verb-checks).
 
 A mod treats a token as an opaque string and only echoes it. Only Rust computes one.
 
@@ -334,27 +412,36 @@ Going to an agent is no verb. See [app-commands v1](app-commands-v1.md#going-to-
 
 ## Runtime
 
+Every command below runs [through the launcher](app-commands-v1.md#running-a-command), so
+`herdr-inbox app-feed` here means `sh <root>/scripts/launch cli app-feed`.
+
+The writer takes its lessons from Panorama's `docs/protocol/app-feed-runtime-v1.md`: a proven start, a
+bounded restart, a cooperative stop, and no signal to any PID.
+
 ### The writer
 
 `herdr-inbox app-feed --help` starts nothing, touches no file, exits 0 and prints
 `herdr-inbox app-feed v1` as its first line.
 
-`herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` starts one detached writer unless one runs.
+`herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` makes sure one writer of this binary runs.
+Repeated calls are idempotent. The mods call it from `init`, and again at most once per 5 s while the feed
+is stale. B5 may add optional arguments, such as Panorama's `--install-id`, within v1.
 
 | Exit | Meaning |
 |---|---|
-| 0 | A writer runs. This says nothing about the first feed having been written. |
-| 1 | It could not start one. The reason is on stderr, stdout is empty. |
+| 0 | A writer is proven to run. This says nothing about the first feed having been written. |
+| 1 | None could be proven, or starting is deferred or disabled. The reason is on stderr, stdout is empty. |
 | 2 | Bad arguments, usage on stderr, no I/O. |
-
-Repeated calls are idempotent. The mods call it from `init`, and again at most once per 5 s while the
-feed is stale.
 
 | Path under `<appHome>/data/herdr-inbox/` | Meaning |
 |---|---|
 | `feed.json` | The feed. It stays after the writer exits, and readers see it age. |
 | `.feed.tmp` | Staging. Only the lock holder touches it, so a leftover is replaced. Fsynced before the rename. |
 | `writer.lock` | Empty. The writer holds `flock` on it for its whole life, so there is one writer per app home. |
+| `writer.json` | The writer's record: `{"v":1,"pid":…,"start":…,"binary_sha256":…}`. Diagnostics and busy proof, never a signal target. |
+| `control.json` | `{"v":1,"disabled":false}`. Disabled: no writer runs or starts. |
+| `stop.request` | Empty. A running writer that sees it exits. |
+| `start.json` | The restart ledger: `{"v":1,"failures":…,"retry_at_ms":…}`. Absent means no failures. |
 
 The writer:
 
@@ -365,17 +452,43 @@ The writer:
   `generated_at` moves while nothing else does;
 - publishes `ok: false` with an `errors` line when the database is missing, busy or not migrated yet.
 
+**Starting.** The child takes `writer.lock`, writes `writer.json`, then acknowledges on a pipe with
+`READY v1`. The parent waits at most 5 s. Readiness comes before any database read.
+
+| Outcome | Exit |
+|---|---|
+| `READY v1` | 0, and the ledger is removed. |
+| No acknowledgement, but `writer.json` names this live child and the lock is held | 0, and the ledger is removed. |
+| The child died, or nothing proves it | 1, and the attempt stays counted. |
+| The lock is held and `writer.json` has this binary's hash | 0, nothing started. |
+
+**Backoff.** Each spawn is counted in `start.json` before it happens. Failure n defers the next spawn by
+min(5 s × 2^(n−1), 160 s), and `--ensure` exits 1 without spawning until then. The 8th failure in a row
+sets `disabled`, which only a reinstall clears. So a writer that crashes at start cannot be restarted
+every 5 s by every mod.
+
+**Stopping.** Nothing is ever killed. A writer checks `control.json` and `stop.request` at each poll,
+at most 1 s apart. An uninstall sets `disabled` and waits at most 2 s for `writer.lock` to come free. If it
+does not, it refuses and leaves everything in place. `--ensure` refuses while `disabled`, so a late call
+cannot restart a writer behind an uninstall.
+
+**A changed binary.** `--ensure` hashes its own binary. A writer whose `writer.json` has another hash gets a
+`stop.request`; `--ensure` waits at most 2 s for the lock, removes the request and starts its own. A writer
+also exits by itself when its executable file changes on disk, checked at each publish, and the mod's next
+`--ensure` replaces it. The token list above keeps actions working in between.
+
 **Idling out.** It uses `HERDR_APP_HOME=<appHome> herdr-app status`, as Panorama's writer does: every
 2 s, bounded to 500 ms. Exit 0 means the app runs. Exit 2 is a confirmed absent window. Anything else
-says nothing and restarts the count. After 30 s of confirmed absence the writer exits.
+says nothing and restarts the count. After 30 s of confirmed absence the writer exits. `control.json` and
+the ledger stay, so the next app start ensures again.
 
-Installing, uninstalling and any generation scheme for these paths belong to B5.
+Installing and uninstalling these paths belong to B5.
 
 ### The worker
 
 The feed writer and the delivery worker are separate processes. The feed reads, the worker delivers.
 The mod's `init` also runs `herdr-inbox worker --ensure`, and each verb that leaves an answer to deliver
-makes sure of a worker for that answer ([app-commands v1](app-commands-v1.md#delivery)).
+makes sure of the worker of that answer's server ([app-commands v1](app-commands-v1.md#delivery)).
 
 There is one worker per herdr server, and it exits about 10 s after that server is gone
 (`SERVER_GONE_EXIT`). So on a machine where only herdr-app runs, `worker --ensure` starts a worker that
@@ -387,20 +500,8 @@ harmless.
 | What | Holds |
 |---|---|
 | `group`, `failed`, `alert` with `host: herdr-tui` or `unknown` | From B4. Every row the inbox can hold today is one of these. |
-| Answering a TUI-hosted question from the overlay | From B4. It reaches the agent only through a worker of that question's herdr server: with no server running, the answer stays recorded, becomes a ⚠ entry after 60 s, and `check_answers` can still return it. |
-| `host: herdr-core` rows | From B2. Until then `ask_operator` and `alert_operator` answer `unavailable` in a core terminal, so no such row exists. The fixtures carry them so that the mods can be built first. |
-| Delivery to a core terminal | From B3. The worker's retry loop reads only rows with a pane, so before B3 a core answer would never be sent. It would still show as a ⚠ row, because `failed_deliveries` has no pane rule. |
+| `retries` and `retry` | From B2 and B4. The counter is a `question_ext` column in B2's revision bump, so B4 needs B2. |
+| Answering a TUI-hosted question from the overlay | From B4. With no herdr server running on the question's socket, the answer is recorded and the result says `held`, not `queued`: nothing is sent, so no attempt is used up. It becomes a ⚠ `unattempted` row after 60 s, `check_answers` can still return it, and a worker delivers it once that server is back. |
+| `host: herdr-core` rows | From B2, with `question_host` and `alert_host` in one `MIGRATION_REVISION` bump, the same one as the `retry` counter. Until then `ask_operator` and `alert_operator` answer `unavailable` in a core terminal, which has no `HERDR_PANE_ID`, so no such row exists. The fixtures carry them so that the mods can be built first. |
+| Delivery to a core terminal | From B3. The worker's retry loop reads only rows with a pane, so before B3 a core answer is `held`. It still shows as a ⚠ row, because `failed_deliveries` has no pane rule. |
 | A worker with no herdr server | From B3, which extends liveness to herdr-core. |
-
-## Not settled
-
-These change no field above. They need the operator's decision before B2 or B4 are built.
-
-1. **What starts delivery after `answer`.** See [app-commands v1](app-commands-v1.md#delivery).
-2. **A core asker on alerts.** The plan's `question_host` table covers questions only. `Asker` is shaped
-   to carry a core alert; nothing records one yet, and the blocked scan reads herdr's agents only.
-3. **Acting on remote rows.** They are read-only here because the plan's verbs do not cover them.
-   Actions on them would be additive.
-4. **Where the binary comes from.** The mods need a path to `herdr-inbox`: it is not on `PATH`. A private
-   copy under the app home (Panorama's way) sits in no install, so it does not read the plugin's
-   `engine` file. A rollback to Python would then not reach the workers it starts.
