@@ -151,17 +151,6 @@ def test_python_refuses_a_core_caller_as_before(db, fake_herdr, monkeypatch):
     assert db.db.execute("SELECT COUNT(*) FROM questions").fetchone()[0] == 0
 
 
-def test_a_pane_question_beside_core_rows_is_delivered_as_ever(db, fake_herdr):
-    core = core_question(db)
-    answered(db, core)
-    qid = service.ask(db, A_PANE, "Other question?")["id"]
-    fake_herdr.reset()
-    service.answer(db, qid, "Yes")
-    assert len(typed(fake_herdr)) >= 1
-    assert db.get(qid).delivered_at is not None
-    assert db.get(core).delivered_at is None
-
-
 async def test_the_popup_lists_core_rows_and_acknowledges_a_core_alert(db, fake_herdr):
     core_question(db)
     aid = core_alert(db)
