@@ -122,6 +122,18 @@ const CASES: &[Case] = &[
         a_refused_claim_is_no_pane_for_a_hook,
     ),
     (
+        "a_watcher_in_a_proved_terminal_wakes_it_at_rest",
+        a_watcher_in_a_proved_terminal_wakes_it_at_rest,
+    ),
+    (
+        "a_watcher_never_wakes_a_blocked_terminal",
+        a_watcher_never_wakes_a_blocked_terminal,
+    ),
+    (
+        "a_resume_in_a_proved_terminal_is_marked_with_the_terminal",
+        a_resume_in_a_proved_terminal_is_marked_with_the_terminal,
+    ),
+    (
         "a_filed_question_says_where_its_records_are",
         a_filed_question_says_where_its_records_are,
     ),
@@ -144,9 +156,13 @@ const CASES: &[Case] = &[
 /// that [`Rig::start`] finds one.
 const HOOK: &str = r#"
 fg=${1:-$PPID}
-printf '{"address":"t3","state":"live","foreground":{"pid":%s,"name":"claude","argv":["%s","sh","hook.sh"],"cwd":"/f"}}' \
-  "$fg" "$CLAUDE" > hc.get
-"$BIN" hook stop < payload > hook.out
+printf '{"address":"t3","state":"live","status":"%s","foreground":{"pid":%s,"name":"claude","argv":["%s","sh","hook.sh"],"cwd":"/f"}}' \
+  "${STATUS:-done}" "$fg" "$CLAUDE" > hc.get
+if [ -n "$WATCH" ]; then
+  ("$BIN" hook rewake-watch < payload > hook.out ; echo $? > hook.code) &
+else
+  "$BIN" hook "${EVENT:-stop}" < payload > hook.out
+fi
 exec "$BIN" mcp
 "#;
 
@@ -310,7 +326,8 @@ impl Rig {
         store.set_answer(q.id, "yes", None).unwrap();
         self.install_hc();
         std::fs::write(self.path("hook.sh"), HOOK).unwrap();
-        let payload = json!({"session_id": SESSION, "hook_event_name": "Stop"});
+        let source = more.iter().find(|(k, _)| *k == "SOURCE").map(|(_, v)| v);
+        let payload = json!({"session_id": SESSION, "hook_event_name": "Stop", "source": source});
         std::fs::write(self.path("payload"), payload.to_string()).unwrap();
         let mut extra = vec![
             ("BIN", BIN.to_string()),
@@ -318,11 +335,19 @@ impl Rig {
         ];
         extra.extend_from_slice(more);
         let argv = ["sh", "hook.sh", foreground];
-        let _s = self.start_with(claim, &argv, &extra);
-        (
-            std::fs::read_to_string(self.path("hook.out")).unwrap(),
-            q.id,
-        )
+        let s = self.start_with(claim, &argv, &extra);
+        if more.iter().any(|(k, _)| *k == "WATCH") {
+            // the watcher reads the record of this Claude, known only now
+            self.record(s.pid, &|r| r["sessionId"] = json!(SESSION));
+            for _ in 0..200 {
+                if self.path("hook.code").exists() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+        let printed = std::fs::read_to_string(self.path("hook.out")).unwrap_or_default();
+        (printed, q.id)
     }
 
     fn count(&self, table: &str) -> i64 {
@@ -834,4 +859,39 @@ fn a_filed_question_says_where_its_records_are() {
         )
         .unwrap();
     assert_eq!(Path::new(&known), transcript);
+}
+
+fn a_watcher_in_a_proved_terminal_wakes_it_at_rest() {
+    let rig = Rig::new();
+    let (printed, id) = rig.hook_with(Some("t3"), "", &[("WATCH", "1".to_string())]);
+    assert!(printed.contains(&format!("Q{id}")), "{printed:?}");
+    let code = std::fs::read_to_string(rig.path("hook.code")).unwrap();
+    assert_eq!(code.trim(), "3", "the wake exit");
+}
+
+fn a_watcher_never_wakes_a_blocked_terminal() {
+    let rig = Rig::new();
+    let more = [
+        ("WATCH", "1".to_string()),
+        ("STATUS", "blocked".to_string()),
+    ];
+    let (printed, id) = rig.hook_with(Some("t3"), "", &more);
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+}
+
+fn a_resume_in_a_proved_terminal_is_marked_with_the_terminal() {
+    let rig = Rig::new();
+    let more = [
+        ("EVENT", "session-start".to_string()),
+        ("SOURCE", "resume".to_string()),
+        ("HERDR_PANE_ID", "w1:p1".to_string()), // inherited: the terminal goes first
+    ];
+    rig.hook_with(Some("t3"), "", &more);
+    let marker = ["starts", "herdr-inbox/starts"]
+        .iter()
+        .map(|d| rig.path(d).join(SESSION))
+        .find(|p| p.exists())
+        .expect("no marker");
+    assert_eq!(std::fs::read_to_string(marker).unwrap(), "t3");
 }

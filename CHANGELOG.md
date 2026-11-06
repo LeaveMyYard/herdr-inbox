@@ -6,7 +6,9 @@
   and alive while the core is, delivers through the same claims as in a pane. The hooks and the
   rewake watcher carry the answer once the terminal is proved. Typing is `hc read` for the input box
   and `hc send --if idle`, never `--force`, so what the core refuses costs no attempt. A terminal
-  counts by its foreground process and Claude Code's own record of it, never by its address. The
+  counts by its foreground process and Claude Code's own record of it, never by its address, and a
+  session two live processes run is served to neither. An answer follows a conversation resumed in
+  another terminal, and one that no terminal can take shows as not delivered after 5 minutes. The
   receipt now promises an `[inbox]` message. docs/DESIGN.md, "Core delivery".
 - **`ask_operator` and `alert_operator` work in a herdr-app terminal** (B2). The caller's
   `HC_TERMINAL_ID` is only a claim: the MCP server's own parent must be the only Claude above it, and
