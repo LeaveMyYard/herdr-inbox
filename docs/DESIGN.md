@@ -1178,7 +1178,16 @@ would take that pane's agent and session on those variables alone, file under th
 only if herdr itself lists this process's Claude in that pane's foreground (`pane.process_info`,
 `host::core::pane`). A core child cannot pass that: its Claude is in no pane. Otherwise every tool
 answers `unavailable`, whatever the reason, a forgery or a slow `hc` or the terminal's first second.
-The reason goes to the server's stderr, never to the agent. A proved terminal goes before a pane.
+The reason goes to the server's stderr. A proved terminal goes before a pane.
+
+**Two receipts.** Both have `status: unavailable`, and neither writes anything. What may pass in a
+moment (`hc` slow, gone or still sampling, the foreground away, a record mid-rewrite, the process
+replaced) says that questions and answers are kept and to call again in a few seconds. Until B3
+`check_answers` is a core agent's only route, so the old "ask in chat instead" here could make it
+drop an answered question over one slow read. What stays as it is for this process (a nested Claude,
+not the Claude's own child, no Claude, a bad or remote address, no session) keeps that old text,
+because a nested agent must not wait. A forged claim reads as "not its foreground process", so it
+is told to retry too, and the receipt then says to ask in chat if it stays unavailable.
 
 **What that changes for the TUI.** Nothing without `HC_TERMINAL_ID`. With it, a process that used to
 be taken at its `HERDR_PANE_ID` now has to pass that proof. A herdr TUI started inside a core terminal
@@ -1189,11 +1198,17 @@ search is not tried), or when its server does not have `pane.process_info`.
 **`hc` never starts a core.** Every `hc` command starts one if none runs, `get` and `server status`
 included, and no option stops that. That core would keep the caller's environment, which is the
 precondition above. So `hc` runs only when the core's socket already accepts a connection:
-`<runtime>/herdr-core/<session>.sock`, where the runtime directory is `$XDG_RUNTIME_DIR`, else
-`/run/user/<uid>`, and the session is `$HC_SESSION`, else `default`. A real terminal's agent has a
-running core by definition. Between that check and the read a core can die and `hc` restart it, so
-`HERDR_*` and `HC_TERMINAL_ID` are also removed from the child. Off Linux with no `XDG_RUNTIME_DIR`
-the place is not known, so nothing runs and the caller gets `unavailable`.
+`$HC_SOCKET`, else `<runtime>/herdr-core/<session>.sock`, where the runtime directory is
+`$XDG_RUNTIME_DIR`, else `/run/user/<uid>`, and the session is `$HC_SESSION`, else `default`. A real
+terminal's agent has a running core by definition. Between that check and the read a core can die
+and `hc` restart it, so `HERDR_*` and `HC_TERMINAL_ID` are also removed from the child.
+
+That is part of hc's rule, not all of it. `HC_RUNTIME` and a socket setting in hc's config exist (seen
+in the binary, not run) and are not read here, because what they mean is not known. A core placed by
+either, and any core off Linux with no `XDG_RUNTIME_DIR`, reads as no core: `hc` does not run and the
+caller gets `unavailable`. That fails safe, and it means such a setup has no core asking until the
+rule here learns it. The `/run/user/<uid>` fallback has only a unit test: it is the operator's real
+path, so no rig goes there.
 
 **The session.** herdr says which session a pane runs. Nothing says so for a core terminal, and
 `CLAUDE_CODE_SESSION_ID` stays as it was at start, so after `/clear` it is stale. So the session
@@ -1224,21 +1239,45 @@ in a real terminal ran the real `herdr-inbox mcp` as its child:
 | A stand-in under a stand-in, the outer one the foreground | `unavailable`: "a nested Claude"; nothing filed |
 | No core running, a stray claim and pane variables, real `hc` on `PATH` | `unavailable`: "no core is running"; no socket appeared, no core started |
 
-Not run: a real `claude` session (no credentials in a rig), macOS with a real `hc`.
+Checked with the real `claude` 2.1.319, as far as `claude mcp list` shows (it starts MCP servers before
+any login), in an isolated terminal through `sh scripts/launch mcp`: the server is Claude's direct
+child, `CLAUDE_CODE_SESSION_ID` reaches it, `hc`'s foreground matches by pid, `comm` and argv, and
+`ask_operator` filed a core row. A real herdr 0.9.5 TUI inside a core terminal kept its pane, and a
+core child carrying that pane's variables did not get it. Claude behind a non-`exec` wrapper
+(`sh -c "claude ...; true"`) always refuses: `hc`'s foreground is the wrapper.
+
+Not run: an interactive session's own spawn, `/clear`, a call during a Bash tool, macOS with a real
+`hc`, and nvm or npm installs (they depend on `process.title` giving `comm` `claude`).
 
 **Go-live checks, before core terminals are relied on.** Live pull happens only after B3. These need
-a real Claude session in a real herdr-app terminal, so the operator runs them then:
+a real Claude session in a real herdr-app terminal, so the operator runs them then. Start it as
+`claude --debug=mcp --debug-file <file>`: the server's stderr lands there, as
+`MCP server "<name>" Server stderr: herdr-inbox: core terminal: <reason>`. Claude Code also keeps it
+under `~/.cache/claude-cli-nodejs/<project>/mcp-logs-<name>/`. Both seen on 2.1.319.
 
-1. `ask_operator` from that session returns `open`. If it says `unavailable`, the server's stderr
-   names the step. This covers: Claude Code starts the MCP server as its direct child, `hc`'s
-   foreground and argv match the process table, and `hc` is on the server's `PATH`.
+1. `ask_operator` from that session returns `open`. If it says `unavailable`, the reason in that log
+   names the step. A `claude` started through a wrapper that does not `exec` always refuses.
 2. The same call while a Bash tool is running. If `hc`'s foreground leaves the Claude during a tool,
-   every call then is `unavailable`: safe, but it must be known before B3 relies on it.
+   every call then gets the "call again" receipt: safe, but it must be known before B3 relies on it.
 3. The filed row's session is this conversation's, and after `/clear` a new question files under the
-   new session. This covers the record's `procStart` against the kit's token and
-   `CLAUDE_CODE_SESSION_ID` reaching the server. The record's keys and `procStart` were checked on one
-   live session (key names only); nothing has run through a real one.
+   new session. Read the rows, read-only, and compare with the id `/status` shows:
+
+   ```sh
+   sqlite3 -readonly ~/.local/state/herdr-inbox/inbox.db \
+     "SELECT q.id, q.session_id, h.terminal FROM questions q
+      JOIN question_host h ON h.id = q.id ORDER BY q.id DESC LIMIT 5"
+   ```
+
+   This covers the record's `procStart` against the kit's token. The record's keys and `procStart` were
+   checked on one live session (key names only); no `/clear` has run through one.
 4. On macOS, if used: where the core's socket is, with no `XDG_RUNTIME_DIR`.
+
+**Known gap, older than this seam.** With no `HC_TERMINAL_ID` nothing here runs, so `HERDR_PANE_ID` is
+still taken at its word. A core that holds a pane's variables runs `hc exec claude ...` with that
+variable and no claim, and the question files under that pane and its agent's session. The same goes
+for any process that inherits those variables, and it is the same before this seam. The real fix is
+that the pane path proves its pane for every caller, with the check `host::core::pane` makes. That
+changes the TUI path, so it is a follow-up after B3.
 
 ## Deep links: opening the popup on a target (0.6.0)
 

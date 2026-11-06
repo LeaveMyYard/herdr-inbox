@@ -198,3 +198,27 @@ fn a_claude_with_no_start_token_proves_nothing() {
     t.forget_start(20);
     assert_eq!(refused(&hc(), &t, "t2"), Refused::NoClaude);
 }
+
+#[test]
+fn what_may_pass_in_a_moment_and_what_stays() {
+    for why in [
+        Refused::Hc("hc read timed out"),
+        Refused::NotForeground,
+        Refused::Replaced,
+        Refused::BadRecord,
+    ] {
+        assert!(why.temporary(), "{why}");
+    }
+    for why in [
+        Refused::BadAddress,
+        Refused::Remote,
+        Refused::NoClaude,
+        Refused::NotItsChild,
+        Refused::Nested,
+        Refused::NotThatTerminal,
+        Refused::NotThatProcess,
+        Refused::NoSession,
+    ] {
+        assert!(!why.temporary(), "{why}");
+    }
+}

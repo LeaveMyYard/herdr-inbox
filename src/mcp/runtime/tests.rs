@@ -436,3 +436,28 @@ fn an_unproved_claim_is_unavailable_from_every_tool() {
         assert_eq!(rt.call(call).unwrap(), receipts::unavailable());
     }
 }
+
+struct Undecided;
+
+impl crate::host::Host for Undecided {
+    fn caller(&self, _: &Env) -> Result<Option<Caller>, Failure> {
+        Err(Failure::Undecided)
+    }
+}
+
+#[test]
+fn a_moment_that_may_pass_tells_the_agent_to_call_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("inbox.db");
+    Store::open_migrating(&db, Duration::from_secs(3)).unwrap();
+    let mut rt = runtime(db, Arc::default());
+    rt.hosts.insert(0, Box::new(Undecided));
+    for call in [ask("Question Title 123?"), Call::CheckAnswers] {
+        let receipt = rt.call(call).unwrap();
+        assert_eq!(receipt, receipts::undecided());
+        assert_eq!(receipt["status"], json!("unavailable"));
+        let message = receipt["message"].as_str().unwrap();
+        assert!(message.contains("again"), "{message}");
+        assert!(!message.contains("top-level"), "{message}");
+    }
+}

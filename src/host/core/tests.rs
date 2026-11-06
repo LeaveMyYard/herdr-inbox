@@ -103,7 +103,24 @@ fn claude_codes_own_record_beats_the_environment() {
 }
 
 fn unproved(result: Result<Option<Caller>, Failure>) -> bool {
-    matches!(result, Err(Failure::Unproved))
+    matches!(result, Err(Failure::Unproved | Failure::Undecided))
+}
+
+fn undecided(result: Result<Option<Caller>, Failure>) -> bool {
+    matches!(result, Err(Failure::Undecided))
+}
+
+#[test]
+fn a_moment_that_may_pass_says_so_and_a_lasting_refusal_does_not() {
+    assert!(undecided(core(Some("t9"), Fake::new()).caller(&env())));
+    let lasting = core(Some("vps/t7"), Fake::new()).caller(&env());
+    assert!(matches!(lasting, Err(Failure::Unproved)));
+    let no_session = Env {
+        session_id: None,
+        ..env()
+    };
+    let lasting = core(Some("t2"), Fake::new()).caller(&no_session);
+    assert!(matches!(lasting, Err(Failure::Unproved)));
 }
 
 #[test]
@@ -189,7 +206,7 @@ fn a_refused_claim_never_takes_the_pane_it_inherited() {
             ..Fake::new()
         };
         let got = crate::host::caller(&hosts("t9", machine), &env());
-        assert!(matches!(got, Err(Failure::Unproved)), "{got:?}");
+        assert!(matches!(got, Err(Failure::Undecided)), "{got:?}");
     }
 }
 

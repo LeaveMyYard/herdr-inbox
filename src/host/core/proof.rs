@@ -52,6 +52,17 @@ pub enum Refused {
     BadRecord,
 }
 
+impl Refused {
+    /// May the same caller pass in a moment? `hc` slow, gone or still sampling, the foreground
+    /// away during a tool, a record mid-rewrite. The rest stay as they are for this process.
+    pub fn temporary(self) -> bool {
+        matches!(
+            self,
+            Refused::Hc(_) | Refused::NotForeground | Refused::Replaced | Refused::BadRecord
+        )
+    }
+}
+
 impl fmt::Display for Refused {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {

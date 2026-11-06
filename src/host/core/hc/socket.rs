@@ -1,9 +1,11 @@
-//! Where the core's socket is: `<runtime>/herdr-core/<session>.sock`, the
-//! runtime directory being `$XDG_RUNTIME_DIR`, else `/run/user/<uid>`, and the
-//! session `$HC_SESSION`, else `default`.
+//! Where the core's socket is: `$HC_SOCKET`, else
+//! `<runtime>/herdr-core/<session>.sock`, the runtime directory being
+//! `$XDG_RUNTIME_DIR`, else `/run/user/<uid>`, and the session `$HC_SESSION`,
+//! else `default`.
 //!
-//! A place this cannot name means no `hc`, so `unavailable`: `/run/user` is
-//! Linux's, and hc's place elsewhere with no `XDG_RUNTIME_DIR` is not known here.
+//! This is part of hc's rule. `HC_RUNTIME` and a socket in hc's config are not
+//! read. A core placed by those, or a place this cannot name (`/run/user` is
+//! Linux's), reads as no core: no `hc`, so `unavailable`, never a wrong one.
 
 use std::path::{Path, PathBuf};
 
@@ -11,6 +13,9 @@ use herdr_agent_kit::plugin_env::PluginEnv;
 
 /// This process's core socket.
 pub fn from_env(env: &PluginEnv) -> Option<PathBuf> {
+    if let Some(socket) = env.path_var("HC_SOCKET") {
+        return socket.is_absolute().then(|| socket.to_owned());
+    }
     let uid = rustix::process::getuid().as_raw();
     let runtime = env.path_var("XDG_RUNTIME_DIR");
     path(

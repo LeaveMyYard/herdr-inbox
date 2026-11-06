@@ -9,6 +9,12 @@ pub const UNAVAILABLE: &str = "The operator inbox only serves the top-level agen
 session is not one (not in herdr, or nested inside another agent). Ask in chat, or ask \
 your caller, instead.";
 
+/// This terminal could not be confirmed just now. Not [`UNAVAILABLE`]: an agent told to
+/// give up here would abandon an answered question over one slow read.
+pub const UNDECIDED: &str = "The operator inbox could not confirm this terminal just now (herdr-core was slow, \
+or the terminal is still starting). Your questions and any answers are kept. Call this tool again in a \
+few seconds, and ask in chat only if it stays unavailable.";
+
 /// The database is not migrated to this code's schema yet.
 pub const NOT_MIGRATED: &str = "The operator inbox is being upgraded (its delivery worker migrates the database); \
 call this tool again in a few seconds, or ask in chat if it stays unavailable.";
@@ -20,6 +26,11 @@ pub const BUSY: &str =
 /// The `unavailable` receipt of a session outside herdr (or nested in an agent).
 pub fn unavailable() -> Value {
     json!({"status": "unavailable", "message": UNAVAILABLE})
+}
+
+/// The `unavailable` receipt of a moment this terminal could not be confirmed in.
+pub fn undecided() -> Value {
+    json!({"status": "unavailable", "message": UNDECIDED})
 }
 
 /// The `unavailable` receipt of a database the worker has not migrated yet.

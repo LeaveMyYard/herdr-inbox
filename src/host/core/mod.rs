@@ -10,8 +10,9 @@
 //! `HERDR_PANE_ID` and socket, and the pane path would take that pane's agent
 //! and session on those variables alone. So with a claim present the pane
 //! path runs only if herdr itself lists this process's Claude in that pane's
-//! foreground ([`pane`]). Otherwise the call fails as [`Failure::Unproved`],
-//! `unavailable` from every tool, whether the reason is a forgery or a slow `hc`.
+//! foreground ([`pane`]). Otherwise every tool answers `unavailable`, whether the
+//! reason is a forgery or a slow `hc`: [`Failure::Undecided`] when it may pass
+//! in a moment, which says to call again, else [`Failure::Unproved`].
 //!
 //! The process table, the record and the transcripts are behind [`Machine`];
 //! `hc` is behind [`Hc`]. [`live`] is the real one.
@@ -106,6 +107,8 @@ impl<H: Hc, M: Machine> Host for Core<H, M> {
                 let _ = writeln!(std::io::stderr(), "herdr-inbox: core terminal: {why}");
                 if pane::proved(&self.machine, env) {
                     Ok(None) // really this pane's agent: the pane path answers
+                } else if why.temporary() {
+                    Err(Failure::Undecided)
                 } else {
                     Err(Failure::Unproved)
                 }

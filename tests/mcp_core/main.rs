@@ -22,6 +22,7 @@ use std::time::Duration;
 
 use herdr_agent_kit::agent_procs::start_token;
 use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
+use herdr_inbox::mcp::receipts::{UNAVAILABLE, UNDECIDED};
 use herdr_inbox::store::Store;
 use serde_json::{Value, json};
 
@@ -97,6 +98,7 @@ const CASES: &[Case] = &[
         "hc_never_gets_the_callers_pane",
         hc_never_gets_the_callers_pane,
     ),
+    ("a_core_at_hc_socket_is_found", a_core_at_hc_socket_is_found),
 ];
 
 /// One stand-in session.
@@ -353,6 +355,10 @@ fn a_nested_claude_is_unavailable() {
     rig.hc_reports(s.pid, &[&claude, &claude, BIN, "mcp"]);
     let receipt = s.ask();
     assert_eq!(receipt["status"], "unavailable", "{receipt}");
+    assert_eq!(
+        receipt["message"], UNAVAILABLE,
+        "a nested agent must not wait for this"
+    );
     assert_eq!(rig.count("questions"), 0);
 }
 
@@ -496,6 +502,10 @@ fn check_answers_cannot_read_the_inherited_panes_answer() {
     let got = s.tool("check_answers", json!({}));
     assert_eq!(got["status"], "unavailable", "{got}");
     assert_eq!(store.get(1).unwrap().unwrap().acknowledged_at, None);
+    assert_eq!(
+        got["message"], UNDECIDED,
+        "an answer waits: the agent must call again"
+    );
 }
 
 fn a_pane_that_holds_this_claude_stays_a_pane() {
@@ -542,6 +552,18 @@ fn hc_never_gets_the_callers_pane() {
     assert_eq!(s.ask()["status"], "open");
     let log = std::fs::read_to_string(rig.path("hc.log")).unwrap();
     assert!(log.contains("pane=[]") && !log.contains("w9:p9"), "{log}");
+}
+
+fn a_core_at_hc_socket_is_found() {
+    let mut rig = Rig::new();
+    rig.core = None;
+    let socket = rig.path("elsewhere.sock");
+    let _core = UnixListener::bind(&socket).unwrap();
+    let extra = [("HC_SOCKET", socket.to_string_lossy().into_owned())];
+    let mut s = rig.start_with(Some("t3"), &[BIN, "mcp"], &extra);
+    let claude = rig.claude.display().to_string();
+    rig.hc_reports(s.pid, &[&claude, BIN, "mcp"]);
+    assert_eq!(s.ask()["status"], "open");
 }
 
 /// Run as `claude`: CMD as a child, as Claude Code runs an MCP server.
