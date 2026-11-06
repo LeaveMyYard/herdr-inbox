@@ -12,6 +12,11 @@
   `alert_host`, and `question_ext.retry_count`. All additive: Python stays at revision 1, reads a
   higher stamp as it always has, and never touches them. Going back to `engine` python needs nothing
   done to the database. docs/DESIGN.md, "Schema past the bridge".
+- **The herdr-app mod scaffold (B5)**. `scripts/app-install` installs the `herdr-inbox` mod into an
+  app home, upgrades it in place, and takes it out with no package at hand, leaving the home as it
+  found it. It selects no layout and edits no key or setting. The mod finds the plugin again at
+  each start and says the inbox is unavailable until the Rust `app` commands exist. `scripts/app-check`
+  runs `herdr-app check` in a private home, and a new App workflow runs the Node tests.
 - **The `engine` file and the launcher's CLI (P5-I)**. `engine` at the plugin root says which code
   runs, in one line. herdr's actions and startup now go through `scripts/launch cli`, which runs
   the binary for the commands it has and Python for the rest (`redeliver`, `clean-venvs`, `remote`,
