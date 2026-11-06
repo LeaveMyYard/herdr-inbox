@@ -166,6 +166,7 @@ impl World {
         let mut ctx = Ctx {
             store: &self.store,
             herdr: &self.herdr,
+            core: &herdr_inbox::delivery::terminal::NoCore,
             files: &self.files,
             state_dir: self.dir.path(),
             notify: &mut notify,

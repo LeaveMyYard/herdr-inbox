@@ -25,6 +25,7 @@ use crate::delivery::run::{
     Ctx, UNREADABLE_NOTIFY_AFTER, Unreadable, VERIFY_SECONDS, deliver_batch,
 };
 use crate::delivery::send::local_answers;
+use crate::delivery::terminal;
 use crate::store::{Question, Store};
 use crate::surface::Surface;
 use crate::surface::live::Live;
@@ -75,9 +76,11 @@ impl Handoff for LiveHandoff {
         let mut notify = |title: &str, body: &str| surface.notify(title, body);
         let mut unreadable = Unreadable::after(UNREADABLE_NOTIFY_AFTER);
         let files = Transcripts::from_env();
+        let core = terminal::live(&self.env, self.herdr.clone());
         let mut ctx = Ctx {
             store,
             herdr: &self.herdr,
+            core: &core,
             files: &files,
             state_dir: &self.state_dir,
             notify: &mut notify,

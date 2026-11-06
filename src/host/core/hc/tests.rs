@@ -74,8 +74,9 @@ fn a_failure_is_an_answer_not_a_guess() {
     let dir = tempfile::tempdir().unwrap();
     let (socket, _core) = core(dir.path());
     let s = || Some(socket.clone());
+    assert_eq!(stub(dir.path(), "exit 3", s()).get("t1"), Err(NO_TERMINAL));
     assert_eq!(
-        stub(dir.path(), "exit 3", s()).get("t1"),
+        stub(dir.path(), "exit 1", s()).get("t1"),
         Err("hc read failed")
     );
     assert_eq!(
@@ -109,9 +110,132 @@ fn too_much_output_is_refused() {
 #[test]
 fn the_child_never_sees_the_callers_terminal() {
     let hc = Cli::on_path(None);
-    let command = hc.command(&["get", "--json", "t1"]);
+    let command = hc.command(Path::new("/x/c.sock"), &["get", "--json", "t1"]);
     let removed = command
         .get_envs()
         .any(|(key, value)| key == "HC_TERMINAL_ID" && value.is_none());
     assert!(removed);
+}
+
+/// A stub that prints its arguments and environment, and exits `code`.
+fn recording(dir: &Path, code: i32, socket: PathBuf) -> Cli {
+    let log = dir.join("log");
+    let body = format!(
+        "printf '%s\\n' \"$*\" \"sock=$HC_SOCKET\" \"t=$HC_TERMINAL_ID\" > {}\n\
+         echo '{{\"error\":{{\"message\":\"no\"}}}}' >&2\nexit {code}",
+        log.display()
+    );
+    stub(dir, &body, Some(socket))
+}
+
+#[test]
+fn send_always_asks_for_idle_and_has_no_way_to_force() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let hc = recording(dir.path(), 0, socket.clone());
+    assert_eq!(hc.send("t3", "[inbox] Q1: yes"), Sent::Typed);
+    let log = std::fs::read_to_string(dir.path().join("log")).unwrap();
+    let mut lines = log.lines();
+    assert_eq!(
+        lines.next(),
+        Some("send --json --if idle t3 -- [inbox] Q1: yes")
+    );
+    assert_eq!(lines.next(), Some(&*format!("sock={}", socket.display())));
+    assert!(!log.contains("--force"));
+}
+
+#[test]
+fn a_text_that_looks_like_an_option_stays_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let hc = recording(dir.path(), 0, socket);
+    hc.send("t3", "--force");
+    let log = std::fs::read_to_string(dir.path().join("log")).unwrap();
+    assert!(log.starts_with("send --json --if idle t3 -- --force\n"));
+}
+
+#[test]
+fn each_refusal_of_hc_is_told_apart() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let send = |code| recording(dir.path(), code, socket.clone()).send("t3", "x");
+    assert_eq!(send(9), Sent::Blocked);
+    assert_eq!(send(10), Sent::NotIdle);
+    assert_eq!(send(3), Sent::Gone);
+    assert_eq!(send(11), Sent::Gone);
+    assert_eq!(send(1), Sent::Failed("hc send failed: no".into()));
+}
+
+#[test]
+fn with_no_core_nothing_is_sent_and_a_bad_address_never_reaches_hc() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let ran = "touch \"$0.ran\"";
+    assert_eq!(
+        stub(dir.path(), ran, Some(dir.path().join("none.sock"))).send("t3", "x"),
+        Sent::Unread("no core is running")
+    );
+    assert_eq!(
+        stub(dir.path(), ran, None).send("t3", "x"),
+        Sent::Unread("no known core socket")
+    );
+    assert_eq!(
+        stub(dir.path(), ran, Some(socket)).send("--force", "x"),
+        Sent::Unread("invalid core address")
+    );
+    assert!(!dir.path().join("hc.ran").exists());
+}
+
+#[test]
+fn a_send_stopped_part_way_counts_as_typed_so_only_the_transcript_decides() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let path = dir.path().join("hc");
+    exe::install(&path, "#!/bin/sh\nexec sleep 30\n");
+    let hc = Cli::new(path.into(), Duration::from_secs(2), Some(socket))
+        .with_send_timeout(Duration::from_millis(100));
+    assert_eq!(hc.send("t3", "x"), Sent::Typed);
+}
+
+#[test]
+fn a_missing_hc_typed_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let none = Cli::new(
+        dir.path().join("no-hc").into(),
+        Duration::from_secs(1),
+        Some(socket),
+    );
+    assert_eq!(none.send("t1", "x"), Sent::Unread("hc unavailable"));
+}
+
+#[test]
+fn read_takes_the_text_of_hcs_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let body = "printf '{\"complete\":true,\"how\":\"screen\",\"text\":\"%s\"}' \"$*\"";
+    let hc = stub(dir.path(), body, Some(socket.clone()));
+    assert_eq!(hc.screen("t3").unwrap(), "read --json t3");
+    let hc = stub(dir.path(), "echo '{}'", Some(socket));
+    assert_eq!(hc.screen("t3"), Err("hc read has no text"));
+    assert_eq!(hc.screen("--all"), Err("invalid core address"));
+}
+
+#[test]
+fn a_unit_test_has_no_real_hc_whatever_it_is_given() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _core) = core(dir.path());
+    let hc = Cli::on_path(Some(socket));
+    assert_eq!(hc.get("t1"), Err("no known core socket"));
+    assert_eq!(hc.send("t1", "x"), Sent::Unread("no known core socket"));
+}
+
+#[test]
+fn hc_is_told_which_socket_was_tried() {
+    let hc = Cli::new("hc".into(), Duration::from_secs(1), None);
+    let command = hc.command(Path::new("/x/c.sock"), &["get"]);
+    let told = command
+        .get_envs()
+        .any(|(key, value)| key == "HC_SOCKET" && value == Some("/x/c.sock".as_ref()));
+    assert!(told);
 }

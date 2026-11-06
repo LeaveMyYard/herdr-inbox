@@ -21,6 +21,7 @@ pub mod address;
 #[cfg(test)]
 pub mod fake;
 pub mod hc;
+pub mod hook;
 pub mod live;
 pub mod pane;
 pub mod proof;

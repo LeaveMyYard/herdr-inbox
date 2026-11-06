@@ -5,6 +5,7 @@
 //! migration come in as [`Duties`] ([`crate::worker::duties::live::LiveDuties`]),
 //! so this lifecycle is complete and tested without them.
 
+mod core;
 mod db;
 mod herdr;
 mod install;
@@ -14,6 +15,7 @@ use std::time::{Duration, Instant};
 
 use herdr_agent_kit::herdr_api::blocking::Herdr;
 
+pub use core::{Core, absent};
 pub use db::db_stamp;
 pub use herdr::{listed_root, server_gone};
 pub use install::{Install, own_checkout, running_version, version_at};
@@ -42,6 +44,7 @@ pub struct Live<D: Duties> {
     install: Install,
     exe: PathBuf,
     duties: D,
+    core: Option<Core>,
     origin: Instant,
 }
 
@@ -56,8 +59,15 @@ impl<D: Duties> Live<D> {
             install,
             exe,
             duties,
+            core: None,
             origin: Instant::now(),
         }
+    }
+
+    /// The core worker: its server is `core`, not a herdr one.
+    pub fn on_core(mut self, core: Core) -> Self {
+        self.core = Some(core);
+        self
     }
 
     /// Its duties (the tick's state).
@@ -74,7 +84,10 @@ impl<D: Duties> World for Live<D> {
     }
 
     fn server_gone(&mut self) -> bool {
-        server_gone(&self.herdr)
+        match &self.core {
+            Some(core) => core.gone(),
+            None => server_gone(&self.herdr),
+        }
     }
 
     fn installed_version(&mut self) -> Option<String> {

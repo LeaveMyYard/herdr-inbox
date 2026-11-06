@@ -21,6 +21,7 @@ mod pane;
 mod watch;
 
 pub use clock::{Clock, SystemClock};
+pub use pane::terminal_agent;
 pub use watch::{Watcher, run};
 
 /// The watcher's private "wake" exit code; the hooks.json wrapper maps it,

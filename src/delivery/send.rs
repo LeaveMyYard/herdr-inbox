@@ -2,14 +2,14 @@
 //! a fresh send makes sure the worker runs (it retries whatever the send
 //! leaves pending), and an answer asked on another herdr server is left to
 //! that server's worker, which is made sure of too. A core terminal's answer
-//! has no herdr server and no worker yet: it is left as it is, for
-//! `check_answers`, until core delivery (plan herdr-app-inbox, B3).
+//! is any process's to deliver, since `hc` needs no herdr socket, and its
+//! worker is made sure of first, so a sender lost part way is retried.
 
 use crate::store::hosts::CORE_SERVER;
 use crate::store::{Question, Store};
 
-/// The answers among `qs` this process delivers: those owned by no server
-/// or by `mine`. `ensure` is asked to start the worker: for this server
+/// The answers among `qs` this process delivers: those owned by no server,
+/// by `mine` or by the core. `ensure` is asked to start the worker: for this server
 /// first unless `retry` (the worker's own retries), then once per other
 /// server that owns one of `qs`, in the order they first appear.
 pub fn local_answers(
@@ -26,7 +26,12 @@ pub fn local_answers(
     let mut foreign: Vec<String> = Vec::new();
     for q in qs {
         match store.server_of(q.id)? {
-            Some(server) if server == CORE_SERVER => {}
+            Some(server) if server == CORE_SERVER => {
+                if !foreign.iter().any(|f| f == CORE_SERVER) {
+                    foreign.push(server);
+                }
+                local.push(q.clone());
+            }
             Some(server) if server != mine => {
                 if !foreign.contains(&server) {
                     foreign.push(server);

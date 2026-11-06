@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use serde_json::Value;
 
-use super::hc::Hc;
+use super::hc::{Hc, NO_TERMINAL, Sent};
 
 /// 0.1.17: `get` of t2, whose foreground is `claude`, pid 20.
 pub const GET_17: &str = include_str!("../../../tests/fixtures/hc/get-0.1.17.json");
@@ -17,7 +17,10 @@ pub const GET_18: &str = include_str!("../../../tests/fixtures/hc/get-0.1.18.jso
 #[derive(Default)]
 pub struct FakeHc {
     terminals: BTreeMap<String, Value>,
-    /// Every read, in order.
+    screens: BTreeMap<String, String>,
+    /// What each send answers, first to last; then [`Sent::Typed`].
+    pub answers: Mutex<Vec<Sent>>,
+    /// Every read and send, in order.
     pub asked: Mutex<Vec<String>>,
 }
 
@@ -40,6 +43,18 @@ impl FakeHc {
         self.terminals.get_mut(address).unwrap()
     }
 
+    /// What `hc read` prints for `address`.
+    pub fn set_screen(&mut self, address: &str, screen: &str) {
+        self.screens.insert(address.to_owned(), screen.to_owned());
+    }
+
+    /// The sends so far: `address text`.
+    pub fn sends(&self) -> Vec<String> {
+        let asked = self.asked.lock().unwrap();
+        let sends = asked.iter().filter_map(|a| a.strip_prefix("send "));
+        sends.map(str::to_owned).collect()
+    }
+
     /// `hc` is not there.
     pub fn gone() -> FakeHc {
         FakeHc::default()
@@ -53,6 +68,21 @@ impl FakeHc {
 impl Hc for FakeHc {
     fn get(&self, address: &str) -> Result<Value, &'static str> {
         self.note(format!("get {address}"));
-        self.terminals.get(address).cloned().ok_or("hc read failed")
+        self.terminals.get(address).cloned().ok_or(NO_TERMINAL)
+    }
+
+    fn screen(&self, address: &str) -> Result<String, &'static str> {
+        self.note(format!("read {address}"));
+        self.screens.get(address).cloned().ok_or("hc read failed")
+    }
+
+    fn send(&self, address: &str, text: &str) -> Sent {
+        self.note(format!("send {address} {text}"));
+        let mut answers = self.answers.lock().unwrap();
+        if answers.is_empty() {
+            Sent::Typed
+        } else {
+            answers.remove(0)
+        }
     }
 }

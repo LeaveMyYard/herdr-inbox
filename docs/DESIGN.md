@@ -1057,7 +1057,7 @@ answer pending (a crash, a `kill`) waits for the next of those starts, as in Pyt
 **With no herdr server.** The worker needs a herdr server to deliver through: with none it exits
 after `SERVER_GONE_EXIT` (10 s), in both languages, so nothing is left running. An agent outside a
 herdr pane and outside a proved core terminal gets `unavailable` from `ask_operator`. On a machine
-where only herdr-app runs, nothing is delivered until B3.
+where only herdr-app runs, the core worker delivers (see "Core delivery").
 
 **What it does not do.** Neither language's worker watches `engine` while it runs, and two workers
 of one revision never hand over. A running worker keeps running until it exits, so the switch
@@ -1114,7 +1114,8 @@ herdr pane. `herdr_server` is `herdr-core`, which is no socket, so it is another
 every worker: `served`, `reconcile_failed`, `revive_moved` and `hook_unverified` skip it in both
 languages, and `deliver` claims nothing and writes nothing. Without that second word an answer
 from the popup would get `no pane` written as a failed attempt. The rows also stay out of
-`stuck_answers`, the `❓N` counts and the pane tokens, which ask for a pane.
+`stuck_answers`, the `❓N` counts and the pane tokens, which ask for a pane. From B3 one worker's
+server is that word (see "Core delivery"), and its listing is the only one that names these rows.
 
 **Moving to revision 2.** The first Rust process of revision 2 finds revision 1 and is not ready:
 a hook does nothing and writes `revision-wanted`, an MCP tool answers "being upgraded", and the
@@ -1139,6 +1140,9 @@ to Rust"). The database is left as it is:
   the usual spawn limit. With a `herdr` binary it finds no server and exits after `SERVER_GONE_EXIT`.
   A Python worker with no `herdr` binary at all stays up and ticks as that "server": it changes no
   core row, since its listing asks for a pane and the blocked scan gets nothing from herdr.
+- **A Rust core worker leaves by itself.** It reads its install's `engine` file on every check of its
+  core and counts `python` as its core gone, so it exits within `SERVER_GONE_EXIT` with nothing started
+  after it. Until then it may finish what it holds, under the same claims.
 - Back on Rust, these rows are as they were.
 
 ## The host seam: agents in a herdr-core terminal (B2)
@@ -1182,9 +1186,8 @@ The reason goes to the server's stderr. A proved terminal goes before a pane.
 
 **Two receipts.** Both have `status: unavailable`, and neither writes anything. What may pass in a
 moment (`hc` slow, gone or still sampling, the foreground away, a record mid-rewrite, the process
-replaced) says that questions and answers are kept and to call again in a few seconds. Until B3
-`check_answers` is a core agent's only route, so the old "ask in chat instead" here could make it
-drop an answered question over one slow read. What stays as it is for this process (a nested Claude,
+replaced) says that questions and answers are kept and to call again in a few seconds. The old
+"ask in chat instead" here could make an agent drop an answered question over one slow read. What stays as it is for this process (a nested Claude,
 not the Claude's own child, no Claude, a bad or remote address, no session) keeps that old text,
 because a nested agent must not wait. A forged claim reads as "not its foreground process", so it
 is told to retry too, and the receipt then says to ask in chat if it stays unavailable.
@@ -1223,11 +1226,6 @@ session after `/clear` where the record is absent, and B3's forward-family rule 
 app has its own (plan §3.2). Everything keyed on the session works as it does for a pane:
 `check_answers`, `list_my_questions`, withdrawing, and repeats.
 
-**Until B3.** Nothing delivers to a core terminal, so its receipt says to call `check_answers` and
-does not mention `[inbox]`. A hook still carries an answer if the conversation is resumed in a herdr
-pane, because that is its forward family; the worker of that server then does not verify the hook
-send, since the row is no server's.
-
 Exit test, on an isolated `hc` 0.1.18 server (own HOME, XDG dirs and `HC_SESSION`). A stand-in `claude`
 in a real terminal ran the real `herdr-inbox mcp` as its child:
 
@@ -1258,7 +1256,8 @@ under `~/.cache/claude-cli-nodejs/<project>/mcp-logs-<name>/`. Both seen on 2.1.
 1. `ask_operator` from that session returns `open`. If it says `unavailable`, the reason in that log
    names the step. A `claude` started through a wrapper that does not `exec` always refuses.
 2. The same call while a Bash tool is running. If `hc`'s foreground leaves the Claude during a tool,
-   every call then gets the "call again" receipt: safe, but it must be known before B3 relies on it.
+   every call then gets the "call again" receipt, a hook firing then is not carried, and an answer
+   waits with `cannot read the agent's terminal`. Safe, but it should be known.
 3. The filed row's session is this conversation's, and after `/clear` a new question files under the
    new session. Read the rows, read-only, and compare with the id `/status` shows:
 
@@ -1271,13 +1270,106 @@ under `~/.cache/claude-cli-nodejs/<project>/mcp-logs-<name>/`. Both seen on 2.1.
    This covers the record's `procStart` against the kit's token. The record's keys and `procStart` were
    checked on one live session (key names only); no `/clear` has run through one.
 4. On macOS, if used: where the core's socket is, with no `XDG_RUNTIME_DIR`.
+5. With an answer waiting at rest: which status the terminal shows (`hc ls`), and that the rewake
+   watcher wakes the session. See "Core delivery" on `done`.
+6. A question answered, its row read as in step 3 with `delivered_at`, `verified_at`, and a real
+   `hc read` of the empty input box. The recordings here go through hc's own renderer, but their
+   screens are Claude Code 2.1.301's. If the box of the version in use reads as a draft or as unknown,
+   nothing is typed, and the row says which.
+
+## Core delivery (B3)
+
+An answer reaches an agent in a core terminal through the same three channels as in a pane, under the
+same claims and the same forward-family rule: its hook while it works, the rewake watcher while it
+rests, typing as the last resort. `delivery::terminal` is the core side, and `delivery::run::seat`
+says which side a row is on, so `inbox_core::deliver::decide` is the one decision for both.
+
+**The worker.** One per machine, keyed on `herdr-core`, lock `worker-0fd11ed85d43.lock`. That word
+reaches it through `HERDR_SOCKET_PATH`, as any server does through `spawn_env`, and `process::serve`
+reads `server == CORE_SERVER`: there is no other flag to forget, and Python's `deliver` asking for
+that worker starts the right one under `engine` rust. It asks herdr nothing: no blocked scan, markers,
+notices or remote machines. Those stay with the herdr workers. It stays up while the core's socket
+answers and ignores idleness, and exits `SERVER_GONE_EXIT` after a proven absence (the socket missing
+or refusing, or no place known). Started by `deliver`, a core terminal's MCP server, and `worker
+--ensure` when a core is up. Only `undelivered_core` lists core rows, so no herdr worker takes one. Rows
+of another machine have no listing and stay untouched.
+
+**Who is in a terminal.** `hc get` says the foreground process, which must match the process table by
+pid, name and argv, and be a Claude with none above it. Claude Code's own record of that exact process
+says the conversation.
+
+| What a look finds | Meaning | Effect |
+|---|---|---|
+| `hc` says no such terminal, or `state` not `live` | Gone | `no live agent in pane t3`: a counted try, 10 and it is agent gone |
+| A foreground that is no Claude and has none above it | The Claude left | The same |
+| `hc` slow or down, no core, a foreground not sampled, a tool or a nested Claude in front, no record, a bad record, the pid just reused | Nothing can be said | `waiting: cannot read the agent's terminal (<why>)`: pending, no try counted |
+| A Claude with a record | Here | The decision runs |
+
+**The record is not followed.** A pane's reported session can lag, so a pane follows continuations. The
+record is rewritten on every session change, and following it would take a resumed older conversation
+for the newer one it continued into, then type that one's answer there. So `session` and
+`reported_session` are both the record. A stale record can only hold an answer back. This is stricter
+than the filing side, which still goes through `live_session`.
+
+**Typing.** The input box is the composer parser over `hc read`. Then one more look, which must find the
+same process and conversation, then `hc send --json --if idle <t> -- <text>`, with `HC_SOCKET` set to the
+socket just tried, so that `hc` cannot find another core by its own rule.
+
+| `hc send` | Row |
+|---|---|
+| exit 0 | Typed, verified in the transcript as in a pane. `started: false` is no failure |
+| Stopped by the 30 s bound, or any way `hc` may have got there | Counts as typed. Only the transcript decides |
+| 9 `blocked` | `blocked: the agent is at a prompt or dialog`, no attempt |
+| 10 `status_mismatch` | `waiting: the terminal reports <status>, and hc types only at idle`, no attempt |
+| 3 `not_found`, 11 `finished` | `no live agent in pane t3`: a counted try |
+| No core, no `hc` | `waiting: cannot read the agent's terminal`, no attempt |
+| Anything else | `hc send failed: <message>`, a failed attempt |
+
+**Force.** `Mode.force` is cleared for a core seat in `deliver_seat`, so the grace, the watcher and the
+hook waits all hold, and `Hc::send` has no argument that could say it. A Retry of any popup on a core
+row is one more attempt under the normal rules.
+
+**What differs from a pane.**
+
+- **Past the grace.** A pane is typed into while the agent works. `--if idle` refuses, so a working
+  terminal waits for its hook or for idle. A refused send costs no attempt.
+- **`done`.** Claude Code 2.1.319 reports `done` after a finished turn, until the next one. `idle` is
+  only a fresh session or an interrupted turn. The watcher takes `done` as at rest and carries the
+  answer with no typing, which is the usual case. Typing refuses there: `hc send --if` knows `idle` and
+  `working` only. So an answer at `done` with no live watcher waits for the session's next hook, or
+  for `check_answers`.
+- **The dim placeholder.** `hc read` has no colours, so `Try "..."` cannot be told from typed text: it
+  counts as a draft, and nothing is typed until it goes. A wrong "draft" holds an answer back. The
+  other way would type onto someone's words.
+- **Moved conversations.** Nothing looks for the conversation in another terminal. The answer stays for
+  its hook there, and `check_answers`. A gone core row is not revived.
+- **No notices.** The app's feed has what the worker's herdr notifications carry. So nothing raises one
+  for a core row, and a popup's or sender's `notify` for one goes to herdr or nowhere.
+
+**Hooks and the watcher.** The first gate is `host::core::hook`: `HC_TERMINAL_ID` proved as for the MCP
+server, except that a hook's Claude is its nearest above a shell or two (`prove_hook`). A proved
+terminal goes before a pane's variables. What cannot be proved now carries nothing. A resume marker
+holds the terminal for the pane. The watcher reads `Seen` as a pane's agent, so a terminal that cannot
+be read waits, and its watch ends only by the rule for an unknown session.
+
+**No test reaches a core.** Typing is real keystrokes. `.cargo/config.toml` gives every process `cargo
+test` starts an `HC_SOCKET` nobody listens on, and it goes before every default. `tests/conftest.py`
+does the same. A unit test's `Cli::on_path` has no socket at all. `tests/no_real_core.rs` fails if any of
+that goes, and runs `deliver` with a default socket that answers and an `hc` on `PATH`.
+
+The core rows of the delivery decision table are `tests/fixtures/decisions-core.json`, written by hand
+because no Python ever made them, and replayed over the real pass and store.
+
+Exit test, on an isolated `hc` 0.1.18 server in a mount and pid namespace with `/run/user` hidden. A
+stand-in Claude in a real terminal drew an input box, reported 7501 statuses and ran the real `herdr-inbox
+mcp` as its child: see the PR for the run. Not run: a real Claude session. It needs a login.
 
 **Known gap, older than this seam.** With no `HC_TERMINAL_ID` nothing here runs, so `HERDR_PANE_ID` is
 still taken at its word. A core that holds a pane's variables runs `hc exec claude ...` with that
 variable and no claim, and the question files under that pane and its agent's session. The same goes
 for any process that inherits those variables, and it is the same before this seam. The real fix is
 that the pane path proves its pane for every caller, with the check `host::core::pane` makes. That
-changes the TUI path, so it is a follow-up after B3.
+changes the TUI path, so it is a follow-up.
 
 ## Deep links: opening the popup on a target (0.6.0)
 

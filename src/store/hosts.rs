@@ -7,7 +7,7 @@
 //! `hook_unverified` all skip a row of another server, in both languages.
 //! A pane row has no side-table row at all.
 
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 use super::Store;
 
@@ -35,6 +35,23 @@ impl Store {
             params![qid, CORE, seat.terminal, seat.machine],
         )?;
         Ok(())
+    }
+
+    /// Where question `qid` was asked, if in a core terminal.
+    pub fn core_seat(&self, qid: i64) -> rusqlite::Result<Option<CoreSeat>> {
+        self.db()
+            .query_row(
+                "SELECT terminal, machine FROM question_host WHERE id = ? AND host = ? \
+                 AND terminal IS NOT NULL",
+                params![qid, CORE],
+                |r| {
+                    Ok(CoreSeat {
+                        terminal: r.get(0)?,
+                        machine: r.get(1)?,
+                    })
+                },
+            )
+            .optional()
     }
 
     /// Records that alert `aid` was raised from `seat`.

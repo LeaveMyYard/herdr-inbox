@@ -69,7 +69,9 @@ impl World {
         let files = herdr_inbox::claude::Transcripts::new(Some(
             herdr_agent_kit::agent_session::claude::io::ProjectsRoot::new(self.projects.clone()),
         ));
-        LiveDuties::new(env, herdr, files, ConfigFile::in_dir(d.join("cfg")), remote)
+        let none = Box::new(herdr_inbox::delivery::terminal::NoCore);
+        let config = ConfigFile::in_dir(d.join("cfg"));
+        LiveDuties::new(env, herdr, none, files, config, remote)
     }
 }
 
