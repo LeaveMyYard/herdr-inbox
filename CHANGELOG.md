@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The herdr-app inbox overlay (B6)**. The `herdr-inbox` mod now shows the open groups, answers
+  single and multi-select questions with notes, drafts and a Submit tab, shows ⚠ answers with
+  Retry and Stop showing, acknowledges alerts and goes to the agent. Its model replays the popup's
+  transition golden. Every verb carries the token of what was shown, a refused verb sends nothing
+  again, and a feed that left rows out never reads as an empty inbox. Until the Rust `app` commands
+  exist it says the inbox is unavailable. A crashed uninstall no longer leaves an emptied subfolder.
 - **`ask_operator` and `alert_operator` work in a herdr-app terminal** (B2). The caller's
   `HC_TERMINAL_ID` is only a claim: the MCP server's own parent must be the only Claude above it, and
   that terminal's foreground process by `hc get`. A refused claim gets `unavailable` from every tool,

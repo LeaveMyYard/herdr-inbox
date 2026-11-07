@@ -12,6 +12,13 @@ function element() {
           return self;
         };
       }
+      if (name === 'children') {
+        return children => {
+          for (const child of children) self.child(child);
+          return self;
+        };
+      }
+      if (name === 'when') return (condition, then) => (condition ? then(self) : self);
       return () => self;
     },
   });

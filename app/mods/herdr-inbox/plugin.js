@@ -89,6 +89,14 @@ async function hasApp(host, root) {
   }
 }
 
+// Makes sure the feed writer and the delivery worker run. Call this only after `availability` says
+// ready, never directly in `init`: `herdr-app check` runs `init`, and nothing there may start a core.
+export async function ensure(host, root) {
+  const writer = await host.exec(...launcher(root, ['app-feed', '--ensure', '--app-home', host.appHome()]));
+  const worker = await host.exec(...launcher(root, ['worker', '--ensure']));
+  return writer.code === 0 && worker.code === 0;
+}
+
 // { state: 'ready', root }, or { state: 'unavailable', reason }.
 export async function availability(host) {
   const receipt = parsed(await read(host, `${host.appHome()}/${RECEIPT}`));
