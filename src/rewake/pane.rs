@@ -1,5 +1,6 @@
-//! The pane's agent as the watcher sees it (Python `herdr.live_agent`): the
-//! live session (continuations followed, `claude::live_session`) and status.
+//! The agent as the watcher sees it: a pane's (Python `herdr.live_agent`) with
+//! the live session (continuations followed, `claude::live_session`) and status,
+//! or a core terminal's ([`crate::delivery::terminal`]).
 
 use std::path::Path;
 
@@ -8,6 +9,7 @@ use herdr_agent_kit::herdr_api::{AgentStatus, PaneId};
 use inbox_core::rewake::Status;
 
 use crate::claude::{Transcripts, live_session};
+use crate::delivery::terminal::{Seen, Terminals};
 
 /// The agent in `pane`: its live session (`None` when herdr names none) and
 /// status; `None` when there is no agent, it answers for another pane
@@ -29,6 +31,28 @@ pub fn pane_agent(
         .filter(|v| !v.is_empty());
     let live = reported.map(|r| live_session(files, state_dir, &r, Some(pane)));
     Some((live, status(agent.agent_status)))
+}
+
+/// The agent in core `terminal`, as [`pane_agent`] says it. One that cannot be
+/// read now names no session: the watch waits, and ends only after a long while.
+pub fn terminal_agent(core: &dyn Terminals, terminal: &str) -> Option<(Option<String>, Status)> {
+    match core.see(terminal, &[]) {
+        Seen::Here(seated) => Some((seated.agent.session, word(&seated.agent.status))),
+        Seen::Gone => None,
+        // its own session, not at rest: the watch waits for one copy to end
+        Seen::Shared(session) => Some((Some(session), Status::Other)),
+        Seen::Unread(_) => Some((None, Status::Other)),
+    }
+}
+
+fn word(status: &str) -> Status {
+    match status {
+        "idle" => Status::Idle,
+        "done" => Status::Done,
+        "working" => Status::Working,
+        "blocked" => Status::Blocked,
+        _ => Status::Other,
+    }
 }
 
 /// herdr's status, as the policy reads it.

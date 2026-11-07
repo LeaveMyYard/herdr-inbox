@@ -8,13 +8,12 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use herdr_agent_kit::herdr_api::clean;
-use inbox_core::deliver::{Agent, Composer};
+use inbox_core::deliver::{Agent, Composer, Prompted};
 use inbox_core::verify::Landing;
 use serde_json::{Value, json};
 
 use super::look::PaneLook;
 use crate::delivery::messages::delivery_messages;
-use crate::delivery::pane::{composer, prompt};
 use crate::delivery::plans::{Plan, verify_plans, watch_paths};
 use crate::delivery::segments::answered;
 use crate::delivery::watch::{Watched, size, wait_hits};
@@ -84,7 +83,7 @@ impl PaneLook<'_, '_> {
             // Python never gets here: no read, no notice
             return Composer::Unknown;
         }
-        let state = composer(self.ctx.herdr, &self.pane);
+        let state = self.read_box();
         let claude = self.agent.as_ref().is_some_and(Agent::is_claude);
         let held = self.agent.as_ref().and_then(|a| a.held_by(state));
         let refs = self.refs(ids);
@@ -112,23 +111,27 @@ impl PaneLook<'_, '_> {
         state
     }
 
-    /// Types the message for `ids`: herdr's error, if any. The transcripts
-    /// to watch are the followed and reported sessions', plus the one the
+    /// Types the message for `ids`. The transcripts to watch are the followed and reported sessions', plus the one the
     /// prompt itself may have created. Nothing is typed once the pass is
     /// halted (#100 review H1): its outcome could not be written.
-    pub(super) fn type_batch(&mut self, ids: &[i64]) -> Option<String> {
-        let agent = self.agent.clone()?;
+    pub(super) fn type_batch(&mut self, ids: &[i64]) -> Prompted {
+        let Some(agent) = self.agent.clone() else {
+            return Prompted::Sent;
+        };
         let watch = watch_paths(self.ctx.store.db(), self.ctx.files, &agent, false);
         let mut watch = self.ok(watch);
         // an earlier failure, or this one
         if self.halted() {
-            return Some(HALTED.into());
+            return Prompted::Failed(HALTED.into());
         }
         let mut path = self.path.clone();
         let mut offset = path.as_deref().map_or(0, size);
-        let text = self.typed_of(ids)?.text.clone();
-        if let Some(err) = prompt(self.ctx.herdr, &self.pane, &text) {
-            return Some(err);
+        let Some(text) = self.typed_of(ids).map(|t| t.text.clone()) else {
+            return Prompted::Sent;
+        };
+        let sent = self.send(&text);
+        if sent != Prompted::Sent {
+            return sent;
         }
         if path.is_none() {
             // a brand-new session's transcript may appear with this very prompt
@@ -150,7 +153,7 @@ impl PaneLook<'_, '_> {
             (t.typed, t.path, t.offset, t.watch, t.text) =
                 (true, path, offset, watch, clean(&text, NO_LIMIT));
         }
-        None
+        Prompted::Sent
     }
 
     fn plans_of(&mut self, k: usize) -> BTreeMap<i64, Plan> {

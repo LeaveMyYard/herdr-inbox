@@ -392,15 +392,20 @@ def subprocess_env(**extra: str) -> dict[str, str]:
 NO_HERDR = "/nonexistent/herdr-not-allowed-in-tests"
 
 
+NO_CORE = "/nonexistent/herdr-inbox-tests/no-core.sock"
+
+
 @pytest.fixture(autouse=True)
 def _no_live_herdr(monkeypatch):
     """pytest started inside a herdr pane inherits HERDR_SOCKET_PATH, HERDR_PANE_ID, ...: a
     test without the fake would then reach the operator's LIVE herdr. Every HERDR_* is
     scrubbed and herdr itself points at a path that does not exist; fake_herdr (which runs
     after this) sets its own. tests/test_isolation.py fails if this scrub goes."""
-    for var in [v for v in os.environ if v.startswith("HERDR_")]:
+    for var in [v for v in os.environ if v.startswith(("HERDR_", "HC_"))]:
         monkeypatch.delenv(var)
     monkeypatch.setenv("HERDR_BIN_PATH", NO_HERDR)
+    # the Rust binary types through `hc`: a socket nobody listens on goes before any default
+    monkeypatch.setenv("HC_SOCKET", NO_CORE)
     from herdr_inbox import herdr
 
     monkeypatch.setattr(herdr, "_is_herdrs_install", None)  # decided per process: per test here

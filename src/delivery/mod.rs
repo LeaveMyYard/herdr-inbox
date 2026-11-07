@@ -1,7 +1,8 @@
 //! Delivery checks shared by the hook paths (Python `service.py`): what a
 //! delivery carries, the asker's forward family, whether it already landed
 //! in any transcript of the conversation, what Claude Code's screen says
-//! ([`screen`]) and the pane's herdr calls ([`pane`]).
+//! ([`screen`]), the pane's herdr calls ([`pane`]) and a core terminal's `hc`
+//! calls ([`terminal`]).
 
 pub mod family;
 pub mod landed;
@@ -12,6 +13,7 @@ pub mod run;
 pub mod screen;
 pub mod segments;
 pub mod send;
+pub mod terminal;
 pub mod watch;
 
 pub use family::forward_family;

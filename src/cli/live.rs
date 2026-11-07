@@ -17,6 +17,7 @@ use crate::delivery::run::{
     Ctx, UNREADABLE_NOTIFY_AFTER, Unreadable, VERIFY_SECONDS, deliver_batch,
 };
 use crate::delivery::send::local_answers;
+use crate::delivery::terminal::{self, Terminals};
 use crate::service::Delivery;
 use crate::service::own::Me;
 use crate::store::{Question, Store};
@@ -45,6 +46,7 @@ pub fn main(cmd: &str, argv: &[String]) -> i32 {
     let root = exe.as_deref().and_then(own_checkout);
     let mut surface = Live::new(herdr.clone(), warn).with_popup(root, focused_pane(&env));
     let mut delivery = LiveDelivery {
+        core: Box::new(terminal::live(&env, herdr.clone())),
         herdr,
         files: Transcripts::from_env(),
         state_dir: state_dir.clone(),
@@ -84,6 +86,7 @@ fn warn(msg: &str) {
 /// Delivery in this process: the pass over the socket, verified here.
 struct LiveDelivery {
     herdr: Herdr,
+    core: Box<dyn Terminals>,
     files: Transcripts,
     state_dir: std::path::PathBuf,
     server: String,
@@ -119,6 +122,7 @@ impl Delivery for LiveDelivery {
         let mut ctx = Ctx {
             store,
             herdr: &self.herdr,
+            core: &*self.core,
             files: &self.files,
             state_dir: &self.state_dir,
             notify: &mut notify,

@@ -116,6 +116,7 @@ impl Rig {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
         cmd.args(args)
             .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .envs(extra.iter().copied())
             .env("HOME", d)
             .env("PATH", "/usr/bin:/bin")

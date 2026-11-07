@@ -1,0 +1,1447 @@
+{
+ "source": "hand-written: core delivery has no Python to record (tests/fixtures/README.md)",
+ "rows": [
+  {
+   "name": "idle",
+   "about": "Idle, the box empty: typed once, seen in the conversation.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 1,
+   "tried": 1,
+   "after": {
+    "state": "delivered",
+    "verified": true,
+    "acknowledged": true,
+    "attempts": 0
+   }
+  },
+  {
+   "name": "idle-fresh-send",
+   "about": "The same from a sender: `deliver`, not the worker's retry.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": false
+   },
+   "typed": 1,
+   "tried": 1,
+   "after": {
+    "state": "delivered",
+    "verified": true,
+    "acknowledged": true,
+    "attempts": 0
+   }
+  },
+  {
+   "name": "draft",
+   "about": "Unsent text in the box: nothing typed, no attempt.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "draft",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "draft-wrapped",
+   "about": "A wrapped draft.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "wrapped",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "dim-placeholder",
+   "about": "hc prints no colours, so a dim `Try \"...\"` placeholder cannot be told from typed text: it counts as a draft.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "box-unreadable",
+   "about": "hc read fails: the box counts as not empty.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": null,
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's input box",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "blocked",
+   "about": "At a prompt or dialog: never typed.",
+   "world": {
+    "hc": "live",
+    "status": "blocked",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "blocked: the agent is at a prompt or dialog",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "blocked-at-the-send",
+   "about": "Blocked after the look: hc refuses, and it costs no attempt.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "blocked",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "blocked: the agent is at a prompt or dialog",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "working-within-grace",
+   "about": "Working, pending for less than the grace: it waits.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 0,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "busy: the agent is working",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "working-past-grace",
+   "about": "Working past the grace: a pane would be typed into; hc refuses a terminal that is not idle.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 60,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the terminal reports working, and hc types only at idle",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "working-with-a-live-hook",
+   "about": "Working with its hook alive: the hook carries it, nothing is typed.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": true,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "busy: delivered at the agent's next tool call or turn end",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "working-forced",
+   "about": "`deliver --force` on a core row changes nothing: the grace still holds.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 0,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": true
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "busy: the agent is working",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "blocked-forced",
+   "about": "Force never passes a dialog.",
+   "world": {
+    "hc": "live",
+    "status": "blocked",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": true
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "blocked: the agent is at a prompt or dialog",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "hook-wait-forced",
+   "about": "Force does not skip the hook's wait on a core row.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": true,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": true
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "busy: delivered at the agent's next tool call or turn end",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "watcher-wait-forced",
+   "about": "Force does not skip the watcher on a core row.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": true,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": true
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "idle: the session's own hook wakes it with the answer",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "done-with-a-watcher",
+   "about": "Claude reports done after a finished turn: its watcher wakes it, nothing is typed.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": true,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "idle: the session's own hook wakes it with the answer",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "done-without-a-watcher",
+   "about": "Done with no watcher: a plain `hc send`, after the same reads. Typed once, seen in the conversation.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 1,
+   "tried": 1,
+   "after": {
+    "state": "delivered",
+    "verified": true,
+    "acknowledged": true,
+    "attempts": 0
+   }
+  },
+  {
+   "name": "no-status",
+   "about": "A program that never reported: as busy, and hc refuses past the grace.",
+   "world": {
+    "hc": "live",
+    "status": null,
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 60,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the terminal reports None, and hc types only at idle",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "terminal-gone",
+   "about": "hc has no such terminal: a counted try, towards agent gone.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "terminal-finished",
+   "about": "Its program ended.",
+   "world": {
+    "hc": "finished",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "claude-left",
+   "about": "A shell has the terminal again.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "shell",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "gone-at-the-send",
+   "about": "The terminal went after the look.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "gone",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "hc-down",
+   "about": "hc cannot be asked: no proof, no try counted.",
+   "world": {
+    "hc": "down",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (no core is running)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "tool-in-foreground",
+   "about": "A tool of the Claude has the terminal.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "tool",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (another program has the terminal)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "nested-claude",
+   "about": "A Claude inside the Claude has the terminal.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "nested",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (another program has the terminal)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "no-record",
+   "about": "No record of the process says which conversation it runs.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "missing",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (Claude Code keeps no record of this process)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "record-unusable",
+   "about": "A record mid-rewrite.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "unusable",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (Claude Code's record of this process is unusable)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "resumed-older-conversation",
+   "about": "The terminal runs an older session that continued into the asker: never typed, the answer waits for the asker to come back.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "older",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "older conversation: pane t3 runs 00000001, an older session than the asking 00000002; resume 00000002 to deliver",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "another-conversation",
+   "about": "The terminal runs an unrelated conversation.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "other",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "conversation changed in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "continued-conversation",
+   "about": "The asker continued into a newer session: that is its forward family, typed.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "newer",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 1,
+   "tried": 1,
+   "after": {
+    "state": "delivered",
+    "verified": true,
+    "acknowledged": true,
+    "attempts": 0
+   }
+  },
+  {
+   "name": "conversation-changed-at-the-send",
+   "about": "The conversation changed after the look: nothing typed.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "other_conversation",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (the terminal's foreground process just changed)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "already-landed",
+   "about": "Already in the conversation: recorded, never typed again.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": true,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "delivered",
+    "verified": true,
+    "acknowledged": true,
+    "attempts": 0
+   }
+  },
+  {
+   "name": "typed-never-seen",
+   "about": "Typed and never seen: a counted attempt, retried only under the cap.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": false,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 1,
+   "tried": 1,
+   "after": {
+    "state": "failed",
+    "error": "not verified: herdr accepted the text but it never reached the conversation",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "twin",
+   "about": "Another live process runs the session: neither copy gets the answer until one ends.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": true,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: cannot read the agent's terminal (another live process runs this session)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "draft-at-the-send",
+   "about": "A keystroke after the box was read and before the last look: nothing typed.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "draft",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "moved-to-another-terminal",
+   "about": "Its terminal is gone and its conversation runs in another, proved: the row goes there.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t4",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "moved: the asking agent is now in terminal t4",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "moved-while-the-terminal-lives",
+   "about": "Its terminal runs another conversation now and its own runs elsewhere.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "other",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t4",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "moved: the asking agent is now in terminal t4",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "stranded-at-error",
+   "about": "The same at `error`, which is neither a case of `--if` nor at rest.",
+   "world": {
+    "hc": "live",
+    "status": "error",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 60,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "failed",
+    "error": "not delivered: the terminal reports error, and hc types only at idle",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "stranded-unread",
+   "about": "Unreadable for longer than the bound.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "missing",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "not delivered: cannot read the agent's terminal (Claude Code keeps no record of this process)",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "working-is-not-stranded",
+   "about": "Working past the bound still has its Stop hook to come.",
+   "world": {
+    "hc": "live",
+    "status": "working",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": 600,
+    "landed_before": false,
+    "at_send": "not_idle",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the terminal reports working, and hc types only at idle",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "draft-is-not-stranded",
+   "about": "A draft past the bound has a person to clear it.",
+   "world": {
+    "hc": "live",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "draft",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 600
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "moved-to-two-terminals",
+   "about": "Two terminals run its conversation: nothing says which, so the row stays.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t4,t5",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "another-terminal-another-conversation",
+   "about": "Another terminal runs something else: the row does not go there.",
+   "world": {
+    "hc": "gone",
+    "status": "idle",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": "t6",
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "failed",
+    "error": "no live agent in pane t3",
+    "attempts": 1
+   }
+  },
+  {
+   "name": "done-with-a-draft",
+   "about": "At `done` the box holds it, as at `idle`.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "draft",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "done-blocked-at-the-send",
+   "about": "Blocked after the look: `hc` refuses a plain send too.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "blocked",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "blocked: the agent is at a prompt or dialog",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "done-forced",
+   "about": "Force changes nothing at `done`: its watcher still waits.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": true,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": true
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "idle: the session's own hook wakes it with the answer",
+    "attempts": 0
+   }
+  }
+ ],
+ "python": [
+  {
+   "name": "python-deliver-leaves-a-core-row",
+   "about": "Until P6-E the popup is Python and its Retry runs Python's deliver: the row stays deliverable, and Python asks for the core's worker.",
+   "ensure": [
+    null,
+    "herdr-core"
+   ],
+   "typed": 0
+  }
+ ]
+}

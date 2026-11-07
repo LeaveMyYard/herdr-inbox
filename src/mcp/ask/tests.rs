@@ -382,13 +382,14 @@ fn a_core_caller_is_filed_with_no_pane_and_a_seat() {
 }
 
 #[test]
-fn a_core_receipt_promises_no_inbox_message() {
+fn a_core_receipt_promises_an_inbox_message_as_a_panes_does() {
     let (_d, s) = store();
     let (group, _) = ask(&s, &core_caller(), &[item("q1?"), item("q2?")], None);
     for message in [&group["message"], &group["questions"][0]["message"]] {
         let message = message.as_str().unwrap();
-        assert!(message.contains("check_answers"), "{message}");
-        assert!(!message.contains("[inbox]"), "{message}");
+        assert!(message.contains("[inbox]"), "{message}");
+        assert!(message.contains("If an answer seems overdue"), "{message}");
+        assert!(!message.contains("herdr-app"), "{message}");
     }
 }
 

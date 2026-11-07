@@ -30,6 +30,7 @@ fn the_launcher_carries_the_binarys_contract() {
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
         .arg("contract")
         .env_clear()
+        .env("HC_SOCKET", "/nonexistent/no-core.sock")
         .env("HOME", dir.path())
         .env("HERDR_BIN_PATH", &cli.bin)
         .output()

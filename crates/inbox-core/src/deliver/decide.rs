@@ -77,6 +77,10 @@ fn settle(
         return;
     };
     let Some(agent) = look.agent() else {
+        if let Some(reason) = look.agent_unread() {
+            out.pending(look, items.iter().map(|q| q.id), &reason);
+            return;
+        }
         for q in items {
             // its pane may only have moved
             let o = if look.moved_elsewhere(q.id) {

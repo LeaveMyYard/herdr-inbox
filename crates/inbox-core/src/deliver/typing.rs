@@ -4,7 +4,7 @@
 
 use super::decide::{DELIVERABLE, Outcomes};
 use super::reasons::OPERATOR_IN_PANE;
-use super::{Agent, Look, Mode, Outcome, Waiting};
+use super::{Agent, Look, Mode, Outcome, Prompted, Waiting};
 use crate::verify::landing as landed;
 
 /// Types each message and records where it landed.
@@ -35,12 +35,20 @@ pub(super) fn type_them(
             out.pending(look, batch.iter().copied(), reason);
             continue;
         }
-        // Python `if err:`: an empty error is a success
-        if let Some(error) = look.prompt(&batch).filter(|e| !e.is_empty()) {
-            for id in &batch {
-                out.insert(look, *id, Outcome::Failed(error.clone()));
+        match look.prompt(&batch) {
+            Prompted::Sent => {}
+            // Python `if err:`: an empty error is a success
+            Prompted::Failed(error) if error.is_empty() => {}
+            Prompted::Failed(error) => {
+                for id in &batch {
+                    out.insert(look, *id, Outcome::Failed(error.clone()));
+                }
+                continue;
             }
-            continue;
+            Prompted::Refused(reason) => {
+                out.pending(look, batch.iter().copied(), &reason);
+                continue;
+            }
         }
         if !look.verify_transcript(&batch) {
             // sent, never counted as seen: check_answers still returns it

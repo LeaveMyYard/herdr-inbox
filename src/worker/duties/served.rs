@@ -6,28 +6,44 @@
 use std::time::Duration;
 
 use inbox_core::deliver::{
-    CHANGED, MAX_STALE_RETRIES, MAX_UNVERIFIED_ATTEMPTS, NO_AGENT, NOT_VERIFIED,
+    CHANGED, MAX_STALE_RETRIES, MAX_UNVERIFIED_ATTEMPTS, NO_AGENT, NOT_VERIFIED, STRANDED,
 };
 
 use super::Round;
 use crate::delivery::pane::live_agent;
 use crate::store::Question;
+use crate::store::hosts::CORE_SERVER;
 
 /// A pre-0.6.1 row's pane is looked at at most this often (Python
 /// `LEGACY_RECHECK`).
 pub const LEGACY_RECHECK: Duration = Duration::from_secs(60);
 
 /// The errors given up after a number of tries (Python `worker.CAPS`).
-pub const CAPS: [(&str, i64); 3] = [
+pub const CAPS: [(&str, i64); 4] = [
     (NO_AGENT, MAX_STALE_RETRIES),
     (CHANGED, MAX_STALE_RETRIES),
     (NOT_VERIFIED, MAX_UNVERIFIED_ATTEMPTS),
+    (STRANDED, 1),
 ];
+
+/// The answers the core worker delivers: every core row of this machine, in one
+/// list. The delivery pass groups them by terminal.
+fn served_core(round: &Round<'_, '_>) -> rusqlite::Result<Vec<(String, Vec<Question>)>> {
+    let rows = round.ctx.store.undelivered_core(&CAPS)?;
+    Ok(if rows.is_empty() {
+        Vec::new()
+    } else {
+        vec![(CORE_SERVER.to_owned(), rows)]
+    })
+}
 
 /// The answers this worker delivers, per pane in the order the panes first
 /// appear. A legacy row whose pane did not hold its conversation
 /// [`MAX_STALE_RETRIES`] times is marked gone.
 pub fn served(round: &Round<'_, '_>) -> rusqlite::Result<Vec<(String, Vec<Question>)>> {
+    if round.server == CORE_SERVER {
+        return served_core(round);
+    }
     let store = round.ctx.store;
     let mut by_pane: Vec<(String, Vec<Question>)> = Vec::new();
     let mut legacy_ids: Vec<i64> = Vec::new();

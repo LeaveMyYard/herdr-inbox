@@ -27,6 +27,7 @@ fn prune(dir: &Path, keep: u32, protect: &str) {
         .arg(dir)
         .arg(protect)
         .env_clear()
+        .env("HC_SOCKET", "/nonexistent/no-core.sock")
         .env("PATH", std::env::var("PATH").unwrap_or_default())
         .status()
         .unwrap();

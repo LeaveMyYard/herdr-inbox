@@ -61,6 +61,7 @@ impl World {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
         cmd.args(["hook", event])
             .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .env("PATH", std::env::var_os("PATH").unwrap_or_default())
             .env("HOME", self.dir.path())
             .env("HERDR_INBOX_DB", &self.db)

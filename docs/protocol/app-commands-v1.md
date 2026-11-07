@@ -203,8 +203,7 @@ claim, like every other send.
 | TUI, no stored server (asked before 0.6.1), with a session | The same, on the verb's default socket. `deliver` treats the row as local, and its `conversation_changed` guard checks the session. | The worker's own proof of the conversation. |
 | TUI, no stored server, no session | Always `held`, for `retry` too. The recipient rule beats retry: that guard is false with no session, so a forced send could reach another agent in a pane with the same id. | `check_answers` only. |
 | No pane and no host record (`unknown`) | Always `held`. | `check_answers` only: the worker's listing never takes such a row. |
-| Core, before B3 | Always `held`, and step 2 is skipped too: there is no core worker. | `check_answers` only. |
-| Core, from B3 | Ask `hc`. Only a proven absence of herdr-core gives `held`. | The core worker, when herdr-core is back. |
+| Core | Ask `hc`. Only a proven absence of herdr-core gives `held`. | The core worker, when herdr-core is back. |
 
 A `held` result says that no sender started, for one of these reasons. A sender started there would burn a counted
 attempt for each press, towards marking the agent gone.
@@ -215,11 +214,11 @@ the verb's environment names the default socket. B4 therefore adds a server para
 passed to `spawn_env` as `ensure` does.
 
 **A core row's server is `herdr-core`.** B2 stores that reserved word in `question_ext.herdr_server`, not a
-socket and not NULL (`CORE_SERVER`). It is no herdr server's id, so every herdr worker and `deliver`, in both
-languages, treat the row as another server's. B3's worker is keyed on the same word: one core worker per
+socket and not NULL (`CORE_SERVER`). It is no herdr server's id, so every herdr worker, and Python's `deliver`,
+treat the row as another server's. B3's worker is keyed on the same word: one core worker per
 machine, with the lock `worker-<sha1("herdr-core")[:12]>.lock`, alive while herdr-core is up. So step 2 is
-`ensure_worker(Some("herdr-core"))`. Step 4 sets no socket variable: B3's `deliver` takes `herdr-core` rows as
-its own, replacing B2's rule that leaves them alone.
+`ensure_worker(Some("herdr-core"))`. Step 4 sets no socket variable: Rust's `deliver` takes `herdr-core` rows
+as its own, whichever herdr server it runs under, and asks for that worker first.
 
 | `delivery` | Meaning |
 |---|---|
@@ -245,8 +244,8 @@ From here the mod reads progress from the feed: the row leaves when the answer i
 | `herdr-core` | `deliver <id>` | Another attempt under the normal rules. |
 
 **The rule lives in the core send path, not in the verb.** A core row reaches every popup too, because
-`failed_deliveries` has no pane rule. So in B3, `Mode.force` has no effect on a core row, and the `hc send`
-adapter has no way to express force: it always passes `--if idle`. That covers the Rust popup from P6-E. The
+`failed_deliveries` has no pane rule. So `Mode.force` has no effect on a core row, and the `hc send`
+adapter has no way to express force: it passes `--if idle`, or at `done`, which `--if` has no word for, nothing. That covers the Rust popup from P6-E. The
 verb has no `--force` argument and takes the host from the database inside its transaction, never from the
 mod. It starts core senders without `--force` so that its intent is plain, but it is not the safeguard.
 
@@ -254,8 +253,10 @@ The popup is Python until P6-E whatever `engine` says, and its Retry runs Python
 reaches that code. That is safe because Python has no way to type to a core row, and because of
 `herdr-core`: it is another server's row there, so Python claims nothing and writes nothing. Without that word
 Python would record `no pane: answer available through check_answers` and count an attempt, on an answer given
-in the popup as well as on Retry. B3's decision table needs a row for this path, so that it stays pinned until
-P6-E: Python `deliver` on a core row leaves it deliverable.
+in the popup as well as on Retry. The row `python-deliver-leaves-a-core-row` of `tests/fixtures/decisions-core.json`
+pins this path until P6-E: Python `deliver` on a core row leaves it deliverable. Python still asks for a
+`herdr-core` worker, and the core worker lists the row, so under `engine` rust the answer goes out within
+the 60 s of a never-attempted row, or at once by the watcher.
 
 The mod does not call `retry` "Send now" on a core row.
 

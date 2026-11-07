@@ -59,6 +59,7 @@ fn a_wake_whose_text_cannot_be_written_exits_0() {
     let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_herdr-inbox"))
         .args(["hook", "rewake-watch"])
         .env_clear()
+        .env("HC_SOCKET", "/nonexistent/no-core.sock")
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env("HOME", w.state())
         .env("HERDR_PANE_ID", "w1:p1")
