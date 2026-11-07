@@ -1303,8 +1303,8 @@ Code also keeps it under `~/.cache/claude-cli-nodejs/<project>/mcp-logs-<name>/`
    If it says `unavailable`, the reason in that log names the step. If `CLAUDE_CODE_SHELL_PREFIX` is set,
    its script must `exec`.
 2. On macOS, if used: where the core's socket is, with no `XDG_RUNTIME_DIR`.
-3. With an answer waiting at rest: which status the terminal shows (`hc ls`), and that the rewake
-   watcher wakes the session. See "Core delivery" on `done`.
+3. With an answer waiting at rest: that the terminal shows `done` (`hc ls`) and the rewake watcher wakes
+   the session.
 4. A question answered, its row read as in step 1 with `delivered_at`, `verified_at`.
 
 ## Core delivery (B3)
@@ -1351,10 +1351,10 @@ whose session has no path yet reads as `no record` and waits. Checked on a real 
 directory, with `deliver` and the worker under the first.
 
 **Typing.** The input box is the composer parser over `hc read`. Then one more look, which must find the
-same process and conversation, the box read again, then `hc send --json --if idle <t> -- <text>`, with
-`HC_SOCKET` set to the socket just tried, so that `hc` cannot find another core by its own rule.
+same process and conversation, the box read again, then `hc send --json --if idle <t> -- <text>` (at `done`,
+with no `--if`: see below), with `HC_SOCKET` set to the socket just tried, so that `hc` cannot find another core by its own rule.
 
-**A person typing at that moment is not covered.** A pane has the focus rule. A core has no viewer to
+**A person typing at that moment is not covered, at any status.** A pane has the focus rule. A core has no viewer to
 ask, and `hc send`'s pause is no stand-in: it waits for a person to stop, then pastes after their text and
 presses Enter (the reviewer's run: `yyyyPLAIN-ATT`, submitted as one message). `--if idle` does not
 change that. So a first keystroke between the last `hc read` and the paste submits it with the answer. The
@@ -1366,7 +1366,7 @@ sees it. Closing the window needs a conditional send in `hc` itself.
 | exit 0 | Typed, verified in the transcript as in a pane. `started: false` is no failure |
 | Stopped by the 30 s bound, or any way `hc` may have got there | Counts as typed. Only the transcript decides, so the guard against typing twice rests on that transcript being flushed: a turn that ends within about 90 ms of the text (only a stub model does) can miss it |
 | 9 `blocked` | `blocked: the agent is at a prompt or dialog`, no attempt |
-| 10 `status_mismatch` | `waiting: the terminal reports <status>, and hc types only at idle`, no attempt |
+| 10 `status_mismatch` (only with `--if`) | `waiting: the terminal reports <status>, and hc types only at idle`, no attempt |
 | 3 `not_found`, 11 `finished` | `no live agent in pane t3`: a counted try |
 | No core, no `hc` | `waiting: cannot read the agent's terminal`, no attempt |
 | Anything else | `hc send failed: <message>`, a failed attempt |
@@ -1381,14 +1381,16 @@ row is one more attempt under the normal rules.
   terminal waits for its hook or for idle. A refused send costs no attempt.
 - **`done`.** Claude Code 2.1.319 reports `done` after a finished turn, until the next one. `idle` is
   a fresh session or an interrupted turn, and a turn interrupted before any output puts the prompt back
-  in the box, which reads as a draft. The watcher takes `done` as at rest and carries the answer with no
-  typing, which is the usual case. Typing refuses there: `hc send --if` knows `idle` and `working` only.
-  So an answer at `done` with no live watcher waits for the session's next hook, or `check_answers`.
-  That happens past `WATCH_MAX_SECONDS`, or with a watcher that died or never started.
-  `hc::PLAIN_SEND_AT_DONE` is the switch: `true` drops `--if` for `done` alone. Its status race is then a
-  turn starting between the look and the paste, and the text queues in Claude. `blocked` is still `hc`'s
-  to refuse. Off until the operator decides.
-- **Stranded answers.** Nothing may wait unseen with no end. A row refused (`done`, `error`, no status) or
+  in the box, which reads as a draft. `hc send --if` knows `idle` and `working` only. So at `done` the
+  send is plain, after the same reads, and at every other status it is `--if idle` (operator's decision on
+  #146). Never `--force`, and `hc` still refuses `blocked`. The watcher takes `done` as at rest and
+  carries the answer with no typing, which is the usual case. Typing at `done` is what comes when there
+  is no live watcher: past `WATCH_MAX_SECONDS`, or a watcher that died or never started.
+
+  **Two races stay.** A turn can start between the look and the paste: with no `--if`, nothing stops the
+  text, and it queues in Claude. It still counts as typed once, and the landing check decides. And the
+  short draft race below, now also at `done`.
+- **Stranded answers.** Nothing may wait unseen with no end. A row refused (`error`, no status) or
   unreadable 5 minutes after its answer (`STRAND_AFTER`) becomes `not delivered: <reason>`, a failed
   attempt: ⚠ in the popup and the feed, with `auto_retry` false, and out of the worker's listing, so it
   costs no more `hc` runs. Its hook, its watcher, `check_answers` and Retry can still bring it. A working
@@ -1440,8 +1442,8 @@ mcp` as its child, with the real worker, `answer`, hooks and watcher around it:
 | Asked, answered, at `idle` | The MCP server started the core worker; `[inbox] Q1 ...` typed once, verified, seen, still once after more ticks |
 | A draft in the box | `pending`, nothing typed; box cleared, typed once |
 | `blocked` | `pending`, nothing typed; at `idle`, typed once |
-| `done`, no watcher | `hc` refused, no attempt; nothing typed |
-| Then the Stop hook | Gate passed; carried once, verified, nothing typed |
+| `done`, no watcher | Plain `hc send`, typed once, verified |
+| `done`, the Stop hook first | Gate passed; carried once, verified, nothing typed |
 | `done` with a live `rewake-watch` | The worker left it to the watcher; exit 3 with the `[inbox]` text, verified, nothing typed |
 | The record names an older session | `older conversation: ...`, nothing typed into it; back on the asker, typed once |
 | The core killed by pid | The core worker exited; a TERM alone is not that, because a holder starts a new core and the worker stays with it |
@@ -1454,6 +1456,7 @@ and no login. On that rig, after its fixes:
 | Twins: t1 alive, `--resume` in t2, a turn in t2, then the answer | Held, nothing woken, `another live process`; t2 exits, t1's own watcher wakes t1, verified, once |
 | Asked in t1, `/exit`, resumed in t2, answered | The row moved to t2, typed once at `idle`, verified |
 | Answered with no copy alive, marked gone at 45 s, resumed later | Carried by the Stop hook of the next turn, verified, once |
+| `done`, the watcher killed | Plain `hc send`, typed once, verified; a draft at `done` held it |
 | A second `CLAUDE_CONFIG_DIR`, worker and `deliver` under the first | Read in the second, typed once, verified |
 | A real herdr 0.9.5 server and its worker beside the core worker | Separate locks; core row delivered once; a pane row tried by the herdr worker only |
 | `engine` python, live | Core lock free within 18 s; Python `deliver` left the row as it was; back on rust, hook carried it once |

@@ -245,7 +245,7 @@ From here the mod reads progress from the feed: the row leaves when the answer i
 
 **The rule lives in the core send path, not in the verb.** A core row reaches every popup too, because
 `failed_deliveries` has no pane rule. So `Mode.force` has no effect on a core row, and the `hc send`
-adapter has no way to express force: it always passes `--if idle`. That covers the Rust popup from P6-E. The
+adapter has no way to express force: it passes `--if idle`, or at `done`, which `--if` has no word for, nothing. That covers the Rust popup from P6-E. The
 verb has no `--force` argument and takes the host from the database inside its transaction, never from the
 mod. It starts core senders without `--force` so that its intent is plain, but it is not the safeguard.
 

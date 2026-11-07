@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime};
 
 use herdr_agent_kit::agent_procs::Pid;
@@ -61,6 +62,8 @@ struct Hc1 {
     typed: Mutex<Vec<String>>,
     tried: Mutex<usize>,
     reads: Mutex<usize>,
+    sent_at: Mutex<Vec<String>>,
+    looks: AtomicUsize,
 }
 
 impl Hc for Hc1 {
@@ -78,6 +81,10 @@ impl Hc for Hc1 {
             "down" => return Err("no core is running"),
             _ => {}
         }
+        let mut status = self.world["status"].clone();
+        if self.looks.fetch_add(1, Ordering::Relaxed) > 0 && self.world["at_send"] == "started" {
+            status = json!("working"); // a turn began after the first look
+        }
         let (pid, name, argv) = match self.world["foreground"].as_str().unwrap() {
             "claude" => (20, "claude", vec!["claude"]),
             "shell" => (19, "zsh", vec!["zsh"]),
@@ -90,7 +97,7 @@ impl Hc for Hc1 {
             _ => "live",
         };
         Ok(json!({
-            "address": "t3", "state": state, "status": self.world["status"],
+            "address": "t3", "state": state, "status": status,
             "foreground": {"pid": pid, "name": name, "argv": argv, "cwd": "/r"},
         }))
     }
@@ -118,9 +125,10 @@ impl Hc for Hc1 {
             .collect()
     }
 
-    fn send(&self, address: &str, text: &str, _: &str) -> Sent {
+    fn send(&self, address: &str, text: &str, status: &str) -> Sent {
         assert_eq!(address, "t3");
         *self.tried.lock().unwrap() += 1;
+        self.sent_at.lock().unwrap().push(status.to_owned());
         match self.world["at_send"].as_str() {
             Some("blocked") => return Sent::Blocked,
             Some("not_idle") => return Sent::NotIdle,
@@ -321,6 +329,8 @@ impl World {
                 typed: Mutex::default(),
                 tried: Mutex::default(),
                 reads: Mutex::default(),
+                sent_at: Mutex::default(),
+                looks: AtomicUsize::new(0),
             },
             machine: Machine1 {
                 world: w.clone(),
@@ -678,7 +688,7 @@ fn a_gone_row_comes_back_when_its_conversation_is_found() {
 
 #[test]
 fn a_stranded_row_shows_as_undelivered_and_stops_costing_hc_runs() {
-    let (row, world) = world_of("stranded-at-done");
+    let (row, world) = world_of("stranded-at-error");
     let hosted = world.hosted(&row["world"]);
     world.pass(&hosted, mode_of(&row));
     let shown = world.store.failed_deliveries().unwrap();
@@ -736,4 +746,15 @@ impl Machine for Elsewhere {
     fn pane_foreground(&self, _: &str) -> Option<Vec<Pid>> {
         None
     }
+}
+
+#[test]
+fn a_turn_seen_on_the_last_look_goes_back_to_if_idle() {
+    let mut w = rows().remove(0)["world"].clone();
+    w["status"] = json!("done");
+    w["at_send"] = json!("started");
+    let world = World::new(&w);
+    let hosted = world.hosted(&w);
+    world.pass(&hosted, Mode::default());
+    assert_eq!(*hosted.hc.sent_at.lock().unwrap(), ["working"]);
 }

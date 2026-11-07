@@ -501,7 +501,7 @@
   },
   {
    "name": "done-without-a-watcher",
-   "about": "Done with no watcher: `--if idle` refuses, the answer waits for the session's next hook.",
+   "about": "Done with no watcher: a plain `hc send`, after the same reads. Typed once, seen in the conversation.",
    "world": {
     "hc": "live",
     "status": "done",
@@ -512,7 +512,7 @@
     "watched": false,
     "pending_for": null,
     "landed_before": false,
-    "at_send": "not_idle",
+    "at_send": null,
     "lands": true,
     "twin": false,
     "elsewhere": null,
@@ -522,11 +522,12 @@
     "retry": true,
     "force": false
    },
-   "typed": 0,
+   "typed": 1,
    "tried": 1,
    "after": {
-    "state": "pending",
-    "reason": "waiting: the terminal reports done, and hc types only at idle",
+    "state": "delivered",
+    "verified": true,
+    "acknowledged": true,
     "attempts": 0
    }
   },
@@ -1153,37 +1154,6 @@
    }
   },
   {
-   "name": "stranded-at-done",
-   "about": "Refused for longer than the bound: shown as not delivered, out of the retry listing.",
-   "world": {
-    "hc": "live",
-    "status": "done",
-    "foreground": "claude",
-    "record": "asker",
-    "screen": "labelled_empty",
-    "hook_live": false,
-    "watched": false,
-    "pending_for": null,
-    "landed_before": false,
-    "at_send": "not_idle",
-    "lands": true,
-    "twin": false,
-    "elsewhere": null,
-    "answered_ago": 600
-   },
-   "mode": {
-    "retry": true,
-    "force": false
-   },
-   "typed": 0,
-   "tried": 1,
-   "after": {
-    "state": "failed",
-    "error": "not delivered: the terminal reports done, and hc types only at idle",
-    "attempts": 1
-   }
-  },
-  {
    "name": "stranded-at-error",
    "about": "The same at `error`, which is neither a case of `--if` nor at rest.",
    "world": {
@@ -1367,6 +1337,99 @@
     "state": "failed",
     "error": "no live agent in pane t3",
     "attempts": 1
+   }
+  },
+  {
+   "name": "done-with-a-draft",
+   "about": "At `done` the box holds it, as at `idle`.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "draft",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "waiting: the agent's input box holds unsent text (send or clear it there)",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "done-blocked-at-the-send",
+   "about": "Blocked after the look: `hc` refuses a plain send too.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": false,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": "blocked",
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": true,
+    "force": false
+   },
+   "typed": 0,
+   "tried": 1,
+   "after": {
+    "state": "pending",
+    "reason": "blocked: the agent is at a prompt or dialog",
+    "attempts": 0
+   }
+  },
+  {
+   "name": "done-forced",
+   "about": "Force changes nothing at `done`: its watcher still waits.",
+   "world": {
+    "hc": "live",
+    "status": "done",
+    "foreground": "claude",
+    "record": "asker",
+    "screen": "labelled_empty",
+    "hook_live": false,
+    "watched": true,
+    "pending_for": null,
+    "landed_before": false,
+    "at_send": null,
+    "lands": true,
+    "twin": false,
+    "elsewhere": null,
+    "answered_ago": 0
+   },
+   "mode": {
+    "retry": false,
+    "force": true
+   },
+   "typed": 0,
+   "tried": 0,
+   "after": {
+    "state": "pending",
+    "reason": "idle: the session's own hook wakes it with the answer",
+    "attempts": 0
    }
   }
  ],

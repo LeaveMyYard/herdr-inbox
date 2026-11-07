@@ -152,7 +152,7 @@ def test_python_shows_a_stranded_core_answer_as_undelivered(db, fake_herdr):
     leaves it."""
     qid = core_question(db)
     answered(db, qid)
-    error = "not delivered: the terminal reports done, and hc types only at idle"
+    error = "not delivered: the terminal reports error, and hc types only at idle"
     db.db.execute("UPDATE questions SET delivery_error = ?, delivery_attempts = 1 WHERE id = ?", (error, qid))
     assert [q.id for q in db.failed_deliveries()] == [qid]
     before = rows(db)

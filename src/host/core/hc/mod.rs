@@ -25,11 +25,6 @@ use super::address;
 
 const MAX_BYTES: usize = 2 * 1024 * 1024;
 
-/// **The switch.** `true` types into a terminal at `done` with a plain `hc send`,
-/// which still refuses `blocked`. `false` keeps `--if idle` there, and the answer
-/// is left to the watcher, a hook or `check_answers`. Never `--force` either way.
-pub const PLAIN_SEND_AT_DONE: bool = false;
-
 /// How long a send may take. `hc send` waits for a person to pause and then
 /// for the turn to start, under a second when nobody types (6 s and more when
 /// someone does). Well under a claim's life.
@@ -74,11 +69,12 @@ pub trait Hc: Send + Sync {
     fn list(&self) -> Vec<String>;
 }
 
-/// The arguments of a send: `--if idle`, unless [`PLAIN_SEND_AT_DONE`] says
-/// otherwise for `done`.
-fn send_args<'a>(address: &'a str, text: &'a str, status: &str, plain: bool) -> Vec<&'a str> {
+/// The arguments of a send. `--if idle` for every status but `done`: Claude Code
+/// stays at `done` after a finished turn, and `--if` has no such word, so that is a
+/// plain send. `hc` still refuses `blocked` there, and the reads before it hold.
+fn send_args<'a>(address: &'a str, text: &'a str, status: &str) -> Vec<&'a str> {
     let mut args = vec!["send", "--json"];
-    if !(plain && status == "done") {
+    if status != "done" {
         args.extend(["--if", "idle"]);
     }
     args.extend([address, "--", text]);
@@ -197,7 +193,7 @@ impl Hc for Cli {
             Ok(socket) => socket,
             Err(why) => return Sent::Unread(why),
         };
-        let args = send_args(address, text, status, PLAIN_SEND_AT_DONE);
+        let args = send_args(address, text, status);
         let run = bounded::read(self.command(socket, &args), self.send_timeout, MAX_BYTES);
         match run {
             Err(why @ "hc unavailable") => Sent::Unread(why),

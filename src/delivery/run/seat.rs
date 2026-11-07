@@ -6,6 +6,7 @@
 //! **Core typing.** The pass looks once more right before the send: the same
 //! process, the same conversation. `hc send --if idle` then settles the status
 //! itself, in the core, so what it refuses was never typed and costs no attempt.
+//! At `done`, which `--if` has no word for, the send is plain, on that last look.
 
 use std::path::{Path, PathBuf};
 
@@ -158,23 +159,22 @@ impl PaneLook<'_, '_> {
         let items: Vec<&Question> = self.qs.values().copied().collect();
         let configs = configs_of(self.ctx.store, &items);
         let configs = self.ok(configs);
-        match self.ctx.core.see(&self.pane, &configs) {
-            Seen::Here(now) if same(&now, &before) => {}
+        let status = match self.ctx.core.see(&self.pane, &configs) {
+            Seen::Here(now) if same(&now, &before) => now.agent.status,
             Seen::Here(_) => return Prompted::Refused(terminal_unread(REPLACED)),
             Seen::Gone => return Prompted::Failed(format!("{NO_AGENT} {}", self.pane)),
             Seen::Shared(_) => return Prompted::Refused(terminal_unread(SHARED)),
             Seen::Unread(why) => return Prompted::Refused(terminal_unread(&why)),
-        }
+        };
         // the box once more, as late as this process can: DESIGN says what stays open
         if let Some(reason) = before.agent.held_by(screen_box(&*self.ctx, &self.pane)) {
             return Prompted::Refused(reason.into());
         }
         let text = Sanitized::new(text);
-        let status = &before.agent.status;
-        match self.ctx.core.send(&self.pane, text.as_str(), status) {
+        match self.ctx.core.send(&self.pane, text.as_str(), &status) {
             Sent::Typed => Prompted::Sent,
             Sent::Blocked => Prompted::Refused(BLOCKED_WAIT.into()),
-            Sent::NotIdle => Prompted::Refused(not_idle(&before.agent.status)),
+            Sent::NotIdle => Prompted::Refused(not_idle(&status)),
             Sent::Gone => Prompted::Failed(format!("{NO_AGENT} {}", self.pane)),
             Sent::Unread(why) => Prompted::Refused(terminal_unread(why)),
             Sent::Failed(error) => Prompted::Failed(error),

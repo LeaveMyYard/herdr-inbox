@@ -244,29 +244,16 @@ fn hc_is_told_which_socket_was_tried() {
 }
 
 #[test]
-fn the_switch_changes_only_done_and_never_says_force() {
-    for status in ["idle", "working", "error", "None"] {
+fn only_done_is_a_plain_send_and_nothing_says_force() {
+    for status in ["idle", "working", "error", "blocked", "None"] {
         assert_eq!(
-            send_args("t3", "x", status, true),
+            send_args("t3", "x", status),
             ["send", "--json", "--if", "idle", "t3", "--", "x"]
         );
     }
     assert_eq!(
-        send_args("t3", "x", "done", false),
-        ["send", "--json", "--if", "idle", "t3", "--", "x"]
-    );
-    assert_eq!(
-        send_args("t3", "x", "done", true),
+        send_args("t3", "x", "done"),
         ["send", "--json", "t3", "--", "x"]
-    );
-}
-
-#[test]
-fn the_switch_stays_off_until_the_operator_says_otherwise() {
-    let args = send_args("t3", "x", "done", PLAIN_SEND_AT_DONE);
-    assert!(
-        args.contains(&"--if"),
-        "keep --if idle until the operator says"
     );
 }
 
