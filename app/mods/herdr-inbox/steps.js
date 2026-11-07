@@ -11,7 +11,7 @@ import { closedWords, heldWords, knownDelivery, leftOutWords, noneOpenWords, que
 
 const READ_ONLY = 'Remote rows are read-only here: nothing was sent. Act on them in the herdr popup.';
 const NOT_NOW = 'This row does not take that action now. Nothing was sent.';
-const KEEP_TYPED_ON_STALE = true; // the reviewer's default, not yet the operator's: false shows the row afresh
+const KEEP_TYPED_ON_STALE = true; // false shows the row afresh instead
 
 const refusal = (code, message) => ({ kind: 'refused', code, message, closed: null });
 

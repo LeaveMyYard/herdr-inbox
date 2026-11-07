@@ -21,7 +21,7 @@ export function windowed(t, rows, at, size) {
 }
 
 // How many rows of this height fit in what is left of the overlay.
-export const fit = (mod, used, row) => Math.max(Math.floor(((mod.size?.height ?? 620) - used - (mod.below ?? 0)) / row), 2);
+export const fit = (mod, used, row) => Math.max(Math.floor(((mod.size?.height ?? 700) - used - (mod.below ?? 0)) / row), 2);
 
 export function button(t, id, label, primary, click) {
   return h_flex().id(id).h(30).px(12).items_center().gap(8).rounded(7).border_1().cursor_pointer().text_size(12.5)
