@@ -185,8 +185,9 @@ export class Steps {
     this.pins.look(this.popup);
   }
 
+  // `show` writes nothing, so a failed one changed nothing either.
   showFailed(what, why, now) {
-    this.notice(unknownWords(why), 'warning');
+    this.notice(`Q${what.qid} could not be read (${why}). Nothing was changed.`, 'warning');
     this.terminalHint = what.qid;
     if (this.link) this.link.unread = true;
     if (!this.popup) this.start(now);

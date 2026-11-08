@@ -8,7 +8,10 @@ import { Steps } from './steps.js';
 import { changeWords } from './words.js';
 
 const seconds = ms => ms / 1000;
-const ESCAPE_REPEAT_MS = 150; // the host's action has no is_held: a second Esc this soon is the key held
+// The host's Esc action says nothing of a held key. A repeat comes before the key is let go: within the
+// host's repeat delay of the first, then every few tens of ms. Without a key-up, a second Esc this soon is one.
+const ESCAPE_REPEAT_MS = 150;
+const ESCAPE_HELD_MS = 800;
 
 export class Session extends Steps {
   constructor({ question = null, hold = true } = {}) {
@@ -19,6 +22,7 @@ export class Session extends Steps {
     this.problem = null;
     this.errors = [];
     this.lastEscape = -Infinity;
+    this.escapeDown = false;
   }
 
   // -- the feed
@@ -108,11 +112,20 @@ export class Session extends Steps {
     this.terminalHint = null;
   }
 
-  // Esc, from the host's action: it has no event to say the key is held.
+  // Esc, from the host's action: it has no event to say the key is held, so a repeat is told by time, or
+  // by no key-up since the last one. With nothing on screen to step back from, Esc closes the overlay.
   escape(now) {
-    const repeat = now - this.lastEscape < ESCAPE_REPEAT_MS;
+    const gap = now - this.lastEscape;
+    const repeat = gap < ESCAPE_REPEAT_MS || (this.escapeDown && gap < ESCAPE_HELD_MS);
     this.lastEscape = now;
-    if (!repeat) this.key('escape', now);
+    this.escapeDown = true;
+    if (repeat) return;
+    if (!this.popup) this.closing = true; // no popup, so no verb: every verb comes from one
+    else this.key('escape', now);
+  }
+
+  escapeUp() {
+    this.escapeDown = false;
   }
 
   // `typed` is the key as it writes, `acting` as it commands: they differ on a non-Latin layout.

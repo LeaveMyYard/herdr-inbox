@@ -94,9 +94,11 @@ export class Window {
     for (let at = 0; at < ms; at += 40) await this.key(key, { held: true, gap: 40 });
   }
 
-  async escape() {
+  // Esc pressed and let go; `{ up: false }` keeps it down, as a held key does.
+  async escape({ up = true } = {}) {
     this.tick();
     this.view.onEscape(this.cx);
+    if (up) this.view.onKeyUp({ key: 'escape' });
     await this.settle();
   }
 

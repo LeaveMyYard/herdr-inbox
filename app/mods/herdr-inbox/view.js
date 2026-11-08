@@ -64,7 +64,7 @@ function listBody(mod, t) {
       .child(div().flex_1().child('Open questions'))
       .child(div().font_family(t.mono).text_size(11.5).font_normal().text_color(t.muted).child(`${count} ${count === 1 ? 'group' : 'groups'}`)),
     v_flex().id('rows').flex_1().min_h(0).overflow_y_scrollbar().children(windowed(t, rows, entries.indexOf(s.popup.view.cursor), fit(mod, 150, 66))).children(others),
-    footer(t, [['⏎', 'open'], ['g', 'go to agent'], ['d', 'dismiss'], ['r', 'retry delivery'], ...(s.incomplete?.ids.length ? [['o', 'left out']] : [])]),
+    footer(t, [['⏎', 'open'], ['g', 'go to agent'], ['d', 'dismiss'], ['r', 'open ⚠ row'], ...(s.incomplete?.ids.length ? [['o', 'left out']] : [])]),
   ];
 }
 
@@ -113,7 +113,7 @@ export const ESCAPE = 'herdr_inbox_escape';
 
 export function render(mod, t) {
   const s = mod.session;
-  const root = v_flex().id('herdr-inbox').key_context(CONTEXT).on_action(ESCAPE, (_a, cx) => mod.onEscape(cx)).track_focus(mod.handle).on_key_down((e, cx) => mod.onKey(e, cx)).on_size_change((size, cx) => { mod.size = size; cx.notify(); }).size_full().min_h(0).bg(t.popover).text_size(13);
+  const root = v_flex().id('herdr-inbox').key_context(CONTEXT).on_action(ESCAPE, (_a, cx) => mod.onEscape(cx)).track_focus(mod.handle).on_key_down((e, cx) => mod.onKey(e, cx)).on_key_up(e => mod.onKeyUp(e)).on_size_change((size, cx) => { mod.size = size; cx.notify(); }).size_full().min_h(0).bg(t.popover).text_size(13);
   if (mod.status.state !== 'ready') {
     const words = mod.wordsNow();
     return root.children(plain(t, words.title, words.detail));

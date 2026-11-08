@@ -179,7 +179,12 @@ export default class HerdrInbox extends View {
 
   onEscape(cx) {
     this.session.escape(Date.now());
+    if (this.session.closing && !this.session.popup) this.tell(); // nothing on screen to wait for
     this.after(cx);
+  }
+
+  onKeyUp(e) {
+    if (e.key === 'escape') this.session.escapeUp();
   }
 
   onRow(row, cx) {

@@ -191,13 +191,48 @@ test('Esc closes the box, goes back, then closes: each one step', async () => {
   assert.equal(w.closed, true);
 });
 
+test('Esc closes the unavailable screen, which has nothing else to close it', async () => {
+  const w = new Window(HerdrInbox, world([group(1)]));
+  w.host.exec = async (_c, args) => (args.at(-1) === 'which' ? { code: 0, stdout: '/fake/bin\n', stderr: '' } : { code: 2, stdout: '', stderr: 'usage' });
+  await w.opened();
+  assert.equal(w.view.status.state, 'unavailable');
+  await w.escape();
+  assert.equal(w.closed, true);
+});
+
+test('Esc closes the screen that waits for a first feed', async () => {
+  const w = new Window(HerdrInbox, world([group(1)]));
+  w.feedOverride = null;
+  await w.opened();
+  assert.equal(w.popup, null);
+  await w.escape();
+  assert.equal(w.closed, true);
+});
+
+test('Esc held past the host\'s repeat delay is one Esc; let go, it is another', async () => {
+  const w = await open(world([group(1), group(5)]));
+  await w.key('enter');
+  await w.escape({ up: false });
+  w.tick(-100); // the first repeat, 600 ms after the press
+  await w.escape({ up: false });
+  for (let i = 0; i < 10; i += 1) {
+    w.tick(-660); // then every 40 ms
+    await w.escape({ up: false });
+  }
+  assert.equal(w.closed, false);
+  assert.equal(w.popup.mode, 'list');
+  w.view.onKeyUp({ key: 'escape' });
+  await w.escape();
+  assert.equal(w.closed, true);
+});
+
 test('Esc held is one Esc', async () => {
   const w = await open(world([group(1), group(5)]));
   await w.key('enter');
-  await w.escape();
+  await w.escape({ up: false });
   for (let i = 0; i < 20; i += 1) {
     w.tick(-660); // 40 ms apart, against escape()'s 700
-    await w.escape();
+    await w.escape({ up: false });
   }
   assert.equal(w.closed, false);
   assert.equal(w.popup.mode, 'list');

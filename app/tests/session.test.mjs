@@ -496,7 +496,8 @@ test('show answering for another question is of unknown effect, and nothing move
   const r = new Rig(feed);
   r.exec = () => ({ code: 0, stdout: JSON.stringify({ v: 1, ok: true, verb: 'show', entry: 'group:2', row: r.db.find('group:2') }), stderr: '' });
   r.press('o', 'enter');
-  assert.match(r.said, /unknown/);
+  assert.match(r.said, /Q9 could not be read/);
+  assert.equal(/may or may not/.test(r.said), false, 'show writes nothing, so nothing may have been done');
   assert.equal(r.popup.view.cursor, 'group:1');
 });
 
@@ -505,7 +506,7 @@ test('show with no questions in its row does not throw', () => {
   const r = new Rig(feed);
   r.exec = () => ({ code: 0, stdout: JSON.stringify({ v: 1, ok: true, verb: 'show', entry: 'group:9', row: { key: 'group:9', kind: 'group' } }), stderr: '' });
   r.press('o', 'enter');
-  assert.match(r.said, /unknown/);
+  assert.match(r.said, /could not be read/);
 });
 
 test('a read owed to a left-out row ends when its view does', () => {
