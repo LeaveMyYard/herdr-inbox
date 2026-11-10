@@ -758,3 +758,93 @@ fn a_turn_seen_on_the_last_look_goes_back_to_if_idle() {
     world.pass(&hosted, Mode::default());
     assert_eq!(*hosted.hc.sent_at.lock().unwrap(), ["working"]);
 }
+
+/// The review of #146 round 2, L1: a long working stretch, then one bad read.
+#[test]
+fn one_unreadable_pass_after_a_long_working_stretch_does_not_strand() {
+    let (row, world) = world_of("working-is-not-stranded");
+    let hosted = world.hosted(&row["world"]);
+    world.pass(&hosted, mode_of(&row));
+    assert_eq!(
+        world.store.pending_since(world.id).unwrap(),
+        None,
+        "a readable pass stops the clock"
+    );
+    let mut unread = row["world"].clone();
+    unread["record"] = json!("missing");
+    let hosted = world.hosted(&unread);
+    world.pass(&hosted, mode_of(&row));
+    let error = world.question().delivery_error.unwrap();
+    assert!(
+        error.starts_with("pending: waiting: cannot read"),
+        "{error}"
+    );
+    assert!(
+        world.store.pending_since(world.id).unwrap().is_some(),
+        "its own clock starts"
+    );
+}
+
+/// The wait that strands is one that ran on, pass after pass.
+#[test]
+fn a_wait_strands_only_when_it_ran_on_for_the_bound() {
+    let (row, world) = world_of("stranded-unread");
+    world
+        .store
+        .db()
+        .execute_batch("UPDATE question_ext SET pending_since = NULL")
+        .unwrap();
+    let hosted = world.hosted(&row["world"]);
+    world.pass(&hosted, mode_of(&row));
+    let error = world.question().delivery_error.unwrap();
+    assert!(
+        error.starts_with("pending: "),
+        "the first pass of a wait: {error}"
+    );
+}
+
+/// A pass of the same wait keeps the clock it started with.
+#[test]
+fn a_wait_keeps_its_clock_from_pass_to_pass() {
+    let (row, world) = world_of("stranded-unread");
+    let started = crate::clock::now_minus(Duration::from_secs(120));
+    world
+        .store
+        .db()
+        .execute("UPDATE question_ext SET pending_since = ?", [&started])
+        .unwrap();
+    let hosted = world.hosted(&row["world"]);
+    world.pass(&hosted, mode_of(&row));
+    assert_eq!(world.store.pending_since(world.id).unwrap(), Some(started));
+}
+
+/// `error` is no turn with a Stop hook to come: its grace and its refusals are one
+/// wait, on one clock, so it strands in the end.
+#[test]
+fn an_error_terminal_keeps_its_clock_through_the_grace() {
+    let mut w = rows().remove(0)["world"].clone();
+    w["status"] = json!("error");
+    let world = World::new(&w);
+    let hosted = world.hosted(&w);
+    world.pass(&hosted, Mode::default());
+    let error = world.question().delivery_error.unwrap();
+    assert_eq!(error, "pending: busy: the agent is error");
+    assert!(
+        world.store.pending_since(world.id).unwrap().is_some(),
+        "the clock runs"
+    );
+}
+
+/// A busy pass while working sets the grace's clock, and must not leave it running:
+/// a bad read after it starts a wait of its own.
+#[test]
+fn a_working_pass_leaves_no_clock_behind() {
+    let mut w = rows().remove(0)["world"].clone();
+    w["status"] = json!("working");
+    let world = World::new(&w);
+    let hosted = world.hosted(&w);
+    world.pass(&hosted, Mode::default());
+    let error = world.question().delivery_error.unwrap();
+    assert_eq!(error, "pending: busy: the agent is working");
+    assert_eq!(world.store.pending_since(world.id).unwrap(), None);
+}

@@ -1391,11 +1391,12 @@ row is one more attempt under the normal rules.
   text, and it queues in Claude. It still counts as typed once, and the landing check decides. And the
   short draft race below, now also at `done`.
 - **Stranded answers.** Nothing may wait unseen with no end. A row refused (`error`, no status) or
-  unreadable 5 minutes after its answer (`STRAND_AFTER`) becomes `not delivered: <reason>`, a failed
+  unreadable on every pass for 5 minutes (`STRAND_AFTER`) becomes `not delivered: <reason>`, a failed
   attempt: ⚠ in the popup and the feed, with `auto_retry` false, and out of the worker's listing, so it
   costs no more `hc` runs. Its hook, its watcher, `check_answers` and Retry can still bring it. A working
   terminal has its Stop hook to come, and a draft or a dialog a person to clear them: those stay pending,
-  with their reason showing.
+  with their reason showing. The clock is `pending_since`: the first such pass starts it and any other
+  pass stops it, so one bad read after a long working stretch strands nothing.
 - **The dim placeholder.** `hc read` has no colours, so `Try "..."` cannot be told from typed text: it
   counts as a draft, and nothing is typed until it goes. A wrong "draft" holds an answer back. The
   other way would type onto someone's words.

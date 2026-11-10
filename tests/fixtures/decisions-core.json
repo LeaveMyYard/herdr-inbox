@@ -1155,7 +1155,7 @@
   },
   {
    "name": "stranded-at-error",
-   "about": "The same at `error`, which is neither a case of `--if` nor at rest.",
+   "about": "Refused at `error` for longer than the bound, pass after pass: shown as not delivered, out of the retry listing.",
    "world": {
     "hc": "live",
     "status": "error",
@@ -1164,7 +1164,7 @@
     "screen": "labelled_empty",
     "hook_live": false,
     "watched": false,
-    "pending_for": 60,
+    "pending_for": 600,
     "landed_before": false,
     "at_send": "not_idle",
     "lands": true,
@@ -1186,7 +1186,7 @@
   },
   {
    "name": "stranded-unread",
-   "about": "Unreadable for longer than the bound.",
+   "about": "Unreadable for longer than the bound, pass after pass.",
    "world": {
     "hc": "live",
     "status": "idle",
@@ -1195,7 +1195,7 @@
     "screen": "labelled_empty",
     "hook_live": false,
     "watched": false,
-    "pending_for": null,
+    "pending_for": 600,
     "landed_before": false,
     "at_send": null,
     "lands": true,

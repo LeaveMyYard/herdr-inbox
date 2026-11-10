@@ -61,6 +61,25 @@ impl Store {
         self.ext("pending_since", qid)
     }
 
+    /// A core row's wait with no end in sight starts now, unless it already runs:
+    /// its clock is `pending_since`, as the busy grace's is.
+    pub fn start_waiting(&self, qid: i64) -> rusqlite::Result<()> {
+        self.db().execute(
+            "UPDATE question_ext SET pending_since = COALESCE(pending_since, ?) WHERE id = ?",
+            params![now(), qid],
+        )?;
+        Ok(())
+    }
+
+    /// A pass found a terminal it could read and a wait with an end: the clock stops.
+    pub fn stop_waiting(&self, qid: i64) -> rusqlite::Result<()> {
+        self.db().execute(
+            "UPDATE question_ext SET pending_since = NULL WHERE id = ?",
+            [qid],
+        )?;
+        Ok(())
+    }
+
     /// Hook sends of `qid` that never showed up in the conversation.
     pub fn hook_misses(&self, qid: i64) -> rusqlite::Result<i64> {
         Ok(self.ext::<i64>("hook_misses", qid)?.unwrap_or(0))
