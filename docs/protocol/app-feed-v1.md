@@ -269,7 +269,7 @@ is a row at once, seconds after it was given. So a `failed` row is not in itself
 | `wait` | ?string | For `pending`, why it waits. Null otherwise. |
 | `attempts` | integer | Failed attempts so far. |
 | `pending_since` | ?time | Since when it waits for a busy agent. |
-| `auto_retry` | bool | The row is in the worker's retry listing (`Store::undelivered`), so it will try again by itself. False when the agent is gone, when `no live agent` / `conversation changed` / `not verified` has used up its tries, and for a row with no pane, which before B3 means every core row. |
+| `auto_retry` | bool | The row is in a worker's retry listing (`Store::undelivered`, for a core row `Store::undelivered_core`), so it will try again by itself. False when the agent is gone, when `no live agent` / `conversation changed` / `not verified` has used up its tries, when a core row is stranded (`not delivered: …`, 5 minutes refused or unreadable), and for a row with no pane and no core terminal of this machine. |
 
 | `state` | Stored `delivery_error` | Meaning |
 |---|---|---|
@@ -548,9 +548,9 @@ The mod also runs `herdr-inbox worker --ensure`, under the same rule, and each v
 makes sure of the worker of that answer's server ([app-commands v1](app-commands-v1.md#delivery)).
 
 There is one worker per herdr server, and it exits about 10 s after that server is gone
-(`SERVER_GONE_EXIT`). So on a machine where only herdr-app runs, `worker --ensure` starts a worker that
-migrates the database if it needs to, delivers nothing and exits. Until B3 this is expected, and
-harmless.
+(`SERVER_GONE_EXIT`). So on a machine where only herdr-app runs, that worker migrates the database if it
+needs to, delivers nothing and exits. `worker --ensure` also starts the core worker when a core is up:
+one per machine, alive while herdr-core is.
 
 ## What depends on what
 
@@ -560,5 +560,5 @@ harmless.
 | `retries` and `retry` | From B2 and B4. The counter is a `question_ext` column in B2's revision bump, so B4 needs B2. |
 | Answering a TUI-hosted question from the overlay | From B4. If herdr proves no server runs on the question's socket, the answer is recorded and the result says `held`, not `queued`: no sender runs, so no attempt is used up. It becomes a ⚠ `unattempted` row after 60 s, `check_answers` can still return it, and that server's worker delivers it once the server is back. |
 | `host: herdr-core` rows | From B2, with `question_host`, `alert_host` and `retry_count` in one `MIGRATION_REVISION` bump. A core row has `pane_id` NULL and `herdr_server` `herdr-core`. Until B2, `ask_operator` and `alert_operator` answer `unavailable` in a core terminal, which has no `HERDR_PANE_ID`, so no such row exists. The fixtures carry them so that the mods can be built first. |
-| Delivery to a core terminal | From B3. Before it, B4 gives every core answer `held`, and `check_answers` is its only route. It shows as a ⚠ `unattempted` row after 60 s, because `failed_deliveries` has no pane rule. The fixture cases marked `needs: B3` wait for it. |
-| A worker with no herdr server | From B3, which extends liveness to herdr-core. |
+| Delivery to a core terminal | From B3. The fixture cases marked `needs: B3` hold from then on. |
+| A worker with no herdr server | From B3: the core worker. |

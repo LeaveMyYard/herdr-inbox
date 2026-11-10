@@ -1,8 +1,9 @@
 //! `herdr-inbox hook <event>`: the Claude Code hooks (Python `hook.run`).
 //!
 //! A hook must be fast and must never fail the session: anything unexpected
-//! means exit 0 with no output. Only the pane's own agent gets the inbox
-//! (`HERDR_PANE_ID` set, not a Claude nested in another).
+//! means exit 0 with no output. Only a host's own agent gets the inbox: the
+//! agent of a proved core terminal, or a pane's (`host::core::hook`), and never a
+//! Claude nested in another.
 
 pub mod deliver;
 pub mod output;
@@ -17,6 +18,7 @@ use herdr_agent_kit::internal::plugin_paths::inbox;
 use herdr_agent_kit::plugin_env::PluginEnv;
 
 use crate::claude::Transcripts;
+use crate::host::core::hook::{Seat, seat};
 use crate::store::db_path;
 use output::hook_output;
 use payload::Payload;
@@ -44,14 +46,22 @@ impl Outcome {
 /// environment, and prints its output. The exit code to use is returned.
 pub fn main(event: &str) -> i32 {
     let env = PluginEnv::from_env();
-    if env.pane_id().is_none() || nested_claude_here() {
-        return 0; // not the pane's own agent: nobody watches the inbox for it
+    let claim = env.var("HC_TERMINAL_ID").is_some_and(|c| !c.is_empty());
+    if (env.pane_id().is_none() && !claim) || nested_claude_here() {
+        return 0; // no host's own agent: nobody watches the inbox for it
     }
     let mut raw = String::new();
     if std::io::stdin().read_to_string(&mut raw).is_err() {
         return 0;
     }
-    let outcome = run(event, &raw, &env, &Transcripts::from_env());
+    let session = Payload::parse(&raw).and_then(|p| p.session_id);
+    let carries = matches!(event, "post-tool-batch" | "stop" | "rewake-watch");
+    let terminal = match seat(&env, session.as_deref(), carries) {
+        Seat::Nobody => return 0,
+        Seat::Pane => None,
+        Seat::Terminal(terminal) => Some(terminal),
+    };
+    let outcome = run_at(event, &raw, &env, &Transcripts::from_env(), terminal);
     if let Some(text) = &outcome.stdout {
         let mut out = std::io::stdout().lock();
         if writeln!(out, "{text}").and_then(|()| out.flush()).is_err() && outcome.code != 0 {
@@ -69,13 +79,26 @@ pub fn main(event: &str) -> i32 {
 /// One hook run on `raw` (the payload text), without printing: what to print
 /// and the exit code.
 pub fn run(event: &str, raw: &str, env: &PluginEnv, files: &Transcripts) -> Outcome {
+    run_at(event, raw, env, files, None)
+}
+
+/// [`run`] for the agent of `terminal`, when a core terminal proved it. A pane
+/// that herdr runs inside that terminal stays a pane: its agent is not this one.
+fn run_at(
+    event: &str,
+    raw: &str,
+    env: &PluginEnv,
+    files: &Transcripts,
+    terminal: Option<String>,
+) -> Outcome {
     let Some(payload) = Payload::parse(raw) else {
         return Outcome::nothing();
     };
     let db = db_path(env);
     let (name, context) = match event {
         "session-start" => {
-            session_start::mark_resume(&inbox::state_dir(env), &payload, env.pane_id());
+            let seat = terminal.as_deref().or(env.pane_id());
+            session_start::mark_resume(&inbox::state_dir(env), &payload, seat);
             ("SessionStart", session_start::context(&db, &payload))
         }
         "subagent-start" => ("SubagentStart", SUBAGENT_RULES.to_owned()),
@@ -93,7 +116,7 @@ pub fn run(event: &str, raw: &str, env: &PluginEnv, files: &Transcripts) -> Outc
         "rewake-watch" => {
             // asyncRewake: the text itself on stdout, and the wake exit
             let clock = crate::rewake::SystemClock::new();
-            let watcher = crate::rewake::Watcher::from_env(env, &clock);
+            let watcher = crate::rewake::Watcher::from_env(env, terminal, &clock);
             return match crate::rewake::run(&watcher, &payload) {
                 Some(text) => Outcome {
                     stdout: Some(text),

@@ -10,6 +10,7 @@ use super::NEVER_ATTEMPTED_GRACE;
 use crate::clock::now_minus;
 use crate::store::Store;
 use crate::store::claims::CLAIM_STALE;
+use crate::store::hosts::CORE;
 use crate::store::question::{COLUMNS, Question, VIEW};
 use crate::store::questions::PENDING;
 
@@ -39,21 +40,35 @@ impl Store {
         pane_id: &str,
         caps: &[(&str, i64)],
     ) -> rusqlite::Result<Vec<Question>> {
+        self.retries("pane_id = ?", vec![pane_id.to_string().into()], caps)
+    }
+
+    /// [`Store::undelivered`] for the terminals of this machine's core: its rows
+    /// have no pane, so no herdr server's worker ever lists them.
+    pub fn undelivered_core(&self, caps: &[(&str, i64)]) -> rusqlite::Result<Vec<Question>> {
+        let core = "pane_id IS NULL AND id IN (SELECT id FROM question_host \
+                    WHERE host = ? AND machine IS NULL)";
+        self.retries(core, vec![CORE.to_string().into()], caps)
+    }
+
+    fn retries(
+        &self,
+        place: &str,
+        mut args: Vec<Value>,
+        caps: &[(&str, i64)],
+    ) -> rusqlite::Result<Vec<Question>> {
         let clauses = if caps.is_empty() {
             "0".to_string()
         } else {
             vec!["(delivery_error LIKE ? AND delivery_attempts >= ?)"; caps.len()].join(" OR ")
         };
         let sql = format!(
-            "SELECT {COLUMNS} FROM {VIEW} WHERE pane_id = ? AND status = 'answered' AND delivered_at IS NULL \
+            "SELECT {COLUMNS} FROM {VIEW} WHERE {place} AND status = 'answered' AND delivered_at IS NULL \
              AND acknowledged_at IS NULL AND (delivery_error IS NOT NULL OR answered_at < ?) \
              AND id NOT IN (SELECT id FROM question_ext WHERE agent_gone_at IS NOT NULL) \
              AND NOT ({clauses}) ORDER BY id"
         );
-        let mut args: Vec<Value> = vec![
-            pane_id.to_string().into(),
-            now_minus(NEVER_ATTEMPTED_GRACE).into(),
-        ];
+        args.push(now_minus(NEVER_ATTEMPTED_GRACE).into());
         for (prefix, cap) in caps {
             args.push(format!("{prefix}%").into());
             args.push((*cap).into());

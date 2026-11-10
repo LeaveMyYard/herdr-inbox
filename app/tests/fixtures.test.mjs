@@ -29,7 +29,7 @@ for (const c of cases) {
   test(`fixture: ${c.name}`, () => {
     const world = read(`app-feed/${c.world}`);
     const rows = c.stdout?.row ? [c.stdout.row] : [];
-    const s = new StandIn(world, { server: c.server, host: c.host, session: c.session, rows, b3: c.needs === 'B3' });
+    const s = new StandIn(world, { server: c.server, host: c.host, session: c.session, rows, b3: !c.name.endsWith('-before-b3') });
     if (c.stdout?.row) s.full = new Map([[c.stdout.row.key, c.stdout.row]]);
     if (c.replay_of) s.run(cases.find(x => x.name === c.replay_of).argv.slice(1));
     SETUP[c.name]?.(s);

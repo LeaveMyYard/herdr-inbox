@@ -437,11 +437,12 @@ test('a Submit where every question was skipped says nothing was sent, on the ro
   assert.equal(r.popup.closed.get('group:1'), 'nothing sent');
 });
 
-test('a core answer before B3 is held, as the contract says', () => {
+test('a core answer is queued like any other', () => {
   const core = group(1, [1], { asker: asker({ host: 'herdr-core', pane: null, terminal: 't3', tab_label: null }) });
   const r = new Rig(world([core, group(5)]), { standin: { server: 'herdr-core' } });
   r.press('enter', 'enter');
-  assert.match(r.said, /nothing was sent/);
+  assert.match(r.said, /not delivered yet/);
+  assert.equal(/nothing was sent/.test(r.said), false);
 });
 
 test('stale closed on one question leaves its siblings open and reachable', () => {

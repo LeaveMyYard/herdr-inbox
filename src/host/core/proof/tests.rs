@@ -82,7 +82,7 @@ fn a_spoofed_terminal_is_refused() {
 fn a_terminal_hc_does_not_know_is_refused() {
     assert_eq!(
         refused(&hc(), &table(), "t99"),
-        Refused::Hc("hc read failed")
+        Refused::Hc(crate::host::core::hc::NO_TERMINAL)
     );
 }
 
@@ -90,7 +90,7 @@ fn a_terminal_hc_does_not_know_is_refused() {
 fn hc_missing_is_refused() {
     assert_eq!(
         refused(&FakeHc::gone(), &table(), "t2"),
-        Refused::Hc("hc read failed")
+        Refused::Hc(crate::host::core::hc::NO_TERMINAL)
     );
 }
 
@@ -224,4 +224,36 @@ fn what_may_pass_in_a_moment_and_what_stays() {
         assert_eq!(why.receipt(), receipts::unproved());
     }
     assert_eq!(Refused::Shared.receipt(), receipts::shared());
+}
+
+#[test]
+fn a_hook_is_proved_through_the_shells_above_it() {
+    let mut t = table();
+    t.insert(30, 20, "sh", "s30", &["sh", "-c", "hook"]);
+    t.insert(31, 30, "sh", "s31", &["sh", "launch"]);
+    assert_eq!(
+        prove_hook(&hc(), &t, 31, "t2"),
+        Ok(Proved {
+            pid: 20,
+            start: "s20".into()
+        })
+    );
+}
+
+#[test]
+fn a_hook_is_held_to_the_same_foreground_as_a_server() {
+    let mut t = table();
+    t.insert(30, 20, "sh", "s30", &["sh"]);
+    // an inherited claim in another Claude: not that terminal's foreground
+    t.insert(40, 1, "claude", "s40", &["claude"]);
+    t.insert(41, 40, "sh", "s41", &["sh"]);
+    assert_eq!(prove_hook(&hc(), &t, 41, "t2"), Err(Refused::NotForeground));
+    // a Claude under the terminal's Claude
+    t.insert(50, 30, "claude", "s50", &["claude", "-p"]);
+    t.insert(51, 50, "sh", "s51", &["sh"]);
+    assert_eq!(prove_hook(&hc(), &t, 51, "t2"), Err(Refused::Nested));
+    assert_eq!(prove_hook(&hc(), &t, 30, "vps/t2"), Err(Refused::Remote));
+    assert_eq!(prove_hook(&hc(), &t, 30, "--all"), Err(Refused::BadAddress));
+    let shell = FakeProcesses::default();
+    assert_eq!(prove_hook(&hc(), &shell, 7, "t2"), Err(Refused::NoClaude));
 }

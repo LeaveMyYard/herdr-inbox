@@ -16,8 +16,8 @@ pub use crate::verify::Landing;
 pub use decide::decide;
 pub use reasons::{
     BLOCKED_WAIT, BUSY_WAIT_IDLE, CHANGED, COMPOSER_DRAFT, COMPOSER_UNKNOWN, HOOK_WAIT, NO_AGENT,
-    NO_PANE, NOT_VERIFIED, OLDER, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT, WATCHER_WAIT,
-    older_error,
+    NO_PANE, NOT_IDLE, NOT_VERIFIED, OLDER, OPERATOR_IN_PANE, PANEL, REQUEUED, REQUEUED_WAIT,
+    STRANDED, TERMINAL_UNREAD, WATCHER_WAIT, not_idle, older_error, terminal_unread,
 };
 
 /// Busy-while-typing misses after which an answer waits for idle (Python
@@ -104,6 +104,18 @@ pub enum Composer {
     Unknown,
 }
 
+/// What became of typing a message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Prompted {
+    /// It went, or may have: it waits for the conversation to show it.
+    Sent,
+    /// It failed, a failed attempt: the error text.
+    Failed(String),
+    /// The host refused it, and nothing was typed: no attempt, it waits for
+    /// this reason (a pending reason, without `pending: `).
+    Refused(String),
+}
+
 /// What becomes of one answer (the store write Python makes).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {
@@ -145,6 +157,12 @@ pub trait Look {
     fn claimed(&mut self, id: i64) -> bool;
     /// The pane's live agent.
     fn agent(&mut self) -> Option<Agent>;
+    /// [`Look::agent`] found none because it could not look: why, as a
+    /// pending reason. No proof that the agent is gone, so no try is counted.
+    /// herdr has no such answer: a pane it cannot read is a pane with no agent.
+    fn agent_unread(&mut self) -> Option<String> {
+        None
+    }
     /// Its conversation runs in another pane (and it was moved there).
     fn moved_elsewhere(&mut self, id: i64) -> bool;
     /// The pane runs a conversation outside the asker's forward family
@@ -185,9 +203,9 @@ pub trait Look {
     /// `waiting: `, once per message; and a Claude agent's input box that
     /// stays unreadable notifies once per pane (`_note_unreadable`).
     fn composer(&mut self, ids: &[i64]) -> Composer;
-    /// Types the message: herdr's error, if any (an empty one counts as
-    /// none, as Python's `if err:`).
-    fn prompt(&mut self, ids: &[i64]) -> Option<String>;
+    /// Types the message (an empty [`Prompted::Failed`] counts as sent, as
+    /// Python's `if err:`).
+    fn prompt(&mut self, ids: &[i64]) -> Prompted;
     /// A transcript to verify against is known.
     fn verify_transcript(&mut self, ids: &[i64]) -> bool;
     /// Waits for the typed message and reports where it landed.

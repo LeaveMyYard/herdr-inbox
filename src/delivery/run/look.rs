@@ -10,10 +10,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use herdr_agent_kit::agent_session::SessionId;
 use herdr_agent_kit::herdr_api::AgentInfo;
-use herdr_agent_kit::plugin_env::LockFile;
-use inbox_core::deliver::{Agent, Mode};
+use inbox_core::deliver::{Agent, Mode, Prompted};
 use serde_json::Value;
 
 use super::relocate::{MOVED, session_pane, tab_name};
@@ -21,8 +19,8 @@ use super::typed::Typed;
 use super::{BUSY_GRACE, Claims, Ctx, HOOK_LIVE};
 use crate::claude::landed::{Expected, landed_kinds};
 use crate::clock::now_minus;
-use crate::delivery::pane::{live_agent, panel};
 use crate::delivery::plans::{older_conversation, question_family};
+use crate::delivery::terminal::Seated;
 use crate::delivery::{expected_segments, landed_across};
 use crate::store::Question;
 use crate::store::sessions::session_transcript;
@@ -36,6 +34,12 @@ pub struct PaneLook<'c, 'a> {
     pub(super) claims: Claims,
     pub(super) agent: Option<Agent>,
     agents: Option<Vec<AgentInfo>>,
+    /// The seat is a core terminal, `pane` its address.
+    pub(super) core: bool,
+    /// The Claude that terminal's look found.
+    pub(super) seated: Option<Seated>,
+    /// Why that look said nothing.
+    pub(super) unread: Option<String>,
     /// The followed session's transcript (found before typing, Python `path`).
     pub(super) path: Option<PathBuf>,
     pub(super) typed: Vec<Typed>,
@@ -48,6 +52,7 @@ impl<'c, 'a> PaneLook<'c, 'a> {
     pub fn new(
         ctx: &'c mut Ctx<'a>,
         pane: &str,
+        core: bool,
         items: &[&'c Question],
         mode: Mode,
         later: Option<&'c mut dyn FnMut(Value)>,
@@ -60,6 +65,9 @@ impl<'c, 'a> PaneLook<'c, 'a> {
             claims: Claims::new(),
             agent: None,
             agents: None,
+            core,
+            seated: None,
+            unread: None,
             path: None,
             typed: Vec::new(),
             later,
@@ -100,26 +108,6 @@ impl<'c, 'a> PaneLook<'c, 'a> {
         let known = self.ok(known.map(Some))?;
         self.ctx.files.find(s, known.as_deref())
     }
-
-    /// Python `_watched`: the idle session's asyncRewake watcher stamped
-    /// itself recently and holds its lock.
-    fn watched_now(&mut self) -> bool {
-        let session = self.session().map(String::from);
-        let live = self.ctx.store.watch_live(session.as_deref(), HOOK_LIVE);
-        if !self.ok(live) {
-            return false;
-        }
-        let Some(sid) = session.as_deref().and_then(SessionId::parse) else {
-            return false;
-        };
-        LockFile::new(
-            self.ctx
-                .state_dir
-                .join("rewake")
-                .join(format!("{sid}.lock")),
-        )
-        .held_elsewhere_if_exists()
-    }
 }
 
 impl inbox_core::deliver::Look for PaneLook<'_, '_> {
@@ -138,17 +126,18 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
         }
     }
     fn agent(&mut self) -> Option<Agent> {
-        self.agent = live_agent(
-            self.ctx.herdr,
-            self.ctx.files,
-            self.ctx.state_dir,
-            &self.pane,
-        );
+        self.agent = self.read_agent();
         self.agent.clone()
+    }
+    fn agent_unread(&mut self) -> Option<String> {
+        self.read_failed()
     }
     fn moved_elsewhere(&mut self, id: i64) -> bool {
         if self.halted() {
             return false;
+        }
+        if self.core {
+            return self.moved_terminal(id);
         }
         if self.agents.is_none() {
             self.agents = Some(self.ctx.herdr.agents().unwrap_or_default());
@@ -219,7 +208,7 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
             .is_none_or(|s| s > now_minus(BUSY_GRACE))
     }
     fn panel_focused(&mut self) -> bool {
-        panel(self.ctx.herdr, &self.pane)
+        self.read_panel()
     }
     fn landed(&mut self, ids: &[i64]) -> Vec<Option<Vec<usize>>> {
         let session = self.session().map(String::from);
@@ -272,17 +261,16 @@ impl inbox_core::deliver::Look for PaneLook<'_, '_> {
         self.batches(ids)
     }
     fn agent_again(&mut self, _: &[i64]) -> Option<Agent> {
-        live_agent(
-            self.ctx.herdr,
-            self.ctx.files,
-            self.ctx.state_dir,
-            &self.pane,
-        )
+        // a terminal has no operator to wait for, and its send looks again itself
+        if self.core {
+            return self.agent.clone();
+        }
+        self.read_agent()
     }
     fn composer(&mut self, ids: &[i64]) -> inbox_core::deliver::Composer {
         self.composer_state(ids, Instant::now())
     }
-    fn prompt(&mut self, ids: &[i64]) -> Option<String> {
+    fn prompt(&mut self, ids: &[i64]) -> Prompted {
         self.type_batch(ids)
     }
     fn verify_transcript(&mut self, ids: &[i64]) -> bool {

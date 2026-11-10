@@ -65,7 +65,7 @@ function parseArgs(args) {
 
 export class StandIn {
   // `feed` is what the database holds. `rows` are the rows left out of it, for `show`.
-  constructor(feed, { server = '/run/herdr-alpha.sock', host = 'up', session = true, rows = [], b3 = false } = {}) {
+  constructor(feed, { server = '/run/herdr-alpha.sock', host = 'up', session = true, rows = [], b3 = true } = {}) {
     this.feed = structuredClone(feed);
     this.rows = structuredClone(rows);
     Object.assign(this, { server, host, session, b3, claims: new Set(), closedRows: new Map(), lock: null, calls: [], clock: feed.generated_at });
@@ -162,7 +162,7 @@ export class StandIn {
 
   delivery(row, done) {
     if (done.length === 0) return null;
-    if (row.asker.host === 'herdr-core' && !this.b3) return 'held'; // before B3 no core row is delivered
+    if (row.asker.host === 'herdr-core' && !this.b3) return 'held'; // the fixtures' cases from before B3
     if (this.host === 'gone' || this.server === null && row.asker.host !== 'herdr-tui') return 'held';
     if (row.asker.host === 'herdr-tui' && this.server === null && !this.session) return 'held';
     return 'queued';

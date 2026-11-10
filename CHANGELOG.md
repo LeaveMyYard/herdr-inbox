@@ -7,20 +7,27 @@
   Retry and Stop showing, acknowledges alerts and goes to the agent. Its model replays the popup's
   transition golden. Every verb carries the token of what was shown, a refused verb sends nothing
   again, and a feed that left rows out never reads as an empty inbox. A crashed uninstall no longer leaves an emptied subfolder.
+- **Answers reach agents in a herdr-app terminal** (B3). One worker per machine, keyed on `herdr-core`
+  and alive while the core is, delivers through the same claims as in a pane. The hooks and the
+  rewake watcher carry the answer once the terminal is proved. Typing is `hc read` for the input box
+  and `hc send --if idle` (plain at `done`, where Claude rests), never `--force`, so what the core refuses
+  costs no attempt. A terminal
+  counts by its foreground process and Claude Code's own record of it, never by its address, and a
+  session two live processes run is served to neither. An answer follows a conversation resumed in
+  another terminal, and one that no terminal can take shows as not delivered after 5 minutes. The
+  receipt now promises an `[inbox]` message. docs/DESIGN.md, "Core delivery".
 - **The herdr-app feed and verbs (B4)**. `herdr-inbox app-feed --ensure` starts one detached writer per
   app home, which publishes the inbox as a file for the mods, proves its start, backs off a writer that
   crashes, and leaves when the app does. `herdr-inbox app <verb> --json` answers, drafts, dismisses,
   retries, hides and acknowledges for a mod: the token check and the write are one transaction, a stale
   token changes nothing, and the verb's own process never types. It starts the same detached sender as
-  the popup, on the question's own server, and says `held` when none can go. Core answers are `held`
-  until core delivery lands. `tools/app_fixtures/` now holds the contract's generator and validator.
+  the popup, on the question's own server, and says `held` when none can go. `tools/app_fixtures/` now holds the contract's generator and validator.
 - **`ask_operator` and `alert_operator` work in a herdr-app terminal** (B2). The caller's
   `HC_TERMINAL_ID` is only a claim: the MCP server's own parent must be the only Claude above it, and
   that terminal's foreground process by `hc get`. A refused claim gets `unavailable` from every tool,
   unless herdr itself lists that Claude in the foreground of the pane it names. A session that another
   live process also runs is refused too, so two copies are never one owner. `hc` runs only when a
-  core is already up, so a tool call never starts one. Delivery to these terminals is B3: until
-  then the receipt says to fetch the answer with `check_answers`.
+  core is already up, so a tool call never starts one.
 - **Schema revision 2, the first Rust owns** (B2). Two side tables, `question_host` and
   `alert_host`, and `question_ext.retry_count`. All additive: Python stays at revision 1, reads a
   higher stamp as it always has, and never touches them. Going back to `engine` python needs nothing

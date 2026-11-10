@@ -17,8 +17,10 @@ use super::unverified::reconcile_unverified;
 use super::{Memory, Round, warn};
 use crate::claude::Transcripts;
 use crate::delivery::run::{Ctx, UNREADABLE_NOTIFY_AFTER, Unreadable, VERIFY_SECONDS};
+use crate::delivery::terminal::Terminals;
 use crate::store::Store;
 use crate::store::alerts::BlockedScan;
+use crate::store::hosts::CORE_SERVER;
 use crate::surface::Surface;
 use crate::surface::live::Live;
 use crate::surface::markers::Markers;
@@ -35,6 +37,7 @@ pub const DB_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct LiveDuties {
     env: WorkerEnv,
     herdr: Herdr,
+    core: Box<dyn Terminals>,
     files: Transcripts,
     config: ConfigFile,
     remote: RemoteEnv,
@@ -54,11 +57,12 @@ fn say(msg: &str) {
 }
 
 impl LiveDuties {
-    /// The duties of `env`'s worker, talking to `herdr`, reading `files`,
-    /// with the plugin's `config` and the remote thread's `remote`.
+    /// The duties of `env`'s worker, talking to `herdr` and `core`, reading
+    /// `files`, with the plugin's `config` and the remote thread's `remote`.
     pub fn new(
         env: WorkerEnv,
         herdr: Herdr,
+        core: Box<dyn Terminals>,
         files: Transcripts,
         config: ConfigFile,
         remote: RemoteEnv,
@@ -66,6 +70,7 @@ impl LiveDuties {
         LiveDuties {
             env,
             herdr,
+            core,
             files,
             config,
             remote,
@@ -94,15 +99,27 @@ impl LiveDuties {
         self.env.server.to_string_lossy().into_owned()
     }
 
+    /// This is the core worker: no herdr server, so no blocked scan, markers,
+    /// notices or remote machines. Those are a herdr worker's.
+    fn on_core(&self) -> bool {
+        self.env.server == CORE_SERVER
+    }
+
     fn run_tick(&mut self, store: &Store) -> rusqlite::Result<usize> {
         let server = self.server();
+        let on_core = self.on_core();
         let state_dir = self.env.state_dir().to_path_buf();
         let mut surface = Live::new(self.herdr.clone(), say);
         let mut marks_surface = Live::new(self.herdr.clone(), say);
-        let mut notify = |t: &str, b: &str| surface.notify(t, b);
+        let mut notify = |t: &str, b: &str| {
+            if !on_core {
+                surface.notify(t, b);
+            }
+        };
         let mut ctx = Ctx {
             store,
             herdr: &self.herdr,
+            core: &*self.core,
             files: &self.files,
             state_dir: &state_dir,
             notify: &mut notify,
@@ -121,6 +138,9 @@ impl LiveDuties {
         );
         let t = self.origin.elapsed().as_secs_f64();
         let mut blocked = |round: &mut Round<'_, '_>| {
+            if on_core {
+                return 0;
+            }
             let mut warn_fn = |m: &str| say(m);
             let mut marks = |pane: Option<&str>| {
                 Markers {
@@ -149,7 +169,8 @@ impl Duties for LiveDuties {
     }
 
     fn tick(&mut self) -> Ticked {
-        let remotes = !self.machines.enabled(&self.herdr).is_empty();
+        let on_core = self.on_core();
+        let remotes = !on_core && !self.machines.enabled(&self.herdr).is_empty();
         if remotes && !self.remote_started {
             let env = self.remote.clone();
             let started = std::thread::Builder::new()
@@ -169,7 +190,7 @@ impl Duties for LiveDuties {
         };
         Ticked {
             pending,
-            keep_alive: remotes || self.watching > 0,
+            keep_alive: on_core || remotes || self.watching > 0, // the core worker lives with the core
         }
     }
 
@@ -183,6 +204,7 @@ impl Duties for LiveDuties {
         let mut ctx = Ctx {
             store: &store,
             herdr: &self.herdr,
+            core: &*self.core,
             files: &self.files,
             state_dir: &state_dir,
             notify: &mut notify,

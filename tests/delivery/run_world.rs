@@ -183,6 +183,7 @@ impl World {
         let mut ctx = Ctx {
             store: &store,
             herdr: &client,
+            core: &herdr_inbox::delivery::terminal::NoCore,
             files: &files,
             state_dir: dir,
             notify: &mut notify,

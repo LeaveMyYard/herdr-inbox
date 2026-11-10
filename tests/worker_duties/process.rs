@@ -33,6 +33,7 @@ impl World {
         let mut cmd = Command::new(self.exe());
         cmd.args(args)
             .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .env("HOME", d)
             .env("PATH", "/usr/bin:/bin")
             .env("XDG_STATE_HOME", d.join("state"))

@@ -34,9 +34,28 @@ pub const COMPOSER_UNKNOWN: &str = "waiting: cannot read the agent's input box";
 /// Typed, accepted by herdr, never seen in the conversation.
 pub const NOT_VERIFIED: &str =
     "not verified: herdr accepted the text but it never reached the conversation";
+/// Prefix of `waiting: cannot read the agent's terminal (<why>)`: not proof
+/// that the agent is gone.
+pub const TERMINAL_UNREAD: &str = "waiting: cannot read the agent's terminal";
+/// Prefix of `waiting: the terminal reports <status>, and hc types only at idle`.
+pub const NOT_IDLE: &str = "waiting: the terminal reports";
+/// Prefix of an answer no core terminal could take for too long: shown as not
+/// delivered, and no longer retried by itself. A hook, the watcher or
+/// `check_answers` can still bring it.
+pub const STRANDED: &str = "not delivered: ";
 /// The prefix of an answer whose pane runs an older session of its
 /// conversation (Python `OLDER`).
 pub const OLDER: &str = "older conversation: ";
+
+/// [`TERMINAL_UNREAD`] for `why`.
+pub fn terminal_unread(why: &str) -> String {
+    format!("{TERMINAL_UNREAD} ({why})")
+}
+
+/// [`NOT_IDLE`] for a terminal at `status`.
+pub fn not_idle(status: &str) -> String {
+    format!("{NOT_IDLE} {status}, and hc types only at idle")
+}
 
 /// The state of an answer whose pane runs (or got it typed into) an older
 /// session of its conversation (Python `older_error`).

@@ -24,6 +24,8 @@ use herdr_agent_kit::agent_procs::start_token;
 use herdr_agent_kit::herdr_api::fake::{FakeHerdr, Reply};
 use herdr_inbox::mcp::receipts::{SHARED, UNDECIDED, UNPROVED};
 use herdr_inbox::store::Store;
+use herdr_inbox::store::hosts::{CORE_SERVER, CoreSeat};
+use herdr_inbox::store::questions::NewQuestion;
 use serde_json::{Value, json};
 
 const BIN: &str = env!("CARGO_BIN_EXE_herdr-inbox");
@@ -100,6 +102,54 @@ const CASES: &[Case] = &[
     ),
     ("a_core_at_hc_socket_is_found", a_core_at_hc_socket_is_found),
     (
+        "a_proved_terminals_hook_carries_its_answer",
+        a_proved_terminals_hook_carries_its_answer,
+    ),
+    (
+        "a_hook_with_a_copied_claim_carries_nothing",
+        a_hook_with_a_copied_claim_carries_nothing,
+    ),
+    (
+        "a_hook_with_no_host_never_runs_hc",
+        a_hook_with_no_host_never_runs_hc,
+    ),
+    (
+        "a_twins_hook_carries_nothing_until_one_copy_ends",
+        a_twins_hook_carries_nothing_until_one_copy_ends,
+    ),
+    (
+        "a_refused_claim_is_no_pane_for_a_hook",
+        a_refused_claim_is_no_pane_for_a_hook,
+    ),
+    (
+        "a_watcher_in_a_proved_terminal_wakes_it_at_rest",
+        a_watcher_in_a_proved_terminal_wakes_it_at_rest,
+    ),
+    (
+        "a_watcher_never_wakes_a_blocked_terminal",
+        a_watcher_never_wakes_a_blocked_terminal,
+    ),
+    (
+        "a_resume_in_a_proved_terminal_is_marked_with_the_terminal",
+        a_resume_in_a_proved_terminal_is_marked_with_the_terminal,
+    ),
+    (
+        "a_watcher_goes_by_the_terminal_before_inherited_pane_variables",
+        a_watcher_goes_by_the_terminal_before_inherited_pane_variables,
+    ),
+    (
+        "the_core_worker_types_through_hc",
+        the_core_worker_types_through_hc,
+    ),
+    (
+        "a_core_terminals_server_starts_the_core_worker",
+        a_core_terminals_server_starts_the_core_worker,
+    ),
+    (
+        "a_filed_question_says_where_its_records_are",
+        a_filed_question_says_where_its_records_are,
+    ),
+    (
         "two_live_copies_of_a_session_are_refused_until_one_ends",
         two_live_copies_of_a_session_are_refused_until_one_ends,
     ),
@@ -112,6 +162,21 @@ const CASES: &[Case] = &[
         a_record_mid_rewrite_says_to_call_again,
     ),
 ];
+
+/// Runs under the stand-in, as Claude Code runs a hook. `hc get` reports `$1` as the terminal's
+/// foreground, or the stand-in (`$PPID`) when that is empty. The server comes after, only so
+/// that [`Rig::start`] finds one.
+const HOOK: &str = r#"
+fg=${1:-$PPID}
+printf '{"address":"t3","state":"live","status":"%s","foreground":{"pid":%s,"name":"claude","argv":["%s","sh","hook.sh"],"cwd":"/f"}}' \
+  "${STATUS:-done}" "$fg" "$CLAUDE" > hc.get
+if [ -n "$WATCH" ]; then
+  ("$BIN" hook rewake-watch < payload > hook.out ; echo $? > hook.code) &
+else
+  "$BIN" hook "${EVENT:-stop}" < payload > hook.out
+fi
+exec "$BIN" mcp
+"#;
 
 /// One stand-in session.
 struct Rig {
@@ -156,7 +221,7 @@ impl Rig {
         exe::install(
             &self.path("hc"),
             "#!/bin/sh\necho \"$@ pane=[$HERDR_PANE_ID]\" >> \"$0.log\"\n\
-             case \"$1\" in get) cat \"$0.get\";; ls) cat \"$0.ls\";; *) exit 2;; esac\n",
+             case \"$1\" in get) cat \"$0.get\";; ls) cat \"$0.ls\";; read) cat \"$0.read\";; send) echo '{}';; *) exit 2;; esac\n",
         );
     }
 
@@ -192,6 +257,9 @@ impl Rig {
         }
         for (name, value) in extra {
             cmd.env(name, value);
+        }
+        if extra.iter().any(|(k, _)| *k == "WORKERS") {
+            cmd.env_remove("HERDR_INBOX_NO_WORKER");
         }
         let mut starter = cmd.spawn().unwrap();
         let stdin = starter.stdin.take().unwrap();
@@ -241,6 +309,60 @@ impl Rig {
 
     fn db(&self) -> Store {
         Store::open(&self.path("inbox.db"), Duration::from_secs(5)).unwrap()
+    }
+
+    /// An answered core question of [`SESSION`], and a Stop hook of that session run in
+    /// `claim`, with `foreground` as what `hc` reports. What the hook printed, and the answer's id.
+    fn hook(&self, claim: Option<&str>, foreground: &str) -> (String, i64) {
+        self.hook_with(claim, foreground, &[])
+    }
+
+    /// [`Rig::hook`] with more variables.
+    fn hook_with(
+        &self,
+        claim: Option<&str>,
+        foreground: &str,
+        more: &[(&str, String)],
+    ) -> (String, i64) {
+        let store = self.db();
+        let q = store
+            .insert(&NewQuestion {
+                session_id: Some(SESSION),
+                question: "Merge it?",
+                ..NewQuestion::default()
+            })
+            .unwrap();
+        store.set_server(q.id, Some(CORE_SERVER)).unwrap();
+        let seat = CoreSeat {
+            terminal: "t3".into(),
+            machine: None,
+        };
+        store.set_question_host(q.id, &seat).unwrap();
+        store.set_answer(q.id, "yes", None).unwrap();
+        self.install_hc();
+        std::fs::write(self.path("hook.sh"), HOOK).unwrap();
+        let source = more.iter().find(|(k, _)| *k == "SOURCE").map(|(_, v)| v);
+        let payload = json!({"session_id": SESSION, "hook_event_name": "Stop", "source": source});
+        std::fs::write(self.path("payload"), payload.to_string()).unwrap();
+        let mut extra = vec![
+            ("BIN", BIN.to_string()),
+            ("CLAUDE", self.claude.display().to_string()),
+        ];
+        extra.extend_from_slice(more);
+        let argv = ["sh", "hook.sh", foreground];
+        let s = self.start_with(claim, &argv, &extra);
+        if more.iter().any(|(k, _)| *k == "WATCH") {
+            // the watcher reads the record of this Claude, known only now
+            self.record(s.pid, &|r| r["sessionId"] = json!(SESSION));
+            for _ in 0..200 {
+                if self.path("hook.code").exists() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+        let printed = std::fs::read_to_string(self.path("hook.out")).unwrap_or_default();
+        (printed, q.id)
     }
 
     fn count(&self, table: &str) -> i64 {
@@ -680,4 +802,209 @@ fn main() -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+fn a_proved_terminals_hook_carries_its_answer() {
+    let rig = Rig::new();
+    let (printed, id) = rig.hook(Some("t3"), "");
+    assert!(printed.contains("[inbox]"), "{printed}");
+    assert!(printed.contains(&format!("Q{id}")), "{printed}");
+    let q = rig.db().get(id).unwrap().unwrap();
+    assert!(q.delivered_at.is_some(), "recorded before it was printed");
+}
+
+fn a_hook_with_a_copied_claim_carries_nothing() {
+    let rig = Rig::new();
+    // another terminal's claim: its foreground is somebody else
+    let (printed, id) = rig.hook(Some("t3"), "4242");
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+}
+
+fn a_hook_with_no_host_never_runs_hc() {
+    let rig = Rig::new();
+    let (printed, id) = rig.hook(None, "");
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+    let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
+    assert_eq!(log, "", "no claim, no hc");
+}
+
+fn a_twins_hook_carries_nothing_until_one_copy_ends() {
+    // the review of #146, H3: `claude --resume <id>` of a live session in another terminal
+    let rig = Rig::new();
+    rig.install_hc();
+    let copy = rig.start(Some("t4"), &[BIN, "mcp"]);
+    rig.record(copy.pid, &|r| r["sessionId"] = json!(SESSION));
+    let (printed, id) = rig.hook(Some("t3"), "");
+    assert_eq!(printed, "", "one copy would take the other's answer");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+    let pid = copy.pid;
+    drop(copy);
+    gone(pid);
+    let (printed, _) = rig.hook(Some("t3"), "");
+    assert!(printed.contains(&format!("Q{id}")), "{printed}");
+}
+
+fn a_refused_claim_is_no_pane_for_a_hook() {
+    // a core hands its environment on: the pane variables prove nothing beside a claim
+    let rig = Rig::new();
+    let pane = [("HERDR_PANE_ID", "w1:p1".to_string())];
+    let (printed, id) = rig.hook_with(Some("t3"), "4242", &pane);
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+}
+
+fn a_filed_question_says_where_its_records_are() {
+    // a core worker of another config directory finds them through this
+    let rig = Rig::new();
+    let dir = rig.path("claude-config/projects/-r");
+    std::fs::create_dir_all(&dir).unwrap();
+    let transcript = dir.join(format!("{SESSION}.jsonl"));
+    std::fs::write(&transcript, "{}\n").unwrap();
+    let mut s = rig.proved();
+    assert_eq!(s.ask()["status"], "open");
+    let known: String = rig
+        .db()
+        .db()
+        .query_row(
+            "SELECT transcript_path FROM sessions WHERE session_id = ?",
+            [SESSION],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(Path::new(&known), transcript);
+}
+
+fn a_watcher_in_a_proved_terminal_wakes_it_at_rest() {
+    let rig = Rig::new();
+    let (printed, id) = rig.hook_with(Some("t3"), "", &[("WATCH", "1".to_string())]);
+    assert!(printed.contains(&format!("Q{id}")), "{printed:?}");
+    let code = std::fs::read_to_string(rig.path("hook.code")).unwrap();
+    assert_eq!(code.trim(), "3", "the wake exit");
+}
+
+fn a_watcher_never_wakes_a_blocked_terminal() {
+    let rig = Rig::new();
+    let more = [
+        ("WATCH", "1".to_string()),
+        ("STATUS", "blocked".to_string()),
+    ];
+    let (printed, id) = rig.hook_with(Some("t3"), "", &more);
+    assert_eq!(printed, "");
+    assert_eq!(rig.db().get(id).unwrap().unwrap().delivered_at, None);
+}
+
+fn a_resume_in_a_proved_terminal_is_marked_with_the_terminal() {
+    let rig = Rig::new();
+    let more = [
+        ("EVENT", "session-start".to_string()),
+        ("SOURCE", "resume".to_string()),
+        ("HERDR_PANE_ID", "w1:p1".to_string()), // inherited: the terminal goes first
+    ];
+    rig.hook_with(Some("t3"), "", &more);
+    let marker = ["starts", "herdr-inbox/starts"]
+        .iter()
+        .map(|d| rig.path(d).join(SESSION))
+        .find(|p| p.exists())
+        .expect("no marker");
+    assert_eq!(std::fs::read_to_string(marker).unwrap(), "t3");
+}
+
+fn a_watcher_goes_by_the_terminal_before_inherited_pane_variables() {
+    let rig = Rig::new();
+    let more = [
+        ("WATCH", "1".to_string()),
+        ("HERDR_PANE_ID", "w1:p1".to_string()),
+    ];
+    let (printed, id) = rig.hook_with(Some("t3"), "", &more);
+    assert!(printed.contains(&format!("Q{id}")), "{printed:?}");
+}
+
+/// The real worker, keyed on the core, over a real proof of a stand-in Claude.
+fn the_core_worker_types_through_hc() {
+    let rig = Rig::new();
+    let s = rig.proved();
+    rig.record(s.pid, &|r| r["sessionId"] = json!(SESSION));
+    let box_ = "\u{2500}".repeat(20);
+    let read =
+        json!({"complete": true, "how": "screen", "text": format!("{box_}\n\u{276f} \n{box_}\n")});
+    std::fs::write(rig.path("hc.read"), read.to_string()).unwrap();
+    let get = std::fs::read_to_string(rig.path("hc.get")).unwrap();
+    let mut get: Value = serde_json::from_str(&get).unwrap();
+    get["status"] = json!({"app": "claude-code", "state": "idle"});
+    std::fs::write(rig.path("hc.get"), get.to_string()).unwrap();
+    let store = rig.db();
+    let q = store
+        .insert(&NewQuestion {
+            session_id: Some(SESSION),
+            question: "Merge it?",
+            ..NewQuestion::default()
+        })
+        .unwrap();
+    store.set_server(q.id, Some(CORE_SERVER)).unwrap();
+    let seat = CoreSeat {
+        terminal: "t3".into(),
+        machine: None,
+    };
+    store.set_question_host(q.id, &seat).unwrap();
+    store.set_answer(q.id, "yes", None).unwrap();
+    store
+        .db()
+        .execute_batch("UPDATE questions SET answered_at = '2020-01-01T00:00:00+00:00'")
+        .unwrap();
+    let dir = rig.dir.path();
+    let mut worker = Command::new(BIN)
+        .arg("worker")
+        .env_clear()
+        .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
+        .env("HOME", dir)
+        .env("XDG_STATE_HOME", dir)
+        .env("XDG_CONFIG_HOME", dir)
+        .env("XDG_RUNTIME_DIR", dir.join("run"))
+        .env("CLAUDE_CONFIG_DIR", dir.join("claude-config"))
+        .env("HERDR_INBOX_DB", dir.join("inbox.db"))
+        .env("HERDR_BIN_PATH", dir.join("herdr-cli"))
+        .env("HERDR_SOCKET_PATH", "herdr-core")
+        .env("HERDR_INBOX_WORKER_TICK", "0.1")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    // the outcome, not the send: the worker records it after `hc` returns, and a slow
+    // machine (the macOS runner) shows a gap between the two
+    let delivered = || rig.db().get(q.id).unwrap().unwrap().delivered_at.is_some();
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while !delivered() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    // a few more ticks: a second send would show here
+    std::thread::sleep(Duration::from_millis(500));
+    let _ = worker.kill(); // this test's own child
+    let _ = worker.wait();
+    let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
+    let sends = log.lines().filter(|l| l.starts_with("send ")).count();
+    assert!(delivered(), "the outcome was never written");
+    assert_eq!(sends, 1, "typed once, through hc");
+}
+
+fn a_core_terminals_server_starts_the_core_worker() {
+    let rig = Rig::new();
+    let lock = rig.path(&format!("worker-{}.lock", "0fd11ed85d43"));
+    rig.install_hc();
+    let more = [
+        ("WORKERS", "1".to_string()),
+        ("HERDR_INBOX_WORKER_TICK", "0.1".to_string()),
+    ];
+    let _s = rig.start_with(Some("t3"), &[BIN, "mcp"], &more);
+    let mut held = false;
+    for _ in 0..100 {
+        held = herdr_agent_kit::plugin_env::LockFile::new(&lock).held_elsewhere();
+        if held {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(held, "no core worker");
+    // detached, so no child of this test: it ends by its own rule, the core gone
 }

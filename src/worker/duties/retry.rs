@@ -10,6 +10,7 @@ use super::stuck::notify_stuck;
 use super::{Round, warn};
 use crate::delivery::run::deliver_batch;
 use crate::store::Store;
+use crate::store::hosts::CORE_SERVER;
 
 /// One retry pass per served pane (Python `deliver_batch(store, items,
 /// retry=True)`, verified in this process). One pane's failure never stops
@@ -45,6 +46,9 @@ pub fn mark_gone(store: &Store) -> rusqlite::Result<()> {
 /// The stuck answers of this worker's server (or of none) get their
 /// notification (Python `left = [...]; notify_stuck(store, left)`).
 pub fn notify_left(round: &mut Round<'_, '_>) -> rusqlite::Result<()> {
+    if round.server == CORE_SERVER {
+        return Ok(()); // herdr's notice: the app has its own, and a legacy row is a herdr worker's
+    }
     let store = round.ctx.store;
     let mut left = Vec::new();
     for q in store.stuck_answers()? {

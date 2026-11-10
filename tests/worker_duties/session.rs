@@ -22,9 +22,12 @@ use crate::World;
 /// Runs `sh -c <argv[1]>` as the session leader of a new pseudo-terminal and
 /// ends that session once the file `argv[2]` exists.
 const PANE: &str = r#"
-import os, pty, select, subprocess, sys, time
+import os, pty, select, signal, subprocess, sys, time
 pid, fd = pty.fork()
 if pid == 0:
+    # a pane's shell hangs up: a runner that ignores SIGHUP (nohup, a background job) hands
+    # that on, and `sleep` would then outlast the worker's idle exit
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
     os.execv("/bin/sh", ["sh", "-c", sys.argv[1]])
 end = time.time() + 30
 while not os.path.exists(sys.argv[2]) and time.time() < end:
@@ -51,6 +54,7 @@ impl World {
         py.args(["-c", PANE, &command.replace("EXE", &exe.to_string_lossy())])
             .arg(close)
             .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

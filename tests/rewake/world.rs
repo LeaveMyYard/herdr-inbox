@@ -97,6 +97,8 @@ impl World {
             db: self.db.clone(),
             state_dir: self.dir.path().to_path_buf(),
             pane: pane.map(str::to_owned),
+            terminal: None,
+            core: Box::new(herdr_inbox::delivery::terminal::NoCore),
             herdr: self
                 .herdr
                 .blocking_client()

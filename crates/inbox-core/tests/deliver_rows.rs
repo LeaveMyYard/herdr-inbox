@@ -9,8 +9,8 @@
 //! `after`.
 
 use inbox_core::deliver::{
-    Agent, BUSY_WAIT_IDLE, Composer, Landing, Look, Mode, Outcome, REQUEUED_WAIT, Waiting, decide,
-    older_error,
+    Agent, BUSY_WAIT_IDLE, Composer, Landing, Look, Mode, Outcome, Prompted, REQUEUED_WAIT,
+    Waiting, decide, older_error,
 };
 use serde_json::{Map, Value, json};
 
@@ -156,8 +156,9 @@ impl Look for PassLook<'_> {
             _ => Composer::Unknown,
         }
     }
-    fn prompt(&mut self, ids: &[i64]) -> Option<String> {
-        self.of(ids[0], "prompt_error").as_str().map(String::from)
+    fn prompt(&mut self, ids: &[i64]) -> Prompted {
+        let error = self.of(ids[0], "prompt_error").as_str().map(String::from);
+        error.map_or(Prompted::Sent, Prompted::Failed)
     }
     fn verify_transcript(&mut self, ids: &[i64]) -> bool {
         self.flag(ids[0], "verify_transcript")

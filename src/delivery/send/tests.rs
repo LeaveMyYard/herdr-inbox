@@ -42,7 +42,7 @@ fn another_servers_answers_are_left_to_its_worker() {
 }
 
 #[test]
-fn a_core_answer_is_left_alone_and_no_worker_is_asked_for_it() {
+fn a_core_answer_is_this_processs_to_deliver_and_its_worker_is_made_sure_of() {
     let dir = tempfile::tempdir().unwrap();
     let store =
         Store::open_migrating(&dir.path().join("inbox.db"), Duration::from_secs(5)).unwrap();
@@ -50,19 +50,21 @@ fn a_core_answer_is_left_alone_and_no_worker_is_asked_for_it() {
         .db()
         .execute_batch(
             "INSERT INTO questions (id, created_at, question, norm, status) VALUES \
-             (1, 'x', 'a', 'a', 'answered'); \
-             INSERT INTO question_ext (id, group_id, herdr_server) VALUES (1, 1, 'herdr-core');",
+             (1, 'x', 'a', 'a', 'answered'), (2, 'x', 'b', 'b', 'answered'); \
+             INSERT INTO question_ext (id, group_id, herdr_server) VALUES \
+             (1, 1, 'herdr-core'), (2, 2, 'herdr-core');",
         )
         .unwrap();
-    let qs = vec![store.get(1).unwrap().unwrap()];
+    let qs: Vec<_> = (1..=2).map(|i| store.get(i).unwrap().unwrap()).collect();
     let mut asked = Vec::new();
     let kept = local_answers(&store, &qs, true, "/srv/a", &mut |s| {
         asked.push(s.map(str::to_string))
     })
     .unwrap();
-    assert!(kept.is_empty(), "never this server's to type");
-    assert!(
-        asked.is_empty(),
-        "herdr-core is no socket to start a worker on"
+    assert_eq!(kept.iter().map(|q| q.id).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(
+        asked,
+        vec![Some("herdr-core".to_string())],
+        "one worker, once"
     );
 }

@@ -4,7 +4,7 @@ import os
 
 from herdr_inbox import herdr
 
-from .conftest import NO_HERDR
+from .conftest import NO_CORE, NO_HERDR
 
 
 def test_no_herdr_environment_leaks_into_a_test():
@@ -12,6 +12,13 @@ def test_no_herdr_environment_leaks_into_a_test():
     assert os.environ["HERDR_BIN_PATH"] == NO_HERDR
     res, err = herdr.call("agent", "list")
     assert res is None and err  # nothing to talk to
+
+
+def test_no_core_environment_leaks_into_a_test():
+    """The Rust binary types through `hc`: a test it runs must find no core, whatever the shell has."""
+    assert [v for v in os.environ if v.startswith("HC_")] == ["HC_SOCKET"]
+    assert os.environ["HC_SOCKET"] == NO_CORE
+    assert not os.path.exists(NO_CORE)
 
 
 def test_the_fake_replaces_it(fake_herdr):

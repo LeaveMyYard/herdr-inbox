@@ -13,7 +13,7 @@ use herdr_agent_kit::plugin_env::PluginEnv;
 use herdr_agent_kit::plugin_env::config::ConfigFile;
 
 use super::duties::live::LiveDuties;
-use super::live::{Install, Live, own_checkout, running_version};
+use super::live::{Core, Install, Live, absent, own_checkout, running_version};
 use super::lock::is_running;
 use super::remote::RemoteEnv;
 use super::remote::ssh::SshEnv;
@@ -21,6 +21,9 @@ use super::run::run;
 use super::spawn::{ensure, enter_own_session};
 use super::{Waits, WorkerEnv, spawn_env};
 use crate::claude::Transcripts;
+use crate::delivery::terminal::{NoCore, Terminals, live as terminal_live};
+use crate::host::core::hc::socket;
+use crate::store::hosts::CORE_SERVER;
 use crate::store::revision::MIGRATION_REVISION;
 use crate::tabs::settings::PLUGIN_ID;
 
@@ -74,6 +77,13 @@ pub fn ensure_worker_in(env: &PluginEnv, server: Option<&str>, exe: &Path) -> bo
     ensure(&wenv, exe)
 }
 
+/// Starts the core worker when this process's core is up (the mod's `init`,
+/// a core terminal's MCP server). True if one started.
+pub fn ensure_core_worker(env: &PluginEnv, exe: &Path) -> bool {
+    let up = socket::from_env(env).is_some_and(|s| !absent(&s));
+    up && ensure_worker_in(env, Some(CORE_SERVER), exe)
+}
+
 /// [`ensure_worker`] for a caller that must know the answer has a worker: one
 /// started, or one runs. False: none could start, and none runs.
 pub fn worker_runs(server: Option<&str>) -> bool {
@@ -90,6 +100,7 @@ pub fn main(args: &[String]) -> i32 {
         [] => serve(),
         [flag] if flag == "--ensure" => {
             ensure_worker(None);
+            ensure_core_worker(&PluginEnv::from_env(), &own_exe());
             0
         }
         _ => {
@@ -120,14 +131,30 @@ fn serve() -> i32 {
         },
         config_dir: config.path().and_then(Path::parent).map(Path::to_path_buf),
     };
+    let on_core = wenv.server == CORE_SERVER;
+    let terminals: Box<dyn Terminals> = if on_core {
+        Box::new(terminal_live(&env, herdr.clone()))
+    } else {
+        Box::new(NoCore)
+    };
     let duties = LiveDuties::new(
         wenv.clone(),
         herdr.clone(),
+        terminals,
         Transcripts::from_env(),
         config,
         remote,
     );
-    let mut world = Live::new(wenv.clone(), herdr, install_of(&exe), exe, duties);
+    let root = own_checkout(&exe);
+    let world = Live::new(wenv.clone(), herdr, install_of(&exe), exe, duties);
+    let mut world = if on_core {
+        world.on_core(Core {
+            socket: socket::from_env(&env),
+            root,
+        })
+    } else {
+        world
+    };
     run(&wenv, &mut world)
 }
 
