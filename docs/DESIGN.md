@@ -1396,7 +1396,8 @@ row is one more attempt under the normal rules.
   costs no more `hc` runs. Its hook, its watcher, `check_answers` and Retry can still bring it. A working
   terminal has its Stop hook to come, and a draft or a dialog a person to clear them: those stay pending,
   with their reason showing. The clock is `pending_since`: the first such pass starts it and any other
-  pass stops it, so one bad read after a long working stretch strands nothing.
+  pass stops it, so one bad read after a long working stretch strands nothing. A twin waits off the clock: a
+  person ends one copy, as with a draft. A Retry stops the clock too.
 - **The dim placeholder.** `hc read` has no colours, so `Try "..."` cannot be told from typed text: it
   counts as a draft, and nothing is typed until it goes. A wrong "draft" holds an answer back. The
   other way would type onto someone's words.

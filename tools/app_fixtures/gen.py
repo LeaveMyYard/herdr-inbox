@@ -282,7 +282,7 @@ def commands():
       verb("answer", "group:14", "--question", "14", "--question", "15"), 0,
       ok("answer", "group:14", left, [14, 15], delivery="queued"), server=CORE, needs="B3",
       effects=fx(CORE, "14", "15"))
-    C("answer-held-core-before-b3", "A core row before B3: recorded, no worker, no sender. check_answers has it.",
+    C("answer-held-core-before-b3", "History: a core row before B3, which production no longer reaches (CORE_DELIVERY is on). Recorded, no worker, no sender. check_answers has it.",
       verb("answer", "group:14", "--question", "14", "--question", "15"), 0,
       ok("answer", "group:14", left, [14, 15], delivery="held"), server=CORE, host="gone")
     C("answer-held-core-down", "Setup: hc proves herdr-core is not running. The core worker is ensured, no sender.",
@@ -322,7 +322,7 @@ def commands():
     C("retry-core", "A core row is never forced.",
       verb("retry", "failed:9"), 0, ok("retry", "failed:9", bumped(9), [9], delivery="queued"),
       server=CORE, needs="B3", effects=fx(CORE, "9"))
-    C("retry-held-core-before-b3", "A core row before B3: the counter moves, nothing starts.",
+    C("retry-held-core-before-b3", "History: a core row before B3, which production no longer reaches (CORE_DELIVERY is on). The counter moves, nothing starts.",
       verb("retry", "failed:9"), 0, ok("retry", "failed:9", bumped(9), [9], delivery="held"), server=CORE, host="gone")
     C("retry-other-server", "The stored server goes to both the worker and the sender, not the default socket.",
       verb("retry", "failed:13"), 0, ok("retry", "failed:13", bumped(13), [13], delivery="queued"),

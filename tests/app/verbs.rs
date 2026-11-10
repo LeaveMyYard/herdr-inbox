@@ -579,3 +579,22 @@ mod show {
         assert_eq!(version(&watcher), before);
     }
 }
+
+/// The review of #146, L2: a Retry stops a stranded row's clock, so the next refusal
+/// starts a wait of its own instead of stranding it again at once.
+#[test]
+fn a_retry_stops_the_wait_clock() {
+    let w = world();
+    w.store
+        .db()
+        .execute(
+            "UPDATE question_ext SET pending_since = '2020-01-01T00:00:00+00:00' WHERE id = 9",
+            [],
+        )
+        .unwrap();
+    let t = token("failed:9");
+    let words = ["retry", "--entry", "failed:9", "--token", &t, "--json"];
+    let (reply, _) = verb(&w, &words);
+    assert_eq!(reply.exit, 0, "{reply:?}");
+    assert_eq!(w.store.pending_since(9).unwrap(), None);
+}

@@ -5,10 +5,13 @@
 
 use std::time::Duration;
 
-use inbox_core::deliver::{BUSY_WAIT_IDLE, NOT_IDLE, Outcome, STRANDED, TERMINAL_UNREAD};
+use inbox_core::deliver::{
+    BUSY_WAIT_IDLE, NOT_IDLE, Outcome, STRANDED, TERMINAL_UNREAD, terminal_unread,
+};
 
 use super::look::PaneLook;
 use crate::clock::now_minus;
+use crate::delivery::terminal::SHARED;
 use crate::store::{Claim, Store};
 
 /// The pending reason of the busy grace (`busy: the agent is <status>`).
@@ -64,7 +67,9 @@ impl PaneLook<'_, '_> {
         let working = self.agent.as_ref().is_some_and(|a| a.status == "working");
         // `busy: the agent is error`: the grace before the send, on the same clock
         let refused = reason.starts_with(NOT_IDLE) || reason.starts_with(BUSY_AT);
-        reason.starts_with(TERMINAL_UNREAD) || (refused && !working)
+        // a twin has a person to end it, as a draft or a dialog has: no clock
+        let twin = *reason == terminal_unread(SHARED);
+        (reason.starts_with(TERMINAL_UNREAD) && !twin) || (refused && !working)
     }
 
     /// Such a wait that has gone on for [`STRAND_AFTER`], pass after pass, is no

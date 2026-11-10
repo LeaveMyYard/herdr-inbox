@@ -16,11 +16,7 @@ fn the_core_switch_is_on_exactly_when_core_delivery_exists() {
         CORE_DELIVERY, landed,
         "set CORE_DELIVERY in src/app/verbs/live.rs"
     );
-    let listed = source("src/app/feed/snapshot.rs").contains("undelivered_core");
-    assert_eq!(
-        listed, landed,
-        "auto_retry must list core rows: snapshot::retried"
-    );
+    // the feed's core listing is pinned by behaviour: app::feed::snapshot's tests
     let asked = source("src/app/verbs/live.rs").contains("absent(");
     assert_eq!(asked, landed, "World::core_gone must connect to the socket");
 }

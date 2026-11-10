@@ -268,7 +268,7 @@ is a row at once, seconds after it was given. So a `failed` row is not in itself
 | `reason` | ?string | The stored reason as plain text, its prefix removed. Null for `unattempted` and `claimed`. |
 | `wait` | ?string | For `pending`, why it waits. Null otherwise. |
 | `attempts` | integer | Failed attempts so far. |
-| `pending_since` | ?time | Since when it waits for a busy agent. |
+| `pending_since` | ?time | Since when it waits for a busy agent. Null unless `state` is `pending`. |
 | `auto_retry` | bool | The row is in a worker's retry listing (`Store::undelivered`, for a core row `Store::undelivered_core`), so it will try again by itself. False when the agent is gone, when `no live agent` / `conversation changed` / `not verified` has used up its tries, when a core row is stranded (`not delivered: …`, 5 minutes refused or unreadable), and for a row with no pane and no core terminal of this machine. |
 
 | `state` | Stored `delivery_error` | Meaning |

@@ -51,7 +51,8 @@ fn delivery(store: &Store, q: &Question, auto_retry: bool) -> rusqlite::Result<V
         "reason": reason,
         "wait": wait,
         "attempts": q.delivery_attempts,
-        "pending_since": store.pending_since(q.id)?,
+        // a stranded row keeps its clock in the database; to the feed it waits for nobody
+        "pending_since": if state == "pending" { store.pending_since(q.id)? } else { None },
         "auto_retry": auto_retry,
     }))
 }

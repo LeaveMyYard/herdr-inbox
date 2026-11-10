@@ -259,6 +259,8 @@ fn on_failed(store: &Store, request: &Request, id: i64) -> rusqlite::Result<Outc
     };
     if request.verb == Verb::Retry {
         store.raise_retry_count(id)?;
+        // a stranded row's clock: the next refusal must not strand it again at once
+        store.stop_waiting(id)?;
         done.token = failed::entry(store, &q, false)?["token"]
             .as_str()
             .map(str::to_string);
