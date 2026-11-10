@@ -120,6 +120,7 @@ export class StandIn {
         return usage('--detail is no JSON');
       }
       if (typeof detail !== 'object' || detail === null || Buffer.byteLength(a.detail) > 65536) return usage('bad --detail');
+      if (Object.keys(detail).some(k => !['choices', 'notes', 'text'].includes(k))) return usage('bad --detail');
     }
     if (this.lock === 'busy') return this.refused(verb, a.entry, 'busy', 'The inbox database is busy; try again in a moment');
     if (this.lock === 'not_migrated') return this.refused(verb, a.entry, 'not_migrated', 'The inbox is being upgraded; try again in a few seconds');
@@ -150,7 +151,7 @@ export class StandIn {
     const labels = q.options.map(o => o.label);
     const choices = detail.choices ?? [];
     const bad = choices.find(c => !labels.includes(c));
-    if (bad !== undefined) return { error: `Q${q.id} has no such option: ${bad}` };
+    if (bad !== undefined) return { error: `Q${q.id} has no such option` };
     if (new Set(choices).size !== choices.length) return { error: `Q${q.id} has a choice twice` };
     if (!q.multi_select && choices.length > 1) return { error: `Q${q.id} takes one choice` };
     const ordered = labels.filter(l => choices.includes(l));

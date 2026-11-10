@@ -5,8 +5,8 @@ owns every decision and every write. A mod reads this one file and acts only thr
 [app-commands v1](app-commands-v1.md). The fixtures are in `tests/fixtures/app-feed/` and
 `tests/fixtures/app-commands/`.
 
-**Status: the [installer](#installing) is built (B5), and the overlay that reads this feed (B6), tested against a stand-in; the writer is not built yet.** This is the document the writer
-(B4) and the mods (B5, B6) are built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
+**Status: the [installer](#installing) (B5), the writer and the verbs (B4) are built.** This is the document
+the mods (B5, B6) are built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
 a later slice.
 
 ## Delivery
@@ -46,7 +46,7 @@ must show that the text was cut, and offers the whole question through
 the display order:
 
 1. local groups, oldest first;
-2. local alerts;
+2. local alerts, in display order;
 3. `failed` rows;
 4. remote rows.
 
@@ -120,6 +120,11 @@ context and no options.
 | `remote` | integer | Remote entries left out, of any kind. |
 | `question_ids` | [integer] | The left-out open questions' ids, oldest first, at most 1000. |
 
+`questions` goes on counting past 1000 and the ids stop, so the ids that fall off are the newest arrivals. The
+mod shows the count, which stays. Those rows have no `show` entry and no toast until older ones leave, so past
+the cap "a file the reader missed loses nothing" means they are announced late. Getting there takes over 1000
+open questions left out at once.
+
 ### NewSince
 
 The highest ids filed so far, open or not.
@@ -169,9 +174,9 @@ see [What the reader derives](#what-the-reader-derives).
 
 ### Order
 
-Alerts, then remote alerts, then groups by their first open question's id, then `failed` by question
-id, then remote groups, outbox rows and problems. This is the popup's order without its focused pane
-rule.
+Alerts, urgent first, then warning, then the rest, each oldest first (`open_alerts`). Then remote alerts,
+groups by their first open question's id, `failed` by question id, remote groups, outbox rows and problems.
+This is the popup's order without its focused pane rule.
 
 ### `group`
 
@@ -432,7 +437,9 @@ bounded restart, a cooperative stop, and no signal to any PID.
 `herdr-inbox app-feed --help` starts nothing, touches no file, exits 0 and prints
 `herdr-inbox app-feed v1` as its first line.
 
-`herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` makes sure one writer of this binary runs.
+`herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` makes sure one writer of this binary runs. A binary
+too old to have it prints its version and exits 0, so a mod calls it only after the
+[`--help` probe](app-commands-v1.md#running-a-command) has passed.
 Repeated calls are idempotent. A mod calls it once `availability` says ready, never directly in `init`, and
 again at most once per 5 s while the feed is stale. B5 may add optional arguments, such as Panorama's `--install-id`, within v1.
 
@@ -451,7 +458,8 @@ again at most once per 5 s while the feed is stale. B5 may add optional argument
 | `writer.json` | The writer's record: `{"v":1,"pid":…,"start":…,"binary_sha256":…}`. Diagnostics and busy proof, never a signal target. |
 | `control.json` | `{"v":1,"disabled":false}`. Disabled: no writer runs or starts. Absent: `--ensure` and a child refuse, as there is no install to serve. |
 | `stop.request` | Empty. A running writer that sees it exits. |
-| `start.json` | The restart ledger: `{"v":1,"failures":…,"retry_at_ms":…}`. Absent means no failures. |
+| `start.json` | The restart ledger: `{"v":1,"failures":…,"retry_at_ms":…}`. Absent means no failures. One that cannot be read stops starts until a reinstall. |
+| `.herdr-inbox-*.tmp` | Staging for `writer.json`, `start.json` and `control.json`. A crash can leave one, which the installer clears. |
 | `install.json` | The install record, mode 0600, see [Installing](#installing). The writer does not touch it. |
 | `stage/` | The installer's staging. The writer does not touch it. |
 
@@ -477,7 +485,8 @@ The writer:
 **Backoff.** Each spawn is counted in `start.json` before it happens. Failure n defers the next spawn by
 min(5 s × 2^(n−1), 160 s), and `--ensure` exits 1 without spawning until then. The 8th failure in a row
 sets `disabled`, which only a reinstall clears. So a writer that crashes at start cannot be restarted
-every 5 s by every mod.
+every 5 s by every mod. That covers a writer that dies before `READY`: one that dies after it, on its first
+read, is proven and uncounted, and the next `--ensure` starts it again.
 
 **Stopping.** Nothing is ever killed. A writer checks `control.json` and `stop.request` at each poll,
 at most 1 s apart. An uninstall takes `ensure.lock`, sets `disabled` and waits at most 2 s for `writer.lock`
@@ -485,15 +494,19 @@ to come free. If it does not, it refuses and leaves everything else in place, wi
 `ensure.lock` throughout, so an `--ensure` that has read `disabled: false` finishes first or not at all, and
 `--ensure` refuses while `disabled`, so a late call cannot restart a writer behind an uninstall.
 
-**A changed binary.** `--ensure` hashes its own binary. A writer whose `writer.json` has another hash gets a
+**A changed binary.** `--ensure` hashes its own binary, before it takes `ensure.lock`, and hands the hash to the
+child, so that no hashing stands between a start and its `READY`. A writer whose `writer.json` has another hash gets a
 `stop.request`; `--ensure` waits at most 2 s for the lock, removes the request and starts its own. A writer
 also exits by itself when its executable file changes on disk, checked at each publish, and the mod's next
 `--ensure` replaces it. The token list above keeps actions working in between.
 
 **Idling out.** It uses `HERDR_APP_HOME=<appHome> herdr-app status`, as Panorama's writer does: every
 2 s, bounded to 500 ms. Exit 0 means the app runs. Exit 2 is a confirmed absent window. Anything else
-says nothing and restarts the count. After 30 s of confirmed absence the writer exits. `control.json` and
-the ledger stay, so the next app start ensures again.
+says nothing and restarts the count. After 30 s of confirmed absence the writer exits. It also exits after 10
+minutes with no exit 0, so an app started with no `herdr-app` on its `PATH` leaves no writer behind: a wrong
+guess costs one `--ensure`. `control.json` and the ledger stay, so the next app start ensures again.
+
+A rollback to Python does not stop a running writer. It only reads, and it leaves with the app.
 
 ### Installing
 

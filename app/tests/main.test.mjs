@@ -226,6 +226,57 @@ test('Esc held past the host\'s repeat delay is one Esc; let go, it is another',
   assert.equal(w.closed, true);
 });
 
+test('Esc closes at once while a show is in flight, not when it returns', async () => {
+  const feed = world([], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const w = new Window(HerdrInbox, feed, { props: { overlay: 'o1', question: 21 }, rows: [group(21, [21])] });
+  let release;
+  w.gate = new Promise(done => { release = done; });
+  await w.settle();
+  assert.ok(w.view.session.showing, 'the deep link\'s show is running');
+  assert.equal(w.popup, null);
+  await w.escape();
+  assert.equal(w.closed, true, 'closed before the show came back');
+  release();
+  w.gate = null;
+  await w.settle();
+});
+
+test('a note is sent only for an option that is picked', async () => {
+  const w = await open(world([three(1), group(5)]));
+  await w.key('enter');
+  await w.key('n');
+  await w.key('h');
+  await w.key('enter'); // a note on Option A
+  await w.key('down');
+  await w.key('enter'); // but Option B is the answer
+  const sent = choice(w.verbs('answer')[0]);
+  assert.deepEqual(sent.choices, ['Option B']);
+  assert.deepEqual(sent.notes, {});
+});
+
+test('a note on a picked option goes with it, stripped', async () => {
+  const g = three(1);
+  g.questions[0].multi_select = true;
+  const w = await open(world([g, group(5)]));
+  await w.key('enter');
+  await w.key('n');
+  await w.key('space');
+  await w.key('h');
+  await w.key('space');
+  await w.key('enter'); // a note "h" on Option A, stripped
+  await w.key('down');
+  await w.key('n');
+  await w.key('x');
+  await w.key('enter'); // a note on Option B, which is not picked
+  await w.key('up');
+  await w.key('space'); // pick Option A
+  for (const k of ['down', 'down', 'down', 'down']) await w.key(k);
+  await w.key('enter'); // Submit
+  const sent = choice(w.verbs('answer')[0]);
+  assert.deepEqual(sent.choices, ['Option A']);
+  assert.deepEqual(sent.notes, { 'Option A': 'h' });
+});
+
 test('Esc held is one Esc', async () => {
   const w = await open(world([group(1), group(5)]));
   await w.key('enter');

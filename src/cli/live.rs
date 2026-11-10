@@ -98,7 +98,7 @@ impl Delivery for LiveDelivery {
 
     fn spawn_deliver(&mut self, qids: &[i64], force: bool) {
         // recorded, not yet claimed: this machine's worker retries them
-        if let Err(err) = start_sender(self.exe.as_deref(), &self.state_dir, qids, force) {
+        if let Err(err) = start_sender(self.exe.as_deref(), &self.state_dir, qids, force, None) {
             warn(&format!(
                 "could not start the delivery; the worker will retry: {err}"
             ));
