@@ -153,7 +153,7 @@ const tree = rig => render({
   session: rig.session, status: { state: 'ready', root: '/fake/plugin' }, handle: {}, agentsNow: () => [], wordsNow: () => ({ title: 'Inbox', detail: 'Waiting' }),
   onRow: row => { rig.tick(); rig.session.click(row, rig.now); rig.pump(); },
   onTab: tab => { rig.tick(); rig.session.clickTab(tab, rig.now); rig.pump(); },
-  onLeftOut: id => { rig.tick(); rig.session.clickLeftOut(id, rig.now); rig.pump(); },
+  onLeftOut: id => { rig.tick(); rig.session.clickLeftOut(id); rig.pump(); },
   onButton: name => { rig.tick(); rig.session.button(name, rig.now); rig.pump(); },
 }, t);
 const styled = (el, ...call) => el.calls.some(c => JSON.stringify(c) === JSON.stringify(call));

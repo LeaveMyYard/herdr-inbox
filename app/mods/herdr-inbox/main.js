@@ -198,7 +198,7 @@ export default class HerdrInbox extends View {
   }
 
   onLeftOut(id, cx) {
-    this.session.clickLeftOut(id, Date.now());
+    this.session.clickLeftOut(id);
     this.after(cx);
   }
 

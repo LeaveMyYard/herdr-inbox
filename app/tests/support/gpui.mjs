@@ -23,6 +23,7 @@ function element() {
           return self;
         };
       }
+      if (name === 'map') return transform => transform(self);
       if (name === 'when') return (condition, then) => (condition ? then(self) : self);
       if (name === 'id') {
         return id => {

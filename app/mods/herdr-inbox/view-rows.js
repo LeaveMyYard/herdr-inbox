@@ -2,7 +2,7 @@
 
 import { div } from 'gpui-kit';
 import { h_flex, v_flex } from 'gpui-base';
-import { fit, footer, windowed } from './view-parts.js';
+import { clickable, fit, footer, windowed } from './view-parts.js';
 import { askerLabel } from './view-text.js';
 import { age, deliveryWords, knownDelivery, retryLabel, severity } from './words.js';
 
@@ -16,7 +16,7 @@ function heading(t, title, parts) {
 
 function choice(mod, t, id, n, label, on) {
   return h_flex().id(id).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
-    .cursor_pointer().when(!on, el => el.hover(s => s.bg(t.hover))).on_click((_e, cx) => mod.onRow(n - 1, cx))
+    .map(clickable(t, on, (_e, cx) => mod.onRow(n - 1, cx)))
     .child(div().w(22).font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(String(n)))
     .child(div().text_size(13.5).text_color(t.foreground).child(label));
 }
@@ -71,7 +71,7 @@ export function pickerBody(mod, t) {
   const rows = ids.map(id => {
     const on = s.picker.cursor === id;
     return h_flex().id(`left-${id}`).gap(8).px(16).py(10).border_t_1().border_color(t.border).when(on, el => el.bg(t.selected))
-      .cursor_pointer().when(!on, el => el.hover(s => s.bg(t.hover))).on_click((_e, cx) => mod.onLeftOut(id, cx)).text_size(13.5).text_color(t.foreground)
+      .map(clickable(t, on, (_e, cx) => mod.onLeftOut(id, cx))).text_size(13.5).text_color(t.foreground)
       .child(div().w(12).text_color(t.accent).child(on ? '❯' : '')).child(div().child(`Q${id}`));
   });
   return [

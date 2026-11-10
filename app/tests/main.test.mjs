@@ -561,3 +561,70 @@ test('a click on a left-out row opens it, as Enter does', async () => {
   assert.equal(w.view.session.picker, null);
   assert.equal(w.ran.filter(a => a[0] === 'app' && a[1] === 'show').length, 1);
 });
+
+// -- a click can't send twice
+
+const reviewing = async () => {
+  const g = group(1, [1, 2]);
+  const w = await open(world([g, group(5)]));
+  await w.key('enter');
+  await w.click(0); // Q1: Option A, drafted, on to Q2
+  await w.tab('submit');
+  w.tick();
+  return w;
+};
+
+test('three clicks on Submit answers in one tick send one answer', async () => {
+  const w = await reviewing();
+  for (let i = 0; i < 3; i += 1) w.view.onRow('submit', w.cx);
+  await w.settle();
+  assert.equal(w.verbs('answer').length, 1);
+});
+
+test('clicks on Retry delivery again and again send one retry', async () => {
+  const w = await open(world([group(1), failed(8), group(9)]));
+  await w.click('failed:8');
+  for (let i = 0; i < 3; i += 1) await w.click(0);
+  assert.equal(w.verbs('retry').length, 1);
+});
+
+test('a tab click or a Submit click while a verb runs does nothing', async () => {
+  const w = await reviewing();
+  let release;
+  w.gate = new Promise(done => { release = done; });
+  w.view.onRow('submit', w.cx); // the answer is on its way
+  for (let i = 0; i < 5; i += 1) await new Promise(done => { setImmediate(done); });
+  w.tick();
+  w.view.onRow('submit', w.cx);
+  w.view.onTab('q:1', w.cx);
+  w.view.onRow('item:1', w.cx);
+  release();
+  w.gate = null;
+  await w.settle();
+  assert.equal(w.verbs('answer').length, 1);
+  assert.notEqual(w.popup.current, 'q:1', 'no tab was clicked to');
+});
+
+test('a tab click or a review click in the grace window does nothing', async () => {
+  const w = await open(world([group(1, [1, 2, 3]), group(5)]));
+  await w.key('enter');
+  w.db.feed.entries[0].questions.shift(); // the question on screen closed: a grace window opens
+  await w.timer();
+  assert.ok(w.clock < w.popup.timers.grace_until);
+  const current = w.popup.current;
+  w.view.onTab('q:3', w.cx);
+  w.view.onTab('submit', w.cx);
+  await w.settle();
+  assert.equal(w.popup.current, current);
+  w.clock = w.popup.timers.grace_until;
+  w.view.onTab('submit', w.cx);
+  await w.settle();
+  assert.equal(w.popup.view.kind, 'review', 'past the grace the same click goes');
+  w.popup.timers.grace_until = w.clock + 500; // as a change under the review would open one
+  w.clock += 450;
+  w.view.onRow('cancel', w.cx);
+  w.view.onRow('item:2', w.cx);
+  await w.settle();
+  assert.equal(w.popup.view.kind, 'review');
+  assert.equal(w.ran.filter(a => ['draft', 'answer'].includes(a[1])).length, 0);
+});

@@ -7,7 +7,7 @@ import { allTabs, openQids } from './model/groups.js';
 import { boxValue } from './model/textbox.js';
 import { viewQuestion } from './model/remote.js';
 import { targets } from './model/review.js';
-import { button, fit, footer, windowed } from './view-parts.js';
+import { button, clickable, fit, footer, windowed } from './view-parts.js';
 import { askerLabel } from './view-text.js';
 import { age } from './words.js';
 
@@ -63,7 +63,7 @@ function optionRow(mod, t, v, q, i) {
   const rec = RECOMMENDED.test(o.label);
   const note = v.notes.get(i);
   return h_flex().id(`opt-${i}`).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
-    .cursor_pointer().when(!on, el => el.hover(s => s.bg(t.hover))).on_click((_e, cx) => mod.onRow(i, cx))
+    .map(clickable(t, on, (_e, cx) => mod.onRow(i, cx)))
     .child(div().w(22).flex_none().font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(v.multi_select ? (picked ? '[x]' : '[ ]') : String(i + 1)))
     .child(v_flex().flex_1().min_w(0).gap(2)
       .child(h_flex().gap(8).items_center().text_size(13.5).text_color(t.foreground).child(o.label.replace(RECOMMENDED, ''))
@@ -73,7 +73,7 @@ function optionRow(mod, t, v, q, i) {
 }
 
 function plainRow(t, id, n, label, detail, on, click = null) {
-  return h_flex().id(id).when(click !== null, el => el.cursor_pointer().when(!on, x => x.hover(s => s.bg(t.hover))).on_click(click)).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
+  return h_flex().id(id).when(click !== null, clickable(t, on, click)).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
     .child(div().w(22).flex_none().font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(n))
     .child(v_flex().flex_1().min_w(0).gap(2).child(div().text_size(13.5).text_color(t.foreground).child(label))
       .when(Boolean(detail), el => el.child(div().text_size(12.5).text_color(t.muted).child(detail))));

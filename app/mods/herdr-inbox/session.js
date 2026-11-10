@@ -179,7 +179,7 @@ export class Session extends Steps {
   }
 
   // A click on a row of the left-out list: it opens, as Enter on it would.
-  clickLeftOut(id, now) {
+  clickLeftOut(id) {
     if (!this.idle || !this.picker || !(this.incomplete?.ids ?? []).includes(id)) return;
     this.picker.cursor = id;
     this.pickerKey('enter');
