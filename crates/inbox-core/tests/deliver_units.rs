@@ -5,8 +5,8 @@
 //! `service.older_error`'s output for the same arguments.
 
 use inbox_core::deliver::{
-    Agent, Composer, Landing, Look, Mode, NOT_VERIFIED, OPERATOR_IN_PANE, Outcome, Waiting, decide,
-    older_error,
+    Agent, Composer, Landing, Look, Mode, NOT_VERIFIED, OPERATOR_IN_PANE, Outcome, Prompted,
+    Waiting, decide, older_error,
 };
 
 const ASKER: &str = "aaaaaaaa-2222-4000-8000-00000000000a";
@@ -32,6 +32,7 @@ struct Fake {
     typed_older: bool,
     again: Option<Agent>,
     prompt_error: Option<String>,
+    refused: Option<String>,
     landing: Landing,
     prompted: usize,
     /// One message per answer (a long answer's reference, batches split by the cap).
@@ -49,6 +50,7 @@ impl Default for Fake {
             typed_older: false,
             again: Some(agent(LIVE)),
             prompt_error: None,
+            refused: None,
             landing: Landing {
                 counted: true,
                 anywhere: true,
@@ -117,9 +119,14 @@ impl Look for Fake {
     fn composer(&mut self, _: &[i64]) -> Composer {
         Composer::Empty
     }
-    fn prompt(&mut self, _: &[i64]) -> Option<String> {
+    fn prompt(&mut self, _: &[i64]) -> Prompted {
         self.prompted += 1;
-        self.prompt_error.clone()
+        if let Some(reason) = &self.refused {
+            return Prompted::Refused(reason.clone());
+        }
+        self.prompt_error
+            .clone()
+            .map_or(Prompted::Sent, Prompted::Failed)
     }
     fn verify_transcript(&mut self, _: &[i64]) -> bool {
         true
@@ -256,4 +263,108 @@ fn each_messages_outcome_is_handed_over_before_the_next_is_typed() {
         [(1, delivered.clone(), 1), (2, delivered, 2)],
         "(answer, outcome, prompts typed when it was handed over)"
     );
+}
+
+/// A core's `hc send` that refuses typed nothing: the answer waits, no attempt.
+#[test]
+fn a_refused_message_waits_and_only_that_message() {
+    let mut look = Fake {
+        refused: Some("waiting: not now".into()),
+        split: true,
+        ..Fake::default()
+    };
+    let waiting = [1, 2].map(|id| Waiting {
+        id,
+        session: Some(ASKER.into()),
+        requeued: false,
+    });
+    decide(Some("t3"), &waiting, Mode::default(), &mut look);
+    let pending = Outcome::Pending("waiting: not now".into());
+    assert_eq!(
+        look.recorded,
+        [(1, pending.clone(), 1), (2, pending, 2)],
+        "each message is tried in turn, and neither is taken for typed"
+    );
+}
+
+/// An agent that could not be looked at is no agent gone.
+#[test]
+fn an_agent_that_could_not_be_read_waits_and_counts_no_try() {
+    struct Unread(Fake);
+    impl Look for Unread {
+        fn claimed(&mut self, id: i64) -> bool {
+            self.0.claimed(id)
+        }
+        fn agent(&mut self) -> Option<Agent> {
+            None
+        }
+        fn agent_unread(&mut self) -> Option<String> {
+            Some("waiting: cannot read".into())
+        }
+        fn moved_elsewhere(&mut self, _: i64) -> bool {
+            panic!("nothing to move: nobody looked")
+        }
+        fn conversation_changed(&mut self, id: i64) -> bool {
+            self.0.conversation_changed(id)
+        }
+        fn pane_runs_older_session(&mut self, id: i64) -> bool {
+            self.0.pane_runs_older_session(id)
+        }
+        fn watched(&mut self) -> bool {
+            self.0.watched()
+        }
+        fn hook_misses(&mut self, id: i64) -> i64 {
+            self.0.hook_misses(id)
+        }
+        fn hook_live(&mut self) -> bool {
+            self.0.hook_live()
+        }
+        fn busy_attempts(&mut self, id: i64) -> i64 {
+            self.0.busy_attempts(id)
+        }
+        fn within_busy_grace(&mut self, id: i64) -> bool {
+            self.0.within_busy_grace(id)
+        }
+        fn panel_focused(&mut self) -> bool {
+            self.0.panel_focused()
+        }
+        fn landed(&mut self, ids: &[i64]) -> Vec<Option<Vec<usize>>> {
+            self.0.landed(ids)
+        }
+        fn pane_reports_another_session(&mut self) -> bool {
+            self.0.pane_reports_another_session()
+        }
+        fn already_typed_into_older_session(&mut self, id: i64) -> bool {
+            self.0.already_typed_into_older_session(id)
+        }
+        fn messages(&mut self, ids: &[i64]) -> Vec<(Vec<i64>, bool)> {
+            self.0.messages(ids)
+        }
+        fn agent_again(&mut self, ids: &[i64]) -> Option<Agent> {
+            self.0.agent_again(ids)
+        }
+        fn composer(&mut self, ids: &[i64]) -> Composer {
+            self.0.composer(ids)
+        }
+        fn prompt(&mut self, ids: &[i64]) -> Prompted {
+            self.0.prompt(ids)
+        }
+        fn verify_transcript(&mut self, ids: &[i64]) -> bool {
+            self.0.verify_transcript(ids)
+        }
+        fn landing(&mut self, id: i64) -> Landing {
+            self.0.landing(id)
+        }
+        fn record(&mut self, id: i64, outcome: &Outcome) {
+            self.0.record(id, outcome);
+        }
+    }
+    let mut look = Unread(Fake::default());
+    let waiting = [Waiting {
+        id: 1,
+        session: Some(ASKER.into()),
+        requeued: false,
+    }];
+    let got = decide(Some("t3"), &waiting, Mode::default(), &mut look);
+    assert_eq!(got, [(1, Outcome::Pending("waiting: cannot read".into()))]);
 }

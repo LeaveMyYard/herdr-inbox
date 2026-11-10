@@ -54,6 +54,7 @@ fn a_pane_is_found_through_its_sessions_recorded_transcript() {
     let ctx = Ctx {
         store: &store,
         herdr: &herdr,
+        core: &herdr_inbox::delivery::terminal::NoCore,
         files: &files,
         state_dir: dir.path(),
         notify: &mut notify,

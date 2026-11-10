@@ -216,6 +216,7 @@ fn run(sc: &Value) -> Value {
         let mut ctx = Ctx {
             store: &store,
             herdr: &client,
+            core: &herdr_inbox::delivery::terminal::NoCore,
             files: &files,
             state_dir: dir.path(),
             notify: &mut notify,

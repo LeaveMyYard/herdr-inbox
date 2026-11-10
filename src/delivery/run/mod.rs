@@ -7,8 +7,10 @@
 mod look;
 mod record;
 mod relocate;
+mod seat;
 mod typed;
 mod unreadable;
+mod watched;
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -19,9 +21,11 @@ use inbox_core::deliver::{Mode, REQUEUED, Waiting, decide};
 use serde_json::Value;
 
 use crate::claude::Transcripts;
+use crate::delivery::terminal::Terminals;
 use crate::store::{Claim, Question, Store};
 
 pub use relocate::{MOVED, session_pane, tab_name};
+pub use seat::{Seat, by_seat, seat_of, terminal_of};
 pub use unreadable::{UNREADABLE_NOTIFY_AFTER, Unreadable};
 
 /// How long a typed message is waited for (Python `VERIFY_SECONDS`).
@@ -38,6 +42,8 @@ pub struct Ctx<'a> {
     pub store: &'a Store,
     /// herdr.
     pub herdr: &'a Herdr,
+    /// herdr-core's terminals.
+    pub core: &'a dyn Terminals,
     /// Claude Code's transcripts.
     pub files: &'a Transcripts,
     /// The database's directory (rewake locks, SessionStart markers).
@@ -55,7 +61,7 @@ pub struct Ctx<'a> {
 pub type VerifyLater<'a> = &'a mut dyn FnMut(Value);
 
 /// Delivers `qs` (Python `deliver_batch` after the foreign-server split):
-/// one pass per pane, in the order the panes first appear. `Err`: the
+/// one pass per pane or terminal, in the order they first appear. `Err`: the
 /// database failed. As in Python, the pass stops there: what was written
 /// before stays (each outcome is written as it is decided), nothing more is
 /// typed or written, and the rows it claimed since keep their claim until it
@@ -72,26 +78,19 @@ pub fn deliver_batch(
         verify_later: verify_later.is_some(),
         ..mode
     };
-    let mut panes: Vec<(Option<String>, Vec<&Question>)> = Vec::new();
-    for q in qs {
-        match panes.iter_mut().find(|(p, _)| *p == q.pane_id) {
-            Some((_, list)) => list.push(q),
-            None => panes.push((q.pane_id.clone(), vec![q])),
-        }
-    }
-    for (pane, items) in panes {
+    for (seat, items) in by_seat(ctx.store, qs)? {
         let job: Option<&mut dyn FnMut(Value)> = match verify_later.as_mut() {
             Some(f) => Some(&mut **f),
             None => None,
         };
-        deliver_pane(ctx, pane.as_deref(), &items, mode, job)?;
+        deliver_seat(ctx, &seat, &items, mode, job)?;
     }
     Ok(())
 }
 
-fn deliver_pane(
+fn deliver_seat(
     ctx: &mut Ctx<'_>,
-    pane: Option<&str>,
+    seat: &Seat,
     items: &[&Question],
     mode: Mode,
     verify_later: Option<&mut dyn FnMut(Value)>,
@@ -104,9 +103,19 @@ fn deliver_pane(
             requeued: q.delivery_error.as_deref() == Some(REQUEUED),
         })
         .collect();
+    let (pane, core) = match seat {
+        Seat::Terminal(terminal) => (Some(terminal.as_str()), true),
+        Seat::Pane(pane) => (pane.as_deref(), false),
+        Seat::Nowhere => return Ok(()),
+    };
+    // a core terminal is never forced, whoever asks: not its waits, not `hc send`
+    let mode = Mode {
+        force: mode.force && !core,
+        ..mode
+    };
     // a shorter-lived trait object for the pass (a `&mut` is invariant)
     let later = verify_later.map(|f| f as &mut dyn FnMut(Value));
-    let mut look = look::PaneLook::new(ctx, pane.unwrap_or(""), items, mode, later);
+    let mut look = look::PaneLook::new(ctx, pane.unwrap_or(""), core, items, mode, later);
     // the outcomes are written as they are decided (`Look::record`)
     decide(pane, &waiting, mode, &mut look);
     look.finish().map_or(Ok(()), Err)

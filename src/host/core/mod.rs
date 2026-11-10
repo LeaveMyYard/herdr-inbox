@@ -23,6 +23,7 @@ pub mod address;
 #[cfg(test)]
 pub mod fake;
 pub mod hc;
+pub mod hook;
 pub mod live;
 pub mod pane;
 pub mod proof;
@@ -30,6 +31,7 @@ pub mod record;
 pub mod twins;
 
 use std::io::Write;
+use std::path::Path;
 
 use herdr_agent_kit::agent_procs::{Pid, ProcessTable};
 
@@ -54,6 +56,14 @@ pub trait Machine: Send + Sync {
     fn recorded_session(&self, pid: Pid, start: &str) -> Record;
     /// Claude Code's records of every process but `pid`.
     fn other_records(&self, pid: Pid) -> Vec<Other>;
+    /// [`Machine::recorded_session`] under another config directory.
+    fn recorded_in(&self, _config: &Path, _pid: Pid, _start: &str) -> Record {
+        Record::Missing
+    }
+    /// [`Machine::other_records`] under another config directory.
+    fn others_in(&self, _config: &Path, _pid: Pid) -> Vec<Other> {
+        Vec::new()
+    }
     /// The session `reported` runs now (`live_session`).
     fn live(&self, reported: &str) -> String;
     /// herdr's foreground processes of `pane`; `None` when herdr gives no list.

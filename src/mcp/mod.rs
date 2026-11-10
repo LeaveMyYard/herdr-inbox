@@ -57,7 +57,7 @@ use crate::claude::Transcripts;
 use crate::host::core::hc::{Cli, socket};
 use crate::host::core::{self, Core};
 use crate::host::tui::Tui;
-use crate::worker::process::{ensure_worker_in, own_exe};
+use crate::worker::process::{ensure_core_worker, ensure_worker_in, own_exe};
 use args::Call;
 
 /// The tools' bodies: one call, its arguments already checked. Blocking.
@@ -115,6 +115,9 @@ pub fn runtime(env: &PluginEnv) -> runtime::Runtime {
             let (env, exe) = (env.clone(), own_exe());
             Box::new(move || {
                 ensure_worker_in(&env, None, &exe);
+                if env.var("HC_TERMINAL_ID").is_some_and(|t| !t.is_empty()) {
+                    ensure_core_worker(&env, &exe);
+                }
             })
         },
         sleep: std::thread::sleep,

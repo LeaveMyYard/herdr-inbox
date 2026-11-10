@@ -15,8 +15,9 @@ use inbox_core::rewake::{self, LOCK_WAIT, PaneAgent, Verdict, Watch};
 use super::WATCH_POLL;
 use super::clock::Clock;
 use super::owner::Owner;
-use super::pane::pane_agent;
+use super::pane::{pane_agent, terminal_agent};
 use crate::claude::Transcripts;
+use crate::delivery::terminal::{Terminals, live as live_terminals};
 use crate::hook::deliver::deliver;
 use crate::hook::payload::Payload;
 use crate::store::candidates::has_candidates;
@@ -34,8 +35,12 @@ pub struct Watcher<'a> {
     pub state_dir: PathBuf,
     /// The pane, from `HERDR_PANE_ID`.
     pub pane: Option<String>,
+    /// The core terminal, proved: it goes before the pane.
+    pub terminal: Option<String>,
     /// The herdr this process belongs to.
     pub herdr: Herdr,
+    /// herdr-core's terminals.
+    pub core: Box<dyn Terminals>,
     /// Claude Code's transcripts.
     pub files: Transcripts,
     /// The Claude process the watch belongs to (`None`: unknown, never "gone").
@@ -45,13 +50,20 @@ pub struct Watcher<'a> {
 }
 
 impl<'a> Watcher<'a> {
-    /// A watcher in this process's environment.
-    pub fn from_env(env: &PluginEnv, clock: &'a dyn Clock) -> Watcher<'a> {
+    /// A watcher in this process's environment, for the proved `terminal` if any.
+    pub fn from_env(
+        env: &PluginEnv,
+        terminal: Option<String>,
+        clock: &'a dyn Clock,
+    ) -> Watcher<'a> {
+        let herdr = crate::trace::observed(Herdr::from_env());
         Watcher {
             db: db_path(env),
             state_dir: inbox::state_dir(env),
             pane: env.pane_id().map(str::to_owned),
-            herdr: crate::trace::observed(Herdr::from_env()),
+            terminal,
+            core: Box::new(live_terminals(env, herdr.clone())),
+            herdr,
             files: Transcripts::from_env(),
             owner: owning_claude_here(),
             clock,
@@ -63,10 +75,11 @@ impl<'a> Watcher<'a> {
 /// ended without one).
 pub fn run(w: &Watcher<'_>, payload: &Payload) -> Option<String> {
     let session = payload.session_id.as_deref().and_then(SessionId::parse);
-    if !rewake::start(session.is_some(), w.pane.is_some(), payload.agent_id) {
+    let seat = w.terminal.as_deref().or(w.pane.as_deref());
+    if !rewake::start(session.is_some(), seat.is_some(), payload.agent_id) {
         return None;
     }
-    let (sid, pane) = (session?, w.pane.as_deref()?);
+    let sid = session?;
     let dir = w.state_dir.join("rewake");
     let owner = Owner::claim(&dir.join(format!("{sid}.owner"))).ok()?;
     let started = w.clock.now();
@@ -85,7 +98,11 @@ pub fn run(w: &Watcher<'_>, payload: &Payload) -> Option<String> {
         }
         let pending = has_candidates(&w.db, session, &w.files);
         if watch.look(pending, w.clock.now()) {
-            let agent = pane_agent(&w.herdr, &w.files, &w.state_dir, pane);
+            let agent = match (w.terminal.as_deref(), w.pane.as_deref()) {
+                (Some(terminal), _) => terminal_agent(&*w.core, terminal),
+                (None, Some(pane)) => pane_agent(&w.herdr, &w.files, &w.state_dir, pane),
+                (None, None) => None,
+            };
             let view = agent.as_ref().map(|(s, status)| PaneAgent {
                 session_id: s.as_deref(),
                 status: *status,

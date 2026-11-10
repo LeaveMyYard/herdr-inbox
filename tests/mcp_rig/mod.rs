@@ -73,6 +73,7 @@ pub fn session(
     exe::install(&stub, "#!/bin/sh\necho \"$@\" >> \"$0.log\"\nexit 1\n");
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_herdr-inbox"));
     cmd.env_clear()
+        .env("HC_SOCKET", "/nonexistent/no-core.sock")
         .arg("mcp")
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", dir)

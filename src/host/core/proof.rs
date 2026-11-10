@@ -115,8 +115,25 @@ fn words<S: AsRef<str>>(argv: &[S]) -> Vec<String> {
         .collect()
 }
 
+/// The foreground process of `hc get`'s `terminal`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Foreground {
+    /// Its pid.
+    pub pid: Pid,
+    name: String,
+    argv: Vec<String>,
+}
+
+impl Foreground {
+    /// `table` shows this very program at that pid.
+    pub fn matches(&self, table: &impl ProcessTable) -> bool {
+        let comm = table.stat(self.pid).map(|s| s.comm);
+        comm.as_deref() == Some(&self.name) && words(&table.cmdline(self.pid)) == self.argv
+    }
+}
+
 /// The foreground process of `hc get`'s `terminal`, or why not.
-fn foreground(terminal: &Value, claim: &str) -> Result<(Pid, String, Vec<String>), Refused> {
+pub fn foreground(terminal: &Value, claim: &str) -> Result<Foreground, Refused> {
     if terminal["address"].as_str() != Some(claim) || terminal["state"] != "live" {
         return Err(Refused::NotThatTerminal);
     }
@@ -135,7 +152,11 @@ fn foreground(terminal: &Value, claim: &str) -> Result<(Pid, String, Vec<String>
         .map(Value::as_str)
         .collect::<Option<_>>()
         .ok_or(shape)?;
-    Ok((pid, name.to_owned(), words(&argv)))
+    Ok(Foreground {
+        pid,
+        name: name.to_owned(),
+        argv: words(&argv),
+    })
 }
 
 /// The Claude this process serves: its direct parent, with no other Claude above.
@@ -150,6 +171,33 @@ pub fn own_claude(table: &impl ProcessTable, parent: Pid) -> Result<Proved, Refu
     Ok(Proved { pid, start })
 }
 
+fn plain(claim: &str) -> Result<(), Refused> {
+    if !address::valid(claim) {
+        return Err(Refused::BadAddress);
+    }
+    if address::remote(claim) {
+        return Err(Refused::Remote);
+    }
+    Ok(())
+}
+
+/// `proved` is the foreground program of terminal `claim`.
+fn in_foreground(
+    hc: &dyn Hc,
+    table: &impl ProcessTable,
+    proved: Proved,
+    claim: &str,
+) -> Result<Proved, Refused> {
+    let found = foreground(&hc.get(claim).map_err(Refused::Hc)?, claim)?;
+    if found.pid != proved.pid {
+        return Err(Refused::NotForeground);
+    }
+    if !found.matches(table) {
+        return Err(Refused::NotThatProcess);
+    }
+    Ok(proved)
+}
+
 /// Proves `claim` for the process whose parent is `parent`.
 pub fn prove(
     hc: &dyn Hc,
@@ -157,22 +205,25 @@ pub fn prove(
     parent: Pid,
     claim: &str,
 ) -> Result<Proved, Refused> {
-    if !address::valid(claim) {
-        return Err(Refused::BadAddress);
-    }
-    if address::remote(claim) {
-        return Err(Refused::Remote);
-    }
+    plain(claim)?;
     let proved = own_claude(table, parent)?;
-    let (foreground_pid, name, argv) = foreground(&hc.get(claim).map_err(Refused::Hc)?, claim)?;
-    if foreground_pid != proved.pid {
-        return Err(Refused::NotForeground);
+    in_foreground(hc, table, proved, claim)
+}
+
+/// Proves `claim` for a hook: its Claude is the nearest above `parent`, with a
+/// shell or two between them (`hooks.json`), and no other Claude above that one.
+pub fn prove_hook(
+    hc: &dyn Hc,
+    table: &impl ProcessTable,
+    parent: Pid,
+    claim: &str,
+) -> Result<Proved, Refused> {
+    plain(claim)?;
+    let (pid, start) = claude_process(table, parent).ok_or(Refused::NoClaude)?;
+    if nested_claude(table, parent) {
+        return Err(Refused::Nested);
     }
-    let comm = table.stat(proved.pid).map(|s| s.comm);
-    if comm.as_deref() != Some(&name) || words(&table.cmdline(proved.pid)) != argv {
-        return Err(Refused::NotThatProcess);
-    }
-    Ok(proved)
+    in_foreground(hc, table, Proved { pid, start }, claim)
 }
 
 #[cfg(test)]

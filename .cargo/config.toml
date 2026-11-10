@@ -1,0 +1,5 @@
+# Every process `cargo test` and `cargo run` start gets a core socket nobody listens on, whatever
+# the shell has: a test that forgets to name its own rig finds no core, and never types into a real
+# terminal. A test with a rig sets its own HC_SOCKET. tests/no_real_core.rs fails if this goes.
+[env]
+HC_SOCKET = { value = "target/no-core.sock", relative = true, force = true }

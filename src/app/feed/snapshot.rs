@@ -106,10 +106,12 @@ fn groups(store: &Store) -> rusqlite::Result<Vec<(i64, Vec<Question>)>> {
     Ok(out)
 }
 
-/// The answers a worker tries again by itself. A core row has no pane, so it
-/// is in no listing until core delivery lands.
+/// The answers a worker tries again by itself: a herdr worker's, by pane, and
+/// the core worker's, which has its own listing.
 fn retried(store: &Store) -> rusqlite::Result<BTreeSet<i64>> {
-    Ok(store.undelivered_all(&CAPS)?.iter().map(|q| q.id).collect())
+    let panes = store.undelivered_all(&CAPS)?;
+    let core = store.undelivered_core(&CAPS)?;
+    Ok(panes.iter().chain(&core).map(|q| q.id).collect())
 }
 
 fn marks(store: &Store) -> rusqlite::Result<(i64, i64)> {

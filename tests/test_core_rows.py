@@ -130,6 +130,53 @@ def test_a_core_answer_handed_to_delivery_is_left_as_it_is(db, fake_herdr, monke
     assert asked == [None, CORE]
 
 
+def test_the_decision_tables_python_row_holds(db, fake_herdr, monkeypatch):
+    """`tests/fixtures/decisions-core.json`, the row Python owns until P6-E: its `deliver` on a core
+    row leaves it deliverable, and it asks for the core's worker."""
+    table = json.loads((Path(__file__).parent / "fixtures" / "decisions-core.json").read_text())
+    (row,) = table["python"]
+    qid = core_question(db)
+    answered(db, qid)
+    asked = []
+    monkeypatch.setattr(service, "_ensure_worker", lambda server=None: asked.append(server))
+    fake_herdr.reset()
+    service.deliver_batch(db, [db.get(qid)])
+    assert asked == row["ensure"]
+    assert len(typed(fake_herdr)) == row["typed"]
+    q = db.get(qid)
+    assert (q.delivered_at, q.delivery_error, q.delivery_attempts) == (None, None, 0), "still deliverable"
+
+
+def test_python_shows_a_stranded_core_answer_as_undelivered(db, fake_herdr):
+    """Bounded and visible: the Python popup lists what Rust gave up retrying, and its worker
+    leaves it."""
+    qid = core_question(db)
+    answered(db, qid)
+    error = "not delivered: the terminal reports error, and hc types only at idle"
+    db.db.execute("UPDATE questions SET delivery_error = ?, delivery_attempts = 1 WHERE id = ?", (error, qid))
+    assert [q.id for q in db.failed_deliveries()] == [qid]
+    before = rows(db)
+    fake_herdr.reset()
+    assert worker.tick(db) == 0
+    assert rows(db) == before
+    assert not typed(fake_herdr)
+
+
+def test_a_python_worker_asked_for_the_core_changes_nothing(db, fake_herdr, monkeypatch):
+    """#142 review L5: under `engine` python, `deliver` starts a worker with `herdr-core` as its
+    server. It holds the core's lock until it sees no server, and until then its ticks do nothing."""
+    monkeypatch.setenv("HERDR_SOCKET_PATH", CORE)
+    qid = core_question(db)
+    answered(db, qid)
+    db.db.execute("UPDATE questions SET answered_at = ? WHERE id = ?", (st.now(AN_HOUR_AGO), qid))
+    before = rows(db)
+    fake_herdr.reset()
+    for _ in range(service.MAX_STALE_RETRIES + 3):
+        assert worker.tick(db) == 0
+    assert rows(db) == before
+    assert not typed(fake_herdr)
+
+
 def test_the_operator_still_sees_a_core_answer_and_the_agent_can_fetch_it(db, fake_herdr):
     qid = core_question(db)
     answered(db, qid)

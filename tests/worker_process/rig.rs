@@ -162,6 +162,7 @@ impl Rig {
 
     fn start(&mut self, name: &str, mut cmd: Command, root: &Path, extra: &[(&str, &str)]) -> u32 {
         cmd.env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
             .envs(self.env())
             .envs(extra.iter().copied())
             .current_dir(root);
@@ -255,7 +256,10 @@ impl Rig {
     /// The fake herdr CLI with `args`, in the workers' environment.
     pub fn herdr_cli(&self, args: &[&str]) -> Command {
         let mut cmd = Command::new(self.bin.join("herdr"));
-        cmd.args(args).env_clear().envs(self.env());
+        cmd.args(args)
+            .env_clear()
+            .env("HC_SOCKET", "/nonexistent/no-core.sock")
+            .envs(self.env());
         cmd
     }
 

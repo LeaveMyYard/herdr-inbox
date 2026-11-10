@@ -9,7 +9,8 @@ use std::time::Duration;
 
 use super::{Memory, Round};
 use crate::claude::chain;
-use crate::delivery::run::{MOVED, session_pane, tab_name};
+use crate::delivery::run::{MOVED, session_pane, tab_name, terminal_of};
+use crate::store::hosts::CORE_SERVER;
 use crate::store::sessions::session_transcript;
 
 /// A gone answer is looked for in other panes at most this often (Python `REVIVE_EVERY`).
@@ -36,6 +37,14 @@ pub fn revive_moved(round: &mut Round<'_, '_>, memory: &mut Memory) -> rusqlite:
     }
     for q in &rows {
         memory.revive_checked.insert(q.id, t);
+    }
+    if round.server == CORE_SERVER {
+        for q in rows {
+            if let Some(terminal) = terminal_of(round.ctx, &q, None)? {
+                store.move_to_terminal(q.id, &terminal, None)?;
+            }
+        }
+        return Ok(());
     }
     let agents = round.ctx.herdr.agents().unwrap_or_default();
     for q in rows {

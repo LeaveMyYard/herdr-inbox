@@ -20,6 +20,7 @@ use crate::store::hosts::CORE_SERVER;
 use crate::store::norm::normalize;
 use crate::store::question::normalize_options;
 use crate::store::questions::NewQuestion;
+use crate::store::sessions::record_session;
 use crate::text::py_isspace;
 
 /// AskUserQuestion's chip limit, in characters (Python `service.MAX_HEADER`).
@@ -31,17 +32,6 @@ pub struct Call<'a> {
     pub context: Option<&'a str>,
     pub asked_by: Option<&'a str>,
     pub title: Option<&'a str>,
-}
-
-/// The receipt of a new question from a core terminal: nothing delivers there
-/// yet (plan herdr-app-inbox, B3), so it must not promise an `[inbox]` message.
-fn core_receipt(qid: i64) -> Value {
-    let r = format!("Q{qid}");
-    json!({"id": qid, "status": "open", "message": format!(
-        "Recorded as {r}. The operator will answer asynchronously. In a herdr-app terminal the \
-         answer does not arrive by itself yet: call check_answers later to fetch it. Continue \
-         with work that does not depend on it. Do not repeat the question in chat or call \
-         ask_operator for it again.")})
 }
 
 fn open_receipt(qid: i64) -> Value {
@@ -79,6 +69,12 @@ pub fn ask_group(
         return Ok((receipts::unavailable(), Vec::new()));
     }
     let server = if seat.is_some() { CORE_SERVER } else { server };
+    if let (Some(_), Some(session)) = (seat, caller.session_id.as_deref()) {
+        // says which config directory this session's records are in: the core
+        // worker's may be another, and it reads no process's environment
+        let found = files.find(session, None).map(|p| p.display().to_string());
+        record_session(store.db(), session, found.as_deref())?;
+    }
     let owner = caller.owner();
     let (receipts, new, group_id, body) = store.immediate(|_| {
         let (mut receipts, mut new, mut group_id) = (Vec::new(), Vec::new(), None::<i64>);
@@ -123,10 +119,7 @@ pub fn ask_group(
                 store.set_question_host(q.id, seat)?;
             }
             group_id = Some(q.group());
-            receipts.push(match seat {
-                Some(_) => core_receipt(q.id),
-                None => open_receipt(q.id),
-            });
+            receipts.push(open_receipt(q.id));
             new.push(q);
         }
         let mut body = None;
@@ -160,18 +153,11 @@ pub fn ask_group(
         json!({
             "group": group_id,
             "questions": receipts,
-            "message": match seat {
-                Some(_) => format!(
-                    "Filed {}. In a herdr-app terminal answers do not arrive by themselves yet: call \
-                     check_answers later to fetch them; keep working and do not ask these again.",
-                    ids.join(", ")
-                ),
-                None => format!(
-                    "Filed {}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working \
-                     and do not ask these again. If an answer seems overdue, call check_answers.",
-                    ids.join(", ")
-                ),
-            },
+            "message": format!(
+                "Filed {}. Answers arrive later as `[inbox]` messages naming the Q ids; keep working \
+                 and do not ask these again. If an answer seems overdue, call check_answers.",
+                ids.join(", ")
+            ),
         }),
         effects,
     ))

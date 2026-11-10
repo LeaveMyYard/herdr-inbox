@@ -15,11 +15,12 @@ use herdr_agent_kit::plugin_env::config::ConfigFile;
 
 use super::route::{Effects, Mark};
 use super::{Ctx, run};
+use crate::host::core::hc::socket;
 use crate::store::Store;
 use crate::surface::live::Live as Surface;
 use crate::surface::markers::Markers;
 use crate::tabs::settings::PLUGIN_ID;
-use crate::worker::live::server_gone;
+use crate::worker::live::{absent, server_gone};
 use crate::worker::process::{own_exe, worker_runs};
 use crate::worker::spawn::start_sender;
 
@@ -53,12 +54,12 @@ pub fn main(argv: &[String]) -> i32 {
     reply.exit
 }
 
-/// Core delivery exists. Off until B3 lands: then every core answer here is
-/// `held`, and no worker is asked for. Whichever of the two lands second turns
-/// it on, and a test fails until it does. [`World::core_gone`] then connects to
+/// Core delivery exists (B3). Off, every core answer here would be `held`, with no
+/// worker asked for; a test fails if this and the core listing disagree.
+/// [`World::core_gone`] connects to
 /// the core's socket (`worker::live::absent`). **Never by running `hc`: any `hc`
 /// command starts a core.** A socket with no known place is no proof.
-pub const CORE_DELIVERY: bool = false;
+pub const CORE_DELIVERY: bool = true;
 
 #[cfg(test)]
 mod tests;
@@ -98,7 +99,8 @@ impl Effects for World {
     }
 
     fn core_gone(&mut self) -> bool {
-        false // not reached while CORE_DELIVERY is off: see there
+        // the socket alone: any `hc` command starts a core. A place not known is no proof
+        socket::from_env(&self.env).is_some_and(|s| absent(&s))
     }
 
     fn start_sender(&mut self, questions: &[i64], force: bool, socket: Option<&str>) -> bool {

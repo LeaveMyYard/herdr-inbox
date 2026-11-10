@@ -203,6 +203,7 @@ fn no_home_and_no_state_dir_still_exits_0() {
     let out = Command::new("sh")
         .arg(r.root().join("scripts/install-bin.sh"))
         .env_clear()
+        .env("HC_SOCKET", "/nonexistent/no-core.sock")
         .env("PATH", path)
         .env("FAKE_RELEASES", r.releases())
         .env("FAKE_LOG", r.dir.path().join("tools.log"))
