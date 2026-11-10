@@ -39,6 +39,7 @@ function rowLine(t, mod, entry, n) {
   const color = closed !== undefined ? t.dim : d.warn ? t.blocked : t.foreground;
   const done = DONE.has(closed) ? '✓ ' : '';
   return v_flex().id(`row-${entry}`).gap(4).px(16).py(10).border_t_1().border_color(t.border).when(selected, el => el.bg(t.selected))
+    .cursor_pointer().when(!selected, el => el.hover(s => s.bg(t.hover))).on_click((_e, cx) => mod.onRow(entry, cx))
     .child(h_flex().items_center().gap(8).text_size(13.5).text_color(color)
       .child(div().w(12).font_family(t.mono).text_size(12).text_color(t.accent).child(selected ? '❯' : ''))
       .child(div().font_family(t.mono).text_size(12).text_color(t.muted).child(d.mark ?? n))

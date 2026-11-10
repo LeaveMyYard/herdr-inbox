@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The inbox overlay takes the mouse**. Its tabs, the Submit tab's answers, Submit answers and Cancel,
+  the list's rows, an undelivered answer's choices and the left-out list are clickable, each as its key
+  is, with the same arming, grace and refusals. The Submit tab sits apart at the right of the tab bar,
+  solid once anything is answered, with how many are; on it Submit answers is the primary button.
 - **The herdr-app inbox overlay (B6)**. The `herdr-inbox` mod now shows the open groups, answers
   single and multi-select questions with notes, drafts and a Submit tab, shows ⚠ answers with
   Retry and Stop showing, acknowledges alerts and goes to the agent. Its model replays the popup's

@@ -99,6 +99,14 @@ function listKey(p, key, armed) {
   return true;
 }
 
+// A click on a list row: the cursor goes to it, and it opens as Enter on it would.
+export function listPick(p, entry) {
+  if (!p.entries.includes(entry)) return;
+  p.view.cursor = entry;
+  listMoved(p);
+  if (!p.closed.has(entry) && !fresh(p, entry)) p.later({ t: 'open', entry });
+}
+
 function viewArmed(p) {
   return p.now >= (p.view.armed_at ?? 0);
 }

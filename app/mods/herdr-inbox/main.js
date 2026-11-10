@@ -192,6 +192,16 @@ export default class HerdrInbox extends View {
     this.after(cx);
   }
 
+  onTab(tab, cx) {
+    this.session.clickTab(tab, Date.now());
+    this.after(cx);
+  }
+
+  onLeftOut(id, cx) {
+    this.session.clickLeftOut(id, Date.now());
+    this.after(cx);
+  }
+
   onButton(name, cx) {
     this.session.button(name, Date.now());
     this.after(cx);

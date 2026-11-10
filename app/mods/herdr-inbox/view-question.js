@@ -3,7 +3,7 @@
 import { div } from 'gpui-kit';
 import { h_flex, v_flex } from 'gpui-base';
 import { hasPreview, question, tabId } from './model/data.js';
-import { allTabs } from './model/groups.js';
+import { allTabs, openQids } from './model/groups.js';
 import { boxValue } from './model/textbox.js';
 import { viewQuestion } from './model/remote.js';
 import { targets } from './model/review.js';
@@ -27,19 +27,33 @@ function header(mod, t, qid) {
       .children(parts.map(p => div().child(p))));
 }
 
+// The question tabs on the left; the Submit tab, the last step, set apart on the right with its count.
 function tabs(mod, t) {
   const { popup: p } = mod.session;
   const all = allTabs(p);
   if (p.mode !== 'group' || all.length < 2) return [];
+  const click = tab => (_e, cx) => mod.onTab(tab, cx);
   const chip = tab => {
     const on = tab === p.current;
-    const q = tab === 'submit' ? null : question(p.data, tabId(tab));
+    const q = question(p.data, tabId(tab));
     const closed = p.gone.has(tab);
-    const text = tab === 'submit' ? 'Submit' : q?.header ?? `Q${tabId(tab)}`;
+    const text = q?.header ?? `Q${tabId(tab)}`;
     const color = on ? t.foreground : closed ? t.dim : q?.draft ? t.ansi2 : t.muted;
-    return div().id(`tab-${tab}`).px(12).py(9).text_size(13).text_color(color).border_b_2().border_color(on ? t.accent : t.popover).child(closed ? `${text} (closed)` : text);
+    return div().id(`tab-${tab}`).px(12).py(9).text_size(13).text_color(color).border_b_2().border_color(on ? t.accent : t.popover)
+      .cursor_pointer().hover(el => el.text_color(t.foreground)).on_click(click(tab)).child(closed ? `${text} (closed)` : text);
   };
-  return [h_flex().flex_none().gap(4).px(22).border_b_1().border_color(t.border).children(all.map(chip))];
+  const open = openQids(p);
+  const answered = open.filter(id => question(p.data, id)?.draft).length;
+  const submit = () => {
+    const on = p.current === 'submit';
+    return h_flex().id('tab-submit').flex_none().items_center().gap(8).my(5).px(12).py(4).rounded(7).border_2().cursor_pointer()
+      .border_color(on ? t.accent : answered > 0 ? t.solid : t.input).bg(on || answered > 0 ? t.solid : t.raised)
+      .text_color(on || answered > 0 ? t.solid_foreground : t.muted).hover(el => el.border_color(t.accent)).on_click(click('submit'))
+      .child(div().text_size(13).font_semibold().child('Submit ✓'))
+      .child(div().font_family(t.mono).text_size(11.5).child(`${answered}/${open.length} answered`));
+  };
+  return [h_flex().flex_none().items_center().gap(4).px(22).border_b_1().border_color(t.border)
+    .children(all.filter(tab => tab !== 'submit').map(chip)).child(div().flex_1()).children(all.includes('submit') ? [submit()] : [])];
 }
 
 function optionRow(mod, t, v, q, i) {
@@ -49,7 +63,7 @@ function optionRow(mod, t, v, q, i) {
   const rec = RECOMMENDED.test(o.label);
   const note = v.notes.get(i);
   return h_flex().id(`opt-${i}`).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
-    .cursor_pointer().on_click((_e, cx) => mod.onRow(i, cx))
+    .cursor_pointer().when(!on, el => el.hover(s => s.bg(t.hover))).on_click((_e, cx) => mod.onRow(i, cx))
     .child(div().w(22).flex_none().font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(v.multi_select ? (picked ? '[x]' : '[ ]') : String(i + 1)))
     .child(v_flex().flex_1().min_w(0).gap(2)
       .child(h_flex().gap(8).items_center().text_size(13.5).text_color(t.foreground).child(o.label.replace(RECOMMENDED, ''))
@@ -59,7 +73,7 @@ function optionRow(mod, t, v, q, i) {
 }
 
 function plainRow(t, id, n, label, detail, on, click = null) {
-  return h_flex().id(id).when(click !== null, el => el.cursor_pointer().on_click(click)).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
+  return h_flex().id(id).when(click !== null, el => el.cursor_pointer().when(!on, x => x.hover(s => s.bg(t.hover))).on_click(click)).gap(8).px(12).py(9).rounded(9).border_1().border_color(on ? t.accent : t.border).bg(on ? t.selected : t.raised)
     .child(div().w(22).flex_none().font_family(t.mono).text_size(12).text_color(on ? t.accent : t.muted).child(n))
     .child(v_flex().flex_1().min_w(0).gap(2).child(div().text_size(13.5).text_color(t.foreground).child(label))
       .when(Boolean(detail), el => el.child(div().text_size(12.5).text_color(t.muted).child(detail))));
@@ -106,20 +120,36 @@ function questionBody(mod, t, v) {
   return h_flex().flex_1().min_h(0).items_stretch().child(column).children(side);
 }
 
+// One of the Submit tab's two actions: Submit answers is the primary one, solid once anything is answered.
+function action(mod, t, v, target, n, label, detail, primary) {
+  const on = v.cursor === target;
+  return h_flex().id(target).items_center().gap(10).px(14).py(10).rounded(9).border_2().cursor_pointer()
+    .border_color(on ? t.accent : primary ? t.solid : t.input).bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground)
+    .hover(el => el.border_color(t.accent)).on_click((_e, cx) => mod.onRow(target, cx))
+    .child(div().w(14).flex_none().font_family(t.mono).text_size(12).child(n))
+    .child(v_flex().flex_1().min_w(0).gap(2).child(div().text_size(14).font_semibold().child(label))
+      .when(Boolean(detail), el => el.child(div().text_size(12.5).opacity(0.8).child(detail))));
+}
+
 function reviewBody(mod, t, v) {
   const { popup: p } = mod.session;
-  const row = (id, label, detail, on) => plainRow(t, id, '', label, detail, on);
   const items = v.items.map(id => {
     const q = question(p.data, id);
     const d = q?.draft;
     const answer = d ? [...d.choices, ...(d.text ? [d.text] : [])].join(', ') : 'No answer yet: it stays open';
-    return row(`item-${id}`, `Q${id} · ${q?.header ?? q?.question.split('\n')[0] ?? ''}`, answer, v.cursor === `item:${id}`);
+    const target = `item:${id}`;
+    return plainRow(t, `item-${id}`, '', `Q${id} · ${q?.header ?? q?.question.split('\n')[0] ?? ''}`, answer, v.cursor === target, (_e, cx) => mod.onRow(target, cx));
   });
-  const all = [...items, row('submit', 'Submit answers', `Sends ${v.drafted.length} of ${v.items.length}`, v.cursor === 'submit'), row('cancel', 'Cancel', null, v.cursor === 'cancel')];
-  const at = v.cursor === null ? 0 : targets(v).indexOf(v.cursor);
+  const ready = v.drafted.length > 0;
+  const sends = ready ? `Sends ${v.drafted.length} of ${v.items.length}` : 'Nothing answered yet';
+  const actions = h_flex().id('review-actions').flex_none().gap(8).pt(12).border_t_1().border_color(t.border)
+    .child(action(mod, t, v, 'submit', '1', 'Submit answers ✓', sends, ready).flex_1())
+    .child(action(mod, t, v, 'cancel', '2', 'Cancel', 'Sends nothing', false).flex_none().w(200));
+  const at = v.cursor?.startsWith('item:') ? targets(v).indexOf(v.cursor) : 0;
   return v_flex().id('review').flex_1().min_h(0).gap(6).px(22).py(18)
     .child(div().pb(6).text_size(15).text_color(t.foreground).child('Review your answers'))
-    .children(windowed(t, all, at, fit(mod, 260, 70)));
+    .child(v_flex().flex_1().min_h(0).gap(6).children(windowed(t, items, at, fit(mod, 340, 70))))
+    .child(actions);
 }
 
 export function groupBody(mod, t) {

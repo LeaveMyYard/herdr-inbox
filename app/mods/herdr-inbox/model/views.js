@@ -8,6 +8,13 @@ export function goneKey(key, out) {
 
 const pickFailed = (v, out) => out.later(v.cursor === 0 ? { t: 'retry', qid: v.qid } : { t: 'hide', qid: v.qid });
 
+// A click on a choice: 0 is Retry delivery, 1 is Stop showing it here.
+export function failedPick(v, row, out) {
+  if (row !== 0 && row !== 1) return;
+  v.cursor = row;
+  pickFailed(v, out);
+}
+
 // ↑/↓, Enter, 1/2 (armed), Esc. Cursor 0 is Retry delivery, 1 is Stop showing it here.
 export function failedKey(v, key, armed, out) {
   if (key === 'up' || key === 'down') v.cursor = (v.cursor + 1) % 2;

@@ -34,6 +34,13 @@ function select(v, out) {
   else out.later({ t: 'submit', qids: [...v.drafted] });
 }
 
+// A click on a target: that target and no other, as Enter on it would be.
+export function pickTarget(v, target, out) {
+  if (!targets(v).includes(target)) return;
+  v.cursor = target;
+  select(v, out);
+}
+
 // Takes a key; false if the view does not bind it. `x`, dropping the row's draft, is the caller's.
 export function reviewKey(v, key, armed, out) {
   if (key === 'up' || key === 'k') step(v, -1);

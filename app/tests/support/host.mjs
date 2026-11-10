@@ -1,4 +1,4 @@
-// The real main.js in a fake host: keys reach `onKey`, clicks `onRow` and `onButton`, Esc `onEscape`,
+// The real main.js in a fake host: keys reach `onKey`, clicks `onRow`, `onTab`, `onLeftOut` and `onButton`, Esc `onEscape`,
 // and every command goes through `exec` to the stand-in, as in a window. Only the host is a stand-in.
 import { world as host } from './herdr.mjs';
 import { StandIn } from './standin.mjs';
@@ -105,6 +105,18 @@ export class Window {
   async click(row) {
     this.tick();
     this.view.onRow(row, this.cx);
+    await this.settle();
+  }
+
+  async tab(name) {
+    this.tick();
+    this.view.onTab(name, this.cx);
+    await this.settle();
+  }
+
+  async leftOut(id) {
+    this.tick();
+    this.view.onLeftOut(id, this.cx);
     await this.settle();
   }
 

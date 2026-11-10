@@ -147,3 +147,85 @@ test('the pick hint counts only what digits reach', () => {
   const r = new Rig(world([g]));
   assert.match(drawn(r), /1-3/); // two options and Something else; digits skip Submit
 });
+
+// What was drawn, with the handlers the mod's clicks go to: they go through the session as main.js's do.
+const tree = rig => render({
+  session: rig.session, status: { state: 'ready', root: '/fake/plugin' }, handle: {}, agentsNow: () => [], wordsNow: () => ({ title: 'Inbox', detail: 'Waiting' }),
+  onRow: row => { rig.tick(); rig.session.click(row, rig.now); rig.pump(); },
+  onTab: tab => { rig.tick(); rig.session.clickTab(tab, rig.now); rig.pump(); },
+  onLeftOut: id => { rig.tick(); rig.session.clickLeftOut(id, rig.now); rig.pump(); },
+  onButton: name => { rig.tick(); rig.session.button(name, rig.now); rig.pump(); },
+}, t);
+const styled = (el, ...call) => el.calls.some(c => JSON.stringify(c) === JSON.stringify(call));
+const clickOn = (rig, id) => {
+  const el = tree(rig).ids.get(id);
+  assert.ok(el?.click, `${id} is drawn and clickable`);
+  el.click(null, {});
+};
+
+test('the Submit tab is set apart: solid, ticked, with how many are answered', () => {
+  const r = new Rig(world([group(1, [1, 2, 3]), group(5)]));
+  r.press('enter');
+  const chip = () => tree(r).ids.get('tab-submit');
+  assert.match(chip().texts.join(' '), /Submit ✓ 0\/3 answered/);
+  assert.equal(styled(chip(), 'bg', 'solid'), false, 'nothing answered: not yet the solid one');
+  r.press('enter'); // Q1 drafted
+  assert.match(chip().texts.join(' '), /1\/3 answered/);
+  assert.ok(styled(chip(), 'bg', 'solid'));
+  assert.ok(styled(chip(), 'cursor_pointer'));
+  const q = tree(r).ids.get('tab-q:1');
+  assert.equal(styled(q, 'bg', 'solid'), false, 'a question tab is no button');
+  assert.equal(q.texts.join(' ').includes('Submit'), false);
+});
+
+test('clicking the drawn tabs switches them, and the Submit tab opens the review', () => {
+  const r = new Rig(world([group(1, [1, 2, 3]), group(5)]));
+  r.press('enter');
+  clickOn(r, 'tab-q:3');
+  assert.equal(r.popup.current, 'q:3');
+  clickOn(r, 'tab-submit');
+  assert.equal(r.popup.view.kind, 'review');
+});
+
+test('the review draws Submit answers as the primary button and Cancel as the secondary one', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.press('enter', 'enter'); // Q1 drafted, on to Q2
+  clickOn(r, 'tab-submit');
+  const ids = tree(r).ids;
+  const submit = ids.get('submit');
+  const cancel = ids.get('cancel');
+  assert.match(submit.texts.join(' '), /Submit answers ✓ Sends 1 of 2/);
+  assert.ok(styled(submit, 'bg', 'solid') && styled(submit, 'text_color', 'solid_foreground'));
+  assert.ok(styled(cancel, 'bg', 'raised'));
+  assert.equal(styled(ids.get('item-1'), 'bg', 'solid'), false, 'an answer is no button');
+  assert.ok(ids.get('review-actions').texts.includes('Cancel'), 'the actions sit apart from the answers');
+});
+
+test('clicking a drawn review item goes to it, and Submit answers sends what Enter sends', () => {
+  const open = () => {
+    const r = new Rig(world([group(1, [1, 2]), group(5)]));
+    r.press('enter', 'enter');
+    clickOn(r, 'tab-submit');
+    r.tick();
+    return r;
+  };
+  const item = open();
+  clickOn(item, 'item-2');
+  assert.equal(item.popup.current, 'q:2');
+  const keyed = open();
+  keyed.press('enter');
+  const clicked = open();
+  clickOn(clicked, 'submit');
+  assert.ok(keyed.ran.some(a => a[1] === 'answer'), 'Enter sent the answers');
+  assert.deepEqual(clicked.ran, keyed.ran);
+});
+
+test('list rows, an undelivered answer\'s choices and left-out rows are drawn clickable', () => {
+  const r = new Rig(world([group(1), failed(8), group(9)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } }));
+  for (const id of ['row-group:1', 'row-failed:8', 'row-group:9']) assert.ok(tree(r).ids.get(id)?.click, id);
+  clickOn(r, 'row-failed:8');
+  assert.equal(r.popup.mode, 'failed');
+  for (const id of ['retry', 'hide']) assert.ok(tree(r).ids.get(id)?.click, id);
+  r.press('escape', 'o');
+  assert.ok(tree(r).ids.get('left-21')?.click);
+});
