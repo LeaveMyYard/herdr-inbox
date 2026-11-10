@@ -7,7 +7,7 @@
 //!
 //! [`enter_own_session`]: super::enter_own_session
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
@@ -27,11 +27,15 @@ pub fn deliver_args(qids: &[i64], force: bool) -> Vec<OsString> {
 
 /// Starts `exe deliver` for `qids`, logging to `state_dir/worker.log`. `exe`
 /// `None`: this process does not know its binary, which is an error here.
+/// `server` is the herdr server to deliver on, as `ensure` passes one: `deliver`
+/// leaves another server's answer to that server's worker, dropping any
+/// `--force`. `None`: the inherited one.
 pub fn start_sender(
     exe: Option<&Path>,
     state_dir: &Path,
     qids: &[i64],
     force: bool,
+    server: Option<&OsStr>,
 ) -> io::Result<()> {
     let exe = exe.ok_or_else(|| io::Error::other("this binary's path is unknown"))?;
     let stderr = OpenOptions::new()
@@ -39,7 +43,7 @@ pub fn start_sender(
         .append(true)
         .open(state_dir.join("worker.log"))
         .ok();
-    let env = spawn_env(std::env::vars_os(), "".as_ref());
+    let env = spawn_env(std::env::vars_os(), server.unwrap_or_default());
     let args = deliver_args(qids, force);
     let child = spawn_for_session(exe.as_os_str(), &args, &env, stderr)?;
     reap_later(child);

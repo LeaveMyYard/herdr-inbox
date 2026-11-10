@@ -17,28 +17,6 @@
  },
  "entries": [
   {
-   "key": "alert:4",
-   "kind": "alert",
-   "id": 4,
-   "alert_kind": "agent",
-   "severity": "info",
-   "title": "Question Title 123",
-   "message": "Question Text 345",
-   "asked_by": "lane",
-   "created_at": "2026-01-02T10:00:00+00:00",
-   "asker": {
-    "host": "herdr-core",
-    "pane": null,
-    "terminal": "t6",
-    "tab_label": null,
-    "cwd": null
-   },
-   "actions": [
-    "ack"
-   ],
-   "token": "9516d29c2ca7433ad7468289c84132ca"
-  },
-  {
    "key": "alert:5",
    "kind": "alert",
    "id": 5,
@@ -81,6 +59,28 @@
     "ack"
    ],
    "token": "3a1ad3dd67aa6ed635169215e6b67cbc"
+  },
+  {
+   "key": "alert:4",
+   "kind": "alert",
+   "id": 4,
+   "alert_kind": "agent",
+   "severity": "info",
+   "title": "Question Title 123",
+   "message": "Question Text 345",
+   "asked_by": "lane",
+   "created_at": "2026-01-02T10:00:00+00:00",
+   "asker": {
+    "host": "herdr-core",
+    "pane": null,
+    "terminal": "t6",
+    "tab_label": null,
+    "cwd": null
+   },
+   "actions": [
+    "ack"
+   ],
+   "token": "9516d29c2ca7433ad7468289c84132ca"
   },
   {
    "key": "ralert:machine-alpha|2",
@@ -395,7 +395,7 @@
     "state": "failed",
     "reason": "no live agent in pane",
     "wait": null,
-    "attempts": 3,
+    "attempts": 10,
     "pending_since": null,
     "auto_retry": false
    },

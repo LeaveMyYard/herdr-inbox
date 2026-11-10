@@ -49,7 +49,7 @@ fn every_rust_cli_command_is_one_the_binary_has() {
     assert!(cmds.len() >= 10, "{cmds:?}");
     for cmd in &cmds {
         assert!(
-            cmd == "worker" || herdr_inbox::cli::handles(cmd),
+            ["worker", "app", "app-feed"].contains(&cmd.as_str()) || herdr_inbox::cli::handles(cmd),
             "`{cmd}` goes to a binary that has no such command"
         );
     }
@@ -71,6 +71,41 @@ fn the_binary_runs_its_commands_with_their_arguments() {
     assert_eq!(
         launch(&r, &["which"]),
         format!("{}\n", r.state_bin().join("herdr-inbox-1.0.0").display())
+    );
+}
+
+/// What a mod runs: the `engine` file and the contract check apply to it like to any command.
+#[test]
+fn a_mods_commands_go_through_the_launcher_to_the_binary() {
+    let cmds = rust_cli();
+    assert!(cmds.iter().any(|c| c == "app"), "{cmds:?}");
+    assert!(cmds.iter().any(|c| c == "app-feed"), "{cmds:?}");
+    let r = Root::new();
+    recorded(&r);
+    assert_eq!(
+        launch(&r, &["cli", "app", "ack", "--json"]),
+        "state app ack --json\n"
+    );
+    assert_eq!(
+        launch(&r, &["cli", "app-feed", "--ensure"]),
+        "state app-feed --ensure\n"
+    );
+}
+
+/// After a rollback `app` reaches Python, which has no such command: the probe fails, and the
+/// overlay says the inbox is unavailable. It never types with a binary the rollback meant to stop.
+#[test]
+fn a_rollback_takes_a_mods_commands_away_from_the_binary() {
+    let r = Root::new();
+    recorded(&r);
+    fs::write(r.root().join("engine"), "python\n").unwrap();
+    assert_eq!(
+        launch(&r, &["cli", "app", "--help"]),
+        python(&r, "app --help")
+    );
+    assert_eq!(
+        launch(&r, &["cli", "app-feed", "--ensure"]),
+        python(&r, "app-feed --ensure")
     );
 }
 

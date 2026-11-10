@@ -4,7 +4,7 @@ How the herdr-app mods act on the inbox. A mod writes nothing itself: no `writeT
 runs `herdr-inbox app <verb> --json` with `exec`. What it reads is the [feed](app-feed-v1.md). The
 examples are in `tests/fixtures/app-commands/commands.json`.
 
-**Status: nothing here is built yet.** B4 builds these verbs. `retry` needs B2's counter column.
+**Status: built (B4).** Core delivery is B3's: until it lands every core answer is `held`, as below.
 
 ## Running a command
 
@@ -66,8 +66,8 @@ inbox is unavailable. It never types with a binary the rollback meant to stop.
 | `ack` | `--entry alert:A --token T` | Acknowledges the alert. |
 | `show` | `--question Q` | Reads one question in full, see [below](#showing-one-question-in-full). Writes nothing. |
 
-Every verb also takes `--json`, which is required. Arguments may come in any order, and each except
-`--question` may come once.
+Every verb also takes `--json`, which is required, except for `show`, where it picks the output. Arguments
+may come in any order, and each except `--question` may come once. A `--question` given twice counts once.
 
 `--entry` and `--token` are the row's `key` and `token` from the feed. `G`, `Q` and `A` are a group, question
 and alert id: canonical decimal in [1, 9007199254740991], with no sign, prefix, leading zero, exponent or
@@ -93,7 +93,7 @@ One JSON object on stdout. Empty stdout never means success.
 |---|---|---|
 | 0 | Success | It was done. |
 | 1 | Refusal | Nothing was changed. |
-| 2 | Empty | Bad arguments: usage on stderr, no I/O. That covers anything wrong without reading the database: a malformed `--entry` or id, a `--detail` that is no JSON object or is over 64 KiB. |
+| 2 | Empty | Bad arguments: usage on stderr, no I/O. That covers anything wrong without reading the database: a malformed `--entry` or id, a `--detail` that is no Detail, with a field missing, of another type or unknown, or is over 64 KiB. An unknown field is refused because dropping it could lose the operator's words. |
 
 Any other exit, or a stdout that is not one such object, is a failure of unknown effect: the mod says so,
 reloads the feed and does not repeat the verb by itself.
@@ -112,7 +112,9 @@ reloads the feed and does not repeat the verb by itself.
 | `delivery` | ?string | For `answer` and `retry`, see [Delivery](#delivery): `queued` or `held`. Null when nothing waits to be delivered. Never a claim that it arrived. |
 
 The mod uses the `token` of its last result until a newer feed arrives. Without that, the next `draft`
-on the same group would be refused against the mod's own previous write.
+on the same group would be refused against the mod's own previous write. A row left out of the feed never
+arrives in one: its token comes from [`show`](#showing-one-question-in-full) and from later results, and its
+absence means nothing while its id is in `omitted.question_ids`, so an open overlay keeps such a question.
 
 ### Refusal
 
@@ -138,9 +140,13 @@ on the same group would be refused against the mod's own previous write.
 
 ### Showing one question in full
 
-`app show --question Q --json` is read-only: no transaction, no token, no write. It is the way out for a
+`app show --question Q --json` is read-only: one read transaction, no token, no database write. On a database
+not at this code's revision it starts the worker, as a verb does. It is the way out for a
 question the feed [cut or left out](app-feed-v1.md#an-incomplete-feed). Its result has these fields, and a
-refusal is as above: `stale` with `closed` when the question is not open.
+refusal is as above: `stale` with `closed` when the question is not open, and `error` when the result is over
+the 8 MiB `exec` reads, with a message that points to the terminal form. After `stale` the mod calls it again
+only on the operator's next key, so it never becomes a silent token refresh. It covers open questions, so a cut
+`failed` row has no way to its full text in v1.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -151,7 +157,7 @@ refusal is as above: `stale` with `closed` when the question is not open.
 | `row` | Entry | The `group` entry as the feed would publish it, but with no text cut and every `cut` false. Its `token` is the published one, computed on the cut text, so the other verbs take it. |
 
 For a terminal, the same command without `--json` prints the question, its context and its options as plain
-text. A mod that names it prints the real launcher command, as `herdr-inbox` is not on `PATH`. B4 builds it.
+text. A mod that names it prints the real launcher command, as `herdr-inbox` is not on `PATH`.
 
 ### The state a verb checks
 
@@ -199,14 +205,16 @@ claim, like every other send.
 
 | Row | Step 3 | Route if `held` |
 |---|---|---|
-| TUI, stored server | Ask that server, within the budget. Only `HerdrError::NotRunning` proves it gone, as for the worker (`server_gone`), and that gives `held`. Any other failure is no proof, and the sender goes. | That server's worker, when it is back. |
+| TUI, stored server | Ask that server, within the budget. Only `HerdrError::NotRunning` proves it gone, as for the worker (`server_gone`), and that gives `held`. Any other failure is no proof, and the sender goes. With no session too, deliberately: the worker and the popup's Retry already type to such a row. | That server's worker, when it is back. |
 | TUI, no stored server (asked before 0.6.1), with a session | The same, on the verb's default socket. `deliver` treats the row as local, and its `conversation_changed` guard checks the session. | The worker's own proof of the conversation. |
 | TUI, no stored server, no session | Always `held`, for `retry` too. The recipient rule beats retry: that guard is false with no session, so a forced send could reach another agent in a pane with the same id. | `check_answers` only. |
 | No pane and no host record (`unknown`) | Always `held`. | `check_answers` only: the worker's listing never takes such a row. |
-| Core | Ask `hc`. Only a proven absence of herdr-core gives `held`. | The core worker, when herdr-core is back. |
+| Core, before B3 | Always `held`, and step 2 is skipped too: there is no core worker. | `check_answers` only. |
+| Core, from B3 | Connect to its socket (`worker::live::absent`), and never run `hc`: any `hc` command starts a core. Only a missing or refusing socket gives `held`. A socket with no known place is no proof. | The core worker, when herdr-core is back. |
 
-A `held` result says that no sender started, for one of these reasons. A sender started there would burn a counted
-attempt for each press, towards marking the agent gone.
+A `held` result says that no sender started, for one of these reasons, or that one could not start and no worker
+runs, as when an update has just removed this binary. A sender started there would burn a counted attempt for each
+press, towards marking the agent gone.
 
 **The server travels with the answer.** A worker serves only its own server's rows, and `deliver` leaves an
 answer of another server to that server's worker, dropping any `--force` silently. `exec` has no env option, so
@@ -222,8 +230,8 @@ as its own, whichever herdr server it runs under, and asks for that worker first
 
 | `delivery` | Meaning |
 |---|---|
-| `queued` | A sender started, or failed to start and left the answer to the worker just ensured. |
-| `held` | The answer is recorded and no sender started. The table above says what can still bring it. |
+| `queued` | A sender started, or failed to start and a worker of that server runs. Never with neither. |
+| `held` | The answer is recorded and neither a sender nor, where one failed, a worker has it. The table above says what can still bring it. |
 
 A `retry` that comes out `held` is still done: its counter moved, and the mod says that nothing could be sent.
 That is what stops a replay forcing a send once the server is back.

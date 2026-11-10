@@ -14,6 +14,7 @@ use herdr_agent_kit::plugin_env::config::ConfigFile;
 
 use super::duties::live::LiveDuties;
 use super::live::{Core, Install, Live, absent, own_checkout, running_version};
+use super::lock::is_running;
 use super::remote::RemoteEnv;
 use super::remote::ssh::SshEnv;
 use super::run::run;
@@ -81,6 +82,14 @@ pub fn ensure_worker_in(env: &PluginEnv, server: Option<&str>, exe: &Path) -> bo
 pub fn ensure_core_worker(env: &PluginEnv, exe: &Path) -> bool {
     let up = socket::from_env(env).is_some_and(|s| !absent(&s));
     up && ensure_worker_in(env, Some(CORE_SERVER), exe)
+}
+
+/// [`ensure_worker`] for a caller that must know the answer has a worker: one
+/// started, or one runs. False: none could start, and none runs.
+pub fn worker_runs(server: Option<&str>) -> bool {
+    let (env, exe) = (PluginEnv::from_env(), own_exe());
+    let wenv = worker_env(&env, std::env::vars_os(), server.map(OsStr::new), &exe);
+    ensure(&wenv, &exe) || is_running(&wenv.lock_path())
 }
 
 /// `herdr-inbox worker [--ensure]`: the exit code. `--ensure` starts one in

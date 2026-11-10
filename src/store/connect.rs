@@ -98,6 +98,17 @@ impl Store {
         Ok(Store { db })
     }
 
+    /// Opens `path` read-only: for a reader that must leave no mark, so a
+    /// database not ready is only reported, and no worker hears of it.
+    pub fn open_read_only(path: &Path, timeout: Duration) -> Result<Store, OpenError> {
+        let db = with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY, timeout)?;
+        let missing = readiness::missing(&db)?;
+        if !missing.is_empty() {
+            return Err(OpenError::NotReady(missing));
+        }
+        Ok(Store { db })
+    }
+
     /// Wraps an open connection.
     pub(super) fn from_connection(db: Connection) -> Store {
         Store { db }
