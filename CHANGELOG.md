@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **The herdr-app inbox overlay (B6)**. The `herdr-inbox` mod now shows the open groups, answers
+  single and multi-select questions with notes, drafts and a Submit tab, shows ⚠ answers with
+  Retry and Stop showing, acknowledges alerts and goes to the agent. Its model replays the popup's
+  transition golden. Every verb carries the token of what was shown, a refused verb sends nothing
+  again, and a feed that left rows out never reads as an empty inbox. A crashed uninstall no longer leaves an emptied subfolder.
 - **Answers reach agents in a herdr-app terminal** (B3). One worker per machine, keyed on `herdr-core`
   and alive while the core is, delivers through the same claims as in a pane. The hooks and the
   rewake watcher carry the answer once the terminal is proved. Typing is `hc read` for the input box

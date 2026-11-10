@@ -440,8 +440,8 @@ bounded restart, a cooperative stop, and no signal to any PID.
 `herdr-inbox app-feed --ensure [--app-home ABSOLUTE_HOME]` makes sure one writer of this binary runs. A binary
 too old to have it prints its version and exits 0, so a mod calls it only after the
 [`--help` probe](app-commands-v1.md#running-a-command) has passed.
-Repeated calls are idempotent. The mods call it from `init`, and again at most once per 5 s while the feed
-is stale. B5 may add optional arguments, such as Panorama's `--install-id`, within v1.
+Repeated calls are idempotent. A mod calls it once `availability` says ready, never directly in `init`, and
+again at most once per 5 s while the feed is stale. B5 may add optional arguments, such as Panorama's `--install-id`, within v1.
 
 | Exit | Meaning |
 |---|---|
@@ -544,7 +544,7 @@ mods use these.
 ### The worker
 
 The feed writer and the delivery worker are separate processes. The feed reads, the worker delivers.
-The mod's `init` also runs `herdr-inbox worker --ensure`, and each verb that leaves an answer to deliver
+The mod also runs `herdr-inbox worker --ensure`, under the same rule, and each verb that leaves an answer to deliver
 makes sure of the worker of that answer's server ([app-commands v1](app-commands-v1.md#delivery)).
 
 There is one worker per herdr server, and it exits about 10 s after that server is gone
