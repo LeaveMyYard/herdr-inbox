@@ -971,20 +971,21 @@ fn the_core_worker_types_through_hc() {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    let mut sends = 0;
-    for _ in 0..200 {
-        let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
-        sends = log.lines().filter(|l| l.starts_with("send ")).count();
-        if sends > 0 {
-            break;
-        }
+    // the outcome, not the send: the worker records it after `hc` returns, and a slow
+    // machine (the macOS runner) shows a gap between the two
+    let delivered = || rig.db().get(q.id).unwrap().unwrap().delivered_at.is_some();
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while !delivered() && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(50));
     }
+    // a few more ticks: a second send would show here
+    std::thread::sleep(Duration::from_millis(500));
     let _ = worker.kill(); // this test's own child
     let _ = worker.wait();
+    let log = std::fs::read_to_string(rig.path("hc.log")).unwrap_or_default();
+    let sends = log.lines().filter(|l| l.starts_with("send ")).count();
+    assert!(delivered(), "the outcome was never written");
     assert_eq!(sends, 1, "typed once, through hc");
-    let q = rig.db().get(q.id).unwrap().unwrap();
-    assert!(q.delivered_at.is_some());
 }
 
 fn a_core_terminals_server_starts_the_core_worker() {
