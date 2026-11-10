@@ -45,3 +45,26 @@ fn a_row_has_one_seat() {
     s.set_question_host(7, &seat).unwrap();
     assert!(s.set_question_host(7, &seat).is_err());
 }
+
+/// A move under a claim the row no longer holds changes nothing, as `move_to_pane`.
+#[test]
+fn a_move_under_a_lost_claim_changes_nothing() {
+    let (_dir, s) = store();
+    s.db()
+        .execute_batch(
+            "INSERT INTO questions (id, created_at, question, norm, status, answer, delivery_error) \
+             VALUES (7, 'x', 'q', 'q', 'answered', 'a', 'sending:theirs');",
+        )
+        .unwrap();
+    let seat = CoreSeat {
+        terminal: "t3".into(),
+        machine: None,
+    };
+    s.set_question_host(7, &seat).unwrap();
+    let mine = crate::store::Claim("sending:mine".into());
+    assert!(!s.move_to_terminal(7, "t4", Some(&mine)).unwrap());
+    assert_eq!(s.core_seat(7).unwrap().unwrap().terminal, "t3");
+    let theirs = crate::store::Claim("sending:theirs".into());
+    assert!(s.move_to_terminal(7, "t4", Some(&theirs)).unwrap());
+    assert_eq!(s.core_seat(7).unwrap().unwrap().terminal, "t4");
+}

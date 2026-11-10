@@ -141,7 +141,7 @@
   },
   {
    "name": "answer-held-core-before-b3",
-   "about": "A core row before B3: recorded, no worker, no sender. check_answers has it.",
+   "about": "History: a core row before B3, which production no longer reaches (CORE_DELIVERY is on). Recorded, no worker, no sender. check_answers has it.",
    "world": "every-kind.json",
    "server": "herdr-core",
    "host": "gone",
@@ -707,7 +707,7 @@
   },
   {
    "name": "retry-held-core-before-b3",
-   "about": "A core row before B3: the counter moves, nothing starts.",
+   "about": "History: a core row before B3, which production no longer reaches (CORE_DELIVERY is on). The counter moves, nothing starts.",
    "world": "every-kind.json",
    "server": "herdr-core",
    "host": "gone",

@@ -31,3 +31,44 @@ fn the_first_wait_word_that_fits_decides() {
     );
     assert_eq!(wait("anything"), "other");
 }
+
+/// A stranded row keeps its clock in the database, and the feed does not publish it: that
+/// field says since when a row waits (the review of #146, N1).
+#[test]
+fn a_stranded_row_publishes_no_pending_since() {
+    use std::time::Duration;
+
+    use crate::store::Store;
+    use crate::store::questions::NewQuestion;
+    let dir = tempfile::tempdir().unwrap();
+    let store =
+        Store::open_migrating(&dir.path().join("inbox.db"), Duration::from_secs(5)).unwrap();
+    let q = store
+        .insert(&NewQuestion {
+            question: "Question Text 345",
+            ..NewQuestion::default()
+        })
+        .unwrap();
+    store.set_answer(q.id, "yes", None).unwrap();
+    store
+        .db()
+        .execute_batch(
+            "UPDATE questions SET delivery_error = 'not delivered: the terminal reports error'; \
+             UPDATE question_ext SET pending_since = '2020-01-01T00:00:00+00:00';",
+        )
+        .unwrap();
+    let q = store.get(q.id).unwrap().unwrap();
+    let row = super::entry(&store, &q, false).unwrap();
+    assert_eq!(row["delivery"]["state"], "failed");
+    assert!(row["delivery"]["pending_since"].is_null());
+    store
+        .db()
+        .execute_batch("UPDATE questions SET delivery_error = 'pending: busy: the agent is error'")
+        .unwrap();
+    let q = store.get(q.id).unwrap().unwrap();
+    let row = super::entry(&store, &q, false).unwrap();
+    assert_eq!(
+        row["delivery"]["pending_since"],
+        "2020-01-01T00:00:00+00:00"
+    );
+}
