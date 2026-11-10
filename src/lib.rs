@@ -7,6 +7,7 @@
 //! §5.4), so every rule here is the Python bridge's (0.10.6+) rule, ported
 //! as it is; each item names the Python it ports.
 
+pub mod app;
 pub mod claude;
 pub mod cli;
 pub mod clock;

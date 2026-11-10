@@ -4,7 +4,7 @@ How the herdr-app mods act on the inbox. A mod writes nothing itself: no `writeT
 runs `herdr-inbox app <verb> --json` with `exec`. What it reads is the [feed](app-feed-v1.md). The
 examples are in `tests/fixtures/app-commands/commands.json`.
 
-**Status: nothing here is built yet.** B4 builds these verbs. `retry` needs B2's counter column.
+**Status: the verbs are not built yet.** B4 builds them, stacked on the writer.
 
 ## Running a command
 
@@ -66,8 +66,8 @@ inbox is unavailable. It never types with a binary the rollback meant to stop.
 | `ack` | `--entry alert:A --token T` | Acknowledges the alert. |
 | `show` | `--question Q` | Reads one question in full, see [below](#showing-one-question-in-full). Writes nothing. |
 
-Every verb also takes `--json`, which is required. Arguments may come in any order, and each except
-`--question` may come once.
+Every verb also takes `--json`, which is required, except for `show`, where it picks the output. Arguments
+may come in any order, and each except `--question` may come once. A `--question` given twice counts once.
 
 `--entry` and `--token` are the row's `key` and `token` from the feed. `G`, `Q` and `A` are a group, question
 and alert id: canonical decimal in [1, 9007199254740991], with no sign, prefix, leading zero, exponent or
@@ -112,7 +112,9 @@ reloads the feed and does not repeat the verb by itself.
 | `delivery` | ?string | For `answer` and `retry`, see [Delivery](#delivery): `queued` or `held`. Null when nothing waits to be delivered. Never a claim that it arrived. |
 
 The mod uses the `token` of its last result until a newer feed arrives. Without that, the next `draft`
-on the same group would be refused against the mod's own previous write.
+on the same group would be refused against the mod's own previous write. A row left out of the feed never
+arrives in one: its token comes from [`show`](#showing-one-question-in-full) and from later results, and its
+absence means nothing while its id is in `omitted.question_ids`, so an open overlay keeps such a question.
 
 ### Refusal
 
@@ -138,9 +140,12 @@ on the same group would be refused against the mod's own previous write.
 
 ### Showing one question in full
 
-`app show --question Q --json` is read-only: no transaction, no token, no write. It is the way out for a
+`app show --question Q --json` is read-only: one read transaction, no token, no write. It is the way out for a
 question the feed [cut or left out](app-feed-v1.md#an-incomplete-feed). Its result has these fields, and a
-refusal is as above: `stale` with `closed` when the question is not open.
+refusal is as above: `stale` with `closed` when the question is not open, and `error` when the result is over
+the 8 MiB `exec` reads, with a message that points to the terminal form. After `stale` the mod calls it again
+only on the operator's next key, so it never becomes a silent token refresh. It covers open questions, so a cut
+`failed` row has no way to its full text in v1.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -151,7 +156,7 @@ refusal is as above: `stale` with `closed` when the question is not open.
 | `row` | Entry | The `group` entry as the feed would publish it, but with no text cut and every `cut` false. Its `token` is the published one, computed on the cut text, so the other verbs take it. |
 
 For a terminal, the same command without `--json` prints the question, its context and its options as plain
-text. A mod that names it prints the real launcher command, as `herdr-inbox` is not on `PATH`. B4 builds it.
+text. A mod that names it prints the real launcher command, as `herdr-inbox` is not on `PATH`.
 
 ### The state a verb checks
 
