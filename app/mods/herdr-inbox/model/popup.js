@@ -5,11 +5,15 @@
 
 import { message } from './actions.js';
 import { GRACE, VIEW_ARM, copied, emptyRemote, isAlert, kindOf } from './data.js';
-import { backToList, openEntry, show, showEmpty, showList } from './groups.js';
-import { takeKey } from './keys.js';
+import { allTabs, backToList, navigate, openEntry, show, showEmpty, showList } from './groups.js';
+import { listPick, takeKey } from './keys.js';
 import { focused, poll, sent } from './poll.js';
 import { pickRow } from './question.js';
+import { pickTarget } from './review.js';
 import { currentEntries } from './rows.js';
+import { failedPick } from './views.js';
+
+const PICKS = new Set(['question', 'review', 'list', 'failed']);
 
 export class Popup {
   constructor(open, now) {
@@ -136,20 +140,47 @@ export class Popup {
     return this.take();
   }
 
-  // A click on a row of the question on screen. It acts on exactly that row, or not at all: not under
+  // A click on a row of the view on screen: an option of the question, a target of the Submit tab, a
+  // list row or a choice of an undelivered answer. It acts on exactly that row, or not at all: not under
   // a confirmation, not with a box open, not while the view is unarmed or held, not in the grace.
   pick(row, now) {
     this.now = now;
     this.undo = null;
     const v = this.view;
-    const grace = this.timers.grace_until;
-    const plain = v.kind === 'question' && !v.editing && !this.confirm && !this.held && now >= v.armed_at;
-    if (!this.running || !plain || (grace !== null && now < grace)) return [];
-    this.timers.prev_key_at = this.timers.last_key_at;
-    this.timers.last_key_at = now;
-    pickRow(v, row, this.out);
+    const plain = PICKS.has(v.kind) && !v.editing && !this.confirm && !this.held && now >= (v.armed_at ?? 0);
+    if (!this.running || !plain || this.graced(now)) return [];
+    this.stamp(now);
+    if (v.kind === 'question') pickRow(v, row, this.out);
+    else if (v.kind === 'review') pickTarget(v, row, this.out);
+    else if (v.kind === 'failed') failedPick(v, row, this.out);
+    else listPick(this, row);
     this.drain();
     return this.take();
+  }
+
+  // A click on a tab of the open group: what Tab and Shift+Tab move between, straight to that one.
+  // Not under a confirmation, not with a box open, not on a held deep link, not in the grace.
+  tab(tab, now) {
+    this.now = now;
+    this.undo = null;
+    const box = this.view.kind === 'question' && this.view.editing;
+    const plain = this.mode === 'group' && !box && !this.confirm && !this.held && tab !== this.current && allTabs(this).includes(tab);
+    if (!this.running || !plain || this.graced(now)) return [];
+    this.stamp(now);
+    navigate(this, 0, tab);
+    this.drain();
+    return this.take();
+  }
+
+  graced(now) {
+    const grace = this.timers.grace_until;
+    return grace !== null && now < grace;
+  }
+
+  // A click is stamped as a key is.
+  stamp(now) {
+    this.timers.prev_key_at = this.timers.last_key_at;
+    this.timers.last_key_at = now;
   }
 
   // What a row placeholder says, once the verb's result is known.

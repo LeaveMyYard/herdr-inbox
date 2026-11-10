@@ -173,6 +173,18 @@ export class Session extends Steps {
     if (this.idle && !this.picker && this.reshow === null) this.act(now, () => this.popup.pick(row, now));
   }
 
+  // A click on a tab of the open group: that tab, or nothing.
+  clickTab(tab, now) {
+    if (this.idle && !this.picker && this.reshow === null) this.act(now, () => this.popup.tab(tab, now));
+  }
+
+  // A click on a row of the left-out list: it opens, as Enter on it would.
+  clickLeftOut(id) {
+    if (!this.idle || !this.picker || !(this.incomplete?.ids ?? []).includes(id)) return;
+    this.picker.cursor = id;
+    this.pickerKey('enter');
+  }
+
   // A footer button does what its key does, but never closes a confirmation or submits a text box.
   button(name, now) {
     if (this.idle && !this.picker && !this.popup.confirm && !this.popup.view.box_focused && !this.graced(now)) this.key(name, now);

@@ -449,3 +449,188 @@ test('an incomplete feed that has its last visible row answered says what is lef
   assert.equal(w.closed, true);
   assert.match(w.toasts, /Still open, and not listed here: 2 questions/);
 });
+
+// -- the mouse reaches every place a key does
+
+const sentVerbs = w => w.ran.filter(a => a[0] === 'app' && !['--help', 'show'].includes(a[1]));
+
+test('a click on a tab goes to that tab, as Tab does, and on the current one does nothing', async () => {
+  const w = await open(world([group(1, [1, 2, 3]), group(5)]));
+  await w.key('enter');
+  assert.equal(w.popup.current, 'q:1');
+  await w.tab('q:3');
+  assert.equal(w.popup.current, 'q:3');
+  assert.equal(w.popup.view.qid, 3);
+  const view = w.popup.view;
+  await w.tab('q:3');
+  assert.equal(w.popup.view, view, 'the current tab is not shown afresh');
+  await w.tab('submit');
+  assert.equal(w.popup.view.kind, 'review');
+  await w.tab('q:9');
+  assert.equal(w.popup.current, 'submit', 'a tab that is not there is no tab');
+  assert.equal(sentVerbs(w).length, 0);
+});
+
+test('a tab click under a confirmation, with a box open, or on a held deep link does nothing', async () => {
+  const confirm = await open(world([group(1, [1, 2]), group(5)]));
+  await confirm.key('enter');
+  await confirm.key('d');
+  await confirm.tab('q:2');
+  assert.equal(confirm.popup.current, 'q:1');
+  assert.ok(confirm.popup.confirm);
+  const box = await open(world([group(1, [1, 2]), group(5)]));
+  await box.key('enter');
+  await box.key('3');
+  await box.key('enter');
+  await box.key('h');
+  await box.tab('q:2');
+  assert.equal(box.popup.current, 'q:1');
+  assert.equal(box.popup.view.editing.box.chars.join(''), 'h');
+  const held = await open(world([group(1, [1, 2]), group(5)]), { props: { overlay: 'o1', question: 1 } });
+  assert.equal(held.popup.held, true);
+  await held.tab('q:2');
+  assert.equal(held.popup.current, 'q:1');
+});
+
+test('a click on a review item goes to that question, as Enter on it does', async () => {
+  const w = await open(world([group(1, [1, 2]), group(5)]));
+  await w.key('enter');
+  await w.tab('submit');
+  await w.click('item:2');
+  assert.equal(w.popup.current, 'q:2');
+  assert.equal(w.popup.view.kind, 'question');
+});
+
+test('a click on Submit answers sends what Enter on it sends', async () => {
+  const answered = async () => {
+    const w = await open(world([three(1), group(5)].map((g, i) => (i === 0 ? { ...g, questions: [...g.questions, { ...g.questions[0], id: 2 }] } : g))));
+    await w.key('enter');
+    await w.click(2); // Q1: Option C, drafted, on to Q2
+    await w.tab('submit');
+    return w;
+  };
+  const keyed = await answered();
+  assert.equal(keyed.popup.view.cursor, 'submit');
+  await keyed.key('enter');
+  const clicked = await answered();
+  await clicked.click('submit');
+  assert.ok(sentVerbs(keyed).some(a => a[1] === 'answer'), 'Enter sent the answers');
+  assert.deepEqual(sentVerbs(clicked), sentVerbs(keyed));
+  assert.equal(clicked.popup.mode, keyed.popup.mode);
+});
+
+test('a click on Cancel in review goes back, as Enter on it does, and sends nothing', async () => {
+  const w = await open(world([group(1, [1, 2]), group(5)]));
+  await w.key('enter');
+  await w.tab('submit');
+  await w.click('cancel');
+  assert.equal(w.popup.mode, 'list');
+  assert.equal(sentVerbs(w).length, 0);
+});
+
+test('a click in review before it is armed does nothing', async () => {
+  const w = await open(world([group(1, [1, 2]), group(5)]));
+  await w.key('enter');
+  await w.tab('submit');
+  w.clock = w.popup.view.armed_at - 1;
+  w.view.onRow('cancel', w.cx);
+  await w.settle();
+  assert.equal(w.popup.view.kind, 'review');
+});
+
+test('a click on a list row opens it, and one on an undelivered answer\'s choice does that choice', async () => {
+  const w = await open(world([group(1), failed(8), group(9)]));
+  assert.equal(w.popup.mode, 'list');
+  await w.click('group:9');
+  assert.equal(w.popup.mode, 'group');
+  assert.equal(w.popup.entry, 'group:9');
+  await w.escape();
+  await w.click('failed:8');
+  assert.equal(w.popup.mode, 'failed');
+  await w.click(0);
+  assert.equal(w.verbs('retry').length, 1);
+});
+
+test('a click on a left-out row opens it, as Enter does', async () => {
+  const left = group(21, [21]);
+  const feed = world([group(1), group(2)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const w = await open(feed, { rows: [left] });
+  await w.key('o');
+  assert.ok(w.view.session.picker);
+  await w.leftOut(21);
+  assert.equal(w.view.session.picker, null);
+  assert.equal(w.ran.filter(a => a[0] === 'app' && a[1] === 'show').length, 1);
+});
+
+// -- a click can't send twice
+
+const reviewing = async () => {
+  const g = group(1, [1, 2]);
+  const w = await open(world([g, group(5)]));
+  await w.key('enter');
+  await w.click(0); // Q1: Option A, drafted, on to Q2
+  await w.tab('submit');
+  w.tick();
+  return w;
+};
+
+test('three clicks on Submit answers in one tick send one answer', async () => {
+  const w = await reviewing();
+  for (let i = 0; i < 3; i += 1) w.view.onRow('submit', w.cx);
+  await w.settle();
+  assert.equal(w.verbs('answer').length, 1);
+});
+
+test('clicks on Retry delivery again and again send one retry', async () => {
+  const w = await open(world([group(1), failed(8), group(9)]));
+  await w.click('failed:8');
+  for (let i = 0; i < 3; i += 1) await w.click(0);
+  assert.equal(w.verbs('retry').length, 1);
+});
+
+test('a tab click or a row click while a verb runs does nothing, and the group stays on screen', async () => {
+  const w = await open(world([three(1), group(5)].map((g, i) => (i === 0 ? { ...g, questions: [1, 2, 3].map(id => ({ ...g.questions[0], id })) } : g))));
+  await w.key('enter');
+  let release;
+  w.gate = new Promise(done => { release = done; });
+  w.tick();
+  w.view.onRow(0, w.cx); // drafts Q1, and the model is on Q2 while the draft runs
+  for (let i = 0; i < 5; i += 1) await new Promise(done => { setImmediate(done); });
+  assert.ok(w.view.session.batch, 'the draft is still running');
+  assert.equal(w.popup.mode, 'group');
+  const current = w.popup.current;
+  w.tick();
+  w.view.onTab('q:3', w.cx);
+  w.view.onTab('submit', w.cx);
+  w.view.onRow(1, w.cx);
+  assert.equal(w.popup.current, current, 'no tab was clicked to');
+  release();
+  w.gate = null;
+  await w.settle();
+  assert.equal(w.verbs('draft').length, 1);
+  assert.equal(w.popup.current, current);
+});
+
+test('a tab click or a review click in the grace window does nothing', async () => {
+  const w = await open(world([group(1, [1, 2, 3]), group(5)]));
+  await w.key('enter');
+  w.db.feed.entries[0].questions.shift(); // the question on screen closed: a grace window opens
+  await w.timer();
+  assert.ok(w.clock < w.popup.timers.grace_until);
+  const current = w.popup.current;
+  w.view.onTab('q:3', w.cx);
+  w.view.onTab('submit', w.cx);
+  await w.settle();
+  assert.equal(w.popup.current, current);
+  w.clock = w.popup.timers.grace_until;
+  w.view.onTab('submit', w.cx);
+  await w.settle();
+  assert.equal(w.popup.view.kind, 'review', 'past the grace the same click goes');
+  w.popup.timers.grace_until = w.clock + 500; // as a change under the review would open one
+  w.clock += 450;
+  w.view.onRow('cancel', w.cx);
+  w.view.onRow('item:2', w.cx);
+  await w.settle();
+  assert.equal(w.popup.view.kind, 'review');
+  assert.equal(w.ran.filter(a => ['draft', 'answer'].includes(a[1])).length, 0);
+});

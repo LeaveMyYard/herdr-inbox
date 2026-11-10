@@ -23,6 +23,9 @@ export function windowed(t, rows, at, size) {
 // How many rows of this height fit in what is left of the overlay.
 export const fit = (mod, used, row) => Math.max(Math.floor(((mod.size?.height ?? 700) - used - (mod.below ?? 0)) / row), 2);
 
+// A row a click acts on, as its key does: the pointer cursor, and a hover shade unless it is the one selected.
+export const clickable = (t, on, click) => el => el.cursor_pointer().when(!on, x => x.hover(s => s.bg(t.hover))).on_click(click);
+
 export function button(t, id, label, primary, click) {
   return h_flex().id(id).h(30).px(12).items_center().gap(8).rounded(7).border_1().cursor_pointer().text_size(12.5)
     .border_color(primary ? t.solid : t.input).bg(primary ? t.solid : t.raised)
