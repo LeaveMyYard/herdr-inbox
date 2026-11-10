@@ -99,7 +99,7 @@ impl Handoff for LiveHandoff {
 
     fn spawn_delivery(&self, qids: &[i64], force: bool) {
         // recorded, not yet claimed: the worker `ensure` started retries them
-        if let Err(err) = start_sender(self.exe.as_deref(), &self.state_dir, qids, force) {
+        if let Err(err) = start_sender(self.exe.as_deref(), &self.state_dir, qids, force, None) {
             super::log(&format!(
                 "could not start the delivery; the worker will retry: {err}"
             ));

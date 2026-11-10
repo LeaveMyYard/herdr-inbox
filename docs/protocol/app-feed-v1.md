@@ -5,7 +5,7 @@ owns every decision and every write. A mod reads this one file and acts only thr
 [app-commands v1](app-commands-v1.md). The fixtures are in `tests/fixtures/app-feed/` and
 `tests/fixtures/app-commands/`.
 
-**Status: the [installer](#installing) (B5) and the writer (B4) are built.** This is the document
+**Status: the [installer](#installing) (B5), the writer and the verbs (B4) are built.** This is the document
 the mods (B5, B6) are built against. [What depends on what](#what-depends-on-what) says what holds today and what waits for
 a later slice.
 

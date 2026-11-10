@@ -395,7 +395,7 @@
     "state": "failed",
     "reason": "no live agent in pane",
     "wait": null,
-    "attempts": 3,
+    "attempts": 10,
     "pending_since": null,
     "auto_retry": false
    },
