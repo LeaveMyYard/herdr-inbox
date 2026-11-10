@@ -588,21 +588,27 @@ test('clicks on Retry delivery again and again send one retry', async () => {
   assert.equal(w.verbs('retry').length, 1);
 });
 
-test('a tab click or a Submit click while a verb runs does nothing', async () => {
-  const w = await reviewing();
+test('a tab click or a row click while a verb runs does nothing, and the group stays on screen', async () => {
+  const w = await open(world([three(1), group(5)].map((g, i) => (i === 0 ? { ...g, questions: [1, 2, 3].map(id => ({ ...g.questions[0], id })) } : g))));
+  await w.key('enter');
   let release;
   w.gate = new Promise(done => { release = done; });
-  w.view.onRow('submit', w.cx); // the answer is on its way
-  for (let i = 0; i < 5; i += 1) await new Promise(done => { setImmediate(done); });
   w.tick();
-  w.view.onRow('submit', w.cx);
-  w.view.onTab('q:1', w.cx);
-  w.view.onRow('item:1', w.cx);
+  w.view.onRow(0, w.cx); // drafts Q1, and the model is on Q2 while the draft runs
+  for (let i = 0; i < 5; i += 1) await new Promise(done => { setImmediate(done); });
+  assert.ok(w.view.session.batch, 'the draft is still running');
+  assert.equal(w.popup.mode, 'group');
+  const current = w.popup.current;
+  w.tick();
+  w.view.onTab('q:3', w.cx);
+  w.view.onTab('submit', w.cx);
+  w.view.onRow(1, w.cx);
+  assert.equal(w.popup.current, current, 'no tab was clicked to');
   release();
   w.gate = null;
   await w.settle();
-  assert.equal(w.verbs('answer').length, 1);
-  assert.notEqual(w.popup.current, 'q:1', 'no tab was clicked to');
+  assert.equal(w.verbs('draft').length, 1);
+  assert.equal(w.popup.current, current);
 });
 
 test('a tab click or a review click in the grace window does nothing', async () => {
