@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readResult, verbArgs } from '../mods/herdr-inbox/commands.js';
+import { tokenOf } from './support/standin.mjs';
 import { Rig, asker, failed, fixture, group, noOmissions, world } from './support/rig.mjs';
 
 const tokenArg = args => args[args.indexOf('--token') + 1];
@@ -682,4 +683,64 @@ test('typed text stays through a stale refusal, for a deliberate key after a loo
   assert.match(r.said, /look again/);
   assert.equal(r.popup.view.kind, 'question');
   assert.equal(r.popup.view.editing.box.chars.join(''), 'Txt');
+});
+
+test('after a stale on a left-out row, the re-read keeps the view and what was typed', () => {
+  const feed = world([group(1), group(2)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const r = new Rig(feed, { rows: [group(21, [21])] });
+  r.db.retoken(r.db.rows[0]);
+  r.press('o', 'enter');
+  r.tick(1100);
+  assert.equal(r.popup.view.cursor, 'group:21');
+  r.press('enter'); // the lone question opens
+  r.press('down', 'down', 'enter', 'h', 'e', 'l', 'l', 'o');
+  assert.equal(r.popup.view.editing.box.chars.join(''), 'hello');
+  r.db.rows[0].questions[0].draft = { choices: ['Option B'], notes: {}, text: null };
+  r.db.retoken(r.db.rows[0]);
+  r.press('enter'); // refused as stale
+  assert.match(r.said, /look again/);
+  assert.ok(r.session.reshow);
+  r.press('!');
+  assert.equal(r.verbs('show').length, 2, 'the row was read again');
+  assert.equal(r.popup.mode, 'group', 'still on the question');
+  assert.equal(r.popup.view.editing.box.chars.join(''), 'hello!');
+  assert.equal(r.verbs('answer').length, 1, 'nothing more was sent');
+  r.tick(1000);
+  r.press('enter');
+  assert.equal(r.verbs('answer').length, 2, 'a deliberate key sends, with the token of the read');
+  assert.deepEqual(r.db.delivered.map(d => d.detail.text), ['hello!']);
+});
+
+test('a question gone from a group the feed still holds reads closed, not removed', () => {
+  const r = new Rig(world([group(1, [1, 2]), group(5)]));
+  r.press('enter', 'right');
+  assert.equal(r.popup.current, 'q:2');
+  r.db.find('group:1').questions.pop();
+  r.published();
+  assert.equal(r.popup.gone.get('q:2') === 'removed', false);
+  assert.ok(r.popup.gone.has('q:2'));
+});
+
+test('the book takes the token of the mod\'s own result', () => {
+  const r = new Rig(world([group(1, [1, 2])]));
+  r.press('enter'); // drafts Q1
+  const result = tokenOf(r.db.find('group:1'));
+  assert.equal(r.session.book.row('group:1').token, result);
+  assert.equal(r.session.pins.changed, false, 'its own write is no change under it');
+});
+
+test('after a stale on a left-out row, Enter in the box reads again and sends nothing', () => {
+  const feed = world([group(1), group(2)], { omitted: { ...noOmissions(), groups: 1, questions: 1, question_ids: [21] } });
+  const r = new Rig(feed, { rows: [group(21, [21])] });
+  r.db.retoken(r.db.rows[0]);
+  r.press('o', 'enter');
+  r.tick(1100);
+  r.press('enter', 'down', 'down', 'enter', 'h', 'i');
+  r.db.rows[0].questions[0].draft = { choices: ['Option B'], notes: {}, text: null };
+  r.db.retoken(r.db.rows[0]);
+  r.press('enter'); // refused as stale
+  const before = r.ran.filter(a => a[1] !== 'show').length;
+  r.press('enter'); // pressed before the re-read was seen
+  assert.equal(r.ran.filter(a => a[1] !== 'show').length, before, 'no verb');
+  assert.equal(r.popup.view.editing.box.chars.join(''), 'hi');
 });

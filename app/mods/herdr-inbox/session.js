@@ -140,8 +140,12 @@ export class Session extends Steps {
     if (this.picker) return this.pickerKey(name);
     this.keepReshow();
     if (this.reshow !== null && name !== 'escape') {
+      // The row is read again first. A key that only types into the open box is kept; any other waits
+      // for the operator to press it again on what the read shows.
+      const typing = this.popup.view.box_focused && name !== 'enter';
       this.showing = { qid: this.reshow.qid, then: 'reshown' };
       this.reshow = null;
+      if (typing) this.act(now, () => this.popup.handle({ key: name }, now));
       return;
     }
     if (this.sessionKey(name, now)) return;

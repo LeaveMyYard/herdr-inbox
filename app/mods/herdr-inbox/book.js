@@ -96,11 +96,24 @@ export class Book {
   apply(feed) {
     const next = new Map(feed.entries.map(row => [row.key, row]));
     for (const [key, row] of this.rows) {
-      if (next.has(key)) continue;
+      if (next.has(key)) {
+        this.dropped(row, next.get(key));
+        continue;
+      }
       if (absentMeansClosed(row, feed)) this.forget(row);
-      else next.set(key, { ...this.stillOpen(row, feed), left_out: true });
+      else {
+        const kept = this.stillOpen(row, feed);
+        this.dropped(row, kept);
+        next.set(key, { ...kept, left_out: true });
+      }
     }
     this.rows = next;
+  }
+
+  // A group the feed still holds may have lost questions: they closed, and were not removed.
+  dropped(row, now) {
+    if (row.kind !== 'group' || now.kind !== 'group') return;
+    for (const q of row.questions.filter(x => !now.questions.some(y => y.id === x.id))) this.lost.set(q.id, modelQuestion(q, row));
   }
 
   // A kept group holds only the questions the feed still names, when it names them all.

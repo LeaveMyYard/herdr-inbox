@@ -181,7 +181,7 @@ export class Steps {
     for (const q of read.row.questions) this.full.set(q.id, q);
     if (!this.popup) return this.start(now);
     this.run(this.popup.handle({ poll: this.book.snapshot() }, now), now);
-    this.run(this.popup.showRow(read.row.key, now), now);
+    if (what.then !== 'reshown') this.run(this.popup.showRow(read.row.key, now), now); // a re-read keeps the view
     this.pins.look(this.popup);
   }
 
