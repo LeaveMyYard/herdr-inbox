@@ -233,6 +233,7 @@ test('list rows, an undelivered answer\'s choices and left-out rows are drawn cl
 test('a long question keeps whole lines and leaves the options a place to scroll', () => {
   const g = group(1, [1]);
   g.questions[0].question = Array.from({ length: 40 }, (_, i) => `Question line ${i + 1} of Question Title 123`).join('\n');
+  g.questions[0].context = 'Context Text 456';
   g.questions[0].options = Array.from({ length: 5 }, (_, i) => ({ label: `Option ${i + 1}`, description: null, preview: null }));
   const r = new Rig(world([g]));
   const root = render({ session: r.session, status: { state: 'ready', root: '/fake/plugin' }, handle: {}, agentsNow: () => [], wordsNow: () => ({}), size: { width: 800, height: 600 } }, t);
@@ -241,6 +242,8 @@ test('a long question keeps whole lines and leaves the options a place to scroll
   assert.ok(text, 'the question text is its own scroll region');
   const cap = Number.parseInt(call(text, 'max_h')[1], 10);
   assert.equal(cap % 22, 0, 'the cap falls on a line boundary');
+  assert.equal(call(text, 'gap'), undefined, 'a gap between question and context would take the cap off the line grid');
+  assert.equal(text.texts.length, 2, 'question and context both live in the region');
   assert.ok(cap >= 3 * 22 && cap <= 600 / 3 + 22, 'a readable share of the window');
   assert.ok(call(text, 'overflow_y_scrollbar'), 'the rest is reachable by scrolling');
   assert.equal(call(root.ids.get('q'), 'min_h'), undefined, 'the text is not squeezed to a fixed small box');
