@@ -251,3 +251,19 @@ test('a long question keeps whole lines and leaves the options a place to scroll
   const choices = root.ids.get('choices');
   assert.ok(call(choices, 'min_h') && call(choices, 'overflow_y_scrollbar'), 'the options are what scroll when the window runs out');
 });
+
+test('at any window height the question and the options it leaves room for fit together', () => {
+  for (const height of [440, 520, 600, 700, 900]) {
+    const g = group(1, [1]);
+    g.questions[0].question = Array.from({ length: 40 }, (_, i) => `Question line ${i + 1} of Question Title 123`).join('\n');
+    g.questions[0].context = 'Context Text 456';
+    g.questions[0].options = Array.from({ length: 5 }, (_, i) => ({ label: `Option ${i + 1}`, description: `Detail ${i + 1}`, preview: null }));
+    const r = new Rig(world([g]));
+    const root = render({ session: r.session, status: { state: 'ready', root: '/fake/plugin' }, handle: {}, agentsNow: () => [], wordsNow: () => ({}), size: { width: 800, height: height } }, t);
+    const cap = Number.parseInt(root.ids.get('q-text').calls.find(c => c[0] === 'max_h')[1], 10);
+    const rows = [...root.ids.keys()].filter(id => /^(opt-|other|chat|next|submit)/.test(id)).length;
+    assert.ok(rows >= 2, `${height}: at least two options are drawn`);
+    assert.ok(300 + cap + 30 + Math.min(rows, 2) * 64 <= Math.max(height, 300 + 66 + 30 + 128), `${height}: two rows and the hint fit under the capped question`);
+    if (height >= 700) assert.ok(rows >= 3, `${height}: a roomy window shows more than two options`);
+  }
+});
