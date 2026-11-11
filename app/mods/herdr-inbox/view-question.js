@@ -11,6 +11,10 @@ import { button, clickable, fit, footer, windowed } from './view-parts.js';
 import { askerLabel } from './view-text.js';
 import { age } from './words.js';
 
+const CHROME = 300; // px, the header, tabs, label, note field, footer and padding around the question and options
+const HINT = 30; // px, a "more" line above or below the options
+const rowSize = q => (q.options.some(o => o.description) ? 64 : 46);
+const LINE = 22; // px, one line of the question text
 const RECOMMENDED = / \(recommended\)$/i;
 
 function header(mod, t, qid) {
@@ -93,6 +97,18 @@ function noteField(t, v) {
     .text_color(e || v.text ? t.foreground : t.dim).when(label !== null, el => el.child(div().flex_none().text_color(t.muted).child(label))).child(div().flex_1().child(text));
 }
 
+// How many lines the question is likely to need, and how many of them it may show before it scrolls (a third of the window).
+function readable(mod, q, side) {
+  const width = Math.max((mod.size?.width ?? 800) - 44 - (side ? 300 : 0), 200);
+  const perLine = Math.max(Math.floor(width / 8), 20);
+  const count = text => (text ? String(text).split('\n').reduce((n, l) => n + Math.max(Math.ceil(l.length / perLine), 1), 0) : 0);
+  const lines = count(q.question) + count(q.context);
+  const room = (mod.size?.height ?? 700) - (mod.below ?? 0) - CHROME;
+  // The question may take a third of the window, but never what two option rows and their "more" hint need.
+  const cap = Math.max(Math.min(Math.floor(room / 3 / LINE), Math.floor((room - 2 * rowSize(q) - HINT) / LINE)), 3);
+  return { lines: Math.min(lines, cap), cap };
+}
+
 function questionBody(mod, t, v) {
   const { popup: p, full } = mod.session;
   const shown = viewQuestion(p, v.qid);
@@ -104,14 +120,20 @@ function questionBody(mod, t, v) {
   rows.push(plainRow(t, last, last === 'chat' ? String(n + 2) : '', last === 'chat' ? 'Chat about this' : v.last ? 'Submit' : 'Next', last === 'chat' ? 'Go to the agent' : null, v.cursor === n + 1, (_e, cx) => mod.onRow(n + 1, cx)));
   const preview = q.options[v.cursor]?.preview ?? q.options.find(o => o.preview)?.preview;
   const all = [...q.options.map((_, i) => optionRow(mod, t, v, q, i)), ...rows];
-  const text = v_flex().id('q').flex_1().min_h(96).overflow_y_scrollbar().gap(12)
+  // The question takes the height it needs, in whole lines: past the cap it scrolls, and the cap
+  // falls on a line boundary. Question and context share the 22px grid, with no gap between them, so
+  // the cap never lands inside a line.
+  const body = readable(mod, q, hasPreview(q));
+  const text = v_flex().id('q').flex_none().gap(12)
     .child(h_flex().gap(8).items_center()
       .when(Boolean(q.header), el => el.child(div().px(6).py(4).rounded(4).font_family(t.mono).text_size(10.5).font_semibold().text_color(t.ansi4).bg(t.surface).child(q.header.toUpperCase())))
       .child(div().font_family(t.mono).text_size(11.5).text_color(t.muted).child(v.multi_select ? 'pick any' : 'pick one')))
-    .child(div().text_size(15).text_color(t.foreground).child(q.question))
-    .when(Boolean(q.context), el => el.child(div().text_size(12.5).text_color(t.muted).child(q.context)))
+    .child(v_flex().id('q-text').flex_none().max_h(`${body.cap * LINE}px`).overflow_y_scrollbar()
+      .child(div().text_size(15).line_height(`${LINE}px`).text_color(t.foreground).child(q.question))
+      .when(Boolean(q.context), el => el.child(div().text_size(12.5).line_height(`${LINE}px`).text_color(t.muted).child(q.context))))
     .when(q.cut === true && p.mode === 'group', el => el.child(div().text_size(12).text_color(t.blocked).child('This text was cut to fit the feed. Press f to read the whole question.')));
-  const choices = v_flex().flex_none().gap(6).children(windowed(t, all, v.cursor, fit(mod, 400, q.options.some(o => o.description) ? 70 : 48)));
+  const choices = v_flex().id('choices').flex_1().min_h(0).overflow_y_scrollbar().gap(6)
+    .children(windowed(t, all, v.cursor, fit(mod, CHROME + body.lines * LINE + HINT, rowSize(q))));
   const column = v_flex().flex_1().min_w(0).min_h(0).gap(12).px(22).py(18).child(text).child(choices).child(noteField(t, v));
   const side = hasPreview(q) ? [v_flex().id('preview').w(300).flex_none().min_h(0).gap(10).p(18).bg(t.surface).border_l_1().border_color(t.border).overflow_y_scrollbar()
     .child(div().text_size(11).font_medium().text_color(t.dim).child(`PREVIEW · OPTION ${Math.min(v.cursor + 1, n)}`))

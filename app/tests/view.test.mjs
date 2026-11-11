@@ -229,3 +229,41 @@ test('list rows, an undelivered answer\'s choices and left-out rows are drawn cl
   r.press('escape', 'o');
   assert.ok(tree(r).ids.get('left-21')?.click);
 });
+
+test('a long question keeps whole lines and leaves the options a place to scroll', () => {
+  const g = group(1, [1]);
+  g.questions[0].question = Array.from({ length: 40 }, (_, i) => `Question line ${i + 1} of Question Title 123`).join('\n');
+  g.questions[0].context = 'Context Text 456';
+  g.questions[0].options = Array.from({ length: 5 }, (_, i) => ({ label: `Option ${i + 1}`, description: null, preview: null }));
+  const r = new Rig(world([g]));
+  const root = render({ session: r.session, status: { state: 'ready', root: '/fake/plugin' }, handle: {}, agentsNow: () => [], wordsNow: () => ({}), size: { width: 800, height: 600 } }, t);
+  const call = (el, name) => el.calls.find(c => c[0] === name);
+  const text = root.ids.get('q-text');
+  assert.ok(text, 'the question text is its own scroll region');
+  const cap = Number.parseInt(call(text, 'max_h')[1], 10);
+  assert.equal(cap % 22, 0, 'the cap falls on a line boundary');
+  assert.equal(call(text, 'gap'), undefined, 'a gap between question and context would take the cap off the line grid');
+  assert.equal(text.texts.length, 2, 'question and context both live in the region');
+  assert.ok(cap >= 3 * 22 && cap <= 600 / 3 + 22, 'a readable share of the window');
+  assert.ok(call(text, 'overflow_y_scrollbar'), 'the rest is reachable by scrolling');
+  assert.equal(call(root.ids.get('q'), 'min_h'), undefined, 'the text is not squeezed to a fixed small box');
+  assert.ok(call(root.ids.get('q'), 'flex_none'), 'the text does not give its height to the options');
+  const choices = root.ids.get('choices');
+  assert.ok(call(choices, 'min_h') && call(choices, 'overflow_y_scrollbar'), 'the options are what scroll when the window runs out');
+});
+
+test('at any window height the question and the options it leaves room for fit together', () => {
+  for (const height of [440, 520, 600, 700, 900]) {
+    const g = group(1, [1]);
+    g.questions[0].question = Array.from({ length: 40 }, (_, i) => `Question line ${i + 1} of Question Title 123`).join('\n');
+    g.questions[0].context = 'Context Text 456';
+    g.questions[0].options = Array.from({ length: 5 }, (_, i) => ({ label: `Option ${i + 1}`, description: `Detail ${i + 1}`, preview: null }));
+    const r = new Rig(world([g]));
+    const root = render({ session: r.session, status: { state: 'ready', root: '/fake/plugin' }, handle: {}, agentsNow: () => [], wordsNow: () => ({}), size: { width: 800, height: height } }, t);
+    const cap = Number.parseInt(root.ids.get('q-text').calls.find(c => c[0] === 'max_h')[1], 10);
+    const rows = [...root.ids.keys()].filter(id => /^(opt-|other|chat|next|submit)/.test(id)).length;
+    assert.ok(rows >= 2, `${height}: at least two options are drawn`);
+    assert.ok(300 + cap + 30 + Math.min(rows, 2) * 64 <= Math.max(height, 300 + 66 + 30 + 128), `${height}: two rows and the hint fit under the capped question`);
+    if (height >= 700) assert.ok(rows >= 3, `${height}: a roomy window shows more than two options`);
+  }
+});
