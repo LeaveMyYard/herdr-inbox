@@ -113,7 +113,7 @@ context and no options.
 | `omitted` | Omitted | What was left out to stay under 1 MiB. All 0 normally. |
 | `new_since` | NewSince | Where arrivals stand. |
 | `entries` | [Entry] | Every row the inbox shows, in the [order below](#order). |
-| `answered` | [Answered] | What the operator answered lately, newest first. Not entries: see [Answered](#answered). Minor 1. |
+| `answered` | [Answered] | What the operator answered lately, newest first. Not entries: see [Answered](#answered). Minor 1. With `ok` false it is empty and, like `entries`, says nothing: not "nothing answered". |
 | `answered_omitted` | integer | `answered` rows left out to stay under 1 MiB. Minor 1. |
 
 ### Omitted
@@ -458,6 +458,14 @@ answered".
 | `minor` | Adds |
 |---|---|
 | 1 | `answered` and `answered_omitted` on the feed; `tool_use_id` on `group`. |
+
+A `tool_use_id` is not unique: one call files up to four questions and each keeps the call's id, so a
+`group` entry and `answered` rows, or several `answered` rows, can carry the same one.
+
+**What a consumer must check before it anchors.** The id is only shape-checked here, and any MCP client
+can send any id-shaped value. A chat view that puts an inbox row in place of a `tool_use` block does so
+only when that block is a call of the inbox's `ask_operator` tool, in the asker's own transcript or
+session. Otherwise it places the row by time. It never hides another tool's call behind an inbox row.
 
 `tool_use_id` comes from the call's `_meta["claudecode/toolUseId"]`, which Claude Code sends with every
 tool call. It is kept only when it is 1 to 128 ASCII letters, digits, `_` or `-`, and stored on each question

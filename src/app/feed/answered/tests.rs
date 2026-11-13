@@ -85,11 +85,18 @@ fn an_answer_without_parts_is_a_label_only_when_it_is_exactly_one() {
     let (_d, s) = store();
     let label = answered(&s, "w1:p1", "Option B", None, AT);
     let typed = answered(&s, "w1:p1", "Option B, but later", None, AT);
-    let notes_only = answered(
+    let blank_text = answered(
         &s,
         "w1:p1",
         "Option A",
         Some(json!({"choices": ["Option A"], "notes": {}, "text": "  "})),
+        AT,
+    );
+    let noted = answered(
+        &s,
+        "w1:p1",
+        "Option A",
+        Some(json!({"choices": ["Option A"], "notes": {"Option A": "Note Text 1"}, "text": null})),
         AT,
     );
     let got = rows(&s, wall()).unwrap();
@@ -104,9 +111,18 @@ fn an_answer_without_parts_is_a_label_only_when_it_is_exactly_one() {
     );
     assert!(!by(typed).to_string().contains("later"));
     assert_eq!(
-        (&by(notes_only)["choices"], &by(notes_only)["typed"]),
+        (&by(blank_text)["choices"], &by(blank_text)["typed"]),
         (&json!(["Option A"]), &json!(false)),
         "blank text is no typing"
+    );
+    assert_eq!(
+        (&by(noted)["choices"], &by(noted)["typed"]),
+        (&json!(["Option A"]), &json!(true)),
+        "a note alone is typing"
+    );
+    assert!(
+        !by(noted).to_string().contains("Note Text"),
+        "the note is never shown"
     );
 }
 
@@ -181,4 +197,48 @@ fn an_answer_the_agent_has_is_delivered() {
     assert_eq!(delivered(sent), json!(true));
     assert_eq!(delivered(seen), json!(true));
     assert_eq!(delivered(waiting), json!(false));
+}
+
+/// A core asker has no pane: its terminal tells two agents apart, and an `unknown` asker (no pane,
+/// no terminal) is a third. A key by pane alone would put all of them in one bucket of 20.
+#[test]
+fn pane_less_askers_are_told_apart_by_terminal() {
+    use crate::store::hosts::CoreSeat;
+    let (_d, s) = store();
+    let core = |terminal: &str, minute: usize| {
+        let id = answered(
+            &s,
+            "",
+            "Option A",
+            None,
+            &format!("2026-01-02T09:{minute:02}:00+00:00"),
+        );
+        s.db()
+            .execute("UPDATE questions SET pane_id = NULL WHERE id = ?", [id])
+            .unwrap();
+        let seat = CoreSeat {
+            terminal: terminal.into(),
+            machine: None,
+        };
+        s.set_question_host(id, &seat).unwrap();
+        id
+    };
+    let t3: Vec<i64> = (0..PER_ASKER + 1).map(|m| core("t3", 10 + m)).collect();
+    let t4 = core("t4", 5);
+    // neither a pane nor a terminal: `unknown`, a third asker
+    let unknown = core("t5", 1);
+    s.db()
+        .execute("DELETE FROM question_host WHERE id = ?", [unknown])
+        .unwrap();
+    let got = rows(&s, wall()).unwrap();
+    let of = |host: &str, terminal: Option<&str>| -> Vec<i64> {
+        got.iter()
+            .filter(|r| r["asker"]["host"] == host && r["asker"]["terminal"].as_str() == terminal)
+            .map(|r| r["question_id"].as_i64().unwrap())
+            .collect()
+    };
+    let newest: Vec<i64> = t3.iter().rev().take(PER_ASKER).copied().collect();
+    assert_eq!(of("herdr-core", Some("t3")), newest);
+    assert_eq!(of("herdr-core", Some("t4")), vec![t4]);
+    assert_eq!(of("unknown", None), vec![unknown]);
 }

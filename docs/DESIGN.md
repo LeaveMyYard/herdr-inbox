@@ -1158,7 +1158,9 @@ an inbox row in place of the `tool_use` block that asked.
 
 Moving to revision 3 is the move to revision 2 again: the first revision 3 process finds revision 2
 not ready, a hook writes `revision-wanted`, an MCP tool answers "being upgraded", the app feed publishes
-`ok: false`, and the holding worker hands over to one that migrates. A rollback leaves the column as it
+`ok: false`, and the holding worker hands over to one that migrates. The feed writer only reads and
+writes no `revision-wanted`, so its `ok: false` lasts until a hook or an MCP call of the new binary
+starts the handover: at once while agents are working, and while none is, there is nothing new to show. A rollback leaves the column as it
 is: Python and a revision 2 binary never read it.
 
 ## The host seam: agents in a herdr-core terminal (B2)

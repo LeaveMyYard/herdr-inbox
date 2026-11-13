@@ -28,8 +28,9 @@ pub fn rows(store: &Store, wall: SystemTime) -> rusqlite::Result<Vec<Value>> {
     let mut seen: Vec<(Value, usize)> = Vec::new();
     let mut out = Vec::new();
     for q in store.answered_since(&since)? {
-        let row = row(store, &q)?;
-        let who = who(&row["asker"]);
+        // the asker first, so a row past its asker's cap costs one lookup and is never built
+        let asker = asker::of_question(store, &q)?;
+        let who = who(&asker);
         let count = match seen.iter_mut().find(|(k, _)| *k == who) {
             Some((_, n)) => n,
             None => {
@@ -39,7 +40,7 @@ pub fn rows(store: &Store, wall: SystemTime) -> rusqlite::Result<Vec<Value>> {
         };
         if *count < PER_ASKER {
             *count += 1;
-            out.push(row);
+            out.push(row(store, &q, asker)?);
         }
     }
     Ok(out)
@@ -51,8 +52,8 @@ fn who(asker: &Value) -> Value {
     json!([asker["host"], asker["pane"], asker["terminal"]])
 }
 
-/// The row of answered question `q`.
-pub fn row(store: &Store, q: &Question) -> rusqlite::Result<Value> {
+/// The row of answered question `q`, asked by `asker` ([`asker::of_question`]).
+pub fn row(store: &Store, q: &Question, asker: Value) -> rusqlite::Result<Value> {
     let (choices, typed) = picked(q);
     Ok(json!({
         "key": format!("answered:{}", q.id),
@@ -68,7 +69,7 @@ pub fn row(store: &Store, q: &Question) -> rusqlite::Result<Value> {
         "typed": typed,
         "delivered": q.delivered_at.is_some() || q.acknowledged_at.is_some(),
         "tool_use_id": store.tool_use_id(q.id)?,
-        "asker": asker::of_question(store, q)?,
+        "asker": asker,
     }))
 }
 
