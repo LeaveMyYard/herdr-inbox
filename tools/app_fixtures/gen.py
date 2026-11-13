@@ -68,9 +68,9 @@ def seal(e, actions):
     return e
 
 
-def group(g, minute, asker, questions, title=None):
+def group(g, minute, asker, questions, title=None, tool_use_id=None):
     e = {"key": f"group:{g}", "kind": "group", "group": g, "title": title, "created_at": T % minute,
-         "asker": asker, "questions": questions}
+         "asker": asker, "questions": questions, "tool_use_id": tool_use_id}  # tool_use_id: minor 1, out of the token
     return seal(e, ["answer", "draft", "dismiss"])
 
 
@@ -136,21 +136,51 @@ def g14_questions():
             q(16, "Header 3", [opt("Option A"), opt("Option B")])]
 
 
-def feed(entries, ok=True, errors=(), omitted=ZERO, new=(41, 6), at=1767348000):
-    return {"v": 1, "generated_at": at, "ok": ok, "errors": list(errors), "omitted": omitted,
-            "new_since": {"question_id": new[0], "alert_id": new[1]}, "entries": entries}
+FAILED_ASKED = "2026-01-02T09:30:00+00:00"  # tests/app/world.rs files a failed row's question then
+
+
+def answered_row(qid, asked_at, answered_at, asker, choices=(), typed=False, delivered=False, title=None,
+                 header=None, asked_by="lane", tool_use_id=None, group=None):
+    """An `answered` row (minor 1): the labels picked and whether anything was typed, never the words."""
+    return {"key": f"answered:{qid}", "kind": "answered", "question_id": qid, "group": group or qid, "title": title,
+            "header": header, "asked_by": asked_by, "created_at": asked_at, "answered_at": answered_at,
+            "choices": list(choices), "typed": typed, "delivered": delivered, "tool_use_id": tool_use_id,
+            "asker": asker}
+
+
+def answered_of(entries, extra=()):
+    """What the writer publishes beside `entries`: every answered question of the world, the `failed` rows'
+    included (their answer is plain text, so it counts as typed), newest answer first, then by id."""
+    rows = list(extra) + [answered_row(e["question_id"], FAILED_ASKED, e["answered_at"], e["asker"], typed=True,
+                                       header=e["header"], asked_by=e["asked_by"], group=e["group"])
+                          for e in entries if e["kind"] == "failed"]
+    rows.sort(key=lambda r: (r["answered_at"], r["question_id"]), reverse=True)
+    return rows  # at most 20 per asker: no fixture comes near it
+
+
+def feed(entries, ok=True, errors=(), omitted=ZERO, new=(41, 6), at=1767348000, answered=None, answered_omitted=0):
+    return {"v": 1, "minor": 1, "generated_at": at, "ok": ok, "errors": list(errors), "omitted": omitted,
+            "new_since": {"question_id": new[0], "alert_id": new[1]}, "entries": entries,
+            "answered": answered_of(entries) if answered is None else answered, "answered_omitted": answered_omitted}
 
 
 GONE = delivery("agent_gone", "no live agent in pane w1:p3", None, 10, auto=False)
 
 
+# answered and delivered, so in no entry. tests/app/world.rs files them with options A and B, and typed text
+# when `typed`: the row names the labels picked and never the words
+ANSWERED = [answered_row(38, T % 3, T % 5, tui(), ["Option B"], typed=True, delivered=True, title=TITLE,
+                         header="Header 1", tool_use_id="toolu_01Fixture38"),
+            answered_row(39, T % 4, T % 6, core(), [], typed=True, delivered=True)]
+
+
 def every_kind():
-    return feed([
+    f = feed([
         alert(5, "agent", "urgent", 1, tui()),
         alert(6, "blocked", "warning", 2, tui("w1:p2")),
         alert(4, "agent", "info", 0, core("t6")),
         remote_alert(),
-        group(12, 10, tui(), [q(12, "Header 1", G12_OPTIONS)]),
+        group(12, 10, tui(), [q(12, "Header 1", G12_OPTIONS)], tool_use_id="toolu_01Fixture12"),
         group(14, 12, core(), g14_questions(), TITLE),
         group(17, 14, UNKNOWN, [q(17, asked_by=None)]),
         group(18, 15, tui("w1:p4"), [q(19, "Header 2")], TITLE),  # Q18 is closed: the group keeps its id
@@ -173,6 +203,8 @@ def every_kind():
         outbox("request-beta", OFFLINE, "rejected", TEXT, "dismiss", 8),
         problem(),
     ])
+    f["answered"] = answered_of(f["entries"], ANSWERED)
+    return f
 
 
 def stale_token():
@@ -200,7 +232,9 @@ def partial():
                  group(12, 10, tui(), [q(12, "Header 1", G12_OPTIONS)]),
                  group(14, 12, core(), [q(14, text=long_text, cut=True)])],
                 errors=["remote machines could not be read", "3 entries left out to stay under 1 MiB"],
-                omitted={"groups": 1, "questions": 2, "failed": 1, "alerts": 0, "remote": 1, "question_ids": [21, 22]})
+                omitted={"groups": 1, "questions": 2, "failed": 1, "alerts": 0, "remote": 1, "question_ids": [21, 22]},
+                # the `failed` row too big to fit is answered, and as big beside the entries: left out, no error line
+                answered=[], answered_omitted=1)
 
 
 def unknown_vocabulary():

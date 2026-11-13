@@ -13,7 +13,9 @@ use std::time::{Duration, Instant};
 
 use herdr_inbox::store::migrate::switch_to_wal;
 use herdr_inbox::store::owned::owned;
-use herdr_inbox::store::revision::{BRIDGE_REVISION, REVISION_BASE, STAMP};
+use herdr_inbox::store::revision::{
+    BRIDGE_REVISION, MIGRATION_REVISION, REVISION_BASE, STAMP, stamped_revision,
+};
 use herdr_inbox::store::{OpenError, Store};
 use rusqlite::Connection;
 use serde_json::{Value, json};
@@ -151,24 +153,35 @@ fn every_captured_case_migrates_as_python_does() {
         for sql in case["setup"].as_array().unwrap() {
             db.execute_batch(sql.as_str().unwrap()).unwrap();
         }
-        db.execute_batch(&format!(
-            "PRAGMA user_version = {}",
-            case["before"]["user_version"]
-        ))
-        .unwrap();
+        // a case above Python's revision is one a newer release left: replayed above Rust's
+        // too, as many revisions above as it is above Python's, so it still means "newer"
+        let captured = case["before"]["user_version"].as_i64().unwrap();
+        let above = stamped_revision(captured).is_some_and(|r| r > BRIDGE_REVISION);
+        let shift = if above {
+            MIGRATION_REVISION - BRIDGE_REVISION
+        } else {
+            0
+        };
+        db.execute_batch(&format!("PRAGMA user_version = {}", captured + shift))
+            .unwrap();
         drop(db);
         let name = case["name"].as_str().unwrap();
+        let unshifted = |mut got: Value| {
+            got["user_version"] = json!(got["user_version"].as_i64().unwrap() - shift);
+            got
+        };
         assert_eq!(
-            describe(&path),
+            unshifted(describe(&path)),
             case["before"],
             "{name}: rebuilt as captured"
         );
         drop(Store::open_migrating(&path, TIMEOUT).unwrap());
-        assert_eq!(
-            as_bridge(&path, &case["after"]),
-            case["after"],
-            "{name}: migrated as Python does"
-        );
+        let after = if above {
+            unshifted(describe(&path))
+        } else {
+            as_bridge(&path, &case["after"])
+        };
+        assert_eq!(after, case["after"], "{name}: migrated as Python does");
     }
 }
 
@@ -387,7 +400,8 @@ fn at_the_bridge(dir: &Path) -> std::path::PathBuf {
     let db = open(&path);
     db.execute_batch(
         "DROP TABLE question_host; DROP TABLE alert_host; \
-         ALTER TABLE question_ext DROP COLUMN retry_count",
+         ALTER TABLE question_ext DROP COLUMN retry_count; \
+         ALTER TABLE question_ext DROP COLUMN tool_use_id",
     )
     .unwrap();
     db.execute_batch(&format!(
@@ -470,4 +484,38 @@ fn raising_the_retry_count_is_a_change_a_reader_sees() {
         })
         .unwrap();
     assert_eq!(seen, 1, "the question_ext trigger covers the column");
+}
+
+/// A database a revision-2 release left (B2's additions, no `tool_use_id`) gains the column at
+/// revision 3, and keeps its rows; until then a reader finds it missing.
+#[test]
+fn a_revision_2_database_gains_the_tool_use_id_and_keeps_every_row() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inbox.db");
+    drop(Store::open_migrating(&path, TIMEOUT).unwrap());
+    let db = open(&path);
+    db.execute_batch(&format!(
+        "ALTER TABLE question_ext DROP COLUMN tool_use_id; PRAGMA user_version = {}; \
+         INSERT INTO questions (created_at, question, norm) VALUES ('t', 'Question Text 345', 'q'); \
+         INSERT INTO question_ext (id, group_id, retry_count) VALUES (1, 1, 2)",
+        REVISION_BASE + 2
+    ))
+    .unwrap();
+    assert_eq!(
+        herdr_inbox::store::readiness::missing(&db).unwrap(),
+        ["question_ext.tool_use_id"]
+    );
+    drop(db);
+    let store = Store::open_migrating(&path, TIMEOUT).unwrap();
+    assert_eq!(stamp_of(&path), STAMP);
+    assert!(has_column(&path, "question_ext", "tool_use_id"));
+    let kept: (i64, Option<String>) = store
+        .db()
+        .query_row(
+            "SELECT retry_count, tool_use_id FROM question_ext WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(kept, (2, None));
 }

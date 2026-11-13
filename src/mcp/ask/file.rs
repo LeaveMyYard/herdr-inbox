@@ -21,6 +21,7 @@ use crate::store::norm::normalize;
 use crate::store::question::normalize_options;
 use crate::store::questions::NewQuestion;
 use crate::store::sessions::record_session;
+use crate::store::tool_use;
 use crate::text::py_isspace;
 
 /// AskUserQuestion's chip limit, in characters (Python `service.MAX_HEADER`).
@@ -32,6 +33,8 @@ pub struct Call<'a> {
     pub context: Option<&'a str>,
     pub asked_by: Option<&'a str>,
     pub title: Option<&'a str>,
+    /// The call's `tool_use_id`, recorded on every question it files.
+    pub tool_use_id: Option<&'a str>,
 }
 
 fn open_receipt(qid: i64) -> Value {
@@ -117,6 +120,9 @@ pub fn ask_group(
             store.set_server(q.id, Some(server))?; // this server's delivery worker owns it
             if let Some(seat) = seat {
                 store.set_question_host(q.id, seat)?;
+            }
+            if let Some(id) = tool_use::checked(call.tool_use_id) {
+                store.set_tool_use_id(q.id, id)?;
             }
             group_id = Some(q.group());
             receipts.push(open_receipt(q.id));

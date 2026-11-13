@@ -36,6 +36,7 @@ pub mod readiness;
 pub mod revision;
 pub mod revision_wanted;
 pub mod sessions;
+pub mod tool_use;
 
 use std::path::PathBuf;
 

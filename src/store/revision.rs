@@ -11,7 +11,9 @@
 pub const BRIDGE_REVISION: i64 = 1;
 
 /// The schema revision this code uses: the bridge's plus [`super::owned`].
-pub const MIGRATION_REVISION: i64 = 2;
+/// 2: `question_host`, `alert_host`, `question_ext.retry_count` (B2).
+/// 3: `question_ext.tool_use_id`, the `ask_operator` call's id in its transcript.
+pub const MIGRATION_REVISION: i64 = 3;
 
 /// The sign bit marks a revision: `-(1 << 31)`.
 pub const REVISION_BASE: i64 = -(1 << 31);

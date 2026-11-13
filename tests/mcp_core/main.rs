@@ -44,6 +44,10 @@ const CASES: &[Case] = &[
         a_proved_agent_files_a_question,
     ),
     (
+        "the_hosts_tool_use_id_is_recorded_on_the_question",
+        the_hosts_tool_use_id_is_recorded_on_the_question,
+    ),
+    (
         "a_proved_agent_raises_an_alert",
         a_proved_agent_raises_an_alert,
     ),
@@ -429,6 +433,38 @@ fn a_proved_agent_files_a_question() {
     assert!(
         !rig.path("herdr-cli.log").exists(),
         "herdr is not this host"
+    );
+}
+
+/// Claude Code sends the call's `tool_use` id in `_meta`; the question keeps it. A value that is
+/// no id is dropped, and the call still files.
+fn the_hosts_tool_use_id_is_recorded_on_the_question() {
+    let rig = Rig::new();
+    let mut s = rig.proved();
+    let mut call = |question: &str, id: Value| {
+        let r = s.request(
+            "tools/call",
+            json!({"name": "ask_operator", "arguments": {"question": question},
+                   "_meta": {"claudecode/toolUseId": id, "progressToken": 7}}),
+        );
+        r["result"]["structuredContent"]["id"].as_i64().unwrap()
+    };
+    let kept = call("Question Title 123?", json!("toolu_01AbCdEf"));
+    let dropped = call(
+        "Question Title 124?",
+        json!("Question Text 345 with spaces"),
+    );
+    let store = rig.db();
+    assert_eq!(
+        store.tool_use_id(kept).unwrap().as_deref(),
+        Some("toolu_01AbCdEf")
+    );
+    assert_eq!(store.tool_use_id(dropped).unwrap(), None);
+    let plain = s.tool("ask_operator", json!({"question": "Question Title 125?"}));
+    assert_eq!(plain["status"], "open", "{plain}");
+    assert_eq!(
+        store.tool_use_id(plain["id"].as_i64().unwrap()).unwrap(),
+        None
     );
 }
 

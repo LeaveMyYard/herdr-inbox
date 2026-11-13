@@ -67,6 +67,7 @@ impl Runtime {
             context: a.context.as_deref(),
             asked_by: a.asked_by.as_deref(),
             title: a.title.as_deref(),
+            tool_use_id: a.tool_use_id.as_deref(),
         };
         let filed = file::ask_group(&store, &caller, &call, &self.server, &self.files);
         // Python's step is under `if new`: only a new question has effects

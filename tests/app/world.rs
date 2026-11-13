@@ -61,12 +61,74 @@ impl World {
         self.store.db()
     }
 
-    /// Writes every row of `feed`.
+    /// Writes every row of `feed`, then each `answered` row no entry holds.
     pub fn seed(&self, feed: &Value) {
         for e in feed["entries"].as_array().unwrap() {
             self.row(e);
         }
+        for a in feed["answered"].as_array().into_iter().flatten() {
+            let id = a["question_id"].as_i64().unwrap();
+            let filed: i64 = self
+                .db()
+                .query_row("SELECT COUNT(*) FROM questions WHERE id = ?", [id], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            if filed == 0 {
+                self.answered(a);
+            }
+        }
         self.marks(feed);
+    }
+
+    /// An answered question an `answered` row shows: options A and B, the row's picks, and
+    /// typed text when it says so.
+    pub fn answered(&self, a: &Value) {
+        let id = a["question_id"].as_i64().unwrap();
+        let group = a["group"].as_i64().unwrap();
+        let q =
+            json!({"question": "Question Text 345", "asked_by": a["asked_by"], "context": null});
+        self.question(
+            id,
+            group,
+            a["created_at"].as_str().unwrap(),
+            &a["asker"],
+            &q,
+        );
+        let typed = a["typed"].as_bool().unwrap().then_some("Answer Text 567");
+        let detail = json!({"choices": a["choices"], "notes": {}, "text": typed});
+        let delivered = a["delivered"]
+            .as_bool()
+            .unwrap()
+            .then(|| a["answered_at"].clone());
+        self.db()
+            .execute(
+                "UPDATE questions SET status = 'answered', answer = 'Answer Text 567', answered_at = ?, \
+                 delivered_at = ? WHERE id = ?",
+                params![a["answered_at"].as_str(), delivered.as_ref().and_then(Value::as_str), id],
+            )
+            .unwrap();
+        let options = json!([{"label": "Option A"}, {"label": "Option B"}]);
+        self.db()
+            .execute(
+                "UPDATE question_ext SET header = ?, options_json = ?, answer_json = ?, tool_use_id = ? WHERE id = ?",
+                params![
+                    a["header"].as_str(),
+                    options.to_string(),
+                    detail.to_string(),
+                    a["tool_use_id"].as_str(),
+                    id
+                ],
+            )
+            .unwrap();
+        if let Some(title) = a["title"].as_str() {
+            self.db()
+                .execute(
+                    "INSERT OR IGNORE INTO question_groups (group_id, title) VALUES (?, ?)",
+                    params![group, title],
+                )
+                .unwrap();
+        }
     }
 
     /// Writes one row of a feed.
@@ -97,6 +159,7 @@ impl World {
                 )
                 .unwrap();
         }
+        let tool_use_id = e["tool_use_id"].as_str();
         for q in qs {
             let id = q["id"].as_i64().unwrap();
             self.question(id, group, e["created_at"].as_str().unwrap(), &e["asker"], q);
@@ -104,12 +167,14 @@ impl World {
             let draft = (!q["draft"].is_null()).then(|| q["draft"].to_string());
             self.db()
                 .execute(
-                    "UPDATE question_ext SET header = ?, multi_select = ?, options_json = ?, draft_json = ? WHERE id = ?",
+                    "UPDATE question_ext SET header = ?, multi_select = ?, options_json = ?, draft_json = ?, \
+                     tool_use_id = ? WHERE id = ?",
                     params![
                         q["header"].as_str(),
                         q["multi_select"].as_bool().unwrap(),
                         (!options.is_empty()).then(|| q["options"].to_string()),
                         draft,
+                        tool_use_id,
                         id
                     ],
                 )

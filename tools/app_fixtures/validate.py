@@ -30,7 +30,8 @@ T = {n: table_after(feed_md, h) for n, h in {
     "group": "### `group`", "Question": "### Question", "Option": "### Option", "Detail": "### Detail",
     "Asker": "### Asker", "failed": "### `failed`", "Delivery": "### Delivery\n\n| Field", "alert": "### `alert`",
     "Machine": "Machine:\n", "remote_group": "`remote_group`:\n", "remote_outbox": "`remote_outbox`:\n",
-    "remote_problem": "`remote_problem`:\n", "remote_alert": "`remote_alert`:\n"}.items()}
+    "remote_problem": "`remote_problem`:\n", "remote_alert": "`remote_alert`:\n",
+    "Answered": "### Answered\n"}.items()}
 T["_ok"] = table_after(cmd_md, "### Success")
 T["_no"] = table_after(cmd_md, "### Refusal")
 T["_show"] = table_after(cmd_md, "### Showing one question in full")
@@ -155,6 +156,45 @@ def limits(o, w, whole=False):
         err(w, "cut, with nothing at a limit")
 
 
+PER_ASKER = 20
+
+
+def check_answered(f, name, strict):
+    """The `answered` rows (minor 1): history beside the entries, never an entry."""
+    if f["minor"] != 1:
+        err(name, "minor")
+    if type(f["answered_omitted"]) is not int or f["answered_omitted"] < 0:
+        err(name, "answered_omitted")
+    entry_keys = {e["key"] for e in f["entries"]}
+    open_ids = {x["id"] for e in f["entries"] if e.get("kind") == "group" for x in e["questions"]}
+    last, per = None, {}
+    for a in f["answered"]:
+        w = f"{name}:{a.get('key')}"
+        obj(a, "Answered", w, strict=strict)
+        if a["kind"] != "answered" or a["key"] != f"answered:{a['question_id']}":
+            err(w, "key and kind")
+        if a["key"] in entry_keys or a["question_id"] in open_ids:
+            err(w, "an answered row is no entry and no open question")
+        if strict:
+            asker(a["asker"], w)
+        sort = (a["answered_at"], a["question_id"])
+        if last is not None and sort >= last:
+            err(w, "newest answer first, then the higher id")
+        last = sort
+        who = (a["asker"]["host"], a["asker"]["pane"], a["asker"]["terminal"])
+        per[who] = per.get(who, 0) + 1
+        if per[who] > PER_ASKER:
+            err(w, f"more than {PER_ASKER} for one asker")
+        if len(set(a["choices"])) != len(a["choices"]):
+            err(w, "a label twice")
+        if any(k in a for k in ("answer", "notes", "text", "token", "actions")):
+            err(w, "an answered row carries no words and takes no verb")
+        if a["tool_use_id"] is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", a["tool_use_id"]):
+            err(w, "tool_use_id")
+    if f["ok"] is False and f["answered"]:
+        err(name, "ok false: no answered rows")
+
+
 def check_feed(f, name):
     strict = name != "unknown-vocabulary.json"
     obj(f, "Feed", name, strict=strict)
@@ -207,6 +247,8 @@ def check_feed(f, name):
             asker(e["asker"], w)
         limits(e, w)
         if k == "group":
+            if e["tool_use_id"] is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", e["tool_use_id"]):
+                err(w, "tool_use_id")
             ids = [x["id"] for x in e["questions"]]
             if not ids or ids != sorted(ids) or e["group"] > ids[0]:
                 err(w, "group ids")
@@ -244,6 +286,7 @@ def check_feed(f, name):
                 err(w, "alert cwd")
             if e["alert_kind"] == "blocked" and e["asker"]["host"] != "herdr-tui":
                 err(w, "the blocked scan is TUI-only in v1")
+    check_answered(f, name, strict)
     published = {x["id"] for e in f["entries"] if e.get("kind") == "group" for x in e["questions"]}
     if published & set(om["question_ids"]):
         err(name, "a left-out id names a published question")
@@ -283,6 +326,13 @@ if {e["alert_kind"] for e in ek if e["kind"] == "alert"} != {"agent", "blocked"}
     err("every-kind", "alert kinds")
 if not any(e["kind"] == "group" and e["group"] < e["questions"][0]["id"] for e in ek):
     err("every-kind", "no group whose first question closed")
+ea = feeds["every-kind.json"]["answered"]
+if not any(a["choices"] for a in ea) or not any(a["typed"] and not a["choices"] for a in ea):
+    err("every-kind", "answered: a pick and a typed-only answer")
+if not any(a["delivered"] for a in ea) or not any(not a["delivered"] for a in ea):
+    err("every-kind", "answered: delivered and not")
+if not any(a["tool_use_id"] for a in ea) or not any(e.get("tool_use_id") for e in ek if e["kind"] == "group"):
+    err("every-kind", "a tool_use_id on a group and on an answered row")
 oo = feeds["omitted-only.json"]
 if oo["entries"] or not oo["ok"] or not oo["omitted"]["questions"]:
     err("omitted-only", "shape")

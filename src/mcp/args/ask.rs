@@ -31,6 +31,9 @@ pub struct Ask {
     pub multi_select: bool,
     pub questions: Option<Vec<Item>>,
     pub title: Option<String>,
+    /// The call's `tool_use_id`, from its `_meta` (never from the arguments):
+    /// set by the server after [`parse`], already [`crate::store::tool_use::checked`].
+    pub tool_use_id: Option<String>,
 }
 
 /// `str | Option` (pydantic's smart union): a string stays a string; an
@@ -172,6 +175,7 @@ pub fn parse(args: &Map<String, Value>) -> Result<Ask, Vec<Refusal>> {
             .unwrap_or(false),
         questions: items(args.get("questions"), &mut errs),
         title: errs.take(opt_string(args.get("title"), "title")).flatten(),
+        tool_use_id: None,
     };
     errs.done(ask)
 }

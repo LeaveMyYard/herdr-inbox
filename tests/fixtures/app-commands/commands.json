@@ -1832,6 +1832,7 @@
        "cut": false
       }
      ],
+     "tool_use_id": null,
      "actions": [
       "answer",
       "draft",
@@ -1902,6 +1903,7 @@
        "cut": false
       }
      ],
+     "tool_use_id": null,
      "actions": [
       "answer",
       "draft",

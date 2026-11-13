@@ -54,11 +54,15 @@ An entry that does not fit in what is left is skipped, and the walk goes on with
 huge entry never takes the rows behind it with it. Each skipped entry is counted in `omitted` and the
 feed gets an `errors` line. The entries that fit are then published in [display order](#order).
 
+The [`answered`](#answered) rows are fitted after every entry, in what the entries leave, newest first
+and by the same skip rule. They are history, not the inbox: one left out is counted in `answered_omitted`
+only, with no `errors` line and nothing in `omitted`, so it never makes the feed incomplete.
+
 ## Reading
 
 Readers require a JSON object whose `v` is the number 1. A missing version, `true` or another version
 rejects the file. Every field in the tables below is required, nullable fields and empty arrays
-included. `?T` means T or null, `[T]` an array, and capitalised names refer to other tables.
+included, except the [additions](#additions-within-v1), which a writer from before them leaves out. `?T` means T or null, `[T]` an array, and capitalised names refer to other tables.
 
 | Type | Meaning |
 |---|---|
@@ -102,12 +106,15 @@ context and no options.
 | Field | Type | Meaning |
 |---|---|---|
 | `v` | integer | Exactly 1. |
+| `minor` | integer | The [additions](#additions-within-v1) this writer makes. Absent means 0. |
 | `generated_at` | number | When this snapshot was read. |
 | `ok` | bool | The local questions and alerts were read. False: `entries` is empty and says nothing about the inbox. |
 | `errors` | [string] | What went wrong, as plain text. May be non-empty while `ok` is true: the entries then still hold every local row, and a remote machine's rows or the ones counted in `omitted` are what is missing. |
 | `omitted` | Omitted | What was left out to stay under 1 MiB. All 0 normally. |
 | `new_since` | NewSince | Where arrivals stand. |
 | `entries` | [Entry] | Every row the inbox shows, in the [order below](#order). |
+| `answered` | [Answered] | What the operator answered lately, newest first. Not entries: see [Answered](#answered). Minor 1. |
+| `answered_omitted` | integer | `answered` rows left out to stay under 1 MiB. Minor 1. |
 
 ### Omitted
 
@@ -187,6 +194,7 @@ This is the popup's order without its focused pane rule.
 | `created_at` | time | When its first open question was asked. There is no age field: the reader works it out, so the file does not change every second. |
 | `asker` | Asker | Who asked. One call has one asker. |
 | `questions` | [Question] | The open questions, by id. Never empty. |
+| `tool_use_id` | ?string | The `ask_operator` call's `tool_use` id in the asker's transcript, when the host sent it. Minor 1. Not in the token. |
 
 ### Question
 
@@ -219,6 +227,35 @@ An answer in parts, draft or final. The verbs take the same object.
 | `choices` | [string] | Picked labels, in option order, no label twice. |
 | `notes` | object | A string per picked label that has a note. |
 | `text` | ?string | Typed text. |
+
+### Answered
+
+One answered question, for a chat view's "✓ Question Title 123 · Option B" line. Rows come from the
+local inbox only: every question with status `answered` whose `answered_at` lies within the last 24 hours
+of `generated_at`, newest answer first, then the higher id first, and at most 20 per asker. An asker here
+is its `host`, `pane` and `terminal`. A dismissed or withdrawn question had no answer and has no row. An
+answer that is also a `failed` entry has a row here too.
+
+An `answered` row takes no verb and has no token. It says which of the question's own option labels were
+picked, and nothing the operator typed: no free text, no notes, not the stored answer. `typed` only says
+whether there were any words.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `key` | string | `answered:<question_id>`. |
+| `kind` | string | Always `answered`. |
+| `question_id` | integer | The question, shown as `Q<id>`. |
+| `group` | integer | Its group. |
+| `title` | ?string | Its group's title, if the agent gave one. |
+| `header` | ?string | Its chip. |
+| `asked_by` | ?string | The agent's role. |
+| `created_at` | time | When it was asked. |
+| `answered_at` | time | When the operator answered. |
+| `choices` | [string] | The labels picked, in option order. Only labels the question has. An answer stored as plain text counts as one pick when it is exactly one of the labels. |
+| `typed` | bool | The answer also had text or a note, which the feed does not show. |
+| `delivered` | bool | The agent has the answer: it was delivered, or fetched with `check_answers`. |
+| `tool_use_id` | ?string | As in `group`. |
+| `asker` | Asker | Who asked. |
 
 ### Asker
 
@@ -410,6 +447,22 @@ when anyone's draft changes, and when a `retry` is done. It does not change when
 happens all the time behind a ⚠ row; the [verb checks that state itself](app-commands-v1.md#the-state-a-verb-checks).
 
 A mod treats a token as an opaque string and only echoes it. Only Rust computes one.
+
+## Additions within v1
+
+A writer may add fields within v1 and says which with `minor`. A field added this way is never part of a
+token, and a reader that does not know it ignores it. A reader that relies on one checks `minor`: a writer
+from before an addition leaves its fields out, so a missing `answered` means "not published", not "nothing
+answered".
+
+| `minor` | Adds |
+|---|---|
+| 1 | `answered` and `answered_omitted` on the feed; `tool_use_id` on `group`. |
+
+`tool_use_id` comes from the call's `_meta["claudecode/toolUseId"]`, which Claude Code sends with every
+tool call. It is kept only when it is 1 to 128 ASCII letters, digits, `_` or `-`, and stored on each question
+the call filed (`question_ext.tool_use_id`, schema revision 3). A call from another host, an older row, or one
+filed by the Python server has none: those are placed by time.
 
 ## What the reader derives
 

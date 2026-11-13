@@ -1,5 +1,6 @@
 {
  "v": 1,
+ "minor": 1,
  "generated_at": 1767348000,
  "ok": true,
  "errors": [],
@@ -65,6 +66,7 @@
      "future_field": 1
     }
    ],
+   "tool_use_id": null,
    "actions": [
     "answer",
     "draft",
@@ -113,5 +115,30 @@
    "actions": [],
    "future_field": "Question Title 123"
   }
- ]
+ ],
+ "answered": [
+  {
+   "key": "answered:8",
+   "kind": "answered",
+   "question_id": 8,
+   "group": 8,
+   "title": null,
+   "header": null,
+   "asked_by": "lane",
+   "created_at": "2026-01-02T09:30:00+00:00",
+   "answered_at": "2026-01-02T10:21:00+00:00",
+   "choices": [],
+   "typed": true,
+   "delivered": false,
+   "tool_use_id": null,
+   "asker": {
+    "host": "herdr-tui",
+    "pane": "w1:p1",
+    "terminal": null,
+    "tab_label": "Project Alpha",
+    "cwd": "/work/project-alpha"
+   }
+  }
+ ],
+ "answered_omitted": 0
 }
