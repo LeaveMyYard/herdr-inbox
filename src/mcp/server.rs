@@ -8,15 +8,17 @@ use std::sync::Arc;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, DiscoverResult,
     Implementation, InitializeRequestParams, InitializeResult, ListToolsResult,
-    PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerConfig, SubscriptionFilter,
+    PaginatedRequestParams, ProtocolVersion, RequestMetaObject, ServerCapabilities, ServerConfig,
+    SubscriptionFilter,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData, RoleServer, ServerHandler};
 use serde_json::Value;
 
 use super::Tools;
-use super::args::{parse, refused};
+use super::args::{Call, parse, refused};
 use super::tools::{self, Name, text::INSTRUCTIONS};
+use crate::store::tool_use;
 
 /// The server's name.
 pub const SERVER: &str = "herdr-inbox";
@@ -34,6 +36,13 @@ pub fn result(v: Value) -> CallToolResult {
     let mut r = CallToolResult::success(vec![ContentBlock::text(text)]);
     r.structured_content = Some(v);
     r
+}
+
+/// The host's id of this call's `tool_use` block, if it sent one that looks
+/// like one (Claude Code: `_meta["claudecode/toolUseId"]`).
+fn tool_use_id(meta: &RequestMetaObject) -> Option<String> {
+    let id = meta.get(tool_use::META_KEY).and_then(Value::as_str);
+    tool_use::checked(id).map(str::to_owned)
 }
 
 /// A tool error: its text, `isError: true`.
@@ -113,15 +122,20 @@ impl ServerHandler for Server {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
         let Some(name) = Name::parse(&request.name) else {
             return Ok(failed(format!("Unknown tool: {}", request.name)));
         };
-        let call = match parse(name, &request.arguments.unwrap_or_default()) {
+        let mut call = match parse(name, &request.arguments.unwrap_or_default()) {
             Ok(call) => call,
             Err(why) => return Ok(failed(refused(name, &why))),
         };
+        if let Call::AskOperator(ask) = &mut call {
+            // rmcp moves the request's `_meta` into the context; a request it left there counts too
+            let meta = [Some(&context.meta), request.meta.as_ref()];
+            ask.tool_use_id = meta.into_iter().flatten().find_map(tool_use_id);
+        }
         // the tools block (SQLite, herdr's socket, the retry waits): off the runtime's thread
         let tools = Arc::clone(&self.tools);
         let done = tokio::task::spawn_blocking(move || tools.call(call)).await;

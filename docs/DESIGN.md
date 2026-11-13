@@ -1146,6 +1146,23 @@ to Rust"). The database is left as it is:
   is a Rust process too and can still wake its session once, under its claim. New hooks are Python's.
 - Back on Rust, these rows are as they were.
 
+## Schema revision 3: the `ask_operator` call's `tool_use_id`
+
+Revision 3 adds one column, `question_ext.tool_use_id`, in `tests/fixtures/migrate-rust.json` like
+revision 2. The Rust MCP server reads `_meta["claudecode/toolUseId"]` of an `ask_operator` call (Claude
+Code sends it with every MCP tool call), keeps it only when it is 1 to 128 ASCII letters, digits, `_` or
+`-`, and writes it on each question that call files, in the filing transaction. A repeat files nothing
+and keeps the first call's id. Another host, the Python server and every older row leave it NULL. The
+app feed publishes it on `group` and `answered` rows (`app-feed-v1.md`, minor 1), so a chat view can put
+an inbox row in place of the `tool_use` block that asked.
+
+Moving to revision 3 is the move to revision 2 again: the first revision 3 process finds revision 2
+not ready, a hook writes `revision-wanted`, an MCP tool answers "being upgraded", the app feed publishes
+`ok: false`, and the holding worker hands over to one that migrates. The feed writer only reads and
+writes no `revision-wanted`, so its `ok: false` lasts until a hook or an MCP call of the new binary
+starts the handover: at once while agents are working, and while none is, there is nothing new to show. A rollback leaves the column as it
+is: Python and a revision 2 binary never read it.
+
 ## The host seam: agents in a herdr-core terminal (B2)
 
 `src/host/` says who is asking. `Host` has two implementations, asked in order: `Core`, then `Tui`,

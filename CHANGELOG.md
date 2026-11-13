@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The app feed publishes recent answers** (feed `minor` 1). Beside its entries, `feed.json` now has
+  `answered`: each question answered in the last 24 hours, newest first, at most 20 per asker, with the
+  option labels picked and whether anything was typed, never the typed words. It is fitted after every
+  entry, so it never crowds out an open question. `group` rows and these rows carry the `ask_operator`
+  call's `tool_use_id` when Claude Code sent it, kept in `question_ext.tool_use_id` (schema revision 3).
+  v1 readers are unaffected: no token changes and no entry is added.
 - **The inbox overlay takes the mouse**. Its tabs, the Submit tab's answers, Submit answers and Cancel,
   the list's rows, an undelivered answer's choices and the left-out list are clickable, each as its key
   is, with the same arming, grace and refusals. The Submit tab sits apart at the right of the tab bar,

@@ -1,18 +1,22 @@
 //! The whole feed from one read transaction (`app-feed-v1.md`, "Feed"):
-//! `entries` and `new_since` come from the same moment, so a mark never runs
-//! ahead of its row.
+//! `entries`, `answered` and `new_since` come from the same moment, so a mark
+//! never runs ahead of its row.
 
 use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-use super::fit::{HEAD_ROOM, Item, MAX_FEED, Need, fit, left_out};
+use super::fit::{HEAD_ROOM, Item, MAX_FEED, Need, fit, fit_rest, left_out, size_of};
 use super::text::Text;
-use super::{alert, failed, group, remote};
+use super::{alert, answered, failed, group, remote};
 use crate::store::Store;
 use crate::store::question::Question;
 use crate::worker::duties::served::CAPS;
+
+/// The additions to v1 this writer makes (`app-feed-v1.md`, "Additions"):
+/// 1 is `answered`, `answered_omitted` and a group's `tool_use_id`.
+pub const MINOR: i64 = 1;
 
 /// A feed that says nothing about the inbox: `ok` false, with why.
 pub fn unavailable(wall: SystemTime, why: &str) -> Value {
@@ -23,6 +27,7 @@ pub fn unavailable(wall: SystemTime, why: &str) -> Value {
         omitted_none(),
         (0, 0),
         Vec::new(),
+        (Vec::new(), 0),
     )
 }
 
@@ -74,14 +79,28 @@ fn read_now(store: &Store, wall: SystemTime, between: impl FnOnce()) -> rusqlite
     let rest = [remote.groups, remote.outbox, remote.problems];
     items.extend(rest.into_iter().flatten().map(remote_item));
 
-    let (entries, omitted) = fit(items, MAX_FEED - HEAD_ROOM);
+    let room = MAX_FEED - HEAD_ROOM;
+    let (entries, omitted) = fit(items, room);
     match left_out(&omitted) {
         0 => {}
         1 => errors.push("1 entry left out to stay under 1 MiB".to_string()),
         n => errors.push(format!("{n} entries left out to stay under 1 MiB")),
     }
+    // what is left once every entry that fits is in: history never crowds out an open row
+    let rest = fit_rest(
+        answered::rows(store, wall)?,
+        room.saturating_sub(size_of(&entries)),
+    );
     between();
-    Ok(feed(wall, true, errors, omitted, marks(store)?, entries))
+    Ok(feed(
+        wall,
+        true,
+        errors,
+        omitted,
+        marks(store)?,
+        entries,
+        rest,
+    ))
 }
 
 fn remote_item(entry: Value) -> Item {
@@ -136,16 +155,20 @@ fn feed(
     omitted: Value,
     (question_id, alert_id): (i64, i64),
     entries: Vec<Value>,
+    (answered, answered_omitted): (Vec<Value>, usize),
 ) -> Value {
     let at = wall.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     json!({
         "v": 1,
+        "minor": MINOR,
         "generated_at": at,
         "ok": ok,
         "errors": errors,
         "omitted": omitted,
         "new_since": {"question_id": question_id, "alert_id": alert_id},
         "entries": entries,
+        "answered": answered,
+        "answered_omitted": answered_omitted,
     })
 }
 

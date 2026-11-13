@@ -37,6 +37,8 @@ fn bare(store: &Store, group: i64, open: &[Question], text: Text) -> rusqlite::R
         "created_at": first.created_at,
         "asker": asker::of_question(store, first)?,
         "questions": questions,
+        // the call's, recorded on each question it filed; out of the token (v1's list is frozen)
+        "tool_use_id": store.tool_use_id(first.id)?,
     }))
 }
 

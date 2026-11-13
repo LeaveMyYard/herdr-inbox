@@ -5,10 +5,12 @@
 //! - [`token`]: a row's revision token.
 //! - [`text`]: the size limits on long text.
 //! - [`asker`], [`group`], [`failed`], [`alert`], [`remote`]: one row each.
+//! - [`answered`]: what was answered lately, beside the entries.
 //! - [`fit`]: what stays under 1 MiB.
 //! - [`snapshot`]: the whole feed, from one read transaction.
 
 pub mod alert;
+pub mod answered;
 pub mod asker;
 pub mod failed;
 pub mod fit;

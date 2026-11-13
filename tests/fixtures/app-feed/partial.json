@@ -1,5 +1,6 @@
 {
  "v": 1,
+ "minor": 1,
  "generated_at": 1767348000,
  "ok": true,
  "errors": [
@@ -81,6 +82,7 @@
      "cut": false
     }
    ],
+   "tool_use_id": null,
    "actions": [
     "answer",
     "draft",
@@ -114,6 +116,7 @@
      "cut": true
     }
    ],
+   "tool_use_id": null,
    "actions": [
     "answer",
     "draft",
@@ -121,5 +124,7 @@
    ],
    "token": "7f50dd1f071a0dd1d4ba99cf3e6a4fd5"
   }
- ]
+ ],
+ "answered": [],
+ "answered_omitted": 1
 }

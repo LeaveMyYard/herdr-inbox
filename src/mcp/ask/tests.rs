@@ -109,13 +109,52 @@ fn ask(
     items: &[Item],
     title: Option<&str>,
 ) -> (serde_json::Value, Vec<Effect>) {
+    ask_from(s, c, items, title, None)
+}
+
+fn ask_from(
+    s: &Store,
+    c: &Caller,
+    items: &[Item],
+    title: Option<&str>,
+    tool_use_id: Option<&str>,
+) -> (serde_json::Value, Vec<Effect>) {
     let call = Call {
         items,
         context: Some("ctx"),
         asked_by: Some("release agent"),
         title,
+        tool_use_id,
     };
     ask_group(s, c, &call, "/sock", &Transcripts::new(None)).unwrap()
+}
+
+#[test]
+fn every_question_a_call_files_records_its_tool_use_id() {
+    let (_d, s) = store();
+    let items = [item("Question Text 345"), item("Question Text 346")];
+    ask_from(&s, &caller(), &items, None, Some("toolu_01AbCdEf"));
+    for id in [1, 2] {
+        assert_eq!(
+            s.tool_use_id(id).unwrap().as_deref(),
+            Some("toolu_01AbCdEf"),
+            "Q{id}"
+        );
+    }
+    // a repeat files nothing, so it keeps the first call's id
+    ask_from(&s, &caller(), &items[..1], None, Some("toolu_02Other"));
+    assert_eq!(s.tool_use_id(1).unwrap().as_deref(), Some("toolu_01AbCdEf"));
+    // a call without one, or with something that is no id, records none
+    ask_from(&s, &caller(), &[item("Question Text 347")], None, None);
+    ask_from(
+        &s,
+        &caller(),
+        &[item("Question Text 348")],
+        None,
+        Some("Question Title 123"),
+    );
+    assert_eq!(s.tool_use_id(3).unwrap(), None);
+    assert_eq!(s.tool_use_id(4).unwrap(), None);
 }
 
 #[test]

@@ -53,6 +53,15 @@ M = [
  ("show takes a token", C, lambda d: case(d, "show")["argv"].extend(["--token", "0" * 32])),
  ("show without json", C, lambda d: case(d, "show")["argv"].remove("--json")),
  ("a left-out id published", "tests/fixtures/app-feed/partial.json", lambda d: d["omitted"]["question_ids"].__setitem__(0, 12)),
+ ("answered oldest first", E, lambda d: d["answered"].reverse()),
+ ("answered carries the answer", E, lambda d: d["answered"][0].update(answer="Answer Text 567")),
+ ("answered carries a token", E, lambda d: d["answered"][0].update(token="0" * 32)),
+ ("answered as an entry", E, lambda d: d["answered"].append(dict(d["answered"][0], key="group:12"))),
+ ("answered without typed", E, lambda d: d["answered"][0].pop("typed")),
+ ("answered junk tool_use_id", E, lambda d: d["answered"][0].update(tool_use_id="Question Text 345")),
+ ("group junk tool_use_id", E, lambda d: ent(d, "group:12").update(tool_use_id="a b")),
+ ("minor dropped", E, lambda d: d.pop("minor")),
+ ("over twenty for one asker", E, lambda d: d.update(answered=[dict(d["answered"][0], question_id=100 - i, key=f"answered:{100 - i}") for i in range(21)])),
 ]
 bad = 0
 for name, path, fn in M:

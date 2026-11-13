@@ -80,6 +80,19 @@ impl Store {
         )
     }
 
+    /// Every answered question whose `answered_at` is `since` or later, newest
+    /// answer first (the feed's `answered`). Only `answered`: a dismissed or
+    /// withdrawn question had no answer.
+    pub fn answered_since(&self, since: &str) -> rusqlite::Result<Vec<Question>> {
+        self.questions(
+            &format!(
+                "SELECT {COLUMNS} FROM {VIEW} WHERE status = 'answered' AND answered_at >= ? \
+                 ORDER BY answered_at DESC, id DESC"
+            ),
+            vec![since.to_string().into()],
+        )
+    }
+
     /// Every open question (or every question), newest first.
     pub fn list(&self, include_closed: bool) -> rusqlite::Result<Vec<Question>> {
         let cond = if include_closed {

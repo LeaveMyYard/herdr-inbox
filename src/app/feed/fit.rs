@@ -98,6 +98,33 @@ fn first_id(need: &Need) -> i64 {
     }
 }
 
+/// Walks `rows` in order, keeping each that fits in what is left of `room`
+/// bytes: rows that inform and are no open question, fitted after every
+/// entry, so they never crowd one out. The rows kept, still in order, and how
+/// many were left out.
+pub fn fit_rest(rows: Vec<Value>, room: usize) -> (Vec<Value>, usize) {
+    let mut left = room;
+    let mut omitted = 0;
+    let mut kept = Vec::new();
+    for row in rows {
+        let size = serialized(&row) + 1;
+        if size <= left {
+            left -= size;
+            kept.push(row);
+        } else {
+            omitted += 1;
+        }
+    }
+    (kept, omitted)
+}
+
+/// What `rows` take in the feed: each serialized, and its comma.
+pub fn size_of(rows: &[Value]) -> usize {
+    rows.iter()
+        .map(|r| serialized(r).saturating_add(1))
+        .fold(0, usize::saturating_add)
+}
+
 fn serialized(v: &Value) -> usize {
     serde_json::to_vec(v).map_or(usize::MAX, |b| b.len())
 }
